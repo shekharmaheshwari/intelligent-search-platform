@@ -1,0 +1,59 @@
+version: "3.9"
+
+networks:
+  tmo-net:
+    name: search_tmo-net
+    external: true
+
+services:
+  isp-db:
+    image: postgres:16-alpine
+    container_name: isp-db
+    environment:
+      POSTGRES_DB: isp
+      POSTGRES_USER: isp
+      POSTGRES_PASSWORD: isp-dev-password
+    ports:
+      - "5432:5432"
+    volumes:
+      - isp-db-data:/var/lib/postgresql/data
+    networks:
+      - tmo-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U isp -d isp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  isp-api:
+    build:
+      context: ./backend
+    container_name: isp-api
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      isp-db:
+        condition: service_healthy
+    networks:
+      - tmo-net
+    restart: unless-stopped
+
+  isp-ui:
+    build:
+      context: ./frontend
+      args:
+        PUBLIC_API_URL: http://localhost:8001/v1
+    container_name: isp-ui
+    ports:
+      - "3001:80"
+    depends_on:
+      - isp-api
+    networks:
+      - tmo-net
+    restart: unless-stopped
+
+volumes:
+  isp-db-data:
