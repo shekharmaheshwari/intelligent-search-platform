@@ -115,6 +115,15 @@
     overflow-y: auto;
   }
 
+  @media (max-width: 767px) {
+    .sidebar {
+      width: 100%;
+      min-width: 0;
+      height: calc(100vh - 56px);
+      border-right: none;
+    }
+  }
+
   /* ── Group ── */
   .group {
     display: flex;

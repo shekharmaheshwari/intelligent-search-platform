@@ -9,6 +9,9 @@
   import CreateWizard from './CreateWizard.svelte';
 
   let showWizard = false;
+  let windowWidth = 1024;
+  $: isMobile = windowWidth < 768;
+  let sidebarVisible = true;
 
   // ── Delete confirmation ──────────────────────────────────────────────────────
   let pendingDeleteId: string | null = null;
@@ -66,6 +69,7 @@
 
   function selectSource(id: string) {
     appState.update(s => ({ ...s, selectedIndexId: id, view: 'detail', detailTab: 'overview' }));
+    if (isMobile) sidebarVisible = false;
   }
 
   function configure(id: string) {
@@ -89,19 +93,26 @@
   $: selectedIndex = $indexes.find(i => i.id === $appState.selectedIndexId) ?? null;
 </script>
 
+<svelte:window bind:innerWidth={windowWidth} />
+
 <div class="app">
   <Header />
 
   <div class="body">
-    <SourcesSidebar
-      indexes={$indexes}
-      selectedId={$appState.selectedIndexId}
-      on:select={e => selectSource(e.detail)}
-      on:create={() => showWizard = true}
-      on:delete={e => deleteSource(e.detail)}
-    />
+    <div class="sidebar-wrap" class:mobile-hidden={isMobile && !sidebarVisible}>
+      <SourcesSidebar
+        indexes={$indexes}
+        selectedId={$appState.selectedIndexId}
+        on:select={e => selectSource(e.detail)}
+        on:create={() => showWizard = true}
+        on:delete={e => deleteSource(e.detail)}
+      />
+    </div>
 
-    <div class="main">
+    <div class="main" class:mobile-hidden={isMobile && sidebarVisible}>
+      {#if isMobile}
+        <button class="back-btn" on:click={() => sidebarVisible = true}>← Sources</button>
+      {/if}
       {#if $appState.view === 'configure' && $appState.selectedIndexId}
         <div class="configure-wrap">
           <div class="configure-back">
@@ -136,6 +147,10 @@
       {/if}
     </div>
   </div>
+
+  {#if isMobile && sidebarVisible}
+    <button class="fab-add" on:click={() => showWizard = true} aria-label="Add source">+</button>
+  {/if}
 
   {#if showWizard}
     <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
@@ -184,10 +199,64 @@
     overflow: hidden;
   }
 
+  .sidebar-wrap {
+    display: flex;
+    flex-shrink: 0;
+  }
+
   .main {
     flex: 1;
     min-width: 0;
     overflow-y: auto;
+  }
+
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  .back-btn {
+    display: none;
+    background: none;
+    border: none;
+    color: #7c6cf4;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 12px 20px 4px;
+    text-align: left;
+  }
+  .back-btn:hover { text-decoration: underline; }
+
+  .fab-add {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    .sidebar-wrap {
+      width: 100%;
+    }
+
+    .back-btn {
+      display: block;
+    }
+
+    .fab-add {
+      display: flex;
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #7c6cf4;
+      color: #fff;
+      border: none;
+      font-size: 24px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(124, 108, 244, 0.4);
+      z-index: 50;
+    }
   }
 
   .configure-wrap {
