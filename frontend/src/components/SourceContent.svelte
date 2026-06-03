@@ -91,10 +91,29 @@
     return Object.entries(doc);
   }
 
+  function tryParseJson(v: unknown): Record<string, unknown> | null {
+    if (!v || typeof v !== 'string') return null;
+    const s = v.trim();
+    if (!s.startsWith('{')) return null;
+    try { return JSON.parse(s); } catch { return null; }
+  }
+
+  function isMetadataKey(key: string): boolean {
+    return key === 'metadata';
+  }
+
   function formatValue(v: unknown): string {
     if (v === null || v === undefined) return '';
     if (typeof v === 'string') return v;
     return JSON.stringify(v, null, 2);
+  }
+
+  function formatMetaValue(v: unknown): string {
+    if (v === null || v === undefined) return '—';
+    if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+    if (Array.isArray(v)) return v.join(', ') || '—';
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
   }
 
   function prev() { if (page > 1) { page--; searched ? search() : loadDocs(); } }
@@ -217,6 +236,30 @@
                   <span class="field-key">{key}</span>
                   {#if key === 'vec' && Array.isArray(val)}
                     <textarea class="field-vec" readonly rows="4">{formatValue(val)}</textarea>
+                  {:else if isMetadataKey(key)}
+                    {@const parsed = tryParseJson(val)}
+                    {#if parsed}
+                      <div class="meta-block">
+                        {#each Object.entries(parsed) as [mk, mv]}
+                          <div class="meta-row">
+                            <span class="meta-key">{mk}</span>
+                            {#if mk === 'images' && Array.isArray(mv) && mv.length}
+                              <div class="meta-images">
+                                {#each mv.slice(0,3) as imgUrl}
+                                  <img class="meta-thumb" src={String(imgUrl)} alt="" loading="lazy" />
+                                {/each}
+                              </div>
+                            {:else}
+                              <span class="meta-val" class:meta-price={mk === 'price'} class:meta-stock={mk === 'in_stock'}>
+                                {formatMetaValue(mv)}
+                              </span>
+                            {/if}
+                          </div>
+                        {/each}
+                      </div>
+                    {:else}
+                      <span class="field-val">{formatValue(val)}</span>
+                    {/if}
                   {:else}
                     <span class="field-val">{formatValue(val)}</span>
                   {/if}
@@ -559,6 +602,70 @@
     white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.5;
+  }
+
+  /* Metadata parsed block */
+  .meta-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #0d0d10;
+    border: 1px solid #1e1e2e;
+    border-radius: 5px;
+    padding: 8px 10px;
+    width: 100%;
+  }
+
+  .meta-row {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 10px;
+    font-size: 11px;
+    align-items: flex-start;
+  }
+
+  .meta-key {
+    color: #7c6cf4;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 10px;
+    padding-top: 1px;
+    flex-shrink: 0;
+    opacity: 0.85;
+  }
+
+  .meta-val {
+    color: #bbb;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .meta-val.meta-price {
+    color: #4cde93;
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  .meta-val.meta-price::before { content: '$'; }
+
+  .meta-val.meta-stock {
+    color: #4cde93;
+  }
+
+  .meta-images {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .meta-thumb {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+    border-radius: 4px;
+    background: #141414;
+    border: 1px solid #222;
   }
 
   .field-vec {
