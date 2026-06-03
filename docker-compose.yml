@@ -1,11 +1,48 @@
 version: "3.9"
 
 networks:
-  tmo-net:
-    name: search_tmo-net
-    external: true
+  isp-net:
+    name: isp-net
 
 services:
+  typesense:
+    image: typesense/typesense:0.25.2
+    container_name: typesense
+    ports:
+      - "8108:8108"
+    volumes:
+      - isp-typesense-data:/data
+    command: >
+      --data-dir /data
+      --api-key local-dev-key-change-me
+      --enable-cors
+    networks:
+      - isp-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "perl -e 'use Socket; socket(S,PF_INET,SOCK_STREAM,getprotobyname(\"tcp\")); connect(S,sockaddr_in(8108,inet_aton(\"127.0.0.1\"))) or exit 1; exit 0'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+
+  isp-redis:
+    image: redis:7-alpine
+    container_name: isp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - isp-redis-data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    networks:
+      - isp-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   isp-db:
     image: postgres:16-alpine
     container_name: isp-db
@@ -18,7 +55,7 @@ services:
     volumes:
       - isp-db-data:/var/lib/postgresql/data
     networks:
-      - tmo-net
+      - isp-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U isp -d isp"]
@@ -37,8 +74,12 @@ services:
     depends_on:
       isp-db:
         condition: service_healthy
+      typesense:
+        condition: service_healthy
+      isp-redis:
+        condition: service_healthy
     networks:
-      - tmo-net
+      - isp-net
     restart: unless-stopped
 
   isp-ui:
@@ -52,8 +93,10 @@ services:
     depends_on:
       - isp-api
     networks:
-      - tmo-net
+      - isp-net
     restart: unless-stopped
 
 volumes:
   isp-db-data:
+  isp-typesense-data:
+  isp-redis-data:

@@ -14,9 +14,62 @@ router = APIRouter(prefix="/indexes", tags=["indexes"])
 
 # ── Catalog write-back mapper ─────────────────────────────────────────────────
 
+def _extract_price(item: dict, skus_raw: list[dict]) -> float | None:
+    """Try to find a price value in common API field locations."""
+    def _try_float(v) -> float | None:
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return None
+
+    # Top-level price fields
+    for field in ("price", "msrp", "basePrice", "fullRetailPrice", "retailPrice", "salePrice"):
+        p = _try_float(item.get(field))
+        if p is not None:
+            return p
+
+    # SKU-level: check first SKU only
+    for sku in skus_raw[:1]:
+        for field in ("price", "msrp", "basePrice", "fullRetailPrice", "retailPrice", "salePrice"):
+            p = _try_float(sku.get(field))
+            if p is not None:
+                return p
+
+        # T-Mobile devices: frpPrice.salePrice / frpPrice.listPrice
+        frp = sku.get("frpPrice") or {}
+        if isinstance(frp, dict):
+            for field in ("salePrice", "listPrice", "displaySalePrice", "displayListPrice"):
+                p = _try_float(frp.get(field))
+                if p is not None:
+                    return p
+
+        # Generic nested prices dict
+        prices = sku.get("prices") or {}
+        if isinstance(prices, dict):
+            for field in ("basePrice", "retailPrice", "fullRetailPrice", "salePrice", "price"):
+                p = _try_float(prices.get(field))
+                if p is not None:
+                    return p
+
+    return None
+
+
+def _extract_in_stock(item: dict) -> bool:
+    avail = item.get("availability") or item.get("stock") or item.get("inventoryStatus")
+    if avail is None:
+        return True
+    if isinstance(avail, bool):
+        return avail
+    if isinstance(avail, dict):
+        status = str(avail.get("status", "")).upper()
+        return "OUT" not in status and status not in ("UNAVAILABLE", "DISCONTINUED")
+    return "OUT" not in str(avail).upper()
+
+
 def _map_api_item_to_catalog(item: dict, type_label: str, idx: int) -> dict | None:
     """Convert a raw API item into a catalog-schema document."""
-    # Try to find a stable ID field
     raw_id = (
         item.get("familyCode") or item.get("sku") or item.get("id") or str(idx)
     )
@@ -31,9 +84,24 @@ def _map_api_item_to_catalog(item: dict, type_label: str, idx: int) -> dict | No
     url_name = str(item.get("urlEncodedFamilyName") or item.get("urlName") or "")
     rank = int(item.get("deviceRank") or item.get("rank") or 999)
 
+    # Category: field may be a string or a dict with a "name" key
+    _cat_raw = (
+        item.get("category") or item.get("productCategory") or
+        item.get("familyCategory") or item.get("subcategory")
+    )
+    if isinstance(_cat_raw, dict):
+        category = str(_cat_raw.get("name") or ("Smartphones" if type_label == "device" else "Accessories"))
+    elif _cat_raw:
+        category = str(_cat_raw)
+    else:
+        category = "Smartphones" if type_label == "device" else "Accessories"
+
     color_names = [c.get("name", "") for c in item.get("colorOptions", []) if isinstance(c, dict)]
     skus_raw = [s for s in item.get("skus", []) if isinstance(s, dict)]
     skus = [s.get("skuCode", "") for s in skus_raw if s.get("skuCode")]
+
+    price = _extract_price(item, skus_raw)
+    in_stock = _extract_in_stock(item)
 
     # Prefer high-res PNG images from skus[].images (FrontImage > LeftImage > any)
     images: list[str] = []
@@ -46,7 +114,6 @@ def _map_api_item_to_catalog(item: dict, type_label: str, idx: int) -> dict | No
             if url and itype in ("FrontImage", "LeftImage", "ThumbNail"):
                 images.append(url)
                 break
-    # Deduplicate while preserving order
     seen: set[str] = set()
     images = [u for u in images if not (u in seen or seen.add(u))]  # type: ignore[func-returns-value]
 
@@ -55,16 +122,22 @@ def _map_api_item_to_catalog(item: dict, type_label: str, idx: int) -> dict | No
         aliases.append(f"{manufacturer} {display}".lower())
 
     tags = list({t for t in [manufacturer.lower(), os_name.lower(), "phone", "smartphone"] if t})
+    if type_label != "device":
+        tags = list({t for t in [manufacturer.lower(), str(category).lower()] if t})
 
-    metadata = {
+    metadata: dict = {
         "manufacturer": manufacturer,
+        "category": category,
         "url_name": url_name,
         "images": images[:3],
         "color_options": color_names,
         "skus": skus[:5],
         "description": f"{display} by {manufacturer}." + (f" {os_name} smartphone." if os_name else ""),
         "operating_system": os_name,
+        "in_stock": in_stock,
     }
+    if price is not None:
+        metadata["price"] = price
 
     doc_id = f"dev_{hashlib.md5(str(raw_id).encode()).hexdigest()[:12]}"
     now = int(time.time())

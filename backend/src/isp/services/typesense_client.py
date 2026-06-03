@@ -139,7 +139,7 @@ def list_documents(index_id: str, page: int, per_page: int) -> dict:
         "q": "*", "query_by": "title",
         "sort_by": "indexed_at:desc",
         "page": page, "per_page": per_page,
-        "include_fields": "*, vec",
+        "include_fields": "id, *, vec, metadata",
     })
 
 
@@ -166,7 +166,7 @@ def list_documents_external(
         "sort_by": "popularity:desc",
         "page": page,
         "per_page": per_page,
-        "include_fields": "*, vec",
+        "include_fields": "id, *, vec, metadata",
     }
     if filter_by:
         params["filter_by"] = filter_by
@@ -189,6 +189,7 @@ def search_external(
         "num_typos": 2,
         "page": page,
         "per_page": per_page,
+        "include_fields": "id, *, vec, metadata",
     }
     if filter_by:
         params["filter_by"] = filter_by
@@ -201,6 +202,7 @@ def search_external(
             "query_by": qb,
             "vector_query": f"vec:([{vec_str}], k:{per_page * 3})",
             "per_page": str(per_page * 3),
+            "include_fields": "id, *, vec, metadata",
         }
         if filter_by:
             sem_params["filter_by"] = filter_by
