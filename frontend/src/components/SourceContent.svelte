@@ -319,11 +319,15 @@
     color: #4a4880;
     font-family: 'SF Mono', monospace;
     text-decoration: none;
-    word-break: break-all;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    max-width: 100%;
   }
   .source-url:hover { color: #7c6cf4; text-decoration: underline; }
 
-  .source-actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+  .source-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
 
   .stat-pill {
     background: #141414;
