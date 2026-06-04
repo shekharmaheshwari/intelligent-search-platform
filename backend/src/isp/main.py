@@ -40,7 +40,24 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Intelligent Search Platform", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Intelligent Search Platform",
+    version="0.1.0",
+    description=(
+        "ISP is a self-contained search backend that indexes content from REST APIs and sitemaps "
+        "into Typesense, generates 1024-dim embeddings via Voyage AI, and exposes hybrid "
+        "(lexical + semantic) search.\n\n"
+        "**Core concepts**\n"
+        "- **Index** — a named source of content (e.g. *Phones*, *Accessories*). "
+        "Each index maps to a Typesense collection.\n"
+        "- **Connector** — configuration that tells ISP where to fetch data (REST endpoint or sitemap).\n"
+        "- **Ingest / Rebuild** — background job that fetches, embeds, and upserts documents.\n"
+        "- **Catalog** — unified product collection shared by all T-Mobile catalog sources; "
+        "powers the PLP search UI.\n\n"
+        "**Auth** — no auth required in local-dev mode. Add `X-API-Key` header in production."
+    ),
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
