@@ -230,63 +230,89 @@ def _wrap_external_results(raw: dict, meta: IndexMeta) -> dict:
 
 # ── CRUD ─────────────────────────────────────────────────────────────────────
 
-@router.get("", response_model=list[IndexMeta])
+@router.get("", response_model=list[IndexMeta], summary="List all indexes")
 async def list_indexes():
+    """Return every index registered in ISP, ordered by creation date."""
     return await index_service.list_indexes()
 
 
-@router.post("/discover", response_model=list[IndexMeta])
+@router.post("/discover", response_model=list[IndexMeta], summary="Discover external Typesense collections")
 async def discover_indexes():
-    """Auto-import existing Typesense collections as read-only ISP sources."""
+    """
+    Scan Typesense for collections that are not yet tracked by ISP and register
+    them as read-only external sources.  Safe to call repeatedly — already-known
+    collections are skipped.
+    """
     return await index_service.discover_external_collections()
 
 
-@router.post("", response_model=IndexMeta, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=IndexMeta, status_code=status.HTTP_201_CREATED, summary="Create a new index")
 async def create_index(body: IndexCreate):
+    """
+    Create a new ISP-managed index and provision its Typesense collection.
+    The index starts empty; use a connector + ingest or rebuild to populate it.
+    """
     meta = await index_service.create_index(body.name, body.description)
     ts.create_collection(meta.id)
     return meta
 
 
-@router.get("/{idx_id}", response_model=IndexMeta)
+@router.get("/{idx_id}", response_model=IndexMeta, summary="Get index metadata")
 async def get_index(idx_id: str):
+    """Return the full metadata record for a single index, including connector config and doc count."""
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
     return meta
 
 
-@router.delete("/{idx_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{idx_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete an index")
 async def delete_index(idx_id: str):
+    """
+    Permanently delete an index and all its documents from Typesense.
+    For catalog write-back sources (e.g. Phones, Smartwatches) this removes only
+    the documents belonging to that source via the stored filter; the shared
+    `catalog` collection itself is not dropped.
+    """
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
     await index_service.delete_index(idx_id)
     if meta.external_collection:
-        # Delete documents from the shared Typesense collection using the filter
         ts.delete_from_collection(meta.external_collection, meta.external_filter)
     else:
-        # Drop the ISP-owned collection entirely
         ts.drop_collection(idx_id)
 
 
-@router.get("/{idx_id}/status", response_model=IngestStatus)
+@router.get("/{idx_id}/status", response_model=IngestStatus, summary="Get ingest / rebuild status")
 async def get_status(idx_id: str):
+    """
+    Poll the current background-job status for an index.
+    `state` is one of `idle`, `queued`, `running`, `done`, or `error`.
+    """
     return await index_service.get_status(idx_id)
 
 
 # ── Connectors ────────────────────────────────────────────────────────────────
 
-@router.post("/{idx_id}/connectors/rest", response_model=IndexMeta)
+@router.post("/{idx_id}/connectors/rest", response_model=IndexMeta, summary="Save a REST connector config")
 async def add_rest_connector(idx_id: str, cfg: RestConnectorConfig):
+    """
+    Persist a REST connector configuration for the index without triggering an ingest.
+    Use this to pre-configure the source; call `/ingest/rest` or `/rebuild` to actually fetch data.
+    """
     meta = await index_service.add_connector(idx_id, {"type": "rest", **cfg.model_dump()})
     if not meta:
         raise HTTPException(404, "Index not found")
     return meta
 
 
-@router.post("/{idx_id}/connectors/sitemap", response_model=IndexMeta)
+@router.post("/{idx_id}/connectors/sitemap", response_model=IndexMeta, summary="Save a sitemap connector config")
 async def add_sitemap_connector(idx_id: str, cfg: SitemapConnectorConfig):
+    """
+    Persist a sitemap connector configuration for the index without triggering a crawl.
+    Use this to pre-configure the source; call `/ingest/sitemap` to start crawling.
+    """
     meta = await index_service.add_connector(idx_id, {"type": "sitemap", **cfg.model_dump()})
     if not meta:
         raise HTTPException(404, "Index not found")
@@ -338,8 +364,13 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
     await index_service.set_status(s)
 
 
-@router.post("/{idx_id}/ingest/rest", response_model=IngestStatus)
+@router.post("/{idx_id}/ingest/rest", response_model=IngestStatus, summary="Ingest from a REST endpoint")
 async def ingest_rest(idx_id: str, cfg: RestConnectorConfig, bg: BackgroundTasks):
+    """
+    Fetch documents from a REST API, generate embeddings, and **append** them to the index.
+    The connector config is persisted so the Rebuild panel can pre-populate it later.
+    Returns immediately with `state=queued`; poll `/status` to track progress.
+    """
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
@@ -353,8 +384,13 @@ async def ingest_rest(idx_id: str, cfg: RestConnectorConfig, bg: BackgroundTasks
     return s
 
 
-@router.post("/{idx_id}/ingest/sitemap", response_model=IngestStatus)
+@router.post("/{idx_id}/ingest/sitemap", response_model=IngestStatus, summary="Ingest from a sitemap")
 async def ingest_sitemap(idx_id: str, cfg: SitemapConnectorConfig, bg: BackgroundTasks):
+    """
+    Crawl all URLs listed in a sitemap XML, extract page content, generate embeddings,
+    and **append** them to the index.
+    Returns immediately with `state=queued`; poll `/status` to track progress.
+    """
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
@@ -453,8 +489,15 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
     await index_service.set_status(s)
 
 
-@router.post("/{idx_id}/rebuild", response_model=IngestStatus)
+@router.post("/{idx_id}/rebuild", response_model=IngestStatus, summary="Full rebuild (drop & re-index)")
 async def rebuild(idx_id: str, cfg: RebuildRequest, bg: BackgroundTasks):
+    """
+    **Drop** all existing documents for this source and re-fetch everything from scratch.
+    For catalog write-back sources (Phones, Accessories, Smartwatches, Tablets) this maps
+    raw T-Mobile API items to the unified catalog schema and upserts into the shared
+    `catalog` Typesense collection.
+    Returns immediately with `state=queued`; poll `/status` to track progress.
+    """
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
@@ -468,8 +511,13 @@ async def rebuild(idx_id: str, cfg: RebuildRequest, bg: BackgroundTasks):
 
 # ── Documents ─────────────────────────────────────────────────────────────────
 
-@router.get("/{idx_id}/documents")
+@router.get("/{idx_id}/documents", summary="Browse indexed documents")
 async def list_documents(idx_id: str, page: int = 1, per_page: int = 20):
+    """
+    Paginated list of documents in an index, sorted by recency.
+    For external/catalog sources the results come from the shared Typesense collection
+    filtered by this source's `external_filter`.
+    """
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")

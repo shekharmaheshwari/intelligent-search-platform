@@ -131,8 +131,18 @@ _ACCESSORY_KEYWORDS = {
 @router.get("/intent/tab", summary="Detect which catalog tab a query belongs to")
 async def intent_tab(q: str = Query(..., description="Search query")):
     """
-    Returns the most relevant tab (phones or accessories) for the query.
-    Uses semantic nearest-neighbor search to vote on product type.
+    Classifies a search query as belonging to the **Phones** tab (`device`) or
+    **Accessories** tab (`accessory`).
+
+    Detection strategy (in order):
+    1. **Keyword pre-filter** — if the query contains accessory-specific terms
+       (e.g. *case*, *charger*, *screen protector*) the tab is immediately set to `accessory`
+       with high confidence.
+    2. **Semantic vote** — embed the query with Voyage AI and find the 10 nearest catalog
+       items; the majority product type wins.
+    3. **Default** — falls back to `device` (confidence 0.6) if embedding is unavailable.
+
+    Used by the PLP to pre-select the correct tab before the user hits Search.
     """
     q_stripped = q.strip()
     if not q_stripped:
@@ -198,8 +208,20 @@ class CatalogSearchRequest(BaseModel):
 @router.post("/catalog", summary="Search the product catalog")
 async def search_catalog(req: CatalogSearchRequest):
     """
-    Full-text + semantic hybrid product search.
-    Maps directly to the PLP CatalogResponse shape.
+    Full-text + semantic hybrid product search over the unified `catalog` Typesense collection.
+    This is the primary endpoint consumed by the PLP (Product Listing Page).
+
+    **Search modes**
+    - `lexical` — BM25 keyword search on `display` and `aliases` fields.
+    - `semantic` — vector nearest-neighbour via Voyage AI embeddings.
+    - `hybrid` — Reciprocal Rank Fusion of both (lexical 0.7, semantic 0.3).
+
+    **Filtering**
+    - `type` — `device` (phones/tablets/watches) or `accessory`.
+    - `manufacturer` — filter by brand tag (e.g. `Apple`, `Samsung`).
+    - `category` — post-filter on metadata `category` field (client-side, not indexed).
+
+    **Response** matches the `CatalogResponse` shape expected by the PLP frontend.
     """
     filters = [f"type:={req.type}"]
     if req.manufacturer:
@@ -243,8 +265,15 @@ async def search_catalog(req: CatalogSearchRequest):
 @router.get("/catalog/facets", summary="Get facets for a catalog type")
 async def get_facets(type: str = Query(default="device")):
     """
-    Returns manufacturer, category, and price_range facets.
-    Computed from the top 250 documents for the given type.
+    Aggregate facet counts for the filter sidebar in the PLP.
+
+    Fetches the top 250 popularity-ranked documents of the given `type`
+    (`device` or `accessory`) and computes:
+    - **manufacturer** — brand counts (e.g. Apple: 12, Samsung: 10), top 15.
+    - **category** — product category counts (e.g. Handset, Tablet), top 15.
+    - **price_range** — bucketed price distribution: 0–20, 21–50, 51–100, 101–200, 201–500, 500+.
+
+    All facet values are derived from parsed `metadata` JSON stored on each document.
     """
     try:
         result = ts.get_client().collections[_CATALOG_COL].documents.search({
@@ -315,12 +344,19 @@ async def get_facets(type: str = Query(default="device")):
 
 @router.get("/suggest", summary="Autocomplete suggestions")
 async def suggest(
-    q: str = Query(..., description="Partial query"),
-    session_id: str = Query(default=""),
-    limit: int = Query(default=8, ge=1, le=20),
+    q: str = Query(..., description="Partial query (min 2 chars)"),
+    session_id: str = Query(default="", description="Optional session ID for future personalisation"),
+    limit: int = Query(default=8, ge=1, le=20, description="Max suggestions to return"),
 ):
     """
-    Returns autocomplete suggestions from the catalog.
+    Typeahead autocomplete for the PLP search bar.
+
+    Searches `display` (weight 3) and `aliases` (weight 1) fields with typo-tolerance,
+    ranked by text match score then `popularity`.  Returns at most `limit` unique
+    suggestions with their product type (`device` or `accessory`) so the UI can
+    show an appropriate icon next to each suggestion.
+
+    Requires at least 2 characters; returns an empty list for shorter input.
     """
     if not q or len(q) < 2:
         return {"suggestions": [], "query": q}
