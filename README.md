@@ -123,6 +123,7 @@ PORT=8001
 
 ## Docs
 
+- **[Full Codebase Documentation](DOCUMENTATION.md)** — architecture, all modules and components, data flows, extension system, API reference, database schema, and deployment
 - [Application Overview](docs/01-application-overview.md)
 - [Typesense Integration](docs/02-typesense-integration.md)
 - [Database Schema](docs/03-database.md)
