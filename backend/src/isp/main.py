@@ -119,6 +119,13 @@ async def _seed_extensions_from_files() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    FastAPI lifespan context manager — runs startup logic before the first request
+    and teardown logic (none currently) after the last.
+
+    Startup order matters: ``init_db`` must complete before ``_seed_extensions_from_files``
+    because seeding reads and writes PostgreSQL tables.
+    """
     await init_db()
     _ensure_catalog_collection()
     await _seed_extensions_from_files()
@@ -160,4 +167,5 @@ app.include_router(extensions.router, prefix="/v1")
 
 @app.get("/health")
 def health():
+    """Liveness probe. Returns 200 as long as the process is running."""
     return {"ok": True}

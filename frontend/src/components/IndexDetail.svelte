@@ -1,4 +1,11 @@
 <script lang="ts">
+  /**
+   * IndexDetail — tabbed detail view for a single ISP index.
+   *
+   * Shown when the user navigates to the configure view from SourceContent.
+   * Tabs: Overview (connectors + last ingest status), Documents, Search, API.
+   * Dispatches ``back`` when the breadcrumb "← Indexes" button is clicked.
+   */
   import { onMount } from 'svelte';
   import { createEventDispatcher } from 'svelte';
   import { api } from '../lib/api';
@@ -22,6 +29,7 @@
     status = await api.getStatus(indexId);
   });
 
+  /** Format an ISO date string to a short human-readable locale date (e.g. "Jun 5, 2026"). */
   function fmtDate(iso: string) {
     return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   }

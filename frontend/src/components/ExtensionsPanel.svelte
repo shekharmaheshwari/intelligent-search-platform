@@ -1,4 +1,14 @@
 <script lang="ts">
+  /**
+   * ExtensionsPanel — global JS extension library management page.
+   *
+   * Shown when the user clicks "⚙ Extensions" in the sidebar footer
+   * (App.svelte sets ``view = 'extensions'``).
+   *
+   * Allows developers to create, edit, and delete reusable ``transform(doc)``
+   * functions that are applied to documents during ingest/rebuild.
+   * Actual per-index assignment is managed in ``IndexExtensionsPanel``.
+   */
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
   import type { ExtensionMeta } from '../lib/types';
@@ -30,6 +40,7 @@
   return doc;
 }`;
 
+  /** Fetch the full extension library from the backend and refresh the list. */
   async function load() {
     loading = true; errMsg = '';
     try { extensions = await api.listExtensions(); }
@@ -39,16 +50,22 @@
 
   onMount(load);
 
+  /** Open the editor modal pre-filled with defaults for creating a new extension. */
   function openCreate() {
     editingId = ''; editName = ''; editDesc = ''; editCode = DEFAULT_CODE;
     editorErr = ''; showEditor = true;
   }
 
+  /** Open the editor modal pre-filled with an existing extension's current values. */
   function openEdit(ext: ExtensionMeta) {
     editingId = ext.id; editName = ext.name; editDesc = ext.description; editCode = ext.code;
     editorErr = ''; showEditor = true;
   }
 
+  /**
+   * Validate and persist the editor form.
+   * Creates a new extension when ``editingId`` is empty, otherwise updates the existing one.
+   */
   async function save() {
     if (!editName.trim()) { editorErr = 'Name is required'; return; }
     if (!editCode.trim()) { editorErr = 'Code is required'; return; }
@@ -69,6 +86,11 @@
   }
 
   let deletingId = '';
+
+  /**
+   * Confirm and delete an extension from the library.
+   * The backend cascade-deletes any index assignments for this extension.
+   */
   async function deleteExt(id: string) {
     if (!confirm('Delete this extension? Indexes using it will lose the assignment.')) return;
     deletingId = id;
@@ -77,6 +99,7 @@
     finally { deletingId = ''; }
   }
 
+  /** Format an ISO date string to a short human-readable date (e.g. "Jun 5, 2026"). */
   function fmtDate(s: string) {
     return new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   }

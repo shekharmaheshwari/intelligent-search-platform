@@ -1,4 +1,14 @@
 <script lang="ts">
+  /**
+   * SourceContent — main content area for a selected ISP index.
+   *
+   * Shows the source header (name, description, connector URL) and action buttons
+   * (Extensions, Rebuild, Configure), then a searchable/paginated document list.
+   *
+   * Reactive to ``index`` prop changes — reloads the document list whenever
+   * the selected index changes.  Dispatches ``configure`` when the user clicks
+   * "Configure →" so App.svelte can navigate to the configure view.
+   */
   import { onMount } from 'svelte';
   import { createEventDispatcher } from 'svelte';
   import { api } from '../lib/api';
@@ -25,6 +35,7 @@
   let searching = false;
   let searched = false;
 
+  /** Fetch a page of documents from the backend and update the local doc list. */
   async function loadDocs() {
     loadingDocs = true;
     try {
@@ -36,6 +47,7 @@
     }
   }
 
+  /** Execute a search query against the current index using the selected mode; clears to doc list when query is empty. */
   async function search() {
     if (!q.trim()) { searched = false; loadDocs(); return; }
     searching = true; searched = true;
@@ -48,16 +60,19 @@
     }
   }
 
+  /** Submit a search on Enter key press in the search input. */
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') search();
   }
 
+  /** Clear the query, reset the searched flag, and reload the default document list. */
   function clearSearch() {
     q = '';
     searched = false;
     loadDocs(); // reload default list when user clears via ✕
   }
 
+  /** Handle the Search button click — clear search when query is empty, otherwise run it. */
   function onSearchClick() {
     if (!q.trim()) { clearSearch(); return; }
     search();
@@ -69,30 +84,36 @@
     page = 1; q = ''; searched = false; loadDocs();
   }
 
+  /** Truncate ``text`` to ``max`` characters, appending an ellipsis when cut. */
   function excerpt(text: string, max = 180) {
     return text.length > max ? text.slice(0, max) + '…' : text;
   }
 
+  /** Format a Unix timestamp (seconds) to a short locale date string. */
   function fmtDate(ts: number) {
     return new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
+  /** Return the URL string of the first connector, or empty string for external sources. */
   function connectorUrl(idx: IndexMeta): string {
     if (!idx.connectors.length) return '';
     return String(idx.connectors[0].url ?? '');
   }
 
   let expandedIds = new Set<string>();
+  /** Toggle the expanded/collapsed state of a document row. Reassigning the Set forces Svelte reactivity. */
   function toggleExpand(id: string) {
     if (expandedIds.has(id)) expandedIds.delete(id);
     else expandedIds.add(id);
     expandedIds = expandedIds; // trigger reactivity
   }
 
+  /** Return all key-value pairs of a document for the expanded field table. */
   function docFields(doc: DocumentItem): [string, unknown][] {
     return Object.entries(doc);
   }
 
+  /** Attempt to parse a string value as a JSON object; returns null on failure or non-object values. */
   function tryParseJson(v: unknown): Record<string, unknown> | null {
     if (!v || typeof v !== 'string') return null;
     const s = v.trim();
@@ -100,16 +121,19 @@
     try { return JSON.parse(s); } catch { return null; }
   }
 
+  /** Return true for the special ``metadata`` field, which is rendered as a parsed sub-table. */
   function isMetadataKey(key: string): boolean {
     return key === 'metadata';
   }
 
+  /** Stringify any field value for plain display; objects are pretty-printed with two-space indent. */
   function formatValue(v: unknown): string {
     if (v === null || v === undefined) return '';
     if (typeof v === 'string') return v;
     return JSON.stringify(v, null, 2);
   }
 
+  /** Format a parsed metadata sub-field value for the metadata sub-table: booleans → Yes/No, arrays → comma list. */
   function formatMetaValue(v: unknown): string {
     if (v === null || v === undefined) return '—';
     if (typeof v === 'boolean') return v ? 'Yes' : 'No';
@@ -118,7 +142,10 @@
     return String(v);
   }
 
+  /** Decrement the page counter and reload; re-executes search when in search mode. */
   function prev() { if (page > 1) { page--; searched ? search() : loadDocs(); } }
+
+  /** Increment the page counter and reload; re-executes search when in search mode. */
   function next() { if (page * perPage < found) { page++; searched ? search() : loadDocs(); } }
 </script>
 

@@ -1,4 +1,15 @@
 <script lang="ts">
+  /**
+   * CreateWizard — 4-step modal for onboarding a new ISP index.
+   *
+   * Step 1 — Name & description: creates the index record via the API.
+   * Step 2 — Connector: configure REST API or Sitemap source and credentials.
+   * Step 3 — Field mapping: map source fields to ISP schema fields (id, title,
+   *           content, url) and add optional extra field rows.
+   * Step 4 — Progress: starts the ingest job and polls until done.
+   *
+   * Dispatches ``done`` (with the new index id) on completion and ``cancel`` on dismiss.
+   */
   import { createEventDispatcher } from 'svelte';
   import { api } from '../lib/api';
   import type { RestConnectorConfig, SitemapConnectorConfig } from '../lib/types';
@@ -41,9 +52,12 @@
   // Extra arbitrary source→target rows
   let extraMappings: Array<{ src: string; tgt: string }> = [];
 
+  /** Append a blank source→target row to the extra field mappings list. */
   function addMapping() {
     extraMappings = [...extraMappings, { src: '', tgt: '' }];
   }
+
+  /** Remove the extra mapping row at index ``i``. */
   function removeMapping(i: number) {
     extraMappings = extraMappings.filter((_, idx) => idx !== i);
   }
@@ -55,6 +69,7 @@
   let statusIndexed = 0;
   let statusTotal = 0;
 
+  /** Validate the name field, create the index record, then advance to step 2. */
   async function stepOne() {
     if (!name.trim()) { errMsg = 'Name is required'; return; }
     busy = true; errMsg = '';
@@ -69,6 +84,7 @@
     }
   }
 
+  /** Validate that the connector URL is filled, then advance to step 3. */
   function stepTwo() {
     errMsg = '';
     if (connectorType === 'rest' && !restUrl.trim()) { errMsg = 'URL is required'; return; }
@@ -76,6 +92,10 @@
     step = 3;
   }
 
+  /**
+   * Build the connector config from form values (including extra field mappings),
+   * start the ingest job, advance to step 4, then begin polling for completion.
+   */
   async function stepThree() {
     busy = true; errMsg = '';
     try {
@@ -122,6 +142,10 @@
     }
   }
 
+  /**
+   * Poll the ingest job status every 1.5 s until it reaches a terminal state.
+   * Updates ``statusText``, ``statusIndexed``, and ``statusTotal`` to drive the step-4 UI.
+   */
   async function pollUntilDone() {
     while (true) {
       await new Promise(r => setTimeout(r, 1500));

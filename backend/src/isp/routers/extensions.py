@@ -79,6 +79,7 @@ async def create_extension(body: ExtensionCreate):
 
 @router.get("/extensions/{ext_id}", summary="Get an extension")
 async def get_extension(ext_id: str):
+    """Return a single extension by id, including its full JS code."""
     ext = await extension_service.get_extension(ext_id)
     if not ext:
         raise HTTPException(404, "Extension not found")
@@ -134,4 +135,10 @@ async def assign_extension(idx_id: str, body: IndexExtensionAssign):
     summary="Unassign an extension from an index",
 )
 async def unassign_extension(idx_id: str, ext_id: str):
+    """
+    Remove the assignment between an extension and an index.
+
+    The extension itself is not deleted from the library — it can be re-assigned later.
+    To permanently delete the extension use ``DELETE /v1/extensions/{ext_id}``.
+    """
     await extension_service.unassign_extension(idx_id, ext_id)

@@ -1,4 +1,10 @@
 <script lang="ts">
+  /**
+   * Dashboard — grid overview of all ISP indexes.
+   *
+   * Renders a card grid via IndexCard when indexes exist, or an empty-state CTA otherwise.
+   * Dispatches ``open`` (index id), ``create``, and ``delete`` (index id) for App.svelte to handle.
+   */
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../lib/types';
   import IndexCard from './IndexCard.svelte';

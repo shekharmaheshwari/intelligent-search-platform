@@ -1,4 +1,17 @@
 <script lang="ts">
+  /**
+   * App — root layout and routing component.
+   *
+   * Owns the overall page structure (Header + Sidebar + Main) and all
+   * cross-cutting concerns:
+   * - Index list loading and auto-discovery on mount.
+   * - Delete confirmation modal.
+   * - Navigation state via the ``appState`` store.
+   * - Mobile sidebar visibility toggle.
+   *
+   * Child components communicate upward via Svelte ``createEventDispatcher``
+   * events; this component translates them into store mutations or API calls.
+   */
   import { onMount } from 'svelte';
   import { appState, indexes, loading, error } from '../lib/store';
   import { api } from '../lib/api';
@@ -19,10 +32,15 @@
   let deleteDeleting = false;
   $: pendingDeleteName = $indexes.find(i => i.id === pendingDeleteId)?.name ?? '';
 
+  /** Open the delete confirmation modal for the given index id. */
   function confirmDelete(id: string) {
     pendingDeleteId = id;
   }
 
+  /**
+   * Execute the confirmed delete: call the API, deselect if needed, then reload the list.
+   * Clears ``pendingDeleteId`` on both success and failure.
+   */
   async function executeDelete() {
     if (!pendingDeleteId) return;
     deleteDeleting = true;
@@ -38,6 +56,10 @@
     }
   }
 
+  /**
+   * Fetch the full index list from the backend and update the global store.
+   * Auto-selects the first index if nothing is currently selected.
+   */
   async function loadIndexes() {
     loading.set(true);
     error.set(null);
@@ -54,6 +76,11 @@
     }
   }
 
+  /**
+   * Initial startup sequence: load existing indexes then trigger auto-discovery.
+   * Discovery is idempotent — already-tracked external collections are silently skipped.
+   * If discovery finds new sources the index list is reloaded to include them.
+   */
   async function initLoad() {
     // First load existing indexes, then discover external collections (idempotent)
     await loadIndexes();
@@ -68,23 +95,28 @@
 
   onMount(initLoad);
 
+  /** Navigate to the detail view for a source and hide the sidebar on mobile. */
   function selectSource(id: string) {
     appState.update(s => ({ ...s, selectedIndexId: id, view: 'detail', detailTab: 'overview' }));
     if (isMobile) sidebarVisible = false;
   }
 
+  /** Open the configure/connector-settings view for a source. */
   function configure(id: string) {
     appState.update(s => ({ ...s, selectedIndexId: id, view: 'configure', detailTab: 'overview' }));
   }
 
+  /** Navigate back from the configure view to the main content/detail view. */
   function backToContent() {
     appState.update(s => ({ ...s, view: 'detail' }));
   }
 
+  /** Initiate the delete flow by opening the confirmation modal. */
   function deleteSource(id: string) {
     confirmDelete(id);
   }
 
+  /** Close the wizard, select the newly created source, and refresh the index list. */
   function onWizardDone(id: string) {
     showWizard = false;
     selectSource(id);

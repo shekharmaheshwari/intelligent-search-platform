@@ -1,4 +1,13 @@
 <script lang="ts">
+  /**
+   * SourcesSidebar — left navigation panel showing all indexed sources.
+   *
+   * Dispatches:
+   * - ``select``     — user clicked a source row (detail: index id)
+   * - ``create``     — user clicked the "+" button to open the Create Wizard
+   * - ``delete``     — user clicked the ✕ delete button (detail: index id)
+   * - ``extensions`` — user clicked the "⚙ Extensions" footer link
+   */
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../lib/types';
 
@@ -9,18 +18,24 @@
 
   let sourcesOpen = true;
 
+  /**
+   * Return the primary connector URL for display in the sidebar.
+   * For external sources this is the Typesense collection name (no real URL).
+   */
   function connectorUrl(idx: IndexMeta): string {
     if (idx.is_external) return idx.external_collection ?? '';
     if (!idx.connectors.length) return '';
     return String(idx.connectors[0].url ?? '');
   }
 
+  /** Return the connector type badge string (``rest``, ``sitemap``, ``typesense``, or ``''``). */
   function connectorType(idx: IndexMeta): string {
     if (idx.is_external) return 'typesense';
     if (!idx.connectors.length) return '';
     return String(idx.connectors[0].type ?? '');
   }
 
+  /** Shorten a URL to hostname + truncated path for compact sidebar display. */
   function shortUrl(url: string): string {
     try {
       const u = new URL(url);

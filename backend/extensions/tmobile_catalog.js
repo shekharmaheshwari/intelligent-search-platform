@@ -1,6 +1,22 @@
 // @name T-Mobile Catalog Mapper
 // @description Maps T-Mobile REST API response fields to the ISP catalog schema. Assign to Phones, Accessories, Smartwatches, and Tablets indexes.
 
+/**
+ * Transform a raw T-Mobile catalog item into the ISP catalog schema.
+ *
+ * Field extraction strategy (in priority order):
+ * - Price: top-level price fields → first SKU price fields → first SKU frpPrice object.
+ * - Images: FrontImage/LeftImage/ThumbNail URLs from the first three SKUs, deduplicated.
+ * - Category: category/productCategory/familyCategory/subcategory, normalised to a string.
+ * - Availability: boolean, status-object, or string — parsed to a single boolean.
+ * - URL: constructed from the correct base path (cell-phone vs accessory) + urlEncodedFamilyName.
+ *
+ * @param {Object} doc - Raw item object from the T-Mobile REST API response.
+ *   The ``_isp_type`` field is injected by the ingest pipeline before this function runs;
+ *   it is ``"device"`` for phones/tablets and ``"accessory"`` for accessories.
+ * @returns {Object} Document shaped to the ISP catalog schema expected by
+ *   ``_generic_catalog_mapper`` in ``routers/indexes.py``.
+ */
 function transform(doc) {
   var type = doc._isp_type || 'device';
   var skus = (doc.skus || []).filter(function(s) { return s && typeof s === 'object'; });

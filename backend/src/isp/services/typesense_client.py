@@ -294,6 +294,7 @@ def upsert_to_collection(col_name: str, docs: list[dict]) -> int:
 
 
 def count_external(col: str, filter_by: str) -> int:
+    """Return the number of documents in an external collection matching the filter (0 on error)."""
     try:
         params: dict = {"q": "*", "query_by": "display", "per_page": 1}
         if filter_by:
