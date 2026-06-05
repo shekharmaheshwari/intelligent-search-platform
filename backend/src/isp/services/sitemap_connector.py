@@ -1,3 +1,20 @@
+"""
+Sitemap crawler: fetch a sitemap XML, extract page URLs, and scrape each page.
+
+Crawl strategy:
+1. Fetch the sitemap XML from ``cfg.url`` and parse all ``<loc>`` entries.
+2. Apply include/exclude substring filters to the URL list.
+3. Truncate to ``cfg.max_pages`` (max 500, default 50).
+4. Fetch each page with a 0.1 s polite delay between requests.
+5. Strip navigation/chrome elements (script, style, nav, footer, header, aside)
+   then extract content from the configured selector or a fallback cascade.
+
+Content is capped at 4 000 characters to keep Typesense document sizes reasonable
+and avoid hitting embedding token limits.
+
+Page IDs are MD5 hashes of the URL, truncated to 16 hex chars.  This means
+re-crawling the same URL overwrites the existing document (upsert behaviour).
+"""
 from __future__ import annotations
 import asyncio, hashlib, time
 from typing import AsyncIterator
@@ -5,10 +22,13 @@ import httpx
 from bs4 import BeautifulSoup
 from isp.models import SitemapConnectorConfig
 
+# Ordered fallback list of CSS selectors used when the user has not configured
+# a custom content_selector.  The first selector that matches a non-empty element wins.
 _CONTENT_SELECTORS = ["article", "main", "[role='main']", ".content", "#content", ".post-content", "body"]
 
 
 async def _fetch(client: httpx.AsyncClient, url: str) -> str | None:
+    """Fetch a URL and return the response text, or None on any error."""
     try:
         r = await client.get(url, timeout=15, follow_redirects=True)
         r.raise_for_status()
@@ -18,11 +38,22 @@ async def _fetch(client: httpx.AsyncClient, url: str) -> str | None:
 
 
 def _parse_sitemap_urls(xml: str) -> list[str]:
+    """Extract all ``<loc>`` URLs from a sitemap XML string."""
     soup = BeautifulSoup(xml, "lxml-xml")
     return [loc.get_text(strip=True) for loc in soup.find_all("loc")]
 
 
 def _extract_page(html: str, url: str, cfg: SitemapConnectorConfig) -> dict | None:
+    """
+    Parse an HTML page into an ISP document dict.
+
+    Strips non-content tags first (script, style, nav, footer, header, aside) so
+    they don't pollute the text.  Content is extracted from ``cfg.content_selector``
+    if set, otherwise falls back through ``_CONTENT_SELECTORS`` in order.
+
+    Returns None if no meaningful content could be extracted (empty body after
+    stripping), so the caller can silently skip the page.
+    """
     soup = BeautifulSoup(html, "lxml")
     for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
         tag.decompose()
@@ -59,6 +90,22 @@ async def crawl(
     cfg: SitemapConnectorConfig,
     on_progress: "Callable[[int, int], None] | None" = None,
 ) -> list[dict]:
+    """
+    Crawl a sitemap and return a list of ISP document dicts.
+
+    Args:
+        cfg: Sitemap connector configuration (url, max_pages, filters, selector).
+        on_progress: Optional callback invoked after each page with
+            ``(pages_done, total_pages)`` — used by the rebuild panel to show
+            live progress in the UI.
+
+    Returns:
+        List of document dicts ready for embedding and upsert.  Pages that
+        returned no content are silently excluded.
+
+    Raises:
+        ValueError: If the sitemap itself cannot be fetched.
+    """
     async with httpx.AsyncClient(timeout=20, follow_redirects=True,
                                   headers={"User-Agent": "ISP-Crawler/1.0"}) as client:
         sitemap_xml = await _fetch(client, cfg.url)
