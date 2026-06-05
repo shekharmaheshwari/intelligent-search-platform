@@ -1,3 +1,16 @@
+"""
+/v1/indexes — Source management, ingest, rebuild, and document listing.
+
+Key design decisions:
+- Connector config is persisted to PostgreSQL *before* the background task starts
+  so the Rebuild panel can pre-populate even if the ingest hasn't finished yet.
+- Catalog write-back (external sources) goes through the JS extension pipeline:
+  raw items → _isp_type injection → extensions → _generic_catalog_mapper → embed → upsert.
+- _generic_catalog_mapper makes zero assumptions about upstream API field names;
+  all field normalisation is the extension's responsibility.
+- _map_external_doc passes all raw Typesense fields through so the expand view
+  in the UI can display vec, tags, aliases, etc.
+"""
 from __future__ import annotations
 import asyncio, hashlib, json, time
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
@@ -21,6 +34,18 @@ router = APIRouter(prefix="/indexes", tags=["indexes"])
 # it makes NO assumptions about the upstream API field names.
 
 def _generic_catalog_mapper(item: dict, idx: int) -> dict | None:
+    """
+    Package an extension-normalised flat dict into the Typesense catalog schema.
+
+    Expects the item to already have standard keys (``display``, ``type``, ``url``,
+    ``manufacturer``, ``price``, etc.) — all field normalisation must happen in the
+    JS extension before this function is called.
+
+    ``metadata`` is stored as a JSON string because Typesense does not support nested
+    objects as indexed fields.  The ``catalog.py`` router parses it back for search results.
+
+    Returns None for items with no displayable name so they are silently skipped.
+    """
     display = str(item.get("display") or item.get("name") or item.get("title") or "")
     if not display:
         return None
@@ -125,6 +150,7 @@ def _map_external_doc(raw: dict, meta: IndexMeta) -> dict:
 
 
 def _wrap_external_results(raw: dict, meta: IndexMeta) -> dict:
+    """Map every hit in a raw Typesense response to ISP DocumentItem shape."""
     hits = [{"document": _map_external_doc(h["document"], meta)} for h in raw.get("hits", [])]
     return {"hits": hits, "found": raw.get("found", 0), "page": raw.get("page", 1)}
 
@@ -235,6 +261,12 @@ async def add_sitemap_connector(idx_id: str, cfg: SitemapConnectorConfig):
 # ── Ingest ────────────────────────────────────────────────────────────────────
 
 async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
+    """
+    Background task: fetch → apply extensions → embed → append to ISP collection.
+
+    Extension records are loaded from the database at run time so changes made
+    via the Extensions UI take effect on the next ingest without a restart.
+    """
     from isp.models import IngestStatus
     s = IngestStatus(index_id=idx_id, state="running")
     await index_service.set_status(s)
@@ -327,7 +359,20 @@ class RebuildRequest(RestConnectorConfig):
 
 
 async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
-    """Fetch → embed → overwrite. Writes back to external collection when applicable."""
+    """
+    Background task for full rebuild.
+
+    Two paths depending on ``meta.external_collection``:
+
+    **Catalog write-back path** (external sources like Phones, Accessories):
+      raw API items → _isp_type injection → JS extensions → _generic_catalog_mapper
+      → embed → upsert to shared catalog Typesense collection.
+      The existing catalog docs for this source's filter are *overwritten*, not appended.
+
+    **ISP-managed path** (standard sources):
+      fetch + parse → JS extensions → embed → drop+recreate isp_{id} → upsert.
+      Drop+recreate ensures deleted API items are removed from Typesense.
+    """
     from isp.models import IngestStatus
     s = IngestStatus(index_id=idx_id, state="running")
     await index_service.set_status(s)

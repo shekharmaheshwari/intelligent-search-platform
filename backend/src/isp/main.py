@@ -1,3 +1,18 @@
+"""
+FastAPI application entry point.
+
+Startup sequence (lifespan):
+1. ``init_db()`` — create all PostgreSQL tables (idempotent).
+2. ``_ensure_catalog_collection()`` — create the ``catalog`` Typesense collection
+   if it does not yet exist (first-run only).
+3. ``_seed_extensions_from_files()`` — scan ``settings.extensions_dir`` for ``*.js``
+   files, upsert each into the DB by name, and auto-assign to all existing external
+   indexes using ``ON CONFLICT DO NOTHING`` (preserves user-configured state).
+
+The ``_TMOBILE_EXT_NAME`` constant is used by the ``discover_indexes`` endpoint to
+look up the seeded extension by name so it can be assigned to newly discovered
+external indexes at runtime.
+"""
 from __future__ import annotations
 import logging
 import re
@@ -18,6 +33,13 @@ _CATALOG_VEC_DIM = 1024
 
 
 def _ensure_catalog_collection() -> None:
+    """
+    Create the ``catalog`` Typesense collection if it does not already exist.
+
+    Called once on startup.  The catalog collection is shared by all external
+    sources (Phones, Accessories, etc.) and by the T-Mobile PLP frontend.
+    ISP does not drop or recreate it on restart — only schema-compatible fields are defined.
+    """
     try:
         ts.get_client().collections["catalog"].retrieve()
         return
@@ -42,6 +64,7 @@ def _ensure_catalog_collection() -> None:
 
 
 def _parse_js_header(code: str) -> tuple[str, str]:
+    """Extract ``// @name`` and ``// @description`` from a JS file's leading comment block."""
     """Extract @name and @description from JS comment header. Returns (name, description)."""
     name = desc = ""
     for line in code.splitlines():

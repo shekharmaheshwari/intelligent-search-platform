@@ -1,93 +1,130 @@
-# shekhar1maheshwari-project
+# Intelligent Search Platform (ISP)
 
+A self-contained search backend that indexes content from REST APIs and sitemaps into [Typesense](https://typesense.org/), generates 1024-dim vector embeddings via [Voyage AI](https://www.voyageai.com/), and exposes hybrid (lexical + semantic) search. Ships with a Svelte management UI and powers the T-Mobile PLP product search.
 
+---
 
-## Getting started
+## Quick Start
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+```bash
+# 1. Copy env template
+cp backend/.env.example backend/.env
+# Edit VOYAGE_API_KEY in .env
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.com/shekhar1maheshwari-group/shekhar1maheshwari-project.git
-git branch -M main
-git push -uf origin main
+# 2. Start everything (db → api → ui)
+./deploy-all.sh
 ```
 
-## Integrate with your tools
+| Service | URL |
+|---|---|
+| ISP Admin UI | http://localhost:3001 |
+| ISP API + Swagger | http://localhost:8001/docs |
+| T-Mobile PLP | http://localhost:3000 |
 
-* [Set up project integrations](https://gitlab.com/shekhar1maheshwari-group/shekhar1maheshwari-project/-/settings/integrations)
+---
 
-## Collaborate with your team
+## Architecture
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+```
+Browser
+  └─► isp-ui :3001 (Astro + Svelte)
+        └─► isp-api :8001 (FastAPI)
+              ├─► isp-db :5432 (PostgreSQL — metadata, connectors, extensions)
+              ├─► typesense :8108 (documents + vectors)
+              └─► Voyage AI (cloud — 1024-dim embeddings)
+```
 
-## Test and Deploy
+---
 
-Use the built-in continuous integration in GitLab.
+## Core Concepts
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+| Term | Meaning |
+|---|---|
+| **Index** | A named data source (e.g. *Phones*, *Blog*). Each index maps to a Typesense collection. |
+| **Connector** | Config telling ISP where to fetch data: REST endpoint or sitemap URL. |
+| **Ingest** | Background job that fetches, transforms, embeds, and upserts documents. |
+| **Extension** | JavaScript `transform(doc)` function run inside a V8 isolate before indexing. Used to normalise API responses, compute URLs, rename fields. |
+| **Catalog** | Shared Typesense collection used by the T-Mobile PLP — ISP writes to it via rebuild. |
+| **External index** | ISP view over a pre-existing Typesense collection (e.g. `catalog`) that ISP did not create. |
 
-***
+---
 
-# Editing this README
+## Extension System
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Extensions are JavaScript files stored in `backend/extensions/*.js`. On startup ISP seeds them into the database and auto-assigns them to matching external indexes.
 
-## Suggestions for a good README
+```js
+// backend/extensions/my_mapper.js
+// @name My API Mapper
+// @description Normalises MyAPI response to ISP catalog schema
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+function transform(doc) {
+  doc.display  = doc.productName;
+  doc.url      = 'https://example.com/product/' + doc.slug;
+  doc.price    = parseFloat(doc.msrp || 0);
+  return doc;
+}
+```
 
-## Name
-Choose a self-explaining name for your project.
+Each extension runs inside a PyMiniRacer V8 isolate — no filesystem, no network, pure JS only. Multiple extensions can be chained via `run_order`. The extension output feeds directly into the generic catalog mapper which packages the flat dict into the Typesense schema.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+---
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## API Reference
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Full Swagger UI available at **http://localhost:8001/docs**
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Key endpoint groups:
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+| Prefix | Purpose |
+|---|---|
+| `GET/POST /v1/indexes` | Manage data sources |
+| `POST /v1/indexes/{id}/ingest/rest` | Fetch from REST API |
+| `POST /v1/indexes/{id}/rebuild` | Full rebuild with write-back |
+| `POST /v1/indexes/{id}/search` | Hybrid search |
+| `GET/POST /v1/extensions` | Global extension library |
+| `GET/POST /v1/indexes/{id}/extensions` | Per-index assignment |
+| `POST /v1/catalog` | PLP product search |
+| `GET /v1/catalog/facets` | Filter sidebar facets |
+| `GET /v1/suggest` | Typeahead autocomplete |
+| `GET /v1/content/{slug}` | Generic content API |
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+---
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Environment Variables
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```env
+# backend/.env
+TYPESENSE_HOST=typesense
+TYPESENSE_PORT=8108
+TYPESENSE_API_KEY=local-dev-key-change-me
+DATABASE_URL=postgresql://isp:isp-dev-password@isp-db:5432/isp
+VOYAGE_API_KEY=<your-voyage-key>
+REDIS_URL=redis://isp-redis:6379/0
+EXTENSIONS_DIR=/app/extensions
+HOST=0.0.0.0
+PORT=8001
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+`VOYAGE_API_KEY` is optional. If empty, ISP falls back to lexical-only search with no embeddings.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+---
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Deployment Scripts
 
-## License
-For open source projects, say how it is licensed.
+```bash
+./deploy-all.sh      # full stack (db → api → ui)
+./deploy-api.sh      # rebuild + restart backend only
+./deploy-ui.sh       # rebuild + restart frontend only
+./deploy-db.sh       # start + wait for PostgreSQL
+```
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+---
+
+## Docs
+
+- [Application Overview](docs/01-application-overview.md)
+- [Typesense Integration](docs/02-typesense-integration.md)
+- [Database Schema](docs/03-database.md)
+- [Codebase Structure](docs/04-codebase.md)
+- [Component Integrations](docs/05-integrations.md)

@@ -1,3 +1,17 @@
+"""
+REST API connector: fetch, parse, and normalise API responses into ISP documents.
+
+Two public entry points:
+- ``fetch_raw_items`` — returns the raw dicts from the API with no field renaming.
+  Used by the catalog write-back path so that JS extensions see the original fields.
+- ``fetch_and_parse`` — applies ``field_map`` renames and heuristic field detection
+  to produce ``DocumentItem``-compatible dicts.  Used for ISP-managed indexes.
+
+Field detection heuristics (``_auto_detect_fields``) work on a sample document
+and look for common naming patterns.  They are a fallback when the user has not
+configured explicit field mappings; always prefer explicit ``field_map`` or
+``id_field``/``title_field``/``content_field``/``url_field`` over relying on them.
+"""
 from __future__ import annotations
 import hashlib, json, time
 import httpx
@@ -95,6 +109,12 @@ def _doc_from_item(item: dict, fields: dict[str, str], idx: int) -> dict | None:
 
 
 async def _do_request(cfg: RestConnectorConfig):
+    """
+    Execute the configured HTTP request and return the parsed JSON body.
+
+    Sends a browser-like User-Agent header because some APIs reject non-browser
+    clients with 403.  JSON body is sent only for POST/PUT/PATCH.
+    """
     """Make the HTTP request and return the parsed JSON response."""
     base_headers = {
         "User-Agent": _BROWSER_UA,
@@ -125,6 +145,15 @@ async def fetch_raw_items(cfg: RestConnectorConfig) -> list[dict]:
 
 
 async def fetch_and_parse(cfg: RestConnectorConfig) -> list[dict]:
+    """
+    Fetch from the REST API and return ISP-normalised document dicts.
+
+    Steps:
+    1. Fetch and extract the item array (via ``result_path`` or auto-detect).
+    2. Apply ``field_map`` renames from the connector config.
+    3. Detect or use explicit id/title/content/url field names.
+    4. Build ``DocumentItem``-compatible dicts, preserving unmapped extra fields.
+    """
     data = await _do_request(cfg)
 
     # Auto-detect result path when not explicitly set

@@ -1,3 +1,13 @@
+"""
+/v1/content — Generic public content API for any indexed ISP source.
+
+Any source indexed in ISP is automatically accessible here via a slug derived from
+its name (e.g. ``Smart Watches`` → ``smart-watches``).  This allows external consumers
+to list and search ISP-indexed content without knowing internal index IDs.
+
+The router delegates actual Typesense calls to the same functions used by the
+internal search router, then unwraps the results to a simpler flat shape.
+"""
 from __future__ import annotations
 import re
 from fastapi import APIRouter, HTTPException, Query

@@ -1,9 +1,22 @@
+"""
+PostgreSQL CRUD for the extension library and per-index assignments.
+
+Two tables are managed here:
+- ``extensions`` — global library of reusable JS transform functions.
+- ``index_extensions`` — many-to-many join that controls which extensions
+  run on which index, in what order, and whether they are enabled.
+
+Startup seeding uses ``upsert_extension_by_name`` + ``assign_extension_if_new``
+so that committing a new ``.js`` file to ``backend/extensions/`` is the only
+deployment step needed to make a new extension available.
+"""
 from __future__ import annotations
 import time, uuid
 from isp.services.database import get_pool
 
 
 async def list_extensions() -> list[dict]:
+    """Return all extensions from the library, newest first."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM extensions ORDER BY created_at DESC")
@@ -11,6 +24,7 @@ async def list_extensions() -> list[dict]:
 
 
 async def get_extension(ext_id: str) -> dict | None:
+    """Return a single extension by id, or None if not found."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM extensions WHERE id = $1", ext_id)
@@ -18,6 +32,7 @@ async def get_extension(ext_id: str) -> dict | None:
 
 
 async def create_extension(name: str, description: str, code: str) -> dict:
+    """Insert a new extension and return it with its generated id and timestamps."""
     ext_id = uuid.uuid4().hex[:12]
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     pool = await get_pool()
@@ -31,6 +46,10 @@ async def create_extension(name: str, description: str, code: str) -> dict:
 
 
 async def update_extension(ext_id: str, name: str | None, description: str | None, code: str | None) -> dict | None:
+    """
+    Partially update an extension.  Pass ``None`` for any field to leave it unchanged.
+    Returns the updated record, or ``None`` if the extension does not exist.
+    """
     ext = await get_extension(ext_id)
     if not ext:
         return None
@@ -57,6 +76,7 @@ async def upsert_extension_by_name(name: str, description: str, code: str) -> di
 
 
 async def delete_extension(ext_id: str) -> bool:
+    """Delete an extension by id. Returns True if a row was deleted, False if not found."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute("DELETE FROM extensions WHERE id = $1", ext_id)
@@ -81,6 +101,12 @@ async def list_index_extensions(idx_id: str) -> list[dict]:
 
 
 async def assign_extension(idx_id: str, ext_id: str, run_order: int = 0, enabled: bool = True) -> None:
+    """
+    Assign an extension to an index (full upsert).
+
+    If the assignment already exists it is updated with the new ``run_order`` and
+    ``enabled`` values.  Used when the user explicitly changes an assignment via the UI.
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("""
@@ -104,6 +130,7 @@ async def assign_extension_if_new(idx_id: str, ext_id: str, run_order: int = 0) 
 
 
 async def unassign_extension(idx_id: str, ext_id: str) -> bool:
+    """Remove an extension assignment. Returns True if a row was deleted."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
