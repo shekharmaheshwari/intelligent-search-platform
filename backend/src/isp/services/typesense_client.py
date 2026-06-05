@@ -1,3 +1,13 @@
+"""
+Thin wrapper around the Typesense Python SDK.
+
+All Typesense I/O goes through this module.  The client is a lazy singleton
+so only one HTTP connection pool is created per process.
+
+ISP-managed collections are named ``isp_{index_id}``.
+External collections (e.g. ``catalog``) are pre-existing and written to
+via the write-back path during rebuild.
+"""
 from __future__ import annotations
 import typesense
 from isp.config import settings
@@ -7,6 +17,7 @@ _client: typesense.Client | None = None
 
 
 def get_client() -> typesense.Client:
+    """Return (and lazily create) the shared Typesense client."""
     global _client
     if _client is None:
         _client = typesense.Client({
@@ -18,10 +29,18 @@ def get_client() -> typesense.Client:
 
 
 def collection_name(index_id: str) -> str:
+    """Derive the Typesense collection name for an ISP-managed index."""
     return f"isp_{index_id}"
 
 
 def create_collection(index_id: str) -> None:
+    """
+    Provision a new ISP-managed Typesense collection.
+
+    Idempotent — does nothing if the collection already exists.
+    The ``vec`` field is optional so documents without embeddings can still
+    be stored (e.g. when VOYAGE_API_KEY is not set).
+    """
     name = collection_name(index_id)
     client = get_client()
     try:
@@ -43,6 +62,7 @@ def create_collection(index_id: str) -> None:
 
 
 def drop_collection(index_id: str) -> None:
+    """Delete an ISP-managed collection. Silently ignores missing collections."""
     try:
         get_client().collections[collection_name(index_id)].delete()
     except Exception:
@@ -50,6 +70,7 @@ def drop_collection(index_id: str) -> None:
 
 
 def upsert_documents(index_id: str, docs: list[dict]) -> int:
+    """Upsert documents into an ISP-managed collection. Returns number of successful upserts."""
     if not docs:
         return 0
     name = collection_name(index_id)
@@ -60,6 +81,7 @@ def upsert_documents(index_id: str, docs: list[dict]) -> int:
 
 
 def count_documents(index_id: str) -> int:
+    """Return the document count for an ISP-managed collection (0 on error)."""
     try:
         col = get_client().collections[collection_name(index_id)].retrieve()
         return col.get("num_documents", 0)
@@ -68,6 +90,12 @@ def count_documents(index_id: str) -> int:
 
 
 def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int) -> dict:
+    """
+    Single-pass lexical search on an ISP-managed collection.
+
+    Hybrid mode falls back to lexical here; the caller (``search_with_vec``) handles
+    the actual RRF merge when a query vector is available.
+    """
     name = collection_name(index_id)
     client = get_client()
 
@@ -98,6 +126,14 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int)
 
 
 def search_with_vec(index_id: str, q: str, vec: list[float], page: int, per_page: int) -> dict:
+    """
+    Hybrid search via Typesense multi_search + Reciprocal Rank Fusion.
+
+    Fetches ``per_page * 3`` candidates from both lexical and semantic passes,
+    then merges with RRF weights (lexical 0.7, semantic 0.3) before slicing the
+    requested page.  Fetching 3× more candidates before slicing avoids the
+    page-boundary problem where RRF reordering would otherwise miss relevant docs.
+    """
     name = collection_name(index_id)
     vec_str = ",".join(str(v) for v in vec)
     client = get_client()
@@ -135,6 +171,7 @@ def search_with_vec(index_id: str, q: str, vec: list[float], page: int, per_page
 
 
 def list_documents(index_id: str, page: int, per_page: int) -> dict:
+    """Paginated document listing for an ISP-managed collection, sorted by most recently indexed."""
     return get_client().collections[collection_name(index_id)].documents.search({
         "q": "*", "query_by": "title",
         "sort_by": "indexed_at:desc",
@@ -160,6 +197,7 @@ def list_documents_external(
     page: int,
     per_page: int,
 ) -> dict:
+    """Paginated document listing from an external (non-ISP) Typesense collection."""
     params: dict = {
         "q": "*",
         "query_by": query_by or "display",
@@ -182,6 +220,13 @@ def search_external(
     page: int,
     per_page: int,
 ) -> dict:
+    """
+    Search an external Typesense collection with optional hybrid RRF.
+
+    If ``vec`` is provided the function issues a ``multi_search`` (lexical + semantic)
+    and merges via RRF.  Without a vector it falls back to a single lexical search.
+    ``filter_by`` is applied to both passes so external source isolation is preserved.
+    """
     qb = query_by or "display"
     params: dict = {
         "q": q or "*",

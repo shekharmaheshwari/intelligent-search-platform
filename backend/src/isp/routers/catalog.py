@@ -1,3 +1,16 @@
+"""
+/v1/catalog — PLP product search, facets, typeahead, and intent detection.
+
+This router is the backend for the T-Mobile Product Listing Page (PLP).  It reads
+from the shared ``catalog`` Typesense collection which is populated by ISP rebuild.
+
+URL ownership: product URLs are stored in ``metadata.url`` by the JS extension
+during rebuild.  ``_build_url`` simply reads that value — no URL construction logic
+exists here so changing URL formats only requires updating the extension JS.
+
+``metadata`` is stored as a JSON string in Typesense (nested objects are not
+supported as indexed fields).  ``_parse_meta`` deserialises it on the read path.
+"""
 from __future__ import annotations
 import json
 from fastapi import APIRouter, Query
@@ -13,6 +26,7 @@ _CATALOG_COL = "catalog"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _parse_meta(raw_meta) -> dict:
+    """Deserialise the ``metadata`` JSON string field from a catalog document."""
     if not raw_meta:
         return {}
     if isinstance(raw_meta, str):
@@ -29,6 +43,7 @@ def _build_url(doc: dict, meta: dict) -> str:
 
 
 def _doc_to_item(doc: dict, score: float = 0.0) -> dict:
+    """Convert a raw Typesense catalog document to the PLP ``CatalogItem`` response shape."""
     meta = _parse_meta(doc.get("metadata"))
     return {
         "id": str(doc.get("id", "")),
@@ -53,6 +68,16 @@ def _doc_to_item(doc: dict, score: float = 0.0) -> dict:
 
 
 def _rrf_search(col: str, q: str, vec, filter_by: str, page: int, per_page: int) -> dict:
+    """
+    Hybrid RRF search on the catalog collection.
+
+    When ``vec`` is provided runs lexical + semantic in parallel and merges via
+    Reciprocal Rank Fusion (lexical weight 0.7, semantic 0.3).
+    When ``vec`` is None falls back to lexical-only search.
+
+    Fetches ``per_page * 3`` candidates before merging/slicing to avoid
+    page-boundary artifacts from RRF reordering.
+    """
     """Hybrid RRF search on the catalog collection."""
     base_params: dict = {
         "collection": col,

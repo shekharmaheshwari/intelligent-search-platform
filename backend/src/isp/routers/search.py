@@ -1,3 +1,13 @@
+"""
+/v1/indexes/{id}/search — Hybrid search endpoint for ISP-managed and external indexes.
+
+For external indexes, delegates to ``ts.search_external`` which applies the same
+RRF logic but scoped to the index's filter expression (e.g. ``type:=device``).
+For ISP-managed indexes, ``ts.search_with_vec`` handles the RRF merge.
+
+Query embeddings are served from the two-tier cache (LRU → Redis) in
+``embedding_service`` so repeated identical queries do not incur API calls.
+"""
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from isp.models import SearchRequest

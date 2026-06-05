@@ -1,3 +1,11 @@
+"""
+PostgreSQL connection pool and schema initialisation.
+
+``get_pool()`` is a lazy singleton — the pool is created once on first access
+and reused for the lifetime of the process.  ``init_db()`` is called from the
+FastAPI lifespan handler on every startup; all ``CREATE TABLE`` statements use
+``IF NOT EXISTS`` so they are safe to re-run against an existing database.
+"""
 from __future__ import annotations
 import asyncpg
 from isp.config import settings
@@ -6,6 +14,7 @@ _pool: asyncpg.Pool | None = None
 
 
 async def get_pool() -> asyncpg.Pool:
+    """Return (and lazily create) the shared asyncpg connection pool."""
     global _pool
     if _pool is None:
         _pool = await asyncpg.create_pool(settings.database_url, min_size=2, max_size=10)
@@ -13,6 +22,13 @@ async def get_pool() -> asyncpg.Pool:
 
 
 async def init_db() -> None:
+    """
+    Create all required tables if they do not exist.
+
+    Called once from the FastAPI lifespan handler before the app starts serving
+    requests.  Adding new tables here is the only migration step required for
+    this schema; no external migration tool is used.
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("""

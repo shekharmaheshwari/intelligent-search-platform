@@ -1,3 +1,17 @@
+"""
+/v1/extensions — JS transform extension library and per-index assignment management.
+
+Extensions are JavaScript functions with the signature:
+    function transform(doc) { ...; return doc; }
+
+They run inside PyMiniRacer V8 isolates (no network, no filesystem, pure JS).
+Multiple extensions can be chained per index via ``run_order``; lower numbers run first.
+
+Two resource scopes:
+- Global library (``/v1/extensions``): create/edit/delete reusable transforms.
+- Per-index assignment (``/v1/indexes/{id}/extensions``): control which transforms
+  run on a specific source and in what order.
+"""
 from __future__ import annotations
 from typing import Optional
 from fastapi import APIRouter, HTTPException, status

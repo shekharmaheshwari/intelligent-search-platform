@@ -1,3 +1,11 @@
+"""
+PostgreSQL CRUD for the ``indexes``, ``ingest_status``, and ``deleted_splits`` tables.
+
+``discover_external_collections`` scans Typesense for collections that are not yet
+tracked and registers them as external (read-only or write-back) ISP sources.
+``_KNOWN_SPLITS`` maps Typesense collection names to named sub-sources; extend it
+when new external catalog collections are deployed.
+"""
 from __future__ import annotations
 import json, time, uuid
 from isp.models import IndexMeta, IngestStatus
@@ -5,6 +13,7 @@ from isp.services.database import get_pool
 
 
 def _row_to_meta(row: dict) -> IndexMeta:
+    """Convert a raw asyncpg row dict to an ``IndexMeta`` Pydantic model."""
     return IndexMeta(
         id=row["id"],
         name=row["name"],
@@ -25,6 +34,7 @@ def _row_to_meta(row: dict) -> IndexMeta:
 
 
 async def list_indexes() -> list[IndexMeta]:
+    """Return all indexes ordered by creation date (newest first)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM indexes ORDER BY created_at DESC")
@@ -32,6 +42,7 @@ async def list_indexes() -> list[IndexMeta]:
 
 
 async def get_index(idx_id: str) -> IndexMeta | None:
+    """Return a single index by id, or None if not found."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM indexes WHERE id = $1", idx_id)
@@ -39,6 +50,12 @@ async def get_index(idx_id: str) -> IndexMeta | None:
 
 
 async def create_index(name: str, description: str) -> IndexMeta:
+    """
+    Insert a new index row and return the populated ``IndexMeta``.
+
+    The collection name is pre-computed as ``isp_{id}`` but the Typesense collection
+    itself is provisioned separately in the router (``ts.create_collection``).
+    """
     idx_id = uuid.uuid4().hex[:12]
     meta = IndexMeta(
         id=idx_id,
@@ -67,6 +84,13 @@ async def create_index(name: str, description: str) -> IndexMeta:
 
 
 async def delete_index(idx_id: str) -> bool:
+    """
+    Delete an index and its ingest status from PostgreSQL.
+
+    For external sources also adds a ``deleted_splits`` record keyed by
+    ``{collection}:{filter}`` so the auto-discovery job never re-creates
+    this source.  Returns False if the index did not exist.
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM indexes WHERE id = $1", idx_id)
@@ -85,6 +109,7 @@ async def delete_index(idx_id: str) -> bool:
 
 
 async def add_connector(idx_id: str, config: dict) -> IndexMeta | None:
+    """Append a connector config to the index's ``connectors`` list and persist it."""
     meta = await get_index(idx_id)
     if not meta:
         return None
@@ -94,6 +119,7 @@ async def add_connector(idx_id: str, config: dict) -> IndexMeta | None:
 
 
 async def update_index(meta: IndexMeta) -> None:
+    """Persist all mutable fields of an ``IndexMeta`` back to PostgreSQL."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("""
@@ -122,6 +148,7 @@ async def update_index(meta: IndexMeta) -> None:
 
 
 async def get_status(idx_id: str) -> IngestStatus:
+    """Return the current ingest/rebuild status, defaulting to idle if no row exists."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM ingest_status WHERE index_id = $1", idx_id)
@@ -131,6 +158,7 @@ async def get_status(idx_id: str) -> IngestStatus:
 
 
 async def set_status(status: IngestStatus) -> None:
+    """Upsert an ingest status row (insert on first call, update on subsequent calls)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("""
@@ -157,6 +185,20 @@ _KNOWN_SPLITS: dict[str, list[tuple[str, str, str, str]]] = {
 
 
 async def discover_external_collections() -> list[IndexMeta]:
+    """
+    Scan Typesense for collections not yet tracked by ISP and register them.
+
+    Skips:
+    - ``isp_*`` collections (ISP-managed)
+    - Collections already registered as ISP-managed source collections
+    - Splits that appear in ``deleted_splits`` (user explicitly removed them)
+
+    For known collection names (``_KNOWN_SPLITS``) creates named sub-sources with
+    explicit filter expressions.  For unknown collections creates a single generic
+    source with no filter.
+
+    Returns only the newly created ``IndexMeta`` records; existing ones are not returned.
+    """
     from isp.services import typesense_client as ts
 
     pool = await get_pool()

@@ -1,3 +1,22 @@
+"""
+Voyage AI embedding service with a two-tier cache.
+
+Cache hierarchy (fastest → slowest):
+  L1: in-process ``cachetools.LRUCache`` — zero-latency for hot queries within
+      a single pod.  Evicts least-recently-used entries when the 2048-slot limit
+      (configurable) is reached.
+  L2: Redis — shared across pods and survives restarts.  TTL defaults to 24 hours.
+
+Vectors are serialised to raw ``struct.pack`` bytes (4 bytes/float) for compact
+Redis storage — about 4 KB per 1024-dim vector vs. ~16 KB for JSON.
+
+``embed_texts`` uses ``input_type="document"`` (optimised for indexing).
+``embed_query`` uses ``input_type="query"`` (optimised for retrieval) — Voyage AI's
+asymmetric model produces better ranking when query and document use different types.
+
+If ``VOYAGE_API_KEY`` is empty both functions return empty lists; callers treat
+empty vectors as "no embedding available" and fall back to lexical search.
+"""
 from __future__ import annotations
 import asyncio
 import hashlib
@@ -17,6 +36,7 @@ _lru_lock = asyncio.Lock()
 
 
 def _get_voyage() -> voyageai.AsyncClient:
+    """Return (and lazily create) the Voyage AI async client."""
     global _voyage_client
     if _voyage_client is None:
         _voyage_client = voyageai.AsyncClient(api_key=settings.voyage_api_key)
@@ -24,6 +44,7 @@ def _get_voyage() -> voyageai.AsyncClient:
 
 
 async def _get_redis() -> aioredis.Redis | None:
+    """Return the Redis client, or None if Redis is unavailable. Never raises."""
     global _redis_client
     if _redis_client is not None:
         return _redis_client
@@ -37,6 +58,7 @@ async def _get_redis() -> aioredis.Redis | None:
 
 
 def _cache_key(text: str, input_type: str) -> str:
+    """Build a stable Redis / LRU key from text and embedding input_type."""
     h = hashlib.sha256(f"{input_type}:{text}".encode()).hexdigest()
     return f"emb:{h}"
 
@@ -83,6 +105,16 @@ async def _cache_set(key: str, vec: list[float]) -> None:
 
 
 async def embed_texts(texts: list[str]) -> list[list[float]]:
+    """
+    Embed a batch of document strings for indexing.
+
+    Checks the two-tier cache for each text first; only calls Voyage AI for
+    texts that are not cached.  Results are stored back into both cache tiers.
+    Batches API calls in groups of 128 (Voyage AI's recommended max batch size).
+
+    Returns a list of the same length as ``texts``; uncacheable or failed texts
+    get an empty list ``[]`` (caller should skip embedding for those documents).
+    """
     if not texts or not settings.voyage_api_key:
         return [[] for _ in texts]
 
@@ -114,6 +146,13 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
 
 
 async def embed_query(text: str) -> list[float]:
+    """
+    Embed a single search query for retrieval.
+
+    Uses ``input_type="query"`` which produces asymmetrically-optimised vectors
+    that rank better against ``input_type="document"`` vectors in cosine similarity.
+    Returns ``[]`` when VOYAGE_API_KEY is not set.
+    """
     if not text or not settings.voyage_api_key:
         return []
     key = _cache_key(text, "query")

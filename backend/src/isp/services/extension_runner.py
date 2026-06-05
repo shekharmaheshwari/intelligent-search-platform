@@ -1,3 +1,22 @@
+"""
+JavaScript extension execution engine using PyMiniRacer (V8).
+
+Each enabled extension is compiled into its own V8 isolate once per ingest
+batch, then called for every document in that batch.  This is the same
+sandboxing model used by Coveo IPE: no filesystem, no network, no Node.js
+APIs — only ECMAScript built-ins.
+
+Thread model: PyMiniRacer's ``MiniRacer.call`` is synchronous.  ``apply_extensions``
+wraps the synchronous loop in ``loop.run_in_executor(None, ...)`` so it runs in
+a thread pool without blocking the asyncio event loop.
+
+Error handling:
+- If an extension fails to *compile*, it is skipped for the entire batch (logged
+  as ERROR).
+- If an extension raises a *runtime* error for a specific document, that document
+  is kept in its current state and execution continues (logged as ERROR).  This
+  ensures a single bad document cannot abort an entire ingest.
+"""
 from __future__ import annotations
 import asyncio, logging
 

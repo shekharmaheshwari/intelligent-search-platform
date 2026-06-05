@@ -1,7 +1,15 @@
+"""
+Application configuration loaded from environment variables and .env file.
+All settings have safe defaults for local Docker-based development.
+"""
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """
+    Central settings object.  Populated by pydantic-settings from environment
+    variables (case-insensitive) or the .env file in the working directory.
+    """
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     typesense_host: str = "typesense"

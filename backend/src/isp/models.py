@@ -1,9 +1,26 @@
+"""
+Pydantic data models shared across routers and services.
+
+Design notes:
+- ``RestConnectorConfig`` is persisted as JSON in the ``connectors`` JSONB column,
+  so field additions must be backward-compatible (always optional or have defaults).
+- ``IndexMeta`` mirrors the ``indexes`` table 1-to-1; keep them in sync when altering
+  the database schema.
+- ``DocumentItem`` is the canonical search result shape; external docs are adapted to
+  it in ``_map_external_doc``.
+"""
 from __future__ import annotations
 from typing import Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 
 class RestConnectorConfig(BaseModel):
+    """
+    Configuration for a REST API data source connector.
+
+    Stored in the ``connectors`` JSONB column so the Rebuild panel can
+    pre-populate all fields without the user re-entering them.
+    """
     type: Literal["rest"] = "rest"
     url: str
     method: str = "GET"
@@ -27,6 +44,7 @@ class RestConnectorConfig(BaseModel):
 
 
 class SitemapConnectorConfig(BaseModel):
+    """Configuration for a sitemap-based crawler data source."""
     type: Literal["sitemap"] = "sitemap"
     url: str
     max_pages: int = Field(default=50, ge=1, le=500)
@@ -39,15 +57,25 @@ ConnectorConfig = Union[RestConnectorConfig, SitemapConnectorConfig]
 
 
 class IndexCreate(BaseModel):
+    """Request body for creating a new ISP index."""
     name: str = Field(min_length=1, max_length=80)
     description: str = ""
 
 
 class ConnectorAdd(BaseModel):
+    """Wraps a connector config for the add-connector endpoint."""
     config: Union[RestConnectorConfig, SitemapConnectorConfig] = Field(discriminator="type")
 
 
 class IndexMeta(BaseModel):
+    """
+    Full metadata for one ISP source (one row in the ``indexes`` table).
+
+    For ISP-managed sources ``collection_name`` is ``isp_{id}`` and all
+    ``external_*`` fields are empty.  For external sources ``is_external=True``,
+    ``collection_name`` is empty, and ``external_collection`` + ``external_filter``
+    identify the Typesense collection and which documents belong to this source.
+    """
     id: str
     name: str
     description: str
@@ -68,6 +96,7 @@ class IndexMeta(BaseModel):
 
 
 class IngestStatus(BaseModel):
+    """Tracks the live state of an ingest or rebuild background job."""
     index_id: str
     state: str = "idle"      # idle | queued | running | done | error
     total: int = 0
@@ -76,6 +105,7 @@ class IngestStatus(BaseModel):
 
 
 class SearchRequest(BaseModel):
+    """Request body for the search endpoint."""
     q: str
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=10, ge=1, le=50)
@@ -83,6 +113,7 @@ class SearchRequest(BaseModel):
 
 
 class DocumentItem(BaseModel):
+    """Canonical search result shape returned to the frontend and content API."""
     id: str
     title: str
     content: str

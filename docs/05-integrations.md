@@ -15,17 +15,19 @@
                     ┌─────────▼─────────┐
                     │   isp-api :8001   │◄──── .env config
                     │   (FastAPI)       │
-                    └──┬─────┬──────┬───┘
-                       │     │      │
-          ┌────────────▼┐  ┌─▼────┐ └──────────────┐
-          │  isp-db     │  │Voyage│                 │
-          │  Postgres   │  │AI API│          ┌──────▼──────┐
-          │  :5432      │  │cloud │          │  Typesense  │
-          │             │  └──────┘          │  :8108      │
-          │ • indexes   │                    │             │
-          │ • status    │                    │ • isp_{id}  │
-          │ • splits    │                    │ • catalog   │
-          └─────────────┘                    └─────────────┘
+                    └──┬──────┬─────┬───┘
+                       │      │     │
+          ┌────────────▼┐  ┌──▼───┐ └──────────────────┐
+          │  isp-db     │  │Voyage│                     │
+          │  Postgres   │  │AI API│              ┌──────▼──────┐
+          │  :5432      │  │cloud │              │  Typesense  │
+          │             │  └──────┘              │  :8108      │
+          │ • indexes   │        ┌──────────┐    │             │
+          │ • status    │        │isp-redis │    │ • isp_{id}  │
+          │ • splits    │        │:6379     │    │ • catalog   │
+          │ • extensions│        │(emb cache│    │             │
+          │ • idx_exts  │        │L2)       │    │             │
+          └─────────────┘        └──────────┘    └─────────────┘
 ```
 
 ---
@@ -35,7 +37,7 @@
 **Protocol:** HTTP REST  
 **Base URL:** `http://localhost:8001/v1` (set at Astro build time via `PUBLIC_API_URL`)
 
-All API calls are in `frontend/src/lib/api.ts`. The frontend never talks to PostgreSQL or Typesense directly — always through the FastAPI backend.
+All API calls are in `frontend/src/lib/api.ts`. The frontend never talks to PostgreSQL, Redis, or Typesense directly — always through the FastAPI backend.
 
 **Key flows:**
 ```
@@ -55,6 +57,11 @@ Frontend                    Backend
    │──────────────────────────►│ → PostgreSQL: SELECT FROM ingest_status
    │◄──────────────────────────│
    │  IngestStatus{running...} │
+
+   │  GET /v1/indexes/{id}/extensions
+   │──────────────────────────►│ → PostgreSQL: JOIN index_extensions + extensions
+   │◄──────────────────────────│
+   │  [{name, run_order, ...}] │
 ```
 
 ---
@@ -62,19 +69,21 @@ Frontend                    Backend
 ## Integration 2: Backend ↔ PostgreSQL
 
 **Library:** `asyncpg` (async, connection pool min=2 max=10)  
-**File:** `services/database.py` + `services/index_service.py`
+**Files:** `services/database.py`, `services/index_service.py`, `services/extension_service.py`
 
 PostgreSQL is used for:
 1. **Index metadata** — CRUD on `indexes` table
 2. **Connector config persistence** — stored in `connectors` JSONB column
 3. **Ingest job tracking** — `ingest_status` table, polled by frontend
 4. **Deletion memory** — `deleted_splits` table prevents re-discovery
+5. **Extension library** — `extensions` table; seeded from `backend/extensions/*.js`
+6. **Per-index assignments** — `index_extensions` join table with `run_order` and `enabled`
 
 **Connection lifecycle:**
 ```
 FastAPI startup (lifespan)
   → asyncpg.create_pool()
-  → init_db() — CREATE TABLE IF NOT EXISTS for all 3 tables
+  → init_db() — CREATE TABLE IF NOT EXISTS for all 5 tables
   → pool kept alive for app lifetime
   → each request: pool.acquire() → execute → release
 ```
@@ -91,11 +100,12 @@ Two write paths:
 
 ```
 ISP-managed source (REST/Sitemap):
-  fetch → parse → embed → upsert to isp_{id} collection
+  fetch → parse → apply extensions → embed → upsert to isp_{id} collection
 
 External source write-back (catalog):
-  fetch raw → map to catalog schema → embed → upsert to catalog collection
-  (so tmo-plp at localhost:3000 sees updated data)
+  fetch raw → inject _isp_type hint → apply extensions (V8) → generic mapper
+  → embed → upsert to catalog collection
+  (T-Mobile PLP at localhost:3000 reads from catalog collection)
 ```
 
 Two read paths:
@@ -118,7 +128,7 @@ External collection search:
 **API:** Cloud (requires `VOYAGE_API_KEY`)  
 **Model:** voyage-3 (1024-dimensional vectors)
 
-Called during ingest and rebuild:
+Called during ingest/rebuild for document embedding:
 ```python
 texts = [f"{doc['title']} {doc['content']}" for doc in docs]
 vectors = await embedding_service.embed_texts(texts)
@@ -127,61 +137,105 @@ for doc, vec in zip(docs, vectors):
         doc["vec"] = vec  # added before Typesense upsert
 ```
 
-For search (hybrid mode):
+Called during search (hybrid/semantic mode):
 ```python
-vec = await embedding_service.embed_texts([query])
+vec = await embedding_service.embed_query(query)
 # vec used in vector_query parameter to Typesense
+```
+
+**Two-tier embedding cache** (avoids redundant API calls):
+```
+Search query arrives
+  ↓
+L1: in-process LRU cache (2048 slots, configurable)
+  hit  → return immediately
+  miss ↓
+L2: Redis cache (24h TTL, configurable)
+  hit  → populate L1, return
+  miss ↓
+Voyage AI API call
+  → populate L1 and L2
 ```
 
 If `VOYAGE_API_KEY` is empty, embedding returns `[]` and ISP falls back to lexical-only search.
 
 ---
 
-## Integration 5: ISP ↔ T-Mobile PLP (localhost:3000)
+## Integration 5: Extension Pipeline
 
-ISP can write-back to the shared `catalog` Typesense collection used by the T-Mobile PLP (`tmo-plp`).
+Extensions are JavaScript `transform(doc)` functions that run between data fetch and Typesense upsert.
 
+**Execution model:**
 ```
-ISP Rebuild (Phones/Accessories)
-  → fetch from T-Mobile product API
-  → _map_api_item_to_catalog()  ← maps to catalog schema
-  → embed display + description
-  → upsert_to_collection("catalog", docs)
-         ↓
-  T-Mobile PLP (localhost:3000)
-  → reads from catalog collection
-  → shows updated phones/accessories
+V8 isolate per extension (PyMiniRacer)
+  — no filesystem, no network, no Node.js APIs
+  — same sandboxing approach as Coveo IPE
+  — compiled once per extension per ingest batch
+  — executed for every document in the batch
+
+Thread executor (asyncio)
+  — V8 execution is synchronous/blocking
+  — run in loop.run_in_executor(None, ...) to avoid blocking the event loop
 ```
 
-The catalog schema document shape ISP writes:
-```python
-{
-    "id": f"dev_{md5(familyCode)[:12]}",
-    "display": familyName,
-    "type": "device" | "accessory",
-    "aliases": ["samsung galaxy s25"],
-    "tags": ["samsung", "android", "smartphone"],
-    "segment": ["all"],
-    "popularity": 1000 - deviceRank * 10,
-    "is_featured": rank <= 5,
-    "created_at": now,
-    "updated_at": now,
-    "metadata": json.dumps({
-        "manufacturer": "Samsung",
-        "url_name": "samsung-galaxy-s25",
-        "images": ["https://cdn.tmobile.com/..."],
-        "color_options": ["Titanium Black"],
-        "skus": ["SKU123"],
-        "description": "Galaxy S25 by Samsung...",
-        "operating_system": "Android",
-    }),
-    "vec": [0.023, -0.145, ...]   # 1024-dim embedding
-}
+**Full pipeline (catalog write-back):**
+```
+1. fetch_raw_items(cfg)          — raw dicts from REST API
+2. item.setdefault("_isp_type", type_label)
+                                  — inject device/accessory hint for JS
+3. apply_extensions(docs, ext_records)
+                                  — V8 isolates transform each doc
+                                  — output: flat dict with standard keys
+                                    (display, type, url, manufacturer, price, ...)
+4. _generic_catalog_mapper(item, idx)
+                                  — packages flat dict → Typesense catalog schema
+                                  — metadata stored as JSON string
+5. embed_texts([display + description])
+                                  — Voyage AI → vec
+6. upsert_to_collection("catalog", docs)
+                                  — write to shared Typesense collection
+```
+
+**File-based source of truth:**
+```
+git commit backend/extensions/my_mapper.js
+  ↓
+deploy-api.sh (docker build + restart)
+  ↓
+lifespan._seed_extensions_from_files()
+  ↓
+upsert_extension_by_name() — create or update matched by @name header
+  ↓
+assign_extension_if_new() for every external index
+  (ON CONFLICT DO NOTHING — won't re-enable user-disabled extensions)
 ```
 
 ---
 
-## Integration 6: Auto-Discovery Flow
+## Integration 6: ISP ↔ T-Mobile PLP
+
+ISP writes to the shared `catalog` Typesense collection used by the T-Mobile PLP (`tmo-plp` at port 3000).
+
+```
+ISP Rebuild (Phones / Accessories)
+  → fetch from T-Mobile product API
+  → apply T-Mobile Catalog Mapper extension (JS)
+      — maps familyName → display
+      — builds URL: https://www.t-mobile.com/cell-phone/{urlSlug}
+      — extracts price, images, SKUs from nested response
+  → _generic_catalog_mapper() → Typesense catalog schema
+  → embed → upsert_to_collection("catalog", docs)
+         ↓
+  T-Mobile PLP (localhost:3000)
+  → GET /v1/catalog?type=device
+  → shows updated phones/accessories
+```
+
+URL ownership: the JS extension computes and returns `url` in its output. Python never constructs T-Mobile URLs — this ensures any URL format change only requires updating the extension JS, not the backend Python.
+
+---
+
+## Integration 7: Auto-Discovery Flow
 
 On every app load, ISP calls `POST /v1/indexes/discover`:
 
@@ -196,7 +250,7 @@ Check deleted_splits in PostgreSQL → skip deleted ones
       │
       ▼
 Check _KNOWN_SPLITS mapping:
-  "catalog" → [("Phones", filter="type:=device"),
+  "catalog" → [("Phones",      filter="type:=device"),
                ("Accessories", filter="type:=accessory")]
   others    → generic name (col_name.title())
       │
@@ -204,6 +258,7 @@ Check _KNOWN_SPLITS mapping:
 For each unseen split:
   count_external() from Typesense
   INSERT into PostgreSQL indexes
+  auto-assign seeded extension (ON CONFLICT DO NOTHING)
   return newly created IndexMeta[]
       │
       ▼
@@ -223,17 +278,19 @@ All services started in order by `deploy-all.sh`:
 
 2. deploy-api.sh
    └── docker compose build isp-api
+       (COPY extensions/ extensions/ is in Dockerfile — JS files land at /app/extensions)
    └── docker compose up -d isp-api
-       (isp-api depends_on isp-db: condition: service_healthy)
-       └── FastAPI starts → init_db() → tables created
+       (depends_on isp-db: condition: service_healthy)
+       └── FastAPI starts → init_db() → _ensure_catalog_collection()
+                         → _seed_extensions_from_files()
 
 3. deploy-ui.sh
-   └── npm run build  (Astro static build)
+   └── npm run build  (Astro static build with PUBLIC_API_URL)
    └── docker compose build isp-ui
    └── docker compose up -d isp-ui
 ```
 
 Individual scripts for partial deploys:
 - `./deploy-db.sh` — database only (rarely needed)
-- `./deploy-api.sh` — after any backend Python change
+- `./deploy-api.sh` — after any backend Python or extension JS change
 - `./deploy-ui.sh` — after any frontend Svelte/TS change
