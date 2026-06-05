@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://isp-redis:6379/0"
     embed_cache_ttl: int = 86400   # seconds Redis TTL (24h)
     embed_lru_size: int = 2048     # L1 in-memory slots per pod
+    extensions_dir: str = "/app/extensions"   # directory scanned for *.js extension files
     host: str = "0.0.0.0"
     port: int = 8001
 

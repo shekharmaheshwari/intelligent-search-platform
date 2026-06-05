@@ -16,6 +16,7 @@ dependencies = [
     "structlog>=24.0.0",
     "redis[hiredis]>=5.0.0",
     "cachetools>=5.3.0",
+    "py-mini-racer>=0.6.0",
 ]
 
 [build-system]

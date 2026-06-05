@@ -1,6 +1,7 @@
 import type {
   IndexMeta, IngestStatus, SearchResult,
   RestConnectorConfig, SitemapConnectorConfig,
+  ExtensionMeta, IndexExtension,
 } from './types';
 
 const BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8001/v1';
@@ -61,4 +62,35 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(cfg),
     }),
+
+  // Extensions library
+  listExtensions: () => req<ExtensionMeta[]>('/extensions'),
+
+  createExtension: (name: string, description: string, code: string) =>
+    req<ExtensionMeta>('/extensions', {
+      method: 'POST',
+      body: JSON.stringify({ name, description, code }),
+    }),
+
+  updateExtension: (id: string, fields: Partial<Pick<ExtensionMeta, 'name' | 'description' | 'code'>>) =>
+    req<ExtensionMeta>(`/extensions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(fields),
+    }),
+
+  deleteExtension: (id: string) =>
+    fetch(`${BASE}/extensions/${id}`, { method: 'DELETE' }),
+
+  // Per-index extension assignment
+  listIndexExtensions: (indexId: string) =>
+    req<IndexExtension[]>(`/indexes/${indexId}/extensions`),
+
+  assignExtension: (indexId: string, extensionId: string, runOrder: number, enabled: boolean) =>
+    req<{ ok: boolean }>(`/indexes/${indexId}/extensions`, {
+      method: 'POST',
+      body: JSON.stringify({ extension_id: extensionId, run_order: runOrder, enabled }),
+    }),
+
+  unassignExtension: (indexId: string, extensionId: string) =>
+    fetch(`${BASE}/indexes/${indexId}/extensions/${extensionId}`, { method: 'DELETE' }),
 };

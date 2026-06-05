@@ -45,4 +45,21 @@ async def init_db() -> None:
             CREATE TABLE IF NOT EXISTS deleted_splits (
                 split_key TEXT PRIMARY KEY
             );
+
+            CREATE TABLE IF NOT EXISTS extensions (
+                id          VARCHAR(12)  PRIMARY KEY,
+                name        VARCHAR(120) NOT NULL,
+                description TEXT         DEFAULT '',
+                code        TEXT         NOT NULL DEFAULT '',
+                created_at  VARCHAR(30)  NOT NULL,
+                updated_at  VARCHAR(30)  NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS index_extensions (
+                index_id     VARCHAR(12) NOT NULL REFERENCES indexes(id) ON DELETE CASCADE,
+                extension_id VARCHAR(12) NOT NULL REFERENCES extensions(id) ON DELETE CASCADE,
+                run_order    INTEGER     NOT NULL DEFAULT 0,
+                enabled      BOOLEAN     NOT NULL DEFAULT TRUE,
+                PRIMARY KEY (index_id, extension_id)
+            );
         """)
