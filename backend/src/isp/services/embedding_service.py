@@ -64,15 +64,24 @@ def _cache_key(text: str, input_type: str) -> str:
 
 
 def _vec_to_bytes(vec: list[float]) -> bytes:
+    """Serialise a float vector to raw bytes (4 bytes per float) for compact Redis storage."""
     return struct.pack(f"{len(vec)}f", *vec)
 
 
 def _bytes_to_vec(b: bytes) -> list[float]:
+    """Deserialise raw bytes back to a float vector. Inverse of ``_vec_to_bytes``."""
     n = len(b) // 4
     return list(struct.unpack(f"{n}f", b))
 
 
 async def _cache_get(key: str) -> list[float] | None:
+    """
+    Look up a vector in the two-tier cache (L1 LRU then L2 Redis).
+
+    Promotes a Redis hit into the in-process LRU so subsequent requests
+    within the same pod skip the Redis round-trip.
+    Returns None on a full cache miss.
+    """
     # L1
     async with _lru_lock:
         hit = _lru.get(key)
@@ -94,6 +103,7 @@ async def _cache_get(key: str) -> list[float] | None:
 
 
 async def _cache_set(key: str, vec: list[float]) -> None:
+    """Write a vector to both the in-process LRU and Redis (if available). Never raises."""
     async with _lru_lock:
         _lru[key] = vec
     r = await _get_redis()

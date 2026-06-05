@@ -38,7 +38,13 @@ def _parse_meta(raw_meta) -> dict:
 
 
 def _build_url(doc: dict, meta: dict) -> str:
-    """URL is always computed by the extension and stored in metadata.url."""
+    """
+    Return the product URL from the parsed metadata dict.
+
+    The URL is computed entirely by the JS extension during rebuild and stored in
+    ``metadata.url``.  No URL construction logic lives here — changing URL formats
+    only requires updating the extension JS file.
+    """
     return str(meta.get("url") or "")
 
 
@@ -339,6 +345,7 @@ async def get_facets(type: str = Query(default="device")):
             else:            price_bands["500+"] += 1
 
     def _to_facets(counts: dict[str, int]) -> list[dict]:
+        """Convert a {value: count} dict to a sorted list of {value, count} dicts."""
         return sorted(
             [{"value": k, "count": v} for k, v in counts.items()],
             key=lambda x: -x["count"],

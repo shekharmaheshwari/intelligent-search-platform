@@ -1,4 +1,10 @@
 <script lang="ts">
+  /**
+   * IndexCard — compact card for a single ISP index shown in the Dashboard grid.
+   *
+   * Clicking anywhere on the card dispatches ``open``; the ✕ button dispatches ``delete``
+   * with stopPropagation so it does not also trigger ``open``.
+   */
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../lib/types';
 
@@ -6,6 +12,7 @@
 
   const dispatch = createEventDispatcher<{ open: string; delete: string }>();
 
+  /** Format an ISO date string to a short locale date (e.g. "Jun 5, 2026"). */
   function fmtDate(iso: string) {
     return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   }

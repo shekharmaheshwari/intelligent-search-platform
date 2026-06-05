@@ -24,6 +24,7 @@ def _slug(name: str) -> str:
 
 
 async def _find_by_slug(slug: str):
+    """Return the IndexMeta whose name slugifies to the given slug, or None if not found."""
     indexes = await index_service.list_indexes()
     for idx in indexes:
         if _slug(idx.name) == slug:

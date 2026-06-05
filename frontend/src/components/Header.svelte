@@ -1,6 +1,13 @@
 <script lang="ts">
+  /**
+   * Header — top navigation bar.
+   *
+   * Contains the ISP logo/home button and a Docs link.
+   * Clicking the logo resets the app to the dashboard view with no selected index.
+   */
   import { appState } from '../lib/store';
 
+  /** Navigate to the dashboard view and deselect any active index. */
   function goHome() {
     appState.update(s => ({ ...s, view: 'dashboard', selectedIndexId: null }));
   }

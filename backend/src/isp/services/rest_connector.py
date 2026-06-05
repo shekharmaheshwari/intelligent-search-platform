@@ -40,6 +40,7 @@ def _auto_detect_fields(item: dict) -> dict[str, str]:
     keys = [k for k, v in item.items() if isinstance(v, (str, int, float)) and v != ""]
 
     def pick(*patterns: str) -> str:
+        """Return the first key whose lowercase name contains any of the given patterns."""
         for p in patterns:
             for k in keys:
                 if p in k.lower() and item.get(k):
@@ -55,6 +56,12 @@ def _auto_detect_fields(item: dict) -> dict[str, str]:
 
 
 def _extract_path(data: dict | list, path: str) -> list:
+    """
+    Navigate a dot-separated path through nested dicts/lists and return the value as a list.
+
+    Example: ``_extract_path({"results": {"items": [...]}}, "results.items")``
+    Returns the list at that path, or an empty list if any segment is missing.
+    """
     if not path:
         return data if isinstance(data, list) else [data]
     for part in path.split("."):
@@ -83,6 +90,16 @@ _CORE_FIELDS = {"id", "title", "content", "url", "source_type", "indexed_at"}
 
 
 def _doc_from_item(item: dict, fields: dict[str, str], idx: int) -> dict | None:
+    """
+    Build an ISP ``DocumentItem``-compatible dict from a single API item.
+
+    Uses ``fields`` to locate the id/title/content/url values.  Any item keys
+    that are not one of those four source fields are preserved as extra fields
+    on the document so extensions and the expand view can access them.
+
+    Returns None if both title and content are empty (nothing meaningful to index).
+    The document id is an MD5 hash of the raw id to ensure a stable, URL-safe identifier.
+    """
     if not isinstance(item, dict):
         return None
     raw_id = str(item.get(fields["id_field"], idx))

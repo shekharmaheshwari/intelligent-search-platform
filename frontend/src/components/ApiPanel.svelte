@@ -1,4 +1,12 @@
 <script lang="ts">
+  /**
+   * ApiPanel — API reference card for a specific index.
+   *
+   * Shown in the IndexDetail "API" tab.  Renders copy-ready curl examples for
+   * hybrid and lexical search, plus the expected response JSON shape.
+   * The base URL is derived at runtime from ``window.location`` so examples
+   * point at the correct host in both local and deployed environments.
+   */
   export let indexId: string;
 
   const base = typeof window !== 'undefined'
@@ -14,6 +22,8 @@
   -d '{"q": "your query", "mode": "lexical", "page": 1, "per_page": 10}'`;
 
   let copied = '';
+
+  /** Copy ``text`` to the clipboard and show a brief confirmation badge identified by ``key``. */
   function copy(text: string, key: string) {
     navigator.clipboard.writeText(text);
     copied = key;

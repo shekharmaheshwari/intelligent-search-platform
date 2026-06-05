@@ -1,4 +1,16 @@
 <script lang="ts">
+  /**
+   * IndexExtensionsPanel — per-index extension assignment overlay.
+   *
+   * Opened from the "⚙ Extensions" button in SourceContent.  Allows the user to:
+   * - See which extensions are assigned to this index and in what order.
+   * - Reorder extensions with ↑↓ arrows (swaps ``run_order`` values).
+   * - Toggle individual extensions on/off without removing the assignment.
+   * - Remove extensions from this index (does not delete the extension from library).
+   * - Add available library extensions that are not yet assigned.
+   *
+   * Dispatches ``close`` when the overlay backdrop or ✕ button is clicked.
+   */
   import { onMount, createEventDispatcher } from 'svelte';
   import { api } from '../lib/api';
   import type { IndexExtension, ExtensionMeta } from '../lib/types';
@@ -12,6 +24,7 @@
   let loading = true;
   let errMsg = '';
 
+  /** Fetch both the assigned extensions and the full library in parallel, then refresh state. */
   async function load() {
     loading = true; errMsg = '';
     try {
@@ -28,9 +41,11 @@
 
   onMount(load);
 
+  // Derived sets — recomputed whenever assigned or library changes
   $: assignedIds = new Set(assigned.map(e => e.id));
   $: available = library.filter(e => !assignedIds.has(e.id));
 
+  /** Add a library extension to this index at the end of the current run_order sequence. */
   async function add(ext: ExtensionMeta) {
     const order = assigned.length;
     try {
@@ -39,6 +54,7 @@
     } catch (e) { errMsg = String(e); }
   }
 
+  /** Remove (unassign) an extension from this index. Does not delete it from the library. */
   async function remove(ext: IndexExtension) {
     try {
       await api.unassignExtension(indexId, ext.id);
@@ -46,6 +62,7 @@
     } catch (e) { errMsg = String(e); }
   }
 
+  /** Toggle an extension between enabled and disabled without changing its run_order. */
   async function toggle(ext: IndexExtension) {
     try {
       await api.assignExtension(indexId, ext.id, ext.run_order, !ext.enabled);
@@ -53,6 +70,10 @@
     } catch (e) { errMsg = String(e); }
   }
 
+  /**
+   * Swap this extension one position earlier in the run_order sequence.
+   * Exchanges ``run_order`` values with the preceding item so the list stays contiguous.
+   */
   async function moveUp(idx: number) {
     if (idx === 0) return;
     const a = assigned[idx - 1];
@@ -64,6 +85,10 @@
     await load();
   }
 
+  /**
+   * Swap this extension one position later in the run_order sequence.
+   * Exchanges ``run_order`` values with the following item so the list stays contiguous.
+   */
   async function moveDown(idx: number) {
     if (idx === assigned.length - 1) return;
     const a = assigned[idx];

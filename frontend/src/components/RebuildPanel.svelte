@@ -1,4 +1,15 @@
 <script lang="ts">
+  /**
+   * RebuildPanel — full-rebuild dialog for an ISP-managed index.
+   *
+   * Opened from the "↺ Rebuild" button in SourceContent.  Allows operators to:
+   * - Paste a curl command to auto-fill all fields.
+   * - Manually configure method, URL, headers, and request body.
+   * - Trigger a rebuild that drops all existing documents and re-fetches from the connector.
+   * - Track job progress in real time via the status-poll loop.
+   *
+   * Dispatches ``done`` when the rebuild completes and ``close`` when dismissed.
+   */
   import { createEventDispatcher } from 'svelte';
   import { api } from '../lib/api';
   import type { IndexMeta, IngestStatus, RestConnectorConfig } from '../lib/types';
@@ -7,6 +18,7 @@
 
   const dispatch = createEventDispatcher<{ done: void; close: void }>();
 
+  /** Pre-populate form fields from the first saved REST connector on this index, if any. */
   function getExistingRest(): Partial<RestConnectorConfig> {
     // Only pre-populate from a saved REST connector — never from external connectors
     // (external connectors have type:'external' and url is a product page prefix, not an API)
@@ -32,6 +44,11 @@
   let curlInput = '';
   let parseError = '';
 
+  /**
+   * Parse a raw curl command string and populate the form fields.
+   * Extracts the HTTP method, URL, headers (-H flags), and request body (-d/--data).
+   * Sets ``parseError`` if the string does not start with "curl" or has no URL.
+   */
   function parseCurl(raw: string) {
     parseError = '';
     const s = raw.replace(/\\\n/g, ' ').replace(/\s+/g, ' ').trim();
@@ -73,6 +90,7 @@
     curlInput  = '';   // clear the textarea after parse
   }
 
+  /** Intercept paste events in the curl textarea — if the pasted text is a curl command, parse it immediately and suppress the default paste. */
   function onCurlPaste(e: ClipboardEvent) {
     const text = e.clipboardData?.getData('text') ?? '';
     if (text.trim().startsWith('curl')) {
@@ -94,6 +112,7 @@
 
   $: curlCmd = buildCurl(url, method, headersRaw, body);
 
+  /** Build a multi-line curl command preview from the current form values. Returns a placeholder comment when URL is empty. */
   function buildCurl(u: string, m: string, h: string, b: string): string {
     if (!u) return '# Enter a URL above to see the curl command';
     const lines: string[] = [`curl -X ${m} "${u}"`];
@@ -112,12 +131,14 @@
     return lines.join(' \\\n');
   }
 
+  /** Copy the current curl preview to the clipboard and show a brief "Copied" confirmation. */
   function copyCurl() {
     navigator.clipboard.writeText(curlCmd);
     copied = true;
     setTimeout(() => { copied = false; }, 1500);
   }
 
+  /** Validate the form, call the rebuild API, then start the status-poll loop. */
   async function runRebuild() {
     if (!url.trim()) { errMsg = 'URL is required'; return; }
     let headers: Record<string, string> = {};
@@ -143,6 +164,11 @@
     }
   }
 
+  /**
+   * Poll the backend job status every 1.2 s until the job reaches a terminal state.
+   * Updates ``stage``, ``statusIndexed``, and ``statusTotal`` to drive the progress UI.
+   * Dispatches ``done`` on success; sets ``runState = 'error'`` on failure.
+   */
   async function poll() {
     while (true) {
       await new Promise(r => setTimeout(r, 1200));
@@ -177,6 +203,7 @@
     }
   }
 
+  /** Reset all progress state so the form can be submitted again. */
   function reset() {
     runState = 'idle';
     errMsg = '';
