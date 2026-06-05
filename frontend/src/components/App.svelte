@@ -7,6 +7,7 @@
   import SourceContent from './SourceContent.svelte';
   import IndexDetail from './IndexDetail.svelte';
   import CreateWizard from './CreateWizard.svelte';
+  import ExtensionsPanel from './ExtensionsPanel.svelte';
 
   let showWizard = false;
   let windowWidth = 1024;
@@ -106,6 +107,7 @@
         on:select={e => selectSource(e.detail)}
         on:create={() => showWizard = true}
         on:delete={e => deleteSource(e.detail)}
+        on:extensions={() => appState.update(s => ({ ...s, view: 'extensions', selectedIndexId: null }))}
       />
     </div>
 
@@ -113,7 +115,11 @@
       {#if isMobile}
         <button class="back-btn" on:click={() => sidebarVisible = true}>← Sources</button>
       {/if}
-      {#if $appState.view === 'configure' && $appState.selectedIndexId}
+      {#if $appState.view === 'extensions'}
+        <div class="extensions-wrap">
+          <ExtensionsPanel />
+        </div>
+      {:else if $appState.view === 'configure' && $appState.selectedIndexId}
         <div class="configure-wrap">
           <div class="configure-back">
             <button on:click={backToContent}>← Back to content</button>
@@ -257,6 +263,11 @@
       box-shadow: 0 4px 16px rgba(124, 108, 244, 0.4);
       z-index: 50;
     }
+  }
+
+  .extensions-wrap {
+    height: 100%;
+    overflow-y: auto;
   }
 
   .configure-wrap {

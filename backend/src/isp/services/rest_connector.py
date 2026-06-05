@@ -53,6 +53,21 @@ def _extract_path(data: dict | list, path: str) -> list:
     return data if isinstance(data, list) else [data]
 
 
+def _apply_field_map(item: dict, field_map: dict[str, str]) -> dict:
+    """Rename source fields per field_map. Empty-string target = drop the field."""
+    if not field_map:
+        return item
+    result = {}
+    for source_key, value in item.items():
+        target_key = field_map.get(source_key, source_key)
+        if target_key:  # empty string means drop
+            result[target_key] = value
+    return result
+
+
+_CORE_FIELDS = {"id", "title", "content", "url", "source_type", "indexed_at"}
+
+
 def _doc_from_item(item: dict, fields: dict[str, str], idx: int) -> dict | None:
     if not isinstance(item, dict):
         return None
@@ -63,7 +78,7 @@ def _doc_from_item(item: dict, fields: dict[str, str], idx: int) -> dict | None:
     if not title and not content:
         return None
     doc_id = hashlib.md5(raw_id.encode()).hexdigest()[:16]
-    return {
+    doc: dict = {
         "id": doc_id,
         "title": title or content[:80],
         "content": content or title,
@@ -71,6 +86,12 @@ def _doc_from_item(item: dict, fields: dict[str, str], idx: int) -> dict | None:
         "source_type": "rest",
         "indexed_at": int(time.time()),
     }
+    # Preserve any extra fields that were mapped (beyond the 4 core shortcuts)
+    for k, v in item.items():
+        if k not in _CORE_FIELDS and k not in (fields["id_field"], fields["title_field"],
+                                                fields["content_field"], fields["url_field"]):
+            doc[k] = v
+    return doc
 
 
 async def _do_request(cfg: RestConnectorConfig):
@@ -115,8 +136,12 @@ async def fetch_and_parse(cfg: RestConnectorConfig) -> list[dict]:
     if not items:
         return []
 
+    # Apply field_map renames to every item first
+    if cfg.field_map:
+        items = [_apply_field_map(item, cfg.field_map) if isinstance(item, dict) else item
+                 for item in items]
+
     # Auto-detect field mapping when defaults haven't been overridden
-    defaults = {"id", "title", "content", "url"}
     sample = next((i for i in items if isinstance(i, dict)), None)
     if sample:
         any_default_missing = any(

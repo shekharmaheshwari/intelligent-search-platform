@@ -8,8 +8,6 @@ from isp.services import typesense_client as ts
 router = APIRouter(tags=["catalog-api"])
 
 _CATALOG_COL = "catalog"
-_DEVICE_URL_BASE = "https://www.t-mobile.com/cell-phones"
-_ACCESSORY_URL_BASE = "https://www.t-mobile.com/accessories"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -26,12 +24,8 @@ def _parse_meta(raw_meta) -> dict:
 
 
 def _build_url(doc: dict, meta: dict) -> str:
-    url_name = meta.get("url_name", "")
-    if not url_name:
-        return ""
-    doc_type = doc.get("type", "")
-    base = _DEVICE_URL_BASE if doc_type == "device" else _ACCESSORY_URL_BASE
-    return f"{base}/{url_name}"
+    """URL is always computed by the extension and stored in metadata.url."""
+    return str(meta.get("url") or "")
 
 
 def _doc_to_item(doc: dict, score: float = 0.0) -> dict:

@@ -5,155 +5,61 @@ from isp.models import (
     IndexCreate, IndexMeta, IngestStatus,
     RestConnectorConfig, SitemapConnectorConfig,
 )
-from isp.services import index_service, embedding_service
+from isp.services import index_service, embedding_service, extension_service
 from isp.services import typesense_client as ts
 from isp.services import rest_connector, sitemap_connector
+from isp.services.extension_runner import apply_extensions
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
 
 
-# ── Catalog write-back mapper ─────────────────────────────────────────────────
+# ── Generic catalog mapper (extension-driven) ─────────────────────────────────
+#
+# Extensions are responsible for normalising any API response into a flat dict
+# with well-known keys (display, type, url, manufacturer, price, …).
+# This mapper just packages that flat dict into the Typesense catalog schema —
+# it makes NO assumptions about the upstream API field names.
 
-def _extract_price(item: dict, skus_raw: list[dict]) -> float | None:
-    """Try to find a price value in common API field locations."""
-    def _try_float(v) -> float | None:
-        if v is None:
-            return None
-        try:
-            return float(v)
-        except (ValueError, TypeError):
-            return None
-
-    # Top-level price fields
-    for field in ("price", "msrp", "basePrice", "fullRetailPrice", "retailPrice", "salePrice"):
-        p = _try_float(item.get(field))
-        if p is not None:
-            return p
-
-    # SKU-level: check first SKU only
-    for sku in skus_raw[:1]:
-        for field in ("price", "msrp", "basePrice", "fullRetailPrice", "retailPrice", "salePrice"):
-            p = _try_float(sku.get(field))
-            if p is not None:
-                return p
-
-        # T-Mobile devices: frpPrice.salePrice / frpPrice.listPrice
-        frp = sku.get("frpPrice") or {}
-        if isinstance(frp, dict):
-            for field in ("salePrice", "listPrice", "displaySalePrice", "displayListPrice"):
-                p = _try_float(frp.get(field))
-                if p is not None:
-                    return p
-
-        # Generic nested prices dict
-        prices = sku.get("prices") or {}
-        if isinstance(prices, dict):
-            for field in ("basePrice", "retailPrice", "fullRetailPrice", "salePrice", "price"):
-                p = _try_float(prices.get(field))
-                if p is not None:
-                    return p
-
-    return None
-
-
-def _extract_in_stock(item: dict) -> bool:
-    avail = item.get("availability") or item.get("stock") or item.get("inventoryStatus")
-    if avail is None:
-        return True
-    if isinstance(avail, bool):
-        return avail
-    if isinstance(avail, dict):
-        status = str(avail.get("status", "")).upper()
-        return "OUT" not in status and status not in ("UNAVAILABLE", "DISCONTINUED")
-    return "OUT" not in str(avail).upper()
-
-
-def _map_api_item_to_catalog(item: dict, type_label: str, idx: int) -> dict | None:
-    """Convert a raw API item into a catalog-schema document."""
-    raw_id = (
-        item.get("familyCode") or item.get("sku") or item.get("id") or str(idx)
-    )
-    display = (
-        item.get("familyName") or item.get("name") or item.get("title") or item.get("display") or ""
-    )
+def _generic_catalog_mapper(item: dict, idx: int) -> dict | None:
+    display = str(item.get("display") or item.get("name") or item.get("title") or "")
     if not display:
         return None
 
-    manufacturer = str(item.get("manufacturer") or item.get("brand") or "")
-    os_name = str(item.get("operatingSystem") or "")
-    url_name = str(item.get("urlEncodedFamilyName") or item.get("urlName") or "")
-    rank = int(item.get("deviceRank") or item.get("rank") or 999)
+    raw_id  = str(item.get("id") or idx)
+    doc_id  = f"dev_{hashlib.md5(raw_id.encode()).hexdigest()[:12]}"
+    now     = int(time.time())
 
-    # Category: field may be a string or a dict with a "name" key
-    _cat_raw = (
-        item.get("category") or item.get("productCategory") or
-        item.get("familyCategory") or item.get("subcategory")
-    )
-    if isinstance(_cat_raw, dict):
-        category = str(_cat_raw.get("name") or ("Smartphones" if type_label == "device" else "Accessories"))
-    elif _cat_raw:
-        category = str(_cat_raw)
-    else:
-        category = "Smartphones" if type_label == "device" else "Accessories"
-
-    color_names = [c.get("name", "") for c in item.get("colorOptions", []) if isinstance(c, dict)]
-    skus_raw = [s for s in item.get("skus", []) if isinstance(s, dict)]
-    skus = [s.get("skuCode", "") for s in skus_raw if s.get("skuCode")]
-
-    price = _extract_price(item, skus_raw)
-    in_stock = _extract_in_stock(item)
-
-    # Prefer high-res PNG images from skus[].images (FrontImage > LeftImage > any)
-    images: list[str] = []
-    for sku in skus_raw[:3]:
-        for img in sku.get("images", []):
-            if not isinstance(img, dict):
-                continue
-            url = img.get("url", "")
-            itype = img.get("imgtype", "")
-            if url and itype in ("FrontImage", "LeftImage", "ThumbNail"):
-                images.append(url)
-                break
-    seen: set[str] = set()
-    images = [u for u in images if not (u in seen or seen.add(u))]  # type: ignore[func-returns-value]
-
-    aliases = []
-    if manufacturer and display:
-        aliases.append(f"{manufacturer} {display}".lower())
-
-    tags = list({t for t in [manufacturer.lower(), os_name.lower(), "phone", "smartphone"] if t})
-    if type_label != "device":
-        tags = list({t for t in [manufacturer.lower(), str(category).lower()] if t})
-
+    price = item.get("price")
     metadata: dict = {
-        "manufacturer": manufacturer,
-        "category": category,
-        "url_name": url_name,
-        "images": images[:3],
-        "color_options": color_names,
-        "skus": skus[:5],
-        "description": f"{display} by {manufacturer}." + (f" {os_name} smartphone." if os_name else ""),
-        "operating_system": os_name,
-        "in_stock": in_stock,
+        "manufacturer":    str(item.get("manufacturer") or ""),
+        "category":        str(item.get("category") or ""),
+        "url":             str(item.get("url") or ""),
+        "url_name":        str(item.get("url_name") or ""),
+        "images":          list(item.get("images") or [])[:3],
+        "color_options":   list(item.get("color_options") or []),
+        "skus":            list(item.get("skus") or [])[:5],
+        "description":     str(item.get("description") or ""),
+        "operating_system": str(item.get("operating_system") or ""),
+        "in_stock":        bool(item.get("in_stock", True)),
     }
     if price is not None:
-        metadata["price"] = price
-
-    doc_id = f"dev_{hashlib.md5(str(raw_id).encode()).hexdigest()[:12]}"
-    now = int(time.time())
+        try:
+            metadata["price"] = float(price)
+        except (ValueError, TypeError):
+            pass
 
     return {
-        "id": doc_id,
-        "display": display,
-        "type": type_label,
-        "aliases": aliases,
-        "tags": tags,
-        "segment": ["all"],
-        "popularity": max(0, 1000 - rank * 10),
-        "is_featured": rank <= 5,
+        "id":         doc_id,
+        "display":    display,
+        "type":       str(item.get("type") or "device"),
+        "aliases":    list(item.get("aliases") or []),
+        "tags":       list(item.get("tags") or []),
+        "segment":    ["all"],
+        "popularity": int(item.get("popularity") or 0),
+        "is_featured": bool(item.get("is_featured", False)),
         "created_at": now,
         "updated_at": now,
-        "metadata": json.dumps(metadata),
+        "metadata":   json.dumps(metadata),
     }
 
 
@@ -189,20 +95,15 @@ def _map_external_doc(raw: dict, meta: IndexMeta) -> dict:
                 parts.extend(str(x) for x in v)
         content = " ".join(parts)
 
-    # Build URL
+    # URL is computed by the extension and stored in metadata.url
     url = ""
-    if meta.external_url_field:
-        # Try to get url_name from metadata
-        meta_raw = raw.get("metadata")
-        url_name = ""
-        if meta_raw:
-            try:
-                md = json.loads(meta_raw) if isinstance(meta_raw, str) else meta_raw
-                url_name = str(md.get("url_name") or "")
-            except Exception:
-                pass
-        if url_name:
-            url = meta.external_url_field.rstrip("/") + "/" + url_name
+    meta_raw = raw.get("metadata")
+    if meta_raw:
+        try:
+            md = json.loads(meta_raw) if isinstance(meta_raw, str) else meta_raw
+            url = str(md.get("url") or "")
+        except Exception:
+            pass
     if not url:
         url = str(raw.get("url") or raw.get("link") or "")
 
@@ -242,8 +143,20 @@ async def discover_indexes():
     Scan Typesense for collections that are not yet tracked by ISP and register
     them as read-only external sources.  Safe to call repeatedly — already-known
     collections are skipped.
+
+    Newly discovered catalog indexes are automatically assigned the seeded
+    extension (e.g. T-Mobile Catalog Mapper) if one exists in the library.
     """
-    return await index_service.discover_external_collections()
+    from isp.main import _TMOBILE_EXT_NAME
+    new_indexes = await index_service.discover_external_collections()
+    if new_indexes:
+        exts = await extension_service.list_extensions()
+        tmo = next((e for e in exts if e["name"] == _TMOBILE_EXT_NAME), None)
+        if tmo:
+            for idx in new_indexes:
+                if idx.is_external:
+                    await extension_service.assign_extension_if_new(idx.id, tmo["id"], run_order=0)
+    return new_indexes
 
 
 @router.post("", response_model=IndexMeta, status_code=status.HTTP_201_CREATED, summary="Create a new index")
@@ -341,6 +254,9 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
         s.total = len(docs)
         await index_service.set_status(s)
 
+        ext_records = await extension_service.list_index_extensions(idx_id)
+        docs = await apply_extensions(docs, ext_records)
+
         texts = [f"{d['title']} {d['content']}" for d in docs]
         vectors = await embedding_service.embed_texts(texts)
         for doc, vec in zip(docs, vectors):
@@ -431,12 +347,17 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         await index_service.set_status(s)
 
         if meta.external_collection:
-            # ── Write-back mode: map to catalog schema and upsert into catalog ──
+            # ── Write-back mode: extensions transform raw items → generic mapper packages them ──
             type_label = meta.external_filter.split(":=")[-1] if ":=" in meta.external_filter else "item"
-            catalog_docs = [
-                _map_api_item_to_catalog(item, type_label, i)
-                for i, item in enumerate(raw_items)
-            ]
+
+            # Inject catalog type hint so extensions know which collection they're populating
+            for item in raw_items:
+                item.setdefault("_isp_type", type_label)
+
+            ext_records = await extension_service.list_index_extensions(idx_id)
+            raw_items = await apply_extensions(raw_items, ext_records)
+
+            catalog_docs = [_generic_catalog_mapper(item, i) for i, item in enumerate(raw_items)]
             catalog_docs = [d for d in catalog_docs if d]
 
             # Embed on display + description for semantic search
@@ -462,6 +383,9 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             docs = await rest_connector.fetch_and_parse(cfg)
             if not docs:
                 raise ValueError("0 documents parsed — check field mapping.")
+
+            ext_records = await extension_service.list_index_extensions(idx_id)
+            docs = await apply_extensions(docs, ext_records)
 
             texts = [f"{d['title']} {d['content']}" for d in docs]
             vectors = await embedding_service.embed_texts(texts)

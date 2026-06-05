@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml .
 COPY src/ src/
+COPY extensions/ extensions/
 
 RUN uv pip install --system --no-cache -e .
 

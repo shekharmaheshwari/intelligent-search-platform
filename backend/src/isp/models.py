@@ -14,6 +14,16 @@ class RestConnectorConfig(BaseModel):
     title_field: str = "title"
     content_field: str = "content"
     url_field: str = "url"
+    field_map: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Optional source→target field renames applied before indexing. "
+            "Key = field name in the API response, value = field name to store in ISP. "
+            "Use the special target names 'title', 'content', 'url', 'id' to override "
+            "the core field shortcuts above. Any other target name is stored as an "
+            "extra field on the document. Set a value to '' to drop that field entirely."
+        ),
+    )
 
 
 class SitemapConnectorConfig(BaseModel):

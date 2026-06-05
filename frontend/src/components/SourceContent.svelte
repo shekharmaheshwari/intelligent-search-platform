@@ -4,12 +4,14 @@
   import { api } from '../lib/api';
   import type { IndexMeta, DocumentItem } from '../lib/types';
   import RebuildPanel from './RebuildPanel.svelte';
+  import IndexExtensionsPanel from './IndexExtensionsPanel.svelte';
 
   export let index: IndexMeta;
 
   const dispatch = createEventDispatcher<{ configure: string }>();
 
   let showRebuild = false;
+  let showExtensions = false;
 
   let docs: DocumentItem[] = [];
   let found = 0;
@@ -137,10 +139,15 @@
       </div>
       <div class="source-actions">
         <div class="stat-pill">{index.doc_count.toLocaleString()} docs</div>
+        <button class="ext-btn" on:click={() => showExtensions = true}>⚙ Extensions</button>
         <button class="rebuild-btn" on:click={() => showRebuild = true}>↺ Rebuild</button>
         <button class="configure-btn" on:click={() => dispatch('configure', index.id)}>Configure →</button>
       </div>
     </div>
+
+  {#if showExtensions}
+    <IndexExtensionsPanel indexId={index.id} on:close={() => showExtensions = false} />
+  {/if}
 
   {#if showRebuild}
     <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
@@ -337,6 +344,19 @@
     font-size: 12px;
     color: #666;
   }
+
+  .ext-btn {
+    background: #111;
+    border: 1px solid #222;
+    color: #666;
+    border-radius: 7px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .ext-btn:hover { border-color: #7c6cf4; color: #9d91f5; background: #141420; }
 
   .rebuild-btn {
     background: #1e1b3a;

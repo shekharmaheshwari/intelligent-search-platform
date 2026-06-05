@@ -60,7 +60,21 @@ export interface DocumentItem {
   indexed_at: number;
 }
 
-export type View = 'dashboard' | 'detail' | 'create' | 'configure';
+export interface ExtensionMeta {
+  id: string;
+  name: string;
+  description: string;
+  code: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IndexExtension extends ExtensionMeta {
+  run_order: number;
+  enabled: boolean;
+}
+
+export type View = 'dashboard' | 'detail' | 'create' | 'configure' | 'extensions';
 
 export interface AppState {
   view: View;

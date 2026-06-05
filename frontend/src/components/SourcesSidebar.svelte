@@ -5,7 +5,7 @@
   export let indexes: IndexMeta[] = [];
   export let selectedId: string | null = null;
 
-  const dispatch = createEventDispatcher<{ select: string; create: void; delete: string }>();
+  const dispatch = createEventDispatcher<{ select: string; create: void; delete: string; extensions: void }>();
 
   let sourcesOpen = true;
 
@@ -99,6 +99,11 @@
     {/if}
   </div>
 
+  <div class="sidebar-footer">
+    <button class="footer-link" on:click={() => dispatch('extensions')}>
+      <span class="footer-icon">⚙</span> Extensions
+    </button>
+  </div>
 </aside>
 
 <style>
@@ -114,6 +119,29 @@
     top: 56px;
     overflow-y: auto;
   }
+
+  .sidebar-footer {
+    margin-top: auto;
+    border-top: 1px solid #161616;
+    padding: 8px 10px;
+  }
+  .footer-link {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    background: none;
+    border: none;
+    color: #444;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 7px 10px;
+    border-radius: 6px;
+    text-align: left;
+    transition: background 0.1s, color 0.1s;
+  }
+  .footer-link:hover { background: #131313; color: #888; }
+  .footer-icon { font-size: 13px; }
 
   @media (max-width: 767px) {
     .sidebar {
