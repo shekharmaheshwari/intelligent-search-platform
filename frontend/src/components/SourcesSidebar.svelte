@@ -7,6 +7,7 @@
    * - ``create``     — user clicked the "+" button to open the Create Wizard
    * - ``delete``     — user clicked the ✕ delete button (detail: index id)
    * - ``extensions`` — user clicked the "⚙ Extensions" footer link
+   * - ``settings``   — user clicked the "⚙ Settings" footer link
    */
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../lib/types';
@@ -14,7 +15,7 @@
   export let indexes: IndexMeta[] = [];
   export let selectedId: string | null = null;
 
-  const dispatch = createEventDispatcher<{ select: string; create: void; delete: string; extensions: void }>();
+  const dispatch = createEventDispatcher<{ select: string; create: void; delete: string; extensions: void; settings: void }>();
 
   let sourcesOpen = true;
 
@@ -117,6 +118,9 @@
   <div class="sidebar-footer">
     <button class="footer-link" on:click={() => dispatch('extensions')}>
       <span class="footer-icon">⚙</span> Extensions
+    </button>
+    <button class="footer-link" on:click={() => dispatch('settings')}>
+      <span class="footer-icon">⚒</span> Settings
     </button>
   </div>
 </aside>

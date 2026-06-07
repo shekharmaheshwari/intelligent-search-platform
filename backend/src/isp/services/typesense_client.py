@@ -12,8 +12,30 @@ from __future__ import annotations
 import typesense
 from isp.config import settings
 
+# Vector dimension for newly created ISP collections.
+# Updated at runtime by settings_service.set_embed_model() when the operator
+# changes the embedding model.  Existing collections retain the dimension they
+# were created with; only new collections (or collections recreated after a
+# full rebuild) pick up the new value.
 _VEC_DIM = 1024
 _client: typesense.Client | None = None
+
+
+def set_vec_dim(dim: int) -> None:
+    """
+    Update the vector dimension used when provisioning new ISP collections.
+
+    Called by ``settings_service.set_embed_model()`` whenever the operator
+    switches to a model with a different output dimension.  The change is
+    immediately effective for any ``create_collection`` calls made afterward.
+    """
+    global _VEC_DIM
+    _VEC_DIM = dim
+
+
+def get_vec_dim() -> int:
+    """Return the currently configured vector dimension for new ISP collections."""
+    return _VEC_DIM
 
 
 def get_client() -> typesense.Client:
@@ -56,6 +78,12 @@ def create_collection(index_id: str) -> None:
             {"name": "url",         "type": "string", "optional": True},
             {"name": "source_type", "type": "string", "facet": True},
             {"name": "indexed_at",  "type": "int64"},
+            # metadata stores a JSON string so rich catalog data (images, price,
+            # manufacturer, etc.) survives into ISP-managed collections intact.
+            {"name": "metadata",    "type": "string", "optional": True, "index": False},
+            # Editorial signals — top-level so Typesense can sort and filter on them.
+            {"name": "popularity",  "type": "int32",   "optional": True, "sort": True},
+            {"name": "is_featured", "type": "bool",    "optional": True},
             {"name": "vec",         "type": "float[]", "num_dim": _VEC_DIM, "optional": True},
         ],
     })
@@ -73,10 +101,20 @@ def upsert_documents(index_id: str, docs: list[dict]) -> int:
     """Upsert documents into an ISP-managed collection. Returns number of successful upserts."""
     if not docs:
         return 0
+    import logging
+    log = logging.getLogger(__name__)
     name = collection_name(index_id)
     client = get_client()
     results = client.collections[name].documents.import_(docs, {"action": "upsert"})
-    ok = sum(1 for r in results if r.get("success"))
+    ok = 0
+    for r in results:
+        if r.get("success"):
+            ok += 1
+        else:
+            log.error("Typesense upsert failure: %s", r)
+    if ok == 0 and results:
+        log.error("All %d upserts failed. First doc sample: %s",
+                  len(results), {k: v for k, v in list(docs[0].items())[:6] if k != "vec"})
     return ok
 
 
@@ -271,6 +309,31 @@ def search_external(
         page_docs = [all_docs[d] for d in ranked[start:start + per_page]]
         return {"hits": [{"document": d} for d in page_docs], "found": len(ranked), "page": page}
     return get_client().collections[col].documents.search(params)
+
+
+def update_document_fields(col_name: str, doc_id: str, fields: dict) -> bool:
+    """
+    Partially update specific fields on a document without touching the rest.
+
+    Uses Typesense ``action=update`` import which only overwrites the supplied keys.
+    Returns True if the update was acknowledged successfully.
+    """
+    try:
+        results = get_client().collections[col_name].documents.import_(
+            [{**fields, "id": doc_id}],
+            {"action": "update"},
+        )
+        return bool(results and results[0].get("success"))
+    except Exception:
+        return False
+
+
+def retrieve_document(col_name: str, doc_id: str) -> dict | None:
+    """Fetch a single document by id from a named collection. Returns None if not found."""
+    try:
+        return get_client().collections[col_name].documents[doc_id].retrieve()
+    except Exception:
+        return None
 
 
 def delete_from_collection(col_name: str, filter_by: str) -> int:

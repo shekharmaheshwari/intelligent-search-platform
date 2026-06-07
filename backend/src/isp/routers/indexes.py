@@ -14,6 +14,7 @@ Key design decisions:
 from __future__ import annotations
 import asyncio, hashlib, json, time
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from pydantic import BaseModel
 from isp.models import (
     IndexCreate, IndexMeta, IngestStatus,
     RestConnectorConfig, SitemapConnectorConfig,
@@ -24,6 +25,133 @@ from isp.services import rest_connector, sitemap_connector
 from isp.services.extension_runner import apply_extensions
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
+
+
+def _infer_isp_type(cfg_dict: dict) -> str:
+    """
+    Derive a catalog type label from the connector body's ``familyCategory`` field.
+
+    T-Mobile connectors carry a JSON body with ``familyCategory`` set to
+    ``ACCESSORIES``, ``CELLPHONES``, ``TABLETS``, ``SMARTWATCHES``, etc.
+    This label is injected as ``_isp_type`` on each raw item so the T-Mobile
+    Catalog Mapper extension knows whether to produce ``"accessory"`` or
+    ``"device"`` documents.  Non-T-Mobile sources fall back to ``"item"``.
+    """
+    body_str = cfg_dict.get("body", "") or ""
+    if body_str:
+        try:
+            body = json.loads(body_str)
+            family = str(body.get("familyCategory", "")).upper()
+            if "ACCESSOR" in family:
+                return "accessory"
+            if family:  # CELLPHONES, TABLETS, SMARTWATCHES → device
+                return "device"
+        except Exception:
+            pass
+    return "item"
+
+
+# Fields stored directly on the ISP Typesense schema — anything else is packed into metadata.
+_ISP_FIELDS = {"id", "title", "content", "url", "source_type", "indexed_at", "metadata", "vec"}
+# Internal pipeline flags injected before extensions run — never surfaced to Typesense.
+_INTERNAL_FIELDS = {"_isp_type"}
+
+
+def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
+    """
+    Re-normalise a list of docs to the ISP Typesense collection schema.
+
+    Works for two input shapes:
+
+    * **ISP-schema docs** (from ``fetch_and_parse`` or sitemap): already have
+      ``title``, ``content``, ``source_type``, ``indexed_at``; extra fields are
+      packed into the ``metadata`` JSON blob.
+    * **Catalog-schema docs** (from catalog-path JS extensions): have ``display``,
+      ``type``, ``images``, ``price``, ``manufacturer``, etc.  All ISP fields are
+      recovered from whichever key the extension left the data under; every remaining
+      field is packed into ``metadata`` so rich product data (images, price,
+      manufacturer, is_featured …) is preserved for the document expand view.
+
+    Always produces docs with only the declared ISP schema fields so Typesense never
+    rejects a document due to undeclared fields.  The ``id`` field is coerced to a
+    hex string (Typesense requires string ids).
+
+    Docs with no recoverable title *and* no recoverable content are dropped.
+    """
+    now = int(time.time())
+    result = []
+    for doc in docs:
+        # Parse pre-existing catalog metadata blob so we can fall back to it for
+        # url/description and merge extension fields on top of it.
+        meta_raw = doc.get("metadata")
+        meta: dict = {}
+        if meta_raw:
+            try:
+                meta = json.loads(meta_raw) if isinstance(meta_raw, str) else (meta_raw or {})
+            except Exception:
+                pass
+
+        title = str(doc.get("title") or doc.get("display") or doc.get("name") or "")
+
+        # content: explicit field → metadata.description → description → alias of title
+        content = str(doc.get("content") or "")
+        if not content:
+            content = str(meta.get("description") or doc.get("description") or "")
+
+        if not title and not content:
+            continue
+
+        # url: explicit field → metadata.url → url_name slug
+        url = str(doc.get("url") or "")
+        if not url:
+            url = str(meta.get("url") or meta.get("url_name") or doc.get("url_name") or "")
+
+        # id must be a string for Typesense; hash integer ids to a stable hex string
+        raw_id = doc.get("id")
+        if raw_id is None:
+            doc_id = hashlib.md5(title.encode()).hexdigest()[:16]
+        elif isinstance(raw_id, int) or (isinstance(raw_id, str) and not raw_id.isalnum()):
+            doc_id = hashlib.md5(str(raw_id).encode()).hexdigest()[:16]
+        else:
+            doc_id = str(raw_id)
+
+        # Collect every field that isn't a declared ISP schema field or an internal
+        # pipeline flag. Merge on top of any pre-existing metadata so extension output
+        # (images, price, manufacturer, is_featured, aliases …) is preserved intact.
+        extra = {k: v for k, v in doc.items()
+                 if k not in _ISP_FIELDS and k not in _INTERNAL_FIELDS}
+        combined_meta = {**meta, **extra}
+        metadata_str: str | None = json.dumps(combined_meta) if combined_meta else None
+
+        # Build a clean ISP-schema doc — only declared Typesense fields
+        out: dict = {
+            "id":          doc_id,
+            "title":       title or content[:80],
+            "content":     content or title,
+            "url":         url,
+            "source_type": str(doc.get("type") or doc.get("source_type") or "rest"),
+            "indexed_at":  int(doc.get("indexed_at") or now),
+        }
+        if metadata_str:
+            out["metadata"] = metadata_str
+        # Promote editorial signals to top-level so Typesense can sort/boost on them
+        pop = combined_meta.get("popularity") or doc.get("popularity")
+        if pop is not None:
+            try:
+                out["popularity"] = int(pop)
+            except (ValueError, TypeError):
+                pass
+        feat = combined_meta.get("is_featured")
+        if feat is None:
+            feat = doc.get("is_featured")
+        if feat is not None:
+            out["is_featured"] = bool(feat)
+        # Carry over a pre-computed vector if the doc already has one
+        if "vec" in doc:
+            out["vec"] = doc["vec"]
+
+        result.append(out)
+    return result
 
 
 # ── Generic catalog mapper (extension-driven) ─────────────────────────────────
@@ -274,26 +402,47 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
         ctype = connector_cfg.get("type")
         cfg_data = {k: v for k, v in connector_cfg.items() if k != "type"}
 
+        ext_records = await extension_service.list_index_extensions(idx_id)
+
         if ctype == "rest":
             cfg = RestConnectorConfig(**cfg_data)
-            docs = await rest_connector.fetch_and_parse(cfg)
+            if ext_records:
+                # Run extensions on raw API items so they have access to all
+                # original fields (e.g. urlEncodedFamilyName, skus, manufacturer).
+                # Then _ensure_isp_schema recovers title/url/content from whatever
+                # schema the extension produced.
+                raw = await rest_connector.fetch_raw_items(cfg)
+                s.total = len(raw)
+                await index_service.set_status(s)
+                raw = await apply_extensions(raw, ext_records)
+                docs = _ensure_isp_schema(raw)
+            else:
+                docs = await rest_connector.fetch_and_parse(cfg)
+                s.total = len(docs)
+                await index_service.set_status(s)
+                docs = _ensure_isp_schema(docs)
         elif ctype == "sitemap":
             cfg = SitemapConnectorConfig(**cfg_data)
             docs = await sitemap_connector.crawl(cfg, on_progress=None)
+            s.total = len(docs)
+            await index_service.set_status(s)
+            docs = await apply_extensions(docs, ext_records)
+            docs = _ensure_isp_schema(docs)
         else:
             raise ValueError(f"Unknown connector type: {ctype}")
 
-        s.total = len(docs)
-        await index_service.set_status(s)
+        # Ensure the Typesense collection exists (idempotent; required for first-ever ingest).
+        ts.create_collection(idx_id)
 
-        ext_records = await extension_service.list_index_extensions(idx_id)
-        docs = await apply_extensions(docs, ext_records)
-
-        texts = [f"{d['title']} {d['content']}" for d in docs]
-        vectors = await embedding_service.embed_texts(texts)
-        for doc, vec in zip(docs, vectors):
-            if vec:
-                doc["vec"] = vec
+        # Only embed docs that have non-empty text; skip the rest to avoid
+        # empty-string rejections from the embedding provider.
+        raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
+        embed_idxs = [i for i, t in enumerate(raw_texts) if t]
+        if embed_idxs:
+            vecs = await embedding_service.embed_texts([raw_texts[i] for i in embed_idxs])
+            for list_pos, doc_idx in enumerate(embed_idxs):
+                if vecs[list_pos]:
+                    docs[doc_idx]["vec"] = vecs[list_pos]
 
         ok = ts.upsert_documents(idx_id, docs)
         s.indexed = ok
@@ -425,18 +574,35 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
         else:
             # ── Standard mode: write to ISP-managed collection ──
-            docs = await rest_connector.fetch_and_parse(cfg)
+            # Infer _isp_type from the connector body's familyCategory so the
+            # T-Mobile extension knows whether to produce "device" or "accessory".
+            # Falls back to "item" for non-T-Mobile sources.
+            isp_type_label = _infer_isp_type(cfg_dict)
+            for item in raw_items:
+                item.setdefault("_isp_type", isp_type_label)
+
+            # Run extensions on raw_items (already fetched above) so they have
+            # access to all original API fields before field-name normalisation.
+            ext_records = await extension_service.list_index_extensions(idx_id)
+            if ext_records:
+                items_for_ext = await apply_extensions(list(raw_items), ext_records)
+                docs = _ensure_isp_schema(items_for_ext)
+            else:
+                docs = await rest_connector.fetch_and_parse(cfg)
+                docs = _ensure_isp_schema(docs)
+
             if not docs:
                 raise ValueError("0 documents parsed — check field mapping.")
 
-            ext_records = await extension_service.list_index_extensions(idx_id)
-            docs = await apply_extensions(docs, ext_records)
-
-            texts = [f"{d['title']} {d['content']}" for d in docs]
-            vectors = await embedding_service.embed_texts(texts)
-            for doc, vec in zip(docs, vectors):
-                if vec:
-                    doc["vec"] = vec
+            # Only embed docs that have non-empty text; skip the rest to avoid
+            # empty-string rejections from the embedding provider.
+            raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
+            embed_idxs = [i for i, t in enumerate(raw_texts) if t]
+            if embed_idxs:
+                vecs = await embedding_service.embed_texts([raw_texts[i] for i in embed_idxs])
+                for list_pos, doc_idx in enumerate(embed_idxs):
+                    if vecs[list_pos]:
+                        docs[doc_idx]["vec"] = vecs[list_pos]
 
             ts.drop_collection(idx_id)
             ts.create_collection(idx_id)
@@ -501,3 +667,54 @@ async def list_documents(idx_id: str, page: int = 1, per_page: int = 20):
         return _wrap_external_results(raw, meta)
 
     return ts.list_documents(idx_id, page, per_page)
+
+
+class DocPatchRequest(BaseModel):
+    """Payload for editing a document's editorial signals (score and featured flag)."""
+    popularity: int | None = None
+    is_featured: bool | None = None
+
+
+@router.patch("/{idx_id}/documents/{doc_id}", summary="Update document score / featured flag")
+async def update_document(idx_id: str, doc_id: str, patch: DocPatchRequest):
+    """
+    Partially update ``popularity`` (search boost score) and ``is_featured`` on a
+    document without touching the rest of its fields or re-embedding.
+
+    For ISP-managed indexes both values are stored inside the ``metadata`` JSON blob,
+    so this endpoint reads, patches, and re-writes that blob via a Typesense partial
+    update (``action=update``).
+
+    Returns ``{"ok": true}`` on success or raises 404 / 500 on failure.
+    """
+    meta = await index_service.get_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+
+    col = ts.collection_name(idx_id)
+    doc = ts.retrieve_document(col, doc_id)
+    if doc is None:
+        raise HTTPException(404, "Document not found")
+
+    meta_raw = doc.get("metadata") or "{}"
+    try:
+        meta_dict = json.loads(meta_raw)
+    except Exception:
+        meta_dict = {}
+
+    if patch.popularity is not None:
+        meta_dict["popularity"] = patch.popularity
+    if patch.is_featured is not None:
+        meta_dict["is_featured"] = patch.is_featured
+
+    # Write metadata blob + top-level fields so Typesense can sort/boost by them
+    update_fields: dict = {"metadata": json.dumps(meta_dict)}
+    if patch.popularity is not None:
+        update_fields["popularity"] = patch.popularity
+    if patch.is_featured is not None:
+        update_fields["is_featured"] = patch.is_featured
+
+    ok = ts.update_document_fields(col, doc_id, update_fields)
+    if not ok:
+        raise HTTPException(500, "Typesense update failed")
+    return {"ok": True}

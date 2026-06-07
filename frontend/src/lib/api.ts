@@ -9,7 +9,7 @@
 import type {
   IndexMeta, IngestStatus, SearchResult,
   RestConnectorConfig, SitemapConnectorConfig,
-  ExtensionMeta, IndexExtension,
+  ExtensionMeta, IndexExtension, AppSettings,
 } from './types';
 
 const BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8001/v1';
@@ -42,11 +42,26 @@ export const api = {
    */
   discoverIndexes: () => req<IndexMeta[]>('/indexes/discover', { method: 'POST' }),
 
-  /** Create a new empty ISP index (name + description only; no connector yet). */
-  createIndex: (name: string, description: string) =>
+  /**
+   * Create a new ISP index.  Pass ``is_external: true`` with the external
+   * collection details to create a catalog write-back source that shares the
+   * pre-existing Typesense collection rather than owning its own.
+   */
+  createIndex: (
+    name: string,
+    description: string,
+    opts?: {
+      is_external?: boolean;
+      external_collection?: string;
+      external_filter?: string;
+      external_query_by?: string;
+      external_title_field?: string;
+      external_url_field?: string;
+    }
+  ) =>
     req<IndexMeta>('/indexes', {
       method: 'POST',
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify({ name, description, ...opts }),
     }),
 
   /** Fetch the metadata for a single index by id. */
@@ -85,6 +100,19 @@ export const api = {
   /** Paginated listing of all documents in an index, sorted newest first. */
   listDocuments: (id: string, page = 1, perPage = 20) =>
     req<SearchResult>(`/indexes/${id}/documents?page=${page}&per_page=${perPage}`),
+
+  /**
+   * Partially update a document's editorial signals.
+   * Only the supplied fields are changed — the vector and all other content are untouched.
+   *
+   * @param popularity  Search boost score (0 = neutral, higher = boosted).
+   * @param isFeatured  Whether to pin this document as a featured result.
+   */
+  updateDocument: (indexId: string, docId: string, popularity: number, isFeatured: boolean) =>
+    req<{ ok: boolean }>(`/indexes/${indexId}/documents/${docId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ popularity, is_featured: isFeatured }),
+    }),
 
   /**
    * Search documents in an index.
@@ -155,4 +183,57 @@ export const api = {
    */
   unassignExtension: (indexId: string, extensionId: string) =>
     fetch(`${BASE}/indexes/${indexId}/extensions/${extensionId}`, { method: 'DELETE' }),
+
+  // ── Application settings ───────────────────────────────────────────────────
+
+  /**
+   * Fetch current application settings including the active embedding model
+   * and the full catalogue of available models.
+   */
+  getSettings: () => req<AppSettings>('/settings'),
+
+  /**
+   * Update the active embedding model and any associated provider config.
+   *
+   * The change is applied immediately at runtime — no restart required.
+   *
+   * @param modelId         One of the ``id`` values from ``AppSettings.available_models``.
+   * @param openaiApiKey    Required the first time an OpenAI model is selected;
+   *                        omit to retain the previously stored key.
+   * @param customEndpoint  Full URL of the custom OpenAI-compatible endpoint
+   *                        (required when modelId is ``"custom"``).
+   * @param customApiKey    Bearer token for the custom endpoint (optional).
+   * @param customModelName Model name sent in the custom endpoint request body
+   *                        (required when modelId is ``"custom"``).
+   * @param customNumDim    Vector dimension returned by the custom endpoint
+   *                        (required when modelId is ``"custom"``).
+   * @returns The updated settings plus ``dim_changed: true`` when the new model
+   *          produces vectors of a different dimension, signalling that all
+   *          indexes must be rebuilt before semantic search will work.
+   */
+  updateSettings: (
+    modelId: string,
+    opts?: {
+      openaiApiKey?: string;
+      rexbertEndpoint?: string;
+      rexbertApiKey?: string;
+      customEndpoint?: string;
+      customApiKey?: string;
+      customModelName?: string;
+      customNumDim?: number;
+    }
+  ) =>
+    req<AppSettings>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        model_id:          modelId,
+        openai_api_key:    opts?.openaiApiKey    ?? null,
+        rexbert_endpoint:  opts?.rexbertEndpoint ?? null,
+        rexbert_api_key:   opts?.rexbertApiKey   ?? null,
+        custom_endpoint:   opts?.customEndpoint  ?? null,
+        custom_api_key:    opts?.customApiKey    ?? null,
+        custom_model_name: opts?.customModelName ?? null,
+        custom_num_dim:    opts?.customNumDim    ?? null,
+      }),
+    }),
 };
