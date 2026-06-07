@@ -78,4 +78,9 @@ async def init_db() -> None:
                 enabled      BOOLEAN     NOT NULL DEFAULT TRUE,
                 PRIMARY KEY (index_id, extension_id)
             );
+
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
         """)

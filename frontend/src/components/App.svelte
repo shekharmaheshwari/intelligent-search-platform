@@ -21,6 +21,7 @@
   import IndexDetail from './IndexDetail.svelte';
   import CreateWizard from './CreateWizard.svelte';
   import ExtensionsPanel from './ExtensionsPanel.svelte';
+  import SettingsPanel from './SettingsPanel.svelte';
 
   let showWizard = false;
   let windowWidth = 1024;
@@ -140,6 +141,7 @@
         on:create={() => showWizard = true}
         on:delete={e => deleteSource(e.detail)}
         on:extensions={() => appState.update(s => ({ ...s, view: 'extensions', selectedIndexId: null }))}
+        on:settings={() => appState.update(s => ({ ...s, view: 'settings', selectedIndexId: null }))}
       />
     </div>
 
@@ -147,7 +149,11 @@
       {#if isMobile}
         <button class="back-btn" on:click={() => sidebarVisible = true}>← Sources</button>
       {/if}
-      {#if $appState.view === 'extensions'}
+      {#if $appState.view === 'settings'}
+        <div class="extensions-wrap">
+          <SettingsPanel />
+        </div>
+      {:else if $appState.view === 'extensions'}
         <div class="extensions-wrap">
           <ExtensionsPanel />
         </div>

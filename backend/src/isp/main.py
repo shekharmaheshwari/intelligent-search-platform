@@ -20,8 +20,9 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from isp.routers import indexes, search, content, catalog, extensions
+from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router
 from isp.services.database import init_db
+from isp.services.settings_service import load_embed_model
 from isp.services import typesense_client as ts
 from isp.config import settings
 
@@ -127,6 +128,7 @@ async def lifespan(app: FastAPI):
     because seeding reads and writes PostgreSQL tables.
     """
     await init_db()
+    await load_embed_model()          # restore operator-chosen model before serving requests
     _ensure_catalog_collection()
     await _seed_extensions_from_files()
     yield
@@ -163,6 +165,7 @@ app.include_router(search.router, prefix="/v1")
 app.include_router(content.router, prefix="/v1")
 app.include_router(catalog.router, prefix="/v1")
 app.include_router(extensions.router, prefix="/v1")
+app.include_router(settings_router.router, prefix="/v1")
 
 
 @app.get("/health")

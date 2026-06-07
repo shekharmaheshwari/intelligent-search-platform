@@ -147,6 +147,62 @@
 
   /** Increment the page counter and reload; re-executes search when in search mode. */
   function next() { if (page * perPage < found) { page++; searched ? search() : loadDocs(); } }
+
+  // ── Doc edit modal ────────────────────────────────────────────────────────────
+
+  let editDoc: DocumentItem | null = null;
+  let editPopularity = 0;
+  let editIsFeatured = false;
+  let editSaving = false;
+  let editErr = '';
+
+  /** Extract popularity from a document — checks top-level then metadata blob. */
+  function getPopularity(doc: DocumentItem): number {
+    if (typeof doc.popularity === 'number') return doc.popularity;
+    const meta = tryParseJson(doc.metadata ?? null);
+    return typeof meta?.popularity === 'number' ? meta.popularity : 0;
+  }
+
+  /** Extract is_featured from a document — checks top-level then metadata blob. */
+  function getIsFeatured(doc: DocumentItem): boolean {
+    if (typeof doc.is_featured === 'boolean') return doc.is_featured;
+    const meta = tryParseJson(doc.metadata ?? null);
+    return Boolean(meta?.is_featured);
+  }
+
+  /** Open the edit modal pre-filled with the document's current values. */
+  function openEdit(doc: DocumentItem) {
+    editDoc = doc;
+    editPopularity = getPopularity(doc);
+    editIsFeatured = getIsFeatured(doc);
+    editErr = '';
+  }
+
+  /** Close the edit modal without saving. */
+  function closeEdit() { editDoc = null; editErr = ''; }
+
+  /** Save score + featured flag, patch the Typesense document, update local state. */
+  async function saveEdit() {
+    if (!editDoc) return;
+    editSaving = true; editErr = '';
+    try {
+      await api.updateDocument(index.id, editDoc.id, editPopularity, editIsFeatured);
+      // Patch local metadata so the UI reflects the change immediately
+      const target = editDoc;
+      docs = docs.map(d => {
+        if (d.id !== target.id) return d;
+        const meta = tryParseJson(d.metadata ?? null) ?? {};
+        meta.popularity = editPopularity;
+        meta.is_featured = editIsFeatured;
+        return { ...d, metadata: JSON.stringify(meta) };
+      });
+      closeEdit();
+    } catch (e) {
+      editErr = String(e);
+    } finally {
+      editSaving = false;
+    }
+  }
 </script>
 
 <div class="content">
@@ -249,6 +305,10 @@
               {/if}
             </span>
             <span class="doc-meta">
+              {#if getIsFeatured(doc)}
+                <span class="featured-badge">★ featured</span>
+              {/if}
+              <span class="score-badge" title="Popularity score">↑{getPopularity(doc)}</span>
               <span class="source-type">{doc.source_type}</span>
               <span class="doc-date">{fmtDate(doc.indexed_at)}</span>
               <button
@@ -299,10 +359,54 @@
                   {/if}
                 </div>
               {/each}
+              <div class="doc-edit-row">
+                <button class="edit-doc-btn" on:click={() => openEdit(doc)}>✎ Edit</button>
+              </div>
             </div>
           {/if}
         </div>
       {/each}
+
+      <!-- Edit modal -->
+      {#if editDoc}
+        <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
+        <div class="overlay" on:click|self={closeEdit} role="dialog" aria-modal="true">
+          <div class="edit-modal">
+            <div class="edit-modal-head">
+              <h3>Edit document</h3>
+              <button class="close-btn" on:click={closeEdit}>✕</button>
+            </div>
+            <p class="edit-modal-title">{editDoc.title || 'Untitled'}</p>
+            <div class="edit-fields">
+              <label class="edit-label">
+                Score <span class="edit-hint">(higher = boosted in results)</span>
+                <input
+                  type="number"
+                  class="edit-input"
+                  bind:value={editPopularity}
+                  min="0"
+                  max="10000"
+                />
+              </label>
+              <label class="edit-label edit-toggle-row">
+                <span>Featured</span>
+                <span class="edit-hint">Pin as a featured result</span>
+                <input type="checkbox" class="edit-checkbox" bind:checked={editIsFeatured} />
+                <span class="toggle-track" class:on={editIsFeatured}>
+                  <span class="toggle-thumb"></span>
+                </span>
+              </label>
+            </div>
+            {#if editErr}<p class="edit-err">{editErr}</p>{/if}
+            <div class="edit-actions">
+              <button class="btn-secondary" on:click={closeEdit}>Cancel</button>
+              <button class="btn-primary" on:click={saveEdit} disabled={editSaving}>
+                {editSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
 
       {#if found > perPage}
         <div class="pagination">
@@ -741,6 +845,159 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  .featured-badge {
+    font-size: 10px;
+    font-weight: 700;
+    background: #1a2a10;
+    color: #7ecf55;
+    border: 1px solid #2a4a1a;
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+
+  .score-badge {
+    font-size: 10px;
+    font-weight: 600;
+    background: #141414;
+    color: #555;
+    border: 1px solid #222;
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-family: 'SF Mono', monospace;
+  }
+
+  .doc-edit-row {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 8px;
+    border-top: 1px solid #1e1e1e;
+    margin-top: 4px;
+  }
+
+  .edit-doc-btn {
+    background: #1a1a2e;
+    border: 1px solid #2e2b55;
+    color: #9d91f5;
+    border-radius: 6px;
+    padding: 5px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .edit-doc-btn:hover { background: #2a2552; border-color: #7c6cf4; }
+
+  /* Edit modal */
+  .edit-modal {
+    background: #141414;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    width: 400px;
+    max-width: 95vw;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .edit-modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .edit-modal-head h3 { margin: 0; font-size: 15px; color: #eee; font-weight: 600; }
+
+  .close-btn {
+    background: none; border: none; color: #555; cursor: pointer; font-size: 15px;
+  }
+  .close-btn:hover { color: #aaa; }
+
+  .edit-modal-title {
+    margin: 0;
+    font-size: 12px;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .edit-fields { display: flex; flex-direction: column; gap: 14px; }
+
+  .edit-label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 13px;
+    color: #999;
+  }
+
+  .edit-hint { font-size: 11px; color: #555; }
+
+  .edit-input {
+    background: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: #eee;
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+  }
+  .edit-input:focus { outline: none; border-color: #7c6cf4; }
+
+  /* Toggle switch */
+  .edit-toggle-row {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 10px !important;
+    flex-wrap: wrap;
+  }
+  .edit-toggle-row span:first-child { font-weight: 500; color: #ccc; }
+  .edit-toggle-row .edit-hint { flex: 1; }
+  .edit-checkbox { display: none; }
+
+  .toggle-track {
+    width: 36px; height: 20px;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 10px;
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .toggle-track.on { background: #7c6cf4; border-color: #7c6cf4; }
+
+  .toggle-thumb {
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 14px; height: 14px;
+    background: #888;
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .toggle-track.on .toggle-thumb { transform: translateX(16px); background: #fff; }
+
+  .edit-err { margin: 0; font-size: 12px; color: #e55; }
+
+  .edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .btn-primary {
+    background: #7c6cf4; color: #fff; border: none;
+    border-radius: 7px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-secondary {
+    background: transparent; color: #888; border: 1px solid #333;
+    border-radius: 7px; padding: 8px 18px; font-size: 13px; cursor: pointer;
+  }
+  .btn-secondary:hover { border-color: #555; color: #aaa; }
 
   .doc-snippet {
     font-size: 13px;
