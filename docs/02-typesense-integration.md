@@ -18,13 +18,18 @@ Created by ISP when a user adds a new source via the Create Wizard.
   "fields": [
     { "name": "title",       "type": "string" },
     { "name": "content",     "type": "string" },
-    { "name": "url",         "type": "string",  "optional": true },
-    { "name": "source_type", "type": "string",  "facet": true },
+    { "name": "url",         "type": "string",   "optional": true },
+    { "name": "source_type", "type": "string",   "facet": true },
     { "name": "indexed_at",  "type": "int64" },
-    { "name": "vec",         "type": "float[]", "num_dim": 1024, "optional": true }
+    { "name": "metadata",    "type": "string",   "optional": true, "index": false },
+    { "name": "popularity",  "type": "int32",    "optional": true, "sort": true },
+    { "name": "is_featured", "type": "bool",     "optional": true },
+    { "name": "vec",         "type": "float[]",  "num_dim": 1024, "optional": true }
   ]
 }
 ```
+
+`metadata` is a serialised JSON string carrying rich product fields (images, price, manufacturer, etc.) that don't need to be indexed/searched directly.  `popularity` and `is_featured` are promoted to **top-level fields** with `sort: true` so the catalog router can apply score boosts without parsing the metadata blob.
 
 ### 2. External Collections (e.g. `catalog`)
 Pre-existing Typesense collections created outside of ISP. ISP registers them as external sources and writes back to them during rebuild.
@@ -81,11 +86,26 @@ client.collections[name].documents.search({
 Runs lexical + semantic in parallel via `multi_search`, then merges using **Reciprocal Rank Fusion (RRF)**:
 
 ```
-score = 0.7 / (60 + lexical_rank + 1)
-      + 0.3 / (60 + semantic_rank + 1)
+rrf_score = 0.7 / (60 + lexical_rank + 1)
+          + 0.3 / (60 + semantic_rank + 1)
 ```
 
 Lexical gets 0.7 weight, semantic 0.3 — biased toward exact keyword precision while still surfacing conceptually similar results.
+
+### Editorial Boosts (catalog search only)
+After the RRF merge, the catalog router applies score bonuses before the final sort:
+
+```
+if doc.is_featured:
+    score += 0.5            # large fixed bonus — always surfaces above pure relevance
+
+if doc.popularity > 0:
+    score += min(popularity, 1_000_000) / 2_000_000
+    # popularity=100 000 → +0.05
+    # popularity=1 000 000 → +0.50  (max)
+```
+
+These bonuses are applied to the top-level `popularity` and `is_featured` fields returned by Typesense (not the `metadata` blob), so they are always available without JSON parsing.
 
 ```
 ┌─────────────────────────────────────┐
@@ -109,8 +129,25 @@ Lexical gets 0.7 weight, semantic 0.3 — biased toward exact keyword precision 
 client.collections["isp_{id}"].documents.import_(docs, {"action": "upsert"})
 ```
 
+### ISP-Managed Upsert via `_ensure_isp_schema`
+All content indexed into ISP-owned `isp_*` collections is normalised first:
+
+```
+fetch raw items (REST or after extension pipeline)
+      ↓
+_ensure_isp_schema(docs)
+  — maps title / content / url / source_type
+  — packs every non-schema field into metadata JSON
+  — promotes popularity + is_featured to top-level fields
+  — hashes non-string IDs to stable hex
+      ↓
+embed via Voyage AI
+      ↓
+upsert to isp_{id} collection
+```
+
 ### Catalog Write-Back via Extension Pipeline
-External sources (Phones, Accessories) go through a JS extension pipeline before being written to the shared `catalog` collection. This makes the data available to the T-Mobile PLP.
+External sources can also write back to a shared `catalog` collection for legacy consumers.
 
 ```
 fetch raw items from REST API
@@ -118,9 +155,6 @@ fetch raw items from REST API
 inject _isp_type hint (device/accessory)
       ↓
 apply JS extensions in run_order (V8 isolates)
-  — extensions are responsible for ALL field mapping
-  — extension computes the final URL
-  — extension output: flat dict with standard keys
       ↓
 _generic_catalog_mapper: package into Typesense catalog schema
   — sets metadata as JSON string
@@ -159,6 +193,21 @@ params = {
     "per_page": per_page,
 }
 ```
+
+---
+
+## Partial Document Update
+
+Used by the admin UI "Edit" modal to update `popularity` and `is_featured` without re-indexing:
+
+```python
+client.collections[col].documents.import_(
+    [{"id": doc_id, "popularity": 100000, "is_featured": True}],
+    {"action": "update"},
+)
+```
+
+Only the supplied keys are overwritten.  The vector and all other content are untouched.
 
 ---
 

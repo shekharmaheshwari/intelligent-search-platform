@@ -24,10 +24,11 @@
           │             │  └──────┘              │  :8108      │
           │ • indexes   │        ┌──────────┐    │             │
           │ • status    │        │isp-redis │    │ • isp_{id}  │
-          │ • splits    │        │:6379     │    │ • catalog   │
-          │ • extensions│        │(emb cache│    │             │
-          │ • idx_exts  │        │L2)       │    │             │
-          └─────────────┘        └──────────┘    └─────────────┘
+          │ • splits    │        │:6379     │    │   (one per  │
+          │ • extensions│        │(emb cache│    │    source)  │
+          │ • idx_exts  │        │L2)       │    │ • catalog   │
+          └─────────────┘        └──────────┘    │   (external)│
+                                                 └─────────────┘
 ```
 
 ---
@@ -99,24 +100,38 @@ FastAPI startup (lifespan)
 Two write paths:
 
 ```
-ISP-managed source (REST/Sitemap):
-  fetch → parse → apply extensions → embed → upsert to isp_{id} collection
+ISP-managed source (is_external=false):
+  fetch → parse → apply extensions → _ensure_isp_schema
+  → embed → upsert to isp_{id} collection
+  (promotes popularity + is_featured to top-level fields)
 
-External source write-back (catalog):
+External source write-back (is_external=true, catalog):
   fetch raw → inject _isp_type hint → apply extensions (V8) → generic mapper
   → embed → upsert to catalog collection
-  (T-Mobile PLP at localhost:3000 reads from catalog collection)
 ```
 
 Two read paths:
 
 ```
-ISP collection search:
+ISP collection search (admin UI):
   search_with_vec(id, q, vec, ...) → multi_search → RRF merge
 
-External collection search:
+Catalog / PLP search:
+  _get_isp_collections() → discover all isp_* collections
+  multi_search across ALL isp_* → RRF merge
+  + editorial boosts (is_featured +0.5, popularity scaled)
+  (PLP no longer reads from catalog collection directly)
+
+External collection search (admin UI only):
   search_external(col, q, filter_by, query_by, vec, ...) → same RRF logic
-  _wrap_external_results() → maps to ISP DocumentItem shape (passes all fields through)
+  _wrap_external_results() → maps to ISP DocumentItem shape
+```
+
+Partial update (admin UI edit modal):
+```
+PATCH /v1/indexes/{id}/documents/{doc_id}
+  → update_document_fields(col, doc_id, {popularity, is_featured, metadata})
+  → action=update (only supplied keys overwritten, vector unchanged)
 ```
 
 ---
@@ -214,24 +229,31 @@ assign_extension_if_new() for every external index
 
 ## Integration 6: ISP ↔ T-Mobile PLP
 
-ISP writes to the shared `catalog` Typesense collection used by the T-Mobile PLP (`tmo-plp` at port 3000).
+ISP indexes Phones and Accessories into ISP-managed `isp_*` collections.  The T-Mobile PLP reads product data via `/v1/catalog` which dynamically searches all `isp_*` collections.
 
 ```
-ISP Rebuild (Phones / Accessories)
+ISP Rebuild (Phones / Accessories — ISP managed)
   → fetch from T-Mobile product API
+  → _infer_isp_type() → inject _isp_type = "device" | "accessory"
   → apply T-Mobile Catalog Mapper extension (JS)
-      — maps familyName → display
+      — maps familyName → title
       — builds URL: https://www.t-mobile.com/cell-phone/{urlSlug}
       — extracts price, images, SKUs from nested response
-  → _generic_catalog_mapper() → Typesense catalog schema
-  → embed → upsert_to_collection("catalog", docs)
-         ↓
-  T-Mobile PLP (localhost:3000)
-  → GET /v1/catalog?type=device
-  → shows updated phones/accessories
+      — sets popularity (rank-based) and is_featured (top-5 rank)
+  → _ensure_isp_schema() → ISP collection schema
+      — packs images/price/manufacturer into metadata JSON
+      — promotes popularity + is_featured to top-level fields
+  → embed → drop + recreate isp_{id} → upsert all docs
+
+T-Mobile PLP (localhost:3000)
+  → POST /v1/catalog {q:"iphone", type:"device", search_mode:"hybrid"}
+  → _get_isp_collections() → discovers isp_Phones + isp_Accessories
+  → multi_search: 2 lex + 2 sem passes in one request
+  → RRF merge + editorial boosts
+  → paginated CatalogItem list (with images, price, manufacturer from metadata)
 ```
 
-URL ownership: the JS extension computes and returns `url` in its output. Python never constructs T-Mobile URLs — this ensures any URL format change only requires updating the extension JS, not the backend Python.
+URL ownership: the JS extension computes and returns `url` in its output.  Python never constructs T-Mobile URLs — any URL format change only requires updating the extension JS.
 
 ---
 

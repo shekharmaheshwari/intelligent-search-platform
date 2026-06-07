@@ -100,7 +100,12 @@ ISP is an internal search platform that lets users connect external data sources
 ### 1. Add a New Source (Create Wizard — 4 Steps)
 ```
 User clicks "+"
-  → Step 1: Enter name + description
+  → Step 1: Choose index type
+      ISP Managed — ISP creates and owns a private isp_{id} collection
+                    All content through ISP pipeline (security layer, editorial controls)
+      External/Catalog — ISP writes into a pre-existing shared Typesense collection
+                    Enter: collection name, filter, query-by field, title field, URL field
+      Enter name + description
       → POST /v1/indexes → saved to PostgreSQL
   → Step 2: Enter REST API URL / headers / body
   → Step 3: Configure field mapping (source → target field renames)
@@ -117,21 +122,29 @@ User clicks "↺ Rebuild"
   → User edits if needed → "Run Rebuild"
       → POST /v1/indexes/{id}/rebuild
           → background task:
-              if external_collection (catalog write-back):
-                  fetch raw items from REST API
-                  inject _isp_type hint per item (device/accessory)
-                  apply JS extensions in run_order (V8 isolates)
-                  map to catalog schema via _generic_catalog_mapper
+              fetch raw items from REST API
+              _infer_isp_type(cfg) → inject _isp_type on every item
+              apply JS extensions in run_order (V8 isolates)
+
+              if ISP-managed (is_external=false):
+                  _ensure_isp_schema(docs)
+                    — map title/content/url/source_type
+                    — pack extras into metadata JSON blob
+                    — promote popularity + is_featured to top-level
+                  embed via Voyage AI
+                  drop+recreate isp_{id} collection
+                  upsert all docs
+
+              if external (is_external=true, catalog write-back):
+                  _generic_catalog_mapper → catalog schema
                   embed display+description via Voyage AI
-                  upsert to catalog Typesense collection
-              else (ISP-managed):
-                  fetch → parse
-                  apply JS extensions in run_order
-                  embed → drop+recreate isp_{id} → upsert
+                  delete old docs from external collection
+                  upsert to external Typesense collection
+
           → connector config + doc_count saved to PostgreSQL
 ```
 
-### 3. Search
+### 3. Search (Admin UI — per index)
 ```
 User types query → press Enter / click Search
   → POST /v1/indexes/{id}/search
@@ -141,7 +154,26 @@ User types query → press Enter / click Search
           RRF merge → ranked results
       else:
           lexical search only
-  → Results displayed with expand (+) to see all fields including vec
+  → Results displayed with expand (+) to see all fields
+  → Each expanded doc shows popularity badge (↑score) and ★ featured badge
+  → "✎ Edit" button opens modal to update popularity / is_featured
+      → PATCH /v1/indexes/{id}/documents/{doc_id}
+          → writes top-level popularity + is_featured + metadata blob
+          → no re-embedding required
+```
+
+### 3b. PLP Catalog Search
+```
+T-Mobile PLP → POST /v1/catalog
+  → _get_isp_collections() — discover all isp_* collections
+  → _rrf_search(collections, q, vec, filter_by="source_type:=device")
+      → multi_search: one lex + one sem pass per collection
+      → RRF merge across all collections
+      → editorial boosts:
+            is_featured → +0.5
+            popularity  → +min(pop, 1M) / 2M
+      → sort by final score desc → slice page
+  → results returned as CatalogItem list
 ```
 
 ### 4. Delete a Source
