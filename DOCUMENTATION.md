@@ -3,7 +3,7 @@
 > **Scope** — This document is the single authoritative reference for the ISP codebase.
 > It covers architecture, data flow, every backend module and service, every frontend
 > component, the extension system, environment configuration, the database schema,
-> and deployment.  Generated from the live source on 2026-06-05.
+> and deployment.  Generated from the live source on 2026-06-06.
 
 ---
 
@@ -75,7 +75,7 @@
 - Serves **hybrid search** (lexical BM25 + semantic cosine similarity, merged with Reciprocal Rank Fusion).
 - Exposes a **management UI** built with Astro + Svelte for adding sources, triggering rebuilds, and browsing indexed content.
 - Runs a **JavaScript V8 extension pipeline** (via PyMiniRacer) that transforms raw documents before indexing — enabling field normalisation, URL construction, price extraction, and other enrichment without modifying the ingestion core.
-- Powers the **T-Mobile Product Listing Page (PLP)** product search via a dedicated `/v1/catalog` API that reads from a Typesense `catalog` collection populated by the extension-driven rebuild.
+- Powers the **T-Mobile Product Listing Page (PLP)** product search via a dedicated `/v1/catalog` API that dynamically searches all `isp_*` collections (rather than a single shared `catalog` collection), merging results with Reciprocal Rank Fusion and applying editorial score boosts for featured / high-popularity items.
 
 ---
 
@@ -106,8 +106,8 @@
    │  port 5432    │  │  port 8108   │  │  port 6379       │
    │               │  │              │  │                  │
    │  indexes      │  │  isp_{id}    │  │  Embedding L2    │
-   │  ingest_status│  │  catalog     │  │  cache (24h TTL) │
-   │  extensions   │  │  (external)  │  │                  │
+   │  ingest_status│  │  (one per    │  │  cache (24h TTL) │
+   │  extensions   │  │   source)    │  │                  │
    │  index_ext.   │  │              │  │                  │
    └───────────────┘  └──────────────┘  └──────────────────┘
 ```
@@ -400,7 +400,7 @@ The primary CRUD and ingest surface.  All background jobs (ingest, rebuild) are 
 | Method | Path | Description |
 |---|---|---|
 | GET | `/v1/indexes` | List all indexes ordered by creation date |
-| POST | `/v1/indexes` | Create a new ISP-managed index; provisions Typesense collection |
+| POST | `/v1/indexes` | Create a new ISP-managed index; provisions Typesense collection. Pass `is_external: true` with collection details to register an external source |
 | POST | `/v1/indexes/discover` | Scan Typesense for untracked collections, register as external sources |
 | GET | `/v1/indexes/{id}` | Fetch full metadata for one index |
 | DELETE | `/v1/indexes/{id}` | Delete index + all Typesense documents (catalog write-back gets filter-deleted) |
@@ -411,6 +411,7 @@ The primary CRUD and ingest surface.  All background jobs (ingest, rebuild) are 
 | POST | `/v1/indexes/{id}/ingest/sitemap` | Start sitemap crawl (append, background) |
 | POST | `/v1/indexes/{id}/rebuild` | Drop all docs and re-fetch from connector (background) |
 | GET | `/v1/indexes/{id}/documents` | Paginated document list |
+| PATCH | `/v1/indexes/{id}/documents/{doc_id}` | Update `popularity` and/or `is_featured` on a single document without re-embedding |
 | POST | `/v1/indexes/{id}/search` | Hybrid/lexical/semantic search |
 | GET | `/v1/indexes/{id}/extensions` | List extensions assigned to index |
 | POST | `/v1/indexes/{id}/extensions` | Assign extension to index |
@@ -420,11 +421,14 @@ The primary CRUD and ingest surface.  All background jobs (ingest, rebuild) are 
 
 | Function | Description |
 |---|---|
+| `_infer_isp_type(cfg_dict)` | Reads `familyCategory` from the connector body JSON and returns `"accessory"` (if the category contains "ACCESSOR"), `"device"`, or `"item"`.  Used to inject `_isp_type` before extensions run. |
+| `_ensure_isp_schema(docs)` | Normalises a list of raw or extension-output dicts to the ISP Typesense schema.  Packs every non-schema field into a `metadata` JSON string; promotes `popularity` and `is_featured` to top-level fields so Typesense can sort/boost on them. |
 | `_generic_catalog_mapper(item, idx)` | Packages an extension-normalised flat dict into the Typesense `catalog` schema.  Stores `metadata` as a JSON string.  Returns `None` for items with no displayable name. |
 | `_map_external_doc(raw, meta)` | Converts a raw Typesense hit to the ISP `DocumentItem` shape for external collections. |
 | `_wrap_external_results(resp, meta)` | Maps every hit in a raw Typesense multi-search response to `DocumentItem`. |
-| `_run_ingest(index_id, cfg)` | Background task: fetch → parse → embed → upsert into ISP-managed collection. |
-| `_run_rebuild(index_id, cfg)` | Background task: fetch raw items → inject `_isp_type` → run extensions → `_generic_catalog_mapper` → embed → upsert into catalog + ISP collection. |
+| `_run_ingest(index_id, cfg)` | Background task: fetch → parse → `_ensure_isp_schema` → embed → upsert into ISP-managed collection. |
+| `_run_rebuild(index_id, cfg)` | Background task: fetch raw items → inject `_isp_type` (via `_infer_isp_type`) → run extensions → `_ensure_isp_schema` → embed → upsert into ISP collection; also writes back to the external `catalog` collection via `_generic_catalog_mapper`. |
+| `DocPatchRequest` | Pydantic model for `PATCH /documents/:id`.  Fields: `popularity: int \| None`, `is_featured: bool \| None`. |
 
 ---
 
@@ -432,26 +436,27 @@ The primary CRUD and ingest surface.  All background jobs (ingest, rebuild) are 
 
 **File:** `backend/src/isp/routers/catalog.py`
 
-Reads from the shared `catalog` Typesense collection.  Powers the T-Mobile PLP product search.
+Powers the T-Mobile PLP product search.  Dynamically discovers all active `isp_*` collections and searches them in a single `multi_search` call, merging results with Reciprocal Rank Fusion.  Editorial boosts (`is_featured`, `popularity`) are applied after RRF so curated items surface above pure relevance.
+
+> **Architecture note:** This router no longer reads from a single hardcoded `catalog` collection.  It calls `_get_isp_collections()` on every request to discover all `isp_*` collections and queries them all in parallel.
 
 #### Endpoints
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/v1/intent/tab` | Classify query as `device` or `accessory` using Typesense search heuristic |
-| POST | `/v1/catalog` | Hybrid RRF product search with optional type filter and pagination |
-| GET | `/v1/catalog/facets` | Aggregate facet counts (category, manufacturer, type, price range) |
-| GET | `/v1/suggest` | Typeahead autocomplete — searches `display` field (weight 3) and `aliases` |
+| GET | `/v1/intent/tab` | Classify query as `device` or `accessory` — keyword heuristic first, then semantic vote across all ISP collections |
+| POST | `/v1/catalog` | Hybrid RRF product search across all `isp_*` collections with `source_type` filter, editorial boosts, and pagination |
+| GET | `/v1/catalog/facets` | Aggregate manufacturer, category, and price-range facets from `metadata` across all ISP collections |
+| GET | `/v1/suggest` | Typeahead autocomplete — searches `title` and `content` across all ISP collections |
 
 #### Internal Helpers
 
 | Function | Description |
 |---|---|
-| `_parse_meta(doc)` | Deserialises the `metadata` JSON string field; returns empty dict on failure |
-| `_build_url(doc, meta)` | Returns the product URL from `meta["url"]` — set by the JS extension during rebuild |
-| `_doc_to_item(doc)` | Converts raw Typesense catalog doc to the `CatalogItem` response shape |
-| `_rrf_search(q, filter_by, limit, offset, vec)` | Lexical + semantic multi_search with RRF merge; fetches `limit * 3` candidates before slicing |
-| `_to_facets(results)` | Aggregates raw Typesense `facet_counts` into a flat response dict |
+| `_get_isp_collections()` | Returns the names of all Typesense collections whose names start with `isp_`. |
+| `_parse_meta(raw_meta)` | Deserialises the `metadata` JSON string field; returns `{}` on failure. |
+| `_doc_to_item(doc, score)` | Converts a raw ISP Typesense document to the PLP `CatalogItem` response shape; reads rich product data from the `metadata` blob. |
+| `_rrf_search(collections, q, vec, filter_by, page, per_page)` | Issues one lexical + one semantic search per ISP collection via a single `multi_search` call.  Merges all results with RRF (lexical 0.7, semantic 0.3), then applies editorial boosts (`is_featured` +0.5, `popularity` scaled to max +0.5 at 1 M), before slicing the requested page. |
 
 ---
 
@@ -532,29 +537,43 @@ Thin wrapper around the Typesense Python SDK.  All search engine I/O goes throug
 Every `isp_{index_id}` collection has these fields:
 
 ```
-id (string), title (string), content (string), url (string),
-source_type (string), indexed_at (int64), vec (float[], num_dim=1024)
+id          (string)   — stable hex id derived from source id
+title       (string)
+content     (string)
+url         (string, optional)
+source_type (string, facet)  — "device", "accessory", "rest", "sitemap", …
+indexed_at  (int64)
+metadata    (string, optional, not indexed)  — JSON blob: price, images, manufacturer, …
+popularity  (int32,  optional, sort=true)    — editorial boost score; higher = ranked earlier
+is_featured (bool,   optional)               — fixed +0.5 score bonus in RRF merge
+vec         (float[], num_dim=1024, optional)
 ```
+
+`metadata` is stored as a serialised JSON string because Typesense cannot index nested objects.  `popularity` and `is_featured` are top-level fields (not inside `metadata`) so Typesense can sort and the catalog router can apply score boosts without parsing the blob.
 
 #### Key functions
 
 | Function | Description |
 |---|---|
+| `set_vec_dim(dim)` | Update the vector dimension used when provisioning new ISP collections (called when the operator switches embedding model) |
+| `get_vec_dim()` | Return the currently configured vector dimension |
 | `get_client()` | Returns the lazy singleton Typesense client |
 | `collection_name(index_id)` | Returns `"isp_{index_id}"` |
-| `create_collection(index_id)` | Provisions a new ISP collection (idempotent — catches `ObjectAlreadyExists`) |
+| `create_collection(index_id)` | Provisions a new ISP collection (idempotent). Includes `metadata`, `popularity` (sort=true), and `is_featured` fields in addition to the core schema |
 | `drop_collection(index_id)` | Deletes an ISP-managed collection |
 | `upsert_documents(index_id, docs)` | Bulk upsert into ISP collection; returns count of successful upserts |
 | `count_documents(index_id)` | Returns document count for ISP collection |
-| `search_documents(index_id, q, page, per_page)` | Single-pass BM25 lexical search |
+| `search_documents(index_id, q, mode, page, per_page)` | Single-pass BM25 lexical or semantic search |
 | `search_with_vec(index_id, q, vec, page, per_page)` | Hybrid multi_search + RRF (lexical 0.7, semantic 0.3, 3× over-fetch before slice) |
 | `list_documents(index_id, page, per_page)` | Paginated document listing sorted by `indexed_at` descending |
 | `list_all_collections()` | Returns all Typesense collections |
-| `list_documents_external(collection, filter_by, page, per_page, ...)` | Paginated listing from any named collection |
-| `search_external(collection, q, ...)` | BM25 or hybrid search on any named collection |
-| `delete_from_collection(collection, filter_by)` | Deletes all documents matching a Typesense filter string |
-| `upsert_to_collection(collection, docs)` | Bulk upsert into any named collection |
-| `count_external(collection, filter_by)` | Document count on any collection with optional filter |
+| `list_documents_external(collection, filter_by, query_by, page, per_page)` | Paginated listing from any named collection |
+| `search_external(collection, q, filter_by, query_by, vec, page, per_page)` | BM25 or hybrid RRF search on any named collection |
+| `update_document_fields(col_name, doc_id, fields)` | Partial update via `action=update` — only the supplied keys are overwritten. Returns `True` on success |
+| `retrieve_document(col_name, doc_id)` | Fetch a single document by id from any named collection; returns `None` if not found |
+| `delete_from_collection(col_name, filter_by)` | Deletes all documents matching a Typesense filter string; returns count deleted |
+| `upsert_to_collection(col_name, docs)` | Bulk upsert into any named collection |
+| `count_external(col, filter_by)` | Document count on any collection with optional filter |
 
 **RRF implementation detail:**
 
@@ -825,15 +844,16 @@ TypeScript interfaces that mirror the backend Pydantic models.
 
 | Interface | Description |
 |---|---|
-| `IndexMeta` | One ISP source — mirrors backend `IndexMeta`; `is_external: true` for pre-existing Typesense collections |
+| `IndexMeta` | One ISP source — `is_external: true` for pre-existing Typesense collections.  Includes `external_collection`, `external_filter`, `external_query_by`, `external_title_field`, `external_url_field` for external sources |
 | `ConnectorConfig` | Base connector stored in `connectors` JSONB |
 | `RestConnectorConfig` | REST connector fields including optional `result_path`, `field_map`, etc. |
 | `SitemapConnectorConfig` | Sitemap crawler fields |
 | `IngestStatus` | Background job state: `state` is one of `idle \| queued \| running \| done \| error` |
 | `SearchResult` | `{ hits: Array<{document: DocumentItem}>, found: number, page: number }` |
-| `DocumentItem` | `{ id, title, content, url, source_type, indexed_at, ...extra }` |
+| `DocumentItem` | `{ id, title, content, url, source_type, indexed_at, metadata?: string, [key: string]: unknown }` — `metadata` is a JSON string holding rich product data; extra keys pass through for the UI expand view |
 | `ExtensionMeta` | `{ id, name, description, code, created_at, updated_at }` |
 | `IndexExtension` | Extends `ExtensionMeta` with `run_order: number` and `enabled: boolean` |
+| `AppSettings` | `{ active_model, available_models, dim_changed? }` — returned by `GET /settings` |
 | `View` | `'dashboard' \| 'detail' \| 'configure' \| 'extensions'` |
 | `AppState` | `{ view: View, selectedIndexId: string \| null, detailTab: string }` |
 
@@ -866,13 +886,14 @@ All HTTP calls go through the `req<T>()` helper which sets `Content-Type: applic
 |---|---|---|---|
 | `listIndexes()` | GET | `/indexes` | Fetch all sources |
 | `discoverIndexes()` | POST | `/indexes/discover` | Trigger auto-discovery of external collections |
-| `createIndex(name, description)` | POST | `/indexes` | Create new empty source |
+| `createIndex(name, description, opts?)` | POST | `/indexes` | Create new source.  Pass `opts.is_external: true` with collection/filter/field config for an external source |
 | `getIndex(id)` | GET | `/indexes/{id}` | Fetch single source metadata |
 | `deleteIndex(id)` | DELETE | `/indexes/{id}` | Delete source + all documents |
 | `getStatus(id)` | GET | `/indexes/{id}/status` | Poll background job state |
 | `ingestRest(id, cfg)` | POST | `/indexes/{id}/ingest/rest` | Start REST ingest (append) |
 | `ingestSitemap(id, cfg)` | POST | `/indexes/{id}/ingest/sitemap` | Start sitemap crawl (append) |
 | `listDocuments(id, page, perPage)` | GET | `/indexes/{id}/documents` | Paginated document browse |
+| `updateDocument(indexId, docId, popularity, isFeatured)` | PATCH | `/indexes/{id}/documents/{docId}` | Update editorial signals without re-embedding |
 | `search(id, q, mode, page, perPage)` | POST | `/indexes/{id}/search` | Search (hybrid \| lexical \| semantic) |
 | `rebuild(id, cfg)` | POST | `/indexes/{id}/rebuild` | Full drop-and-re-fetch rebuild |
 | `listExtensions()` | GET | `/extensions` | Fetch all extensions |
@@ -882,6 +903,8 @@ All HTTP calls go through the `req<T>()` helper which sets `Content-Type: applic
 | `listIndexExtensions(indexId)` | GET | `/indexes/{id}/extensions` | List assigned extensions |
 | `assignExtension(indexId, extId, runOrder, enabled)` | POST | `/indexes/{id}/extensions` | Assign / update assignment |
 | `unassignExtension(indexId, extId)` | DELETE | `/indexes/{id}/extensions/{extId}` | Remove assignment |
+| `getSettings()` | GET | `/settings` | Fetch active embedding model and available models |
+| `updateSettings(modelId, opts?)` | PUT | `/settings` | Switch embedding model; returns `dim_changed: true` if dimension changed |
 
 ---
 
@@ -985,6 +1008,13 @@ Reactive to the `index` prop — reloads the document list whenever the selected
 | `formatValue(v)` | Stringifies any field value; objects are pretty-printed |
 | `formatMetaValue(v)` | Formats metadata sub-field: booleans → Yes/No, arrays → comma list |
 | `prev()` / `next()` | Page navigation; re-executes search in search mode |
+| `getPopularity(doc)` | Reads `popularity` from the top-level field or falls back to `metadata.popularity` |
+| `getIsFeatured(doc)` | Reads `is_featured` from the top-level field or falls back to `metadata.is_featured` |
+| `openEdit(doc)` | Opens the edit modal pre-filled with the document's current `popularity` and `is_featured` |
+| `closeEdit()` | Dismisses the edit modal without saving |
+| `saveEdit()` | Calls `api.updateDocument()` (PATCH); writes top-level fields + metadata blob; closes modal on success |
+
+**Edit modal:** Visible in the expanded document view as a "✎ Edit" button at the bottom of `.doc-fields`.  Opens an overlay with a numeric score input (0–1 000 000) and a toggle switch for `is_featured`.  Changes take effect immediately in Typesense via `action=update` (no re-indexing required).  The `★ featured` badge and `↑{score}` badge are shown in the collapsed document header whenever those values are non-zero/true.
 
 ---
 
@@ -994,10 +1024,14 @@ Reactive to the `index` prop — reloads the document list whenever the selected
 
 | Step | What happens |
 |---|---|
-| 1 — Name | `api.createIndex()` called; `indexId` stored on success |
+| 1 — Name | User chooses index type (ISP Managed or External/Catalog), enters name, description, and — for external sources — collection name, filter, query-by, title field, and URL field.  `api.createIndex()` called; `indexId` stored on success |
 | 2 — Connector | Form for REST API or Sitemap config; validation only |
 | 3 — Field mapping | Builds `RestConnectorConfig` with optional extra field rows; calls `api.ingestRest()` or `api.ingestSitemap()` |
 | 4 — Progress | Polls `api.getStatus()` every 1.5 s until `done` or `error` |
+
+**Index type toggle (Step 1):**
+- **ISP Managed** — ISP creates and owns a private `isp_{id}` Typesense collection.  All content goes through the ISP pipeline, enabling the security layer and editorial controls.  This is the recommended mode for all new sources.
+- **External / Catalog** — ISP writes into a pre-existing shared Typesense collection during rebuild.  Used when a collection already exists and must be shared with other consumers.
 
 **Dispatches:** `done(indexId)`, `cancel`
 
@@ -1007,7 +1041,7 @@ Reactive to the `index` prop — reloads the document list whenever the selected
 |---|---|
 | `addMapping()` | Appends blank source→target row to `extraMappings` |
 | `removeMapping(i)` | Removes mapping row at index `i` |
-| `stepOne()` | Validates name; creates index; advances to step 2 |
+| `stepOne()` | Validates name and external fields if applicable; creates index; advances to step 2 |
 | `stepTwo()` | Validates connector URL; advances to step 3 |
 | `stepThree()` | Builds config; starts ingest; advances to step 4 |
 | `pollUntilDone()` | Polls status every 1.5 s; updates `statusText`, `statusIndexed`, `statusTotal` |
@@ -1203,25 +1237,45 @@ POST /v1/indexes/{id}/rebuild  {url, method, headers, body}
         rest_connector.fetch_raw_items(cfg)
             └── list[raw API dicts]
                     │
-                    Inject _isp_type per _KNOWN_SPLITS filter
+                    _infer_isp_type(cfg) → "device" | "accessory" | "item"
+                    Inject _isp_type on every raw item (setdefault)
                     │
                     extension_runner.apply_extensions(index_id, raw_items)
                     │   For each enabled extension (sorted by run_order):
                     │       PyMiniRacer V8: ctx.call("transform", doc)
                     │       Error → keep original, log, continue
-                    └── list[normalised dicts]
+                    └── list[normalised dicts with standard keys]
                             │
-                            For each normalised dict:
-                                _generic_catalog_mapper(item, idx)
-                                │   → Typesense catalog schema dict
-                                │   → metadata JSON string
+                    ┌───────┴──────────────────────────────────────────┐
+                    │  ISP-managed path (is_external=false)            │
+                    │                                                  │
+                    │  _ensure_isp_schema(docs)                        │
+                    │    • maps title/content/url/source_type          │
+                    │    • packs all extra fields into metadata JSON   │
+                    │    • promotes popularity + is_featured to        │
+                    │      top-level Typesense fields                  │
+                    │    • hashes non-string IDs                       │
+                    │  → list[ISP schema dicts]                        │
+                    │                                                  │
+                    │  embedding_service.embed_texts([...])            │
+                    │  typesense_client.drop_collection(index_id)      │
+                    │  typesense_client.create_collection(index_id)    │
+                    │  typesense_client.upsert_documents(index_id)     │
+                    └──────────────────────────────────────────────────┘
                             │
-                            embedding_service.embed_texts([item['display'] for ...])
+                    ┌───────┴──────────────────────────────────────────┐
+                    │  Catalog write-back path (is_external=true)      │
+                    │                                                  │
+                    │  _generic_catalog_mapper(item, idx)              │
+                    │    → Typesense catalog schema dict               │
+                    │    → metadata JSON string                        │
+                    │                                                  │
+                    │  embedding_service.embed_texts([display ...])    │
+                    │  typesense_client.delete_from_collection(col)    │
+                    │  typesense_client.upsert_to_collection(col)      │
+                    └──────────────────────────────────────────────────┘
                             │
-                            typesense_client.delete_from_collection(catalog, filter)
-                            typesense_client.upsert_to_collection(catalog, docs)
-                            typesense_client.upsert_documents(index_id, isp_docs)
-                            set_status(state='done')
+                    set_status(state='done', indexed=N)
 ```
 
 ---
@@ -1311,11 +1365,12 @@ Full interactive documentation is available at **`http://localhost:8001/docs`** 
 | Ingest | `POST /v1/indexes/{id}/ingest/rest`, `POST /v1/indexes/{id}/ingest/sitemap` |
 | Rebuild | `POST /v1/indexes/{id}/rebuild` |
 | Status | `GET /v1/indexes/{id}/status` |
-| Documents | `GET /v1/indexes/{id}/documents`, `POST /v1/indexes/{id}/search` |
+| Documents | `GET /v1/indexes/{id}/documents`, `PATCH /v1/indexes/{id}/documents/{doc_id}`, `POST /v1/indexes/{id}/search` |
 | Extensions (library) | `GET /v1/extensions`, `POST /v1/extensions`, `GET/PUT/DELETE /v1/extensions/{id}` |
 | Extensions (per-index) | `GET/POST /v1/indexes/{id}/extensions`, `DELETE /v1/indexes/{id}/extensions/{ext_id}` |
 | Catalog (PLP) | `POST /v1/catalog`, `GET /v1/catalog/facets`, `GET /v1/suggest`, `GET /v1/intent/tab` |
 | Content (generic) | `GET /v1/content`, `GET /v1/content/{slug}`, `GET /v1/content/{slug}/search` |
+| Settings | `GET /v1/settings`, `PUT /v1/settings` |
 | Health | `GET /health` |
 
 ### Search request body
