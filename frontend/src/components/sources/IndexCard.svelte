@@ -6,7 +6,7 @@
    * with stopPropagation so it does not also trigger ``open``.
    */
   import { createEventDispatcher } from 'svelte';
-  import type { IndexMeta } from '../lib/types';
+  import type { IndexMeta } from '../../lib/types';
 
   export let index: IndexMeta;
 

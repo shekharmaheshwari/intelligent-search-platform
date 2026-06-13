@@ -1,4 +1,4 @@
-import type { IndexMeta } from '../lib/types';
+import type { IndexMeta } from '../../lib/types';
 
 /**
  * Return the primary connector URL for sidebar display.

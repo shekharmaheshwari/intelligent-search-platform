@@ -10,7 +10,7 @@
    * - ``settings``   — user clicked the "⚙ Settings" footer link
    */
   import { createEventDispatcher } from 'svelte';
-  import type { IndexMeta } from '../lib/types';
+  import type { IndexMeta } from '../../lib/types';
   import { connectorUrl, connectorType, shortUrl } from './SourcesSidebar.helpers';
 
   export let indexes: IndexMeta[] = [];

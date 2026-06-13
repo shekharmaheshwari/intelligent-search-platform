@@ -18,10 +18,10 @@
    * Dispatches ``done`` (with the new index id) on completion and ``cancel`` on dismiss.
    */
   import { createEventDispatcher } from 'svelte';
-  import { indexService } from '../lib/services/indexes/IndexService';
-  import { extensionService } from '../lib/services/extensions/ExtensionService';
-  import { settingsService } from '../lib/services/settings/SettingsService';
-  import type { RestConnectorConfig, SitemapConnectorConfig, ExtensionMeta, EmbedModelOption, AppSettings } from '../lib/types';
+  import { indexService } from '../../lib/services/indexes/IndexService';
+  import { extensionService } from '../../lib/services/extensions/ExtensionService';
+  import { settingsService } from '../../lib/services/settings/SettingsService';
+  import type { RestConnectorConfig, SitemapConnectorConfig, ExtensionMeta, EmbedModelOption, AppSettings } from '../../lib/types';
   import { embedModelOption, embedDimWillChange } from './CreateWizard.helpers';
 
   const dispatch = createEventDispatcher<{ done: string; cancel: void }>();

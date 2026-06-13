@@ -5,8 +5,8 @@
    * Renders a query input, hybrid/lexical/semantic mode toggle, and result cards.
    * Simpler than the SourceContent search bar — no pagination, just the first page.
    */
-  import { indexService } from '../lib/services/indexes/IndexService';
-  import type { DocumentItem } from '../lib/types';
+  import { indexService } from '../../lib/services/indexes/IndexService';
+  import type { DocumentItem } from '../../lib/types';
   import { excerpt } from './SearchPanel.helpers';
 
   export let indexId: string;

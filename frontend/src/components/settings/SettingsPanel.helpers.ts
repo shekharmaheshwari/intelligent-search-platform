@@ -1,4 +1,4 @@
-import type { AppSettings, EmbedModelOption } from '../lib/types';
+import type { AppSettings, EmbedModelOption } from '../../lib/types';
 
 /**
  * Return the ``EmbedModelOption`` for ``id`` from the settings catalogue, or ``null`` when not found.

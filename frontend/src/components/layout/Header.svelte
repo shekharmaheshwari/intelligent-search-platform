@@ -5,7 +5,7 @@
    * Contains the ISP logo/home button and a Docs link.
    * Clicking the logo resets the app to the dashboard view with no selected index.
    */
-  import { appStateStore } from '../lib/store';
+  import { appStateStore } from '../../lib/store';
 
   /** Navigate to the dashboard view and deselect any active index. */
   function goHome() {

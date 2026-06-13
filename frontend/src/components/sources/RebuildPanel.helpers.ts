@@ -1,4 +1,4 @@
-import type { IndexMeta, RestConnectorConfig } from '../lib/types';
+import type { IndexMeta, RestConnectorConfig } from '../../lib/types';
 
 /**
  * Pre-populate form fields from the first saved REST connector on an index.
