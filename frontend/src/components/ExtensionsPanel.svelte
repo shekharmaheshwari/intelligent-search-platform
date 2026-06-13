@@ -10,12 +10,13 @@
    * Actual per-index assignment is managed in ``IndexExtensionsPanel``.
    */
   import { onMount } from 'svelte';
-  import { api } from '../lib/api';
+  import { extensionsStore } from '../lib/store';
   import type { ExtensionMeta } from '../lib/types';
+  import { fmtDate } from './ExtensionsPanel.helpers';
 
-  let extensions: ExtensionMeta[] = [];
-  let loading = false;
-  let errMsg = '';
+  $: extensions = $extensionsStore.library;
+  $: loading = $extensionsStore.loading;
+  $: errMsg = $extensionsStore.error ?? '';
 
   // Editor modal state
   let showEditor = false;
@@ -40,12 +41,8 @@
   return doc;
 }`;
 
-  /** Fetch the full extension library from the backend and refresh the list. */
   async function load() {
-    loading = true; errMsg = '';
-    try { extensions = await api.listExtensions(); }
-    catch (e) { errMsg = String(e); }
-    finally { loading = false; }
+    await extensionsStore.loadLibrary();
   }
 
   onMount(load);
@@ -62,22 +59,17 @@
     editorErr = ''; showEditor = true;
   }
 
-  /**
-   * Validate and persist the editor form.
-   * Creates a new extension when ``editingId`` is empty, otherwise updates the existing one.
-   */
   async function save() {
     if (!editName.trim()) { editorErr = 'Name is required'; return; }
     if (!editCode.trim()) { editorErr = 'Code is required'; return; }
     saving = true; editorErr = '';
     try {
       if (editingId) {
-        await api.updateExtension(editingId, { name: editName.trim(), description: editDesc.trim(), code: editCode });
+        await extensionsStore.updateExtension(editingId, { name: editName.trim(), description: editDesc.trim(), code: editCode });
       } else {
-        await api.createExtension(editName.trim(), editDesc.trim(), editCode);
+        await extensionsStore.createExtension(editName.trim(), editDesc.trim(), editCode);
       }
       showEditor = false;
-      await load();
     } catch (e) {
       editorErr = String(e);
     } finally {
@@ -87,21 +79,12 @@
 
   let deletingId = '';
 
-  /**
-   * Confirm and delete an extension from the library.
-   * The backend cascade-deletes any index assignments for this extension.
-   */
   async function deleteExt(id: string) {
     if (!confirm('Delete this extension? Indexes using it will lose the assignment.')) return;
     deletingId = id;
-    try { await api.deleteExtension(id); await load(); }
+    try { await extensionsStore.deleteExtension(id); }
     catch (e) { errMsg = String(e); }
     finally { deletingId = ''; }
-  }
-
-  /** Format an ISO date string to a short human-readable date (e.g. "Jun 5, 2026"). */
-  function fmtDate(s: string) {
-    return new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   }
 </script>
 

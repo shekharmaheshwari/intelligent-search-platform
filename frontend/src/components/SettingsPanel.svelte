@@ -23,23 +23,17 @@
    * fully rebuilt before semantic search will work again.
    */
   import { onMount } from 'svelte';
-  import { api } from '../lib/api';
-  import type { AppSettings, EmbedModelOption } from '../lib/types';
+  import { settingsStore } from '../lib/store';
+  import type { AppSettings } from '../lib/types';
+  import { modelOption, effectiveDim, dimensionWillChange } from './SettingsPanel.helpers';
 
-  /** Currently loaded settings from the backend. */
-  let settings: AppSettings | null = null;
+  $: settings = $settingsStore.settings;
+  $: loading = $settingsStore.loading;
 
-  /** The model id the user has selected in the dropdown. */
   let selectedModel = '';
-
-  let loading = true;
   let saving = false;
   let errMsg = '';
-
-  /** Set to true after a successful save — cleared on next dropdown change. */
   let saved = false;
-
-  /** Post-save dimension-change warning text. */
   let dimWarning = '';
 
   // ── Extra provider fields ────────────────────────────────────────────────────
@@ -65,64 +59,21 @@
   /** Custom vector dimension. */
   let customNumDim = 1536;
 
-  /** Fetch current settings and pre-populate all form fields. */
   async function load() {
-    loading = true;
-    errMsg = '';
-    try {
-      settings = await api.getSettings();
-      selectedModel = settings.embed_model;
-      // Pre-populate custom fields from stored values
+    await settingsStore.load();
+    if (settings) {
+      selectedModel   = settings.embed_model;
       rexbertEndpoint = settings.rexbert_endpoint  ?? '';
       customEndpoint  = settings.custom_endpoint   ?? '';
       customModelName = settings.custom_model_name ?? '';
       customNumDim    = settings.custom_num_dim     ?? 1536;
-    } catch (e) {
-      errMsg = String(e);
-    } finally {
-      loading = false;
     }
   }
 
   onMount(load);
 
-  /**
-   * Return the ``EmbedModelOption`` for a given model id, or ``null`` if not found.
-   * Used to display the dimension badge next to the selected model.
-   */
-  function modelOption(id: string): EmbedModelOption | null {
-    return settings?.available_models.find(m => m.id === id) ?? null;
-  }
+  $: selectedProvider = settings ? (modelOption(settings, selectedModel)?.provider ?? 'voyage') : 'voyage';
 
-  /**
-   * The effective dimension for the currently selected model.
-   * Returns the user-typed ``customNumDim`` when the selection is "custom",
-   * otherwise reads from the model catalogue.
-   */
-  function effectiveDim(id: string): number {
-    if (id === 'custom') return customNumDim || 0;
-    return modelOption(id)?.num_dim ?? 0;
-  }
-
-  /**
-   * Return true when the selected model's effective dimension differs from the
-   * currently saved model's dimension — used to show a pre-save warning.
-   */
-  function dimensionWillChange(): boolean {
-    if (!settings) return false;
-    const currentDim = settings.embed_model === 'custom'
-      ? (settings.custom_num_dim ?? 0)
-      : (modelOption(settings.embed_model)?.num_dim ?? 0);
-    return effectiveDim(selectedModel) !== currentDim && effectiveDim(selectedModel) > 0;
-  }
-
-  /** Provider string for the currently selected model. */
-  $: selectedProvider = modelOption(selectedModel)?.provider ?? 'voyage';
-
-  /**
-   * True when the user has changed any field that would alter the saved config.
-   * Enables the Save button.
-   */
   $: isDirty = settings !== null && (
     selectedModel !== settings.embed_model ||
     (selectedProvider === 'openai'   && openaiApiKey.trim() !== '') ||
@@ -137,18 +88,11 @@
     ))
   );
 
-  /**
-   * Persist the selected model and any provider-specific fields.
-   * Shows a dimension-change warning when the backend reports ``dim_changed``.
-   */
   async function save() {
     if (!selectedModel) return;
-    saving  = true;
-    errMsg  = '';
-    dimWarning = '';
-    saved   = false;
+    saving = true; errMsg = ''; dimWarning = ''; saved = false;
     try {
-      const result = await api.updateSettings(selectedModel, {
+      const result = await settingsStore.save(selectedModel, {
         openaiApiKey:    selectedProvider === 'openai'   && openaiApiKey.trim()   ? openaiApiKey.trim()   : undefined,
         rexbertEndpoint: selectedProvider === 'rexbert'  && rexbertEndpoint.trim() ? rexbertEndpoint.trim() : undefined,
         rexbertApiKey:   selectedProvider === 'rexbert'  && rexbertApiKey.trim()   ? rexbertApiKey.trim()   : undefined,
@@ -157,14 +101,12 @@
         customModelName: selectedProvider === 'custom' ? customModelName : undefined,
         customNumDim:    selectedProvider === 'custom' ? customNumDim    : undefined,
       });
-      settings = result;
       selectedModel   = result.embed_model;
       rexbertEndpoint = result.rexbert_endpoint  ?? '';
       customEndpoint  = result.custom_endpoint   ?? '';
       customModelName = result.custom_model_name ?? '';
       customNumDim    = result.custom_num_dim    ?? 1536;
-      openaiApiKey  = '';
-      rexbertApiKey = '';
+      openaiApiKey = ''; rexbertApiKey = '';
       saved = true;
       if (result.dim_changed) {
         dimWarning =
@@ -237,8 +179,8 @@
         </div>
 
         <!-- Selected model description card -->
-        {#if modelOption(selectedModel)}
-          {@const opt = modelOption(selectedModel)}
+        {#if settings && modelOption(settings, selectedModel)}
+          {@const opt = modelOption(settings, selectedModel)}
           <div class="model-card" class:model-card-dirty={isDirty}>
             <div class="model-card-top">
               <span class="model-name">{opt.label}</span>
@@ -375,15 +317,15 @@
         {/if}
 
         <!-- Pre-save dimension change warning -->
-        {#if isDirty && dimensionWillChange()}
+        {#if settings && isDirty && dimensionWillChange(settings, selectedModel, customNumDim)}
           <div class="warn-box">
             <span class="warn-icon">⚠</span>
             <div>
               <strong>Dimension change</strong> — the new model produces
-              {effectiveDim(selectedModel)}-d vectors vs the current
+              {effectiveDim(settings, selectedModel, customNumDim)}-d vectors vs the current
               {settings.embed_model === 'custom'
                 ? (settings.custom_num_dim ?? 0)
-                : (modelOption(settings.embed_model)?.num_dim ?? 0)}d.
+                : (modelOption(settings, settings.embed_model)?.num_dim ?? 0)}d.
               All existing indexes must be <strong>fully rebuilt</strong> before
               semantic search will work correctly.
             </div>

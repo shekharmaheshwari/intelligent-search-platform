@@ -11,10 +11,15 @@
    */
   import { onMount } from 'svelte';
   import { createEventDispatcher } from 'svelte';
-  import { api } from '../lib/api';
+  import { indexService } from '../lib/services/indexes/IndexService';
   import type { IndexMeta, DocumentItem } from '../lib/types';
   import RebuildPanel from './RebuildPanel.svelte';
   import IndexExtensionsPanel from './IndexExtensionsPanel.svelte';
+  import {
+    excerpt, fmtDate, connectorUrl, docFields,
+    tryParseJson, isMetadataKey, formatValue, formatMetaValue,
+    getPopularity, getIsFeatured,
+  } from './SourceContent.helpers';
 
   export let index: IndexMeta;
 
@@ -35,11 +40,10 @@
   let searching = false;
   let searched = false;
 
-  /** Fetch a page of documents from the backend and update the local doc list. */
   async function loadDocs() {
     loadingDocs = true;
     try {
-      const res = await api.listDocuments(index.id, page, perPage);
+      const res = await indexService.listDocuments(index.id, page, perPage);
       docs = res.hits.map(h => h.document);
       found = res.found;
     } finally {
@@ -47,12 +51,11 @@
     }
   }
 
-  /** Execute a search query against the current index using the selected mode; clears to doc list when query is empty. */
   async function search() {
     if (!q.trim()) { searched = false; loadDocs(); return; }
     searching = true; searched = true;
     try {
-      const res = await api.search(index.id, q.trim(), searchMode);
+      const res = await indexService.search(index.id, q.trim(), searchMode);
       docs = res.hits.map(h => h.document);
       found = res.found;
     } finally {
@@ -84,68 +87,14 @@
     page = 1; q = ''; searched = false; loadDocs();
   }
 
-  /** Truncate ``text`` to ``max`` characters, appending an ellipsis when cut. */
-  function excerpt(text: string, max = 180) {
-    return text.length > max ? text.slice(0, max) + '…' : text;
-  }
-
-  /** Format a Unix timestamp (seconds) to a short locale date string. */
-  function fmtDate(ts: number) {
-    return new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-
-  /** Return the URL string of the first connector, or empty string for external sources. */
-  function connectorUrl(idx: IndexMeta): string {
-    if (!idx.connectors.length) return '';
-    return String(idx.connectors[0].url ?? '');
-  }
-
   let expandedIds = new Set<string>();
-  /** Toggle the expanded/collapsed state of a document row. Reassigning the Set forces Svelte reactivity. */
   function toggleExpand(id: string) {
     if (expandedIds.has(id)) expandedIds.delete(id);
     else expandedIds.add(id);
-    expandedIds = expandedIds; // trigger reactivity
+    expandedIds = expandedIds;
   }
 
-  /** Return all key-value pairs of a document for the expanded field table. */
-  function docFields(doc: DocumentItem): [string, unknown][] {
-    return Object.entries(doc);
-  }
-
-  /** Attempt to parse a string value as a JSON object; returns null on failure or non-object values. */
-  function tryParseJson(v: unknown): Record<string, unknown> | null {
-    if (!v || typeof v !== 'string') return null;
-    const s = v.trim();
-    if (!s.startsWith('{')) return null;
-    try { return JSON.parse(s); } catch { return null; }
-  }
-
-  /** Return true for the special ``metadata`` field, which is rendered as a parsed sub-table. */
-  function isMetadataKey(key: string): boolean {
-    return key === 'metadata';
-  }
-
-  /** Stringify any field value for plain display; objects are pretty-printed with two-space indent. */
-  function formatValue(v: unknown): string {
-    if (v === null || v === undefined) return '';
-    if (typeof v === 'string') return v;
-    return JSON.stringify(v, null, 2);
-  }
-
-  /** Format a parsed metadata sub-field value for the metadata sub-table: booleans → Yes/No, arrays → comma list. */
-  function formatMetaValue(v: unknown): string {
-    if (v === null || v === undefined) return '—';
-    if (typeof v === 'boolean') return v ? 'Yes' : 'No';
-    if (Array.isArray(v)) return v.join(', ') || '—';
-    if (typeof v === 'object') return JSON.stringify(v);
-    return String(v);
-  }
-
-  /** Decrement the page counter and reload; re-executes search when in search mode. */
   function prev() { if (page > 1) { page--; searched ? search() : loadDocs(); } }
-
-  /** Increment the page counter and reload; re-executes search when in search mode. */
   function next() { if (page * perPage < found) { page++; searched ? search() : loadDocs(); } }
 
   // ── Doc edit modal ────────────────────────────────────────────────────────────
@@ -156,21 +105,6 @@
   let editSaving = false;
   let editErr = '';
 
-  /** Extract popularity from a document — checks top-level then metadata blob. */
-  function getPopularity(doc: DocumentItem): number {
-    if (typeof doc.popularity === 'number') return doc.popularity;
-    const meta = tryParseJson(doc.metadata ?? null);
-    return typeof meta?.popularity === 'number' ? meta.popularity : 0;
-  }
-
-  /** Extract is_featured from a document — checks top-level then metadata blob. */
-  function getIsFeatured(doc: DocumentItem): boolean {
-    if (typeof doc.is_featured === 'boolean') return doc.is_featured;
-    const meta = tryParseJson(doc.metadata ?? null);
-    return Boolean(meta?.is_featured);
-  }
-
-  /** Open the edit modal pre-filled with the document's current values. */
   function openEdit(doc: DocumentItem) {
     editDoc = doc;
     editPopularity = getPopularity(doc);
@@ -178,20 +112,17 @@
     editErr = '';
   }
 
-  /** Close the edit modal without saving. */
   function closeEdit() { editDoc = null; editErr = ''; }
 
-  /** Save score + featured flag, patch the Typesense document, update local state. */
   async function saveEdit() {
     if (!editDoc) return;
     editSaving = true; editErr = '';
     try {
-      await api.updateDocument(index.id, editDoc.id, editPopularity, editIsFeatured);
-      // Patch local metadata so the UI reflects the change immediately
+      await indexService.updateDocument(index.id, editDoc.id, editPopularity, editIsFeatured);
       const target = editDoc;
       docs = docs.map(d => {
         if (d.id !== target.id) return d;
-        const meta = tryParseJson(d.metadata ?? null) ?? {};
+        const meta = tryParseJson(d.metadata as string | null ?? null) ?? {};
         meta.popularity = editPopularity;
         meta.is_featured = editIsFeatured;
         return { ...d, metadata: JSON.stringify(meta) };

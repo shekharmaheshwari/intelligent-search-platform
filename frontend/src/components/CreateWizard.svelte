@@ -18,8 +18,11 @@
    * Dispatches ``done`` (with the new index id) on completion and ``cancel`` on dismiss.
    */
   import { createEventDispatcher } from 'svelte';
-  import { api } from '../lib/api';
+  import { indexService } from '../lib/services/indexes/IndexService';
+  import { extensionService } from '../lib/services/extensions/ExtensionService';
+  import { settingsService } from '../lib/services/settings/SettingsService';
   import type { RestConnectorConfig, SitemapConnectorConfig, ExtensionMeta, EmbedModelOption, AppSettings } from '../lib/types';
+  import { embedModelOption, embedDimWillChange } from './CreateWizard.helpers';
 
   const dispatch = createEventDispatcher<{ done: string; cancel: void }>();
 
@@ -106,16 +109,15 @@
     selectedExtIds = next;
   }
 
-  /**
-   * Fetch the global extension library and store it in ``extensionsList``.
-   * Called when the user enters step 4 for the first time (or if a previous
-   * load failed).  Sets ``extensionsLoading`` and ``extensionsErr`` accordingly.
-   */
   async function loadExtensions() {
     extensionsLoading = true;
     extensionsErr = '';
     try {
-      extensionsList = await api.listExtensions();
+      const exts = await extensionService.listExtensions();
+      extensionsList = exts.map(e => ({
+        id: e.id, name: e.name, description: e.description,
+        code: e.code, created_at: e.createdAt, updated_at: e.updatedAt,
+      }));
     } catch (e) {
       extensionsErr = String(e);
     } finally {
@@ -134,42 +136,29 @@
   let embedLoading = false;
   let embedErr = '';
 
-  /**
-   * Fetch the current global settings to populate the model selector.
-   * Called when the user enters step 5 for the first time.
-   */
   async function loadEmbedSettings() {
     embedLoading = true;
     embedErr = '';
     try {
-      embedSettings = await api.getSettings();
+      const domain = await settingsService.getSettings();
+      embedSettings = {
+        embed_model: domain.embedModel,
+        embed_model_num_dim: domain.embedModelNumDim,
+        available_models: domain.availableModels,
+        dim_changed: domain.dimChanged,
+        openai_api_key_set: domain.openaiApiKeySet,
+        rexbert_endpoint: domain.rexbertEndpoint,
+        rexbert_api_key_set: domain.rexbertApiKeySet,
+        custom_endpoint: domain.customEndpoint,
+        custom_model_name: domain.customModelName,
+        custom_num_dim: domain.customNumDim,
+      };
       selectedEmbedModel = embedSettings.embed_model;
     } catch (e) {
       embedErr = String(e);
     } finally {
       embedLoading = false;
     }
-  }
-
-  /**
-   * Return the ``EmbedModelOption`` object for a given model id, or ``null``.
-   * Used to display the dimension and provider badges in the model card.
-   *
-   * @param id  Model id to look up.
-   */
-  function embedModelOption(id: string): EmbedModelOption | null {
-    return embedSettings?.available_models.find(m => m.id === id) ?? null;
-  }
-
-  /**
-   * Return true when the selected model's dimension differs from the current
-   * global model's dimension — used to show a pre-save warning in step 5.
-   */
-  function embedDimWillChange(): boolean {
-    if (!embedSettings) return false;
-    const cur  = embedModelOption(embedSettings.embed_model);
-    const next = embedModelOption(selectedEmbedModel);
-    return !!cur && !!next && cur.num_dim > 0 && next.num_dim > 0 && cur.num_dim !== next.num_dim;
   }
 
   /** True when the user has selected a model different from the stored global model. */
@@ -190,7 +179,7 @@
     if (isExternal && !externalCollection.trim()) { errMsg = 'Collection name is required for catalog write-back'; return; }
     busy = true; errMsg = '';
     try {
-      const meta = await api.createIndex(name.trim(), description.trim(), {
+      const meta = await indexService.createIndex(name.trim(), description.trim(), {
         is_external: isExternal,
         external_collection: externalCollection.trim(),
         external_filter: externalFilter.trim(),
@@ -261,13 +250,13 @@
     try {
       // 1. Update global embedding model if the user changed it
       if (embedIsDirty && selectedEmbedModel) {
-        await api.updateSettings(selectedEmbedModel);
+        await settingsService.updateSettings(selectedEmbedModel);
       }
 
       // 2. Assign selected extensions in display order
       const ordered = extensionsList.filter(e => selectedExtIds.has(e.id));
       await Promise.allSettled(
-        ordered.map((ext, i) => api.assignExtension(indexId, ext.id, i + 1, true))
+        ordered.map((ext, i) => extensionService.assignExtension(indexId, ext.id, i + 1, true))
       );
 
       // 3. Build field_map from extra rows (skip incomplete rows)
@@ -296,7 +285,7 @@
           ...(urlField.trim()     && { url_field:     urlField.trim() }),
           ...(Object.keys(field_map).length && { field_map }),
         };
-        await api.ingestRest(indexId, cfg);
+        await indexService.ingestRest(indexId, cfg);
       } else {
         const cfg: SitemapConnectorConfig = {
           url: sitemapUrl.trim(),
@@ -305,7 +294,7 @@
           include_pattern: sitemapInclude.trim(),
           exclude_pattern: sitemapExclude.trim(),
         };
-        await api.ingestSitemap(indexId, cfg);
+        await indexService.ingestSitemap(indexId, cfg);
       }
 
       step = 6;
@@ -325,7 +314,7 @@
     while (true) {
       await new Promise(r => setTimeout(r, 1500));
       try {
-        const s = await api.getStatus(indexId);
+        const s = await indexService.getStatus(indexId);
         statusIndexed = s.indexed;
         statusTotal = s.total;
         if (s.state === 'running') {
@@ -653,7 +642,7 @@
                     <span class="embed-dim-badge">{m.num_dim}-d</span>
                   {/if}
                   <span class="embed-provider-badge provider-{m.provider}">{m.provider}</span>
-                  {#if m.id === embedSettings.embed_model}
+                  {#if embedSettings && m.id === embedSettings.embed_model}
                     <span class="embed-active-badge">active</span>
                   {/if}
                 </div>
@@ -663,7 +652,7 @@
           {/each}
         </div>
 
-        {#if embedDimWillChange()}
+        {#if embedSettings && embedDimWillChange(embedSettings, selectedEmbedModel)}
           <div class="embed-dim-warn">
             Dimension change detected — existing indexes will need a full rebuild before semantic search works.
           </div>

@@ -8,11 +8,12 @@
    */
   import { onMount } from 'svelte';
   import { createEventDispatcher } from 'svelte';
-  import { api } from '../lib/api';
+  import { indexService } from '../lib/services/indexes/IndexService';
   import type { IndexMeta, IngestStatus } from '../lib/types';
   import DocumentTable from './DocumentTable.svelte';
   import SearchPanel from './SearchPanel.svelte';
   import ApiPanel from './ApiPanel.svelte';
+  import { fmtDate } from './IndexDetail.helpers';
 
   export let indexId: string;
   export let tab: 'overview' | 'documents' | 'search' | 'api' = 'overview';
@@ -25,14 +26,13 @@
   let status: IngestStatus | null = null;
 
   onMount(async () => {
-    meta = await api.getIndex(indexId);
-    status = await api.getStatus(indexId);
+    const [fetchedMeta, fetchedStatus] = await Promise.all([
+      indexService.getIndex(indexId),
+      indexService.getStatus(indexId),
+    ]);
+    meta = fetchedMeta as unknown as IndexMeta;
+    status = fetchedStatus;
   });
-
-  /** Format an ISO date string to a short human-readable locale date (e.g. "Jun 5, 2026"). */
-  function fmtDate(iso: string) {
-    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  }
 </script>
 
 <div class="detail">

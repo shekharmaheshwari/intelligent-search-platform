@@ -6,8 +6,9 @@
    * (Title, Source, URL, Indexed) with prev/next pagination and a manual refresh button.
    */
   import { onMount } from 'svelte';
-  import { api } from '../lib/api';
+  import { indexService } from '../lib/services/indexes/IndexService';
   import type { DocumentItem } from '../lib/types';
+  import { fmtDate } from './DocumentTable.helpers';
 
   export let indexId: string;
 
@@ -17,11 +18,10 @@
   const perPage = 20;
   let loading = false;
 
-  /** Fetch the current page of documents from the backend and update the table. */
   async function load() {
     loading = true;
     try {
-      const res = await api.listDocuments(indexId, page, perPage);
+      const res = await indexService.listDocuments(indexId, page, perPage);
       docs = res.hits.map(h => h.document);
       found = res.found;
     } finally {
@@ -31,15 +31,7 @@
 
   onMount(load);
 
-  /** Format a Unix timestamp (seconds) to a short locale date string. */
-  function fmtDate(ts: number) {
-    return new Date(ts * 1000).toLocaleDateString();
-  }
-
-  /** Go to the previous page and reload. */
   function prev() { if (page > 1) { page--; load(); } }
-
-  /** Go to the next page and reload. */
   function next() { if (page * perPage < found) { page++; load(); } }
 </script>
 

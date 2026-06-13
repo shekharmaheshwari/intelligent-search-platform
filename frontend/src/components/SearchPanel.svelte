@@ -5,8 +5,9 @@
    * Renders a query input, hybrid/lexical/semantic mode toggle, and result cards.
    * Simpler than the SourceContent search bar — no pagination, just the first page.
    */
-  import { api } from '../lib/api';
+  import { indexService } from '../lib/services/indexes/IndexService';
   import type { DocumentItem } from '../lib/types';
+  import { excerpt } from './SearchPanel.helpers';
 
   export let indexId: string;
 
@@ -19,12 +20,11 @@
   let searched = false;
   let errMsg = '';
 
-  /** Run a search query against the index and display the first page of results. */
   async function search() {
     if (!q.trim()) return;
     loading = true; errMsg = ''; searched = true;
     try {
-      const res = await api.search(indexId, q.trim(), mode);
+      const res = await indexService.search(indexId, q.trim(), mode);
       results = res.hits.map(h => h.document);
       found = res.found;
     } catch (e) {
@@ -34,14 +34,8 @@
     }
   }
 
-  /** Submit search on Enter key press. */
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') search();
-  }
-
-  /** Truncate ``text`` to ``max`` characters with a trailing ellipsis. */
-  function excerpt(text: string, max = 160) {
-    return text.length > max ? text.slice(0, max) + '…' : text;
   }
 </script>
 

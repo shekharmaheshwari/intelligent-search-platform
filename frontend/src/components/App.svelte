@@ -13,8 +13,7 @@
    * events; this component translates them into store mutations or API calls.
    */
   import { onMount } from 'svelte';
-  import { appState, indexes, loading, error } from '../lib/store';
-  import { api } from '../lib/api';
+  import { appStateStore, indexesStore } from '../lib/store';
   import Header from './Header.svelte';
   import SourcesSidebar from './SourcesSidebar.svelte';
   import SourceContent from './SourceContent.svelte';
@@ -28,103 +27,78 @@
   $: isMobile = windowWidth < 768;
   let sidebarVisible = true;
 
+  $: state = $appStateStore;
+  $: idxState = $indexesStore;
+
   // ── Delete confirmation ──────────────────────────────────────────────────────
   let pendingDeleteId: string | null = null;
   let deleteDeleting = false;
-  $: pendingDeleteName = $indexes.find(i => i.id === pendingDeleteId)?.name ?? '';
+  $: pendingDeleteName = idxState.indexes.find(i => i.id === pendingDeleteId)?.name ?? '';
 
-  /** Open the delete confirmation modal for the given index id. */
   function confirmDelete(id: string) {
     pendingDeleteId = id;
   }
 
-  /**
-   * Execute the confirmed delete: call the API, deselect if needed, then reload the list.
-   * Clears ``pendingDeleteId`` on both success and failure.
-   */
   async function executeDelete() {
     if (!pendingDeleteId) return;
     deleteDeleting = true;
     try {
-      await api.deleteIndex(pendingDeleteId);
-      if ($appState.selectedIndexId === pendingDeleteId) {
-        appState.update(s => ({ ...s, selectedIndexId: null, view: 'dashboard' }));
+      await indexesStore.deleteIndex(pendingDeleteId);
+      if (state.selectedIndexId === pendingDeleteId) {
+        appStateStore.navigateTo('dashboard', null);
       }
-      await loadIndexes();
     } finally {
       pendingDeleteId = null;
       deleteDeleting = false;
     }
   }
 
-  /**
-   * Fetch the full index list from the backend and update the global store.
-   * Auto-selects the first index if nothing is currently selected.
-   */
   async function loadIndexes() {
-    loading.set(true);
-    error.set(null);
-    try {
-      const list = await api.listIndexes();
-      indexes.set(list);
-      if (!$appState.selectedIndexId && list.length > 0) {
-        appState.update(s => ({ ...s, selectedIndexId: list[0].id, view: 'detail' }));
-      }
-    } catch (e) {
-      error.set(String(e));
-    } finally {
-      loading.set(false);
+    await indexesStore.load();
+    if (!state.selectedIndexId && idxState.indexes.length > 0) {
+      appStateStore.selectIndex(idxState.indexes[0].id);
     }
   }
 
-  /**
-   * Initial startup sequence: load existing indexes then trigger auto-discovery.
-   * Discovery is idempotent — already-tracked external collections are silently skipped.
-   * If discovery finds new sources the index list is reloaded to include them.
-   */
   async function initLoad() {
-    // First load existing indexes, then discover external collections (idempotent)
-    await loadIndexes();
+    await indexesStore.load();
+    if (!state.selectedIndexId && idxState.indexes.length > 0) {
+      appStateStore.selectIndex(idxState.indexes[0].id);
+    }
     try {
-      const discovered = await api.discoverIndexes();
+      const discovered = await indexesStore.discover();
       if (discovered.length > 0) {
-        // Reload to include newly discovered sources
-        await loadIndexes();
+        await indexesStore.load();
       }
     } catch { /* ignore discovery errors */ }
   }
 
   onMount(initLoad);
 
-  /** Navigate to the detail view for a source and hide the sidebar on mobile. */
   function selectSource(id: string) {
-    appState.update(s => ({ ...s, selectedIndexId: id, view: 'detail', detailTab: 'overview' }));
+    appStateStore.selectIndex(id);
     if (isMobile) sidebarVisible = false;
   }
 
-  /** Open the configure/connector-settings view for a source. */
   function configure(id: string) {
-    appState.update(s => ({ ...s, selectedIndexId: id, view: 'configure', detailTab: 'overview' }));
+    appStateStore.configure(id);
   }
 
-  /** Navigate back from the configure view to the main content/detail view. */
   function backToContent() {
-    appState.update(s => ({ ...s, view: 'detail' }));
+    appStateStore.backToDetail();
   }
 
-  /** Initiate the delete flow by opening the confirmation modal. */
   function deleteSource(id: string) {
     confirmDelete(id);
   }
 
-  /** Close the wizard, select the newly created source, and refresh the index list. */
   function onWizardDone(id: string) {
     showWizard = false;
     selectSource(id);
     loadIndexes();
   }
 
-  $: selectedIndex = $indexes.find(i => i.id === $appState.selectedIndexId) ?? null;
+  $: selectedIndex = idxState.indexes.find(i => i.id === state.selectedIndexId) ?? null;
 </script>
 
 <svelte:window bind:innerWidth={windowWidth} />
@@ -135,13 +109,13 @@
   <div class="body">
     <div class="sidebar-wrap" class:mobile-hidden={isMobile && !sidebarVisible}>
       <SourcesSidebar
-        indexes={$indexes}
-        selectedId={$appState.selectedIndexId}
+        indexes={idxState.indexes}
+        selectedId={state.selectedIndexId}
         on:select={e => selectSource(e.detail)}
         on:create={() => showWizard = true}
         on:delete={e => deleteSource(e.detail)}
-        on:extensions={() => appState.update(s => ({ ...s, view: 'extensions', selectedIndexId: null }))}
-        on:settings={() => appState.update(s => ({ ...s, view: 'settings', selectedIndexId: null }))}
+        on:extensions={() => appStateStore.navigateTo('extensions', null)}
+        on:settings={() => appStateStore.navigateTo('settings', null)}
       />
     </div>
 
@@ -149,22 +123,22 @@
       {#if isMobile}
         <button class="back-btn" on:click={() => sidebarVisible = true}>← Sources</button>
       {/if}
-      {#if $appState.view === 'settings'}
+      {#if state.view === 'settings'}
         <div class="extensions-wrap">
           <SettingsPanel />
         </div>
-      {:else if $appState.view === 'extensions'}
+      {:else if state.view === 'extensions'}
         <div class="extensions-wrap">
           <ExtensionsPanel />
         </div>
-      {:else if $appState.view === 'configure' && $appState.selectedIndexId}
+      {:else if state.view === 'configure' && state.selectedIndexId}
         <div class="configure-wrap">
           <div class="configure-back">
             <button on:click={backToContent}>← Back to content</button>
           </div>
           <IndexDetail
-            indexId={$appState.selectedIndexId}
-            tab={$appState.detailTab}
+            indexId={state.selectedIndexId}
+            tab={state.detailTab}
             on:back={backToContent}
           />
         </div>
@@ -173,7 +147,7 @@
           index={selectedIndex}
           on:configure={e => configure(e.detail)}
         />
-      {:else if $indexes.length === 0 && !$loading}
+      {:else if idxState.indexes.length === 0 && !idxState.loading}
         <div class="welcome">
           <div class="welcome-icon">⬡</div>
           <h2>Welcome to Intelligent Search Platform</h2>
@@ -186,8 +160,8 @@
         </div>
       {/if}
 
-      {#if $error}
-        <div class="global-error">{$error}</div>
+      {#if idxState.error}
+        <div class="global-error">{idxState.error}</div>
       {/if}
     </div>
   </div>
