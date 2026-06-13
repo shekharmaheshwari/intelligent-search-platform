@@ -11,6 +11,7 @@
    */
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../lib/types';
+  import { connectorUrl, connectorType, shortUrl } from './SourcesSidebar.helpers';
 
   export let indexes: IndexMeta[] = [];
   export let selectedId: string | null = null;
@@ -18,33 +19,6 @@
   const dispatch = createEventDispatcher<{ select: string; create: void; delete: string; extensions: void; settings: void }>();
 
   let sourcesOpen = true;
-
-  /**
-   * Return the primary connector URL for display in the sidebar.
-   * For external sources this is the Typesense collection name (no real URL).
-   */
-  function connectorUrl(idx: IndexMeta): string {
-    if (idx.is_external) return idx.external_collection ?? '';
-    if (!idx.connectors.length) return '';
-    return String(idx.connectors[0].url ?? '');
-  }
-
-  /** Return the connector type badge string (``rest``, ``sitemap``, ``typesense``, or ``''``). */
-  function connectorType(idx: IndexMeta): string {
-    if (idx.is_external) return 'typesense';
-    if (!idx.connectors.length) return '';
-    return String(idx.connectors[0].type ?? '');
-  }
-
-  /** Shorten a URL to hostname + truncated path for compact sidebar display. */
-  function shortUrl(url: string): string {
-    try {
-      const u = new URL(url);
-      return u.hostname + u.pathname.slice(0, 28) + (u.pathname.length > 28 ? '…' : '');
-    } catch {
-      return url.slice(0, 36);
-    }
-  }
 </script>
 
 <aside class="sidebar">

@@ -11,28 +11,15 @@
    * Dispatches ``done`` when the rebuild completes and ``close`` when dismissed.
    */
   import { createEventDispatcher } from 'svelte';
-  import { api } from '../lib/api';
+  import { indexService } from '../lib/services/indexes/IndexService';
   import type { IndexMeta, IngestStatus, RestConnectorConfig } from '../lib/types';
+  import { getExistingRest, parseCurl as parseCurlHelper, buildCurl } from './RebuildPanel.helpers';
 
   export let index: IndexMeta;
 
   const dispatch = createEventDispatcher<{ done: void; close: void }>();
 
-  /** Pre-populate form fields from the first saved REST connector on this index, if any. */
-  function getExistingRest(): Partial<RestConnectorConfig> {
-    // Only pre-populate from a saved REST connector — never from external connectors
-    // (external connectors have type:'external' and url is a product page prefix, not an API)
-    const c = index.connectors.find(c => c.type === 'rest');
-    if (!c) return {};
-    return {
-      url:     String(c.url ?? ''),
-      method:  String(c.method ?? 'GET'),
-      headers: (c.headers as Record<string,string>) ?? {},
-      body:    String(c.body ?? ''),
-    };
-  }
-
-  const pre = getExistingRest();
+  const pre = getExistingRest(index);
 
   let url          = pre.url ?? '';
   let method       = pre.method ?? 'GET';
@@ -44,50 +31,15 @@
   let curlInput = '';
   let parseError = '';
 
-  /**
-   * Parse a raw curl command string and populate the form fields.
-   * Extracts the HTTP method, URL, headers (-H flags), and request body (-d/--data).
-   * Sets ``parseError`` if the string does not start with "curl" or has no URL.
-   */
   function parseCurl(raw: string) {
+    const result = parseCurlHelper(raw);
+    if (result.error) { parseError = result.error; return; }
     parseError = '';
-    const s = raw.replace(/\\\n/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!s.startsWith('curl')) { parseError = 'Must start with "curl"'; return; }
-
-    // Method
-    const mMatch = s.match(/-X\s+([A-Z]+)/);
-    const parsedMethod = mMatch ? mMatch[1] : 'GET';
-
-    // URL — first bare https?:// token or quoted URL
-    const urlMatch = s.match(/curl(?:\s+-[^\s]+)*\s+['"]?(https?:\/\/[^\s'"\\]+)['"]?/);
-    if (!urlMatch) { parseError = 'Could not find URL'; return; }
-    const parsedUrl = urlMatch[1];
-
-    // Headers
-    const hdrs: Record<string, string> = {};
-    const hRegex = /-H\s+['"]([^'"]+)['"]/g;
-    let hm: RegExpExecArray | null;
-    while ((hm = hRegex.exec(s)) !== null) {
-      const colon = hm[1].indexOf(':');
-      if (colon > 0) {
-        const k = hm[1].slice(0, colon).trim();
-        const v = hm[1].slice(colon + 1).trim();
-        hdrs[k] = v;
-      }
-    }
-
-    // Body — -d or --data
-    const dMatch = s.match(/(?:--data|-d)\s+'([^']*)'/) ||
-                   s.match(/(?:--data|-d)\s+"((?:[^"\\]|\\.)*)"/) ||
-                   s.match(/(?:--data|-d)\s+(\{[^}]+\})/);
-    const parsedBody = dMatch ? dMatch[1].replace(/\\"/g, '"') : '';
-
-    // Apply
-    method     = parsedMethod;
-    url        = parsedUrl;
-    headersRaw = JSON.stringify(hdrs, null, 2);
-    body       = parsedBody;
-    curlInput  = '';   // clear the textarea after parse
+    method     = result.method;
+    url        = result.url;
+    headersRaw = result.headersRaw;
+    body       = result.body;
+    curlInput  = '';
   }
 
   /** Intercept paste events in the curl textarea — if the pasted text is a curl command, parse it immediately and suppress the default paste. */
@@ -111,25 +63,6 @@
   $: pct = statusTotal > 0 ? Math.round(statusIndexed / statusTotal * 100) : 0;
 
   $: curlCmd = buildCurl(url, method, headersRaw, body);
-
-  /** Build a multi-line curl command preview from the current form values. Returns a placeholder comment when URL is empty. */
-  function buildCurl(u: string, m: string, h: string, b: string): string {
-    if (!u) return '# Enter a URL above to see the curl command';
-    const lines: string[] = [`curl -X ${m} "${u}"`];
-    try {
-      const hdrs = JSON.parse(h || '{}');
-      for (const [k, v] of Object.entries(hdrs)) {
-        lines.push(`  -H "${k}: ${v}"`);
-      }
-    } catch { /* ignore */ }
-    if (b.trim()) {
-      if (!h.includes('Content-Type')) {
-        lines.push(`  -H "Content-Type: application/json"`);
-      }
-      lines.push(`  -d '${b.trim()}'`);
-    }
-    return lines.join(' \\\n');
-  }
 
   /** Copy the current curl preview to the clipboard and show a brief "Copied" confirmation. */
   function copyCurl() {
@@ -156,7 +89,7 @@
     };
 
     try {
-      await api.rebuild(index.id, cfg);
+      await indexService.rebuild(index.id, cfg);
       poll();
     } catch (e) {
       runState = 'error';
@@ -173,7 +106,7 @@
     while (true) {
       await new Promise(r => setTimeout(r, 1200));
       try {
-        const s: IngestStatus = await api.getStatus(index.id);
+        const s: IngestStatus = await indexService.getStatus(index.id);
         statusIndexed = s.indexed;
         statusTotal   = s.total;
 
