@@ -48,8 +48,8 @@ This document defines the canonical data flow for the ISP frontend: how a compon
 | **Mapper**     | Pure functions: DTO → domain model. No side effects, no async                                       | `src/lib/services/<domain>/<domain>.mapper.ts`       |
 | **Service**    | Calls repository, applies mapper, owns orchestration. No direct HTTP                                | `src/lib/services/<domain>/<Domain>Service.ts`       |
 | **Store**      | Svelte reactive state extending `StoreBase<T>`. Singleton exports. Immutability rule: always spread | `src/lib/stores/`                                    |
-| **Component**  | UI only — reads store via `$store`, calls store action methods. Never calls repository or service   | `src/components/`                                    |
-| **Helper**     | Pure functions co-located with the component that owns them. No side effects, no async              | `src/components/<ComponentName>.helpers.ts`          |
+| **Component**  | UI only — reads store via `$store`, calls store action methods. Never calls repository or service   | `src/components/<domain>/` (`layout/`, `sources/`, `extensions/`, `settings/`) |
+| **Helper**     | Pure functions co-located with the component that owns them. No side effects, no async              | `src/components/<domain>/<ComponentName>.helpers.ts` |
 
 ---
 
@@ -254,12 +254,12 @@ When `indexesStore.load()` completes, both components re-render automatically.
 
 ### Helper
 
-- Pure functions co-located with the component that owns them — `<ComponentName>.helpers.ts`.
+- Pure functions co-located with the component that owns them — `<ComponentName>.helpers.ts` in the same subfolder.
 - No side effects, no async, no store or service access.
 - **Scope rule**: if the same function is needed by more than one unrelated component, extract it to a shared utility module.
 
 ```typescript
-// SourcesSidebar.helpers.ts
+// src/components/sources/SourcesSidebar.helpers.ts
 export function connectorType(idx: IndexMeta): string {
   if (idx.is_external) return 'external';
   const types = idx.connectors.map(c => c.type);
@@ -315,29 +315,37 @@ src/
     api.ts                            ← low-level fetch wrapper (used only by repositories)
 
   components/
-    App.svelte                        ← root layout, subscribes to appStateStore / indexesStore
-    Header.svelte
-    SourcesSidebar.svelte
-    SourcesSidebar.helpers.ts         ← connectorUrl(), connectorType(), shortUrl()
-    SourceContent.svelte
-    SourceContent.helpers.ts          ← excerpt(), fmtDate(), docFields(), …
-    IndexDetail.svelte
-    IndexDetail.helpers.ts            ← fmtDate()
-    IndexExtensionsPanel.svelte
-    ExtensionsPanel.svelte
-    ExtensionsPanel.helpers.ts        ← fmtDate()
-    SettingsPanel.svelte
-    SettingsPanel.helpers.ts          ← modelOption(), effectiveDim(), dimensionWillChange()
-    RebuildPanel.svelte
-    RebuildPanel.helpers.ts           ← parseCurl(), buildCurl(), getExistingRest()
-    CreateWizard.svelte
-    CreateWizard.helpers.ts           ← embedModelOption(), embedDimWillChange()
-    SearchPanel.svelte
-    SearchPanel.helpers.ts            ← excerpt()
-    DocumentTable.svelte
-    DocumentTable.helpers.ts          ← fmtDate()
-    Dashboard.svelte
-    IndexCard.svelte
+    layout/                           ← app shell, always visible
+      App.svelte                      ← root layout, subscribes to appStateStore / indexesStore
+      Header.svelte                   ← logo + nav bar
+
+    sources/                          ← index/source management feature
+      Dashboard.svelte                ← empty-state or index grid
+      IndexCard.svelte                ← single card in the dashboard grid
+      SourcesSidebar.svelte           ← left-rail source list
+      SourcesSidebar.helpers.ts       ← connectorUrl(), connectorType(), shortUrl()
+      SourceContent.svelte            ← main content pane for a selected source
+      SourceContent.helpers.ts        ← excerpt(), fmtDate(), docFields(), …
+      IndexDetail.svelte              ← configure / overview tab host
+      IndexDetail.helpers.ts          ← fmtDate()
+      DocumentTable.svelte            ← paginated document list
+      DocumentTable.helpers.ts        ← fmtDate()
+      SearchPanel.svelte              ← search UI within a source
+      SearchPanel.helpers.ts          ← excerpt()
+      ApiPanel.svelte                 ← copy-ready curl examples for a source
+      RebuildPanel.svelte             ← rebuild / re-ingest workflow
+      RebuildPanel.helpers.ts         ← parseCurl(), buildCurl(), getExistingRest()
+      CreateWizard.svelte             ← multi-step new-source wizard
+      CreateWizard.helpers.ts         ← embedModelOption(), embedDimWillChange()
+
+    extensions/                       ← extension library + per-index assignments
+      ExtensionsPanel.svelte          ← global extension library management
+      ExtensionsPanel.helpers.ts      ← fmtDate()
+      IndexExtensionsPanel.svelte     ← per-index extension assignment + ordering
+
+    settings/                         ← embedding model configuration
+      SettingsPanel.svelte            ← model picker + API key form
+      SettingsPanel.helpers.ts        ← modelOption(), effectiveDim(), dimensionWillChange()
 ```
 
 ---
@@ -366,5 +374,5 @@ src/
 4. **Mapper** — create `src/lib/services/<domain>/<domain>.mapper.ts` with pure mapping functions (DTO → domain model). No async, no side effects.
 5. **Service** — create `src/lib/services/<domain>/<Domain>Service.ts`; call the repository, apply the mapper, return domain models. Export as a singleton.
 6. **Store** (if global shared state is needed) — create `src/lib/stores/<domain>-store.ts` extending `StoreBase<T>`; expose action methods that call the service and update state with `this.set()`/`this.update()`. Export as a singleton and add to the `src/lib/store.ts` barrel.
-7. **Component** — import the store singleton; read reactive values with `$: x = $<domain>Store.field`; call store action methods for mutations. For transient per-component data (not shared), call the service directly from the component instead of creating a store.
-8. **Helpers** — extract any pure formatting or derivation functions to `<ComponentName>.helpers.ts` co-located with the component.
+7. **Component** — place the component in the matching subfolder (`layout/`, `sources/`, `extensions/`, or `settings/`). Import the store singleton; read reactive values with `$: x = $<domain>Store.field`; call store action methods for mutations. For transient per-component data (not shared), call the service directly from the component instead of creating a store. When importing from `src/lib/`, use `../../lib/` (one extra level up because components are now one directory deeper).
+8. **Helpers** — create `<ComponentName>.helpers.ts` in the same subfolder as the component. Extract any pure formatting or derivation functions there.
