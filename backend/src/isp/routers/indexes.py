@@ -19,10 +19,10 @@ from isp.models import (
     IndexCreate, IndexMeta, IngestStatus,
     RestConnectorConfig, SitemapConnectorConfig,
 )
-from isp.services import index_service, embedding_service, extension_service
-from isp.services import typesense_client as ts
-from isp.services import rest_connector, sitemap_connector
-from isp.services.extension_runner import apply_extensions
+from isp.services.domain import index_service, extension_service
+from isp.services.infra import embedding_service, typesense_client as ts
+from isp.services.infra import rest_connector, sitemap_connector
+from isp.services.infra.extension_runner import apply_extensions
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
 

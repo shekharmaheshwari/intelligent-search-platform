@@ -18,7 +18,7 @@ The PUT response includes ``dim_changed: true`` when this situation arises.
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
-from isp.services.settings_service import (
+from isp.services.domain.settings_service import (
     AVAILABLE_MODELS,
     DIM_BY_MODEL,
     PROVIDER_BY_MODEL,

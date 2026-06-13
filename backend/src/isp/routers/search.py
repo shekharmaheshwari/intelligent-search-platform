@@ -11,8 +11,9 @@ Query embeddings are served from the two-tier cache (LRU → Redis) in
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from isp.models import SearchRequest
-from isp.services import index_service, embedding_service
-from isp.services import typesense_client as ts
+from isp.services.domain import index_service
+from isp.services.infra import embedding_service
+from isp.services.infra import typesense_client as ts
 from isp.routers.indexes import _wrap_external_results
 
 router = APIRouter(prefix="/indexes", tags=["search"])

@@ -9,7 +9,7 @@ when new external catalog collections are deployed.
 from __future__ import annotations
 import json, time, uuid
 from isp.models import IndexMeta, IngestStatus
-from isp.services.database import get_pool
+from isp.services.infra.database import get_pool
 
 
 def _row_to_meta(row: dict) -> IndexMeta:
@@ -199,7 +199,7 @@ async def discover_external_collections() -> list[IndexMeta]:
 
     Returns only the newly created ``IndexMeta`` records; existing ones are not returned.
     """
-    from isp.services import typesense_client as ts
+    from isp.services.infra import typesense_client as ts
 
     pool = await get_pool()
     all_cols = ts.list_all_collections()

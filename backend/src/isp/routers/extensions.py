@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Optional
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
-from isp.services import extension_service
+from isp.services.domain import extension_service
 
 router = APIRouter(tags=["extensions"])
 

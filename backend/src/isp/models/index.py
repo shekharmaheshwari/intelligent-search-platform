@@ -1,13 +1,10 @@
 """
-Pydantic data models shared across routers and services.
+Pydantic models for the index/source domain.
 
-Design notes:
-- ``RestConnectorConfig`` is persisted as JSON in the ``connectors`` JSONB column,
-  so field additions must be backward-compatible (always optional or have defaults).
-- ``IndexMeta`` mirrors the ``indexes`` table 1-to-1; keep them in sync when altering
-  the database schema.
-- ``DocumentItem`` is the canonical search result shape; external docs are adapted to
-  it in ``_map_external_doc``.
+``RestConnectorConfig`` and ``SitemapConnectorConfig`` are persisted as JSON in
+the ``connectors`` JSONB column — new fields must be optional or have defaults.
+``IndexMeta`` mirrors the ``indexes`` table 1-to-1; keep them in sync when
+altering the schema.
 """
 from __future__ import annotations
 from typing import Literal, Optional, Union
@@ -25,7 +22,7 @@ class RestConnectorConfig(BaseModel):
     url: str
     method: str = "GET"
     headers: dict[str, str] = {}
-    body: str = ""           # raw JSON string for POST/PUT body
+    body: str = ""
     result_path: str = ""
     id_field: str = "id"
     title_field: str = "title"
@@ -85,12 +82,10 @@ class IndexMeta(BaseModel):
     status: str = "ready"
     connectors: list[dict] = []
     collection_name: str = ""
-    # External (pre-existing Typesense collection) fields
     is_external: bool = False
-    external_collection: str = ""   # actual Typesense collection name
-    external_filter: str = ""       # e.g. "type:=phone"
+    external_collection: str = ""
+    external_filter: str = ""
     external_query_by: str = "display"
-    # Field mapping for external collections
     external_title_field: str = "display"
     external_url_field: str = ""
 
@@ -102,21 +97,3 @@ class IngestStatus(BaseModel):
     total: int = 0
     indexed: int = 0
     error: str = ""
-
-
-class SearchRequest(BaseModel):
-    """Request body for the search endpoint."""
-    q: str
-    page: int = Field(default=1, ge=1)
-    per_page: int = Field(default=10, ge=1, le=50)
-    mode: str = "hybrid"
-
-
-class DocumentItem(BaseModel):
-    """Canonical search result shape returned to the frontend and content API."""
-    id: str
-    title: str
-    content: str
-    url: str = ""
-    source_type: str = ""
-    indexed_at: int = 0

@@ -12,7 +12,7 @@ deployment step needed to make a new extension available.
 """
 from __future__ import annotations
 import time, uuid
-from isp.services.database import get_pool
+from isp.services.infra.database import get_pool
 
 
 async def list_extensions() -> list[dict]:

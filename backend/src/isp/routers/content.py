@@ -11,8 +11,9 @@ internal search router, then unwraps the results to a simpler flat shape.
 from __future__ import annotations
 import re
 from fastapi import APIRouter, HTTPException, Query
-from isp.services import index_service, embedding_service
-from isp.services import typesense_client as ts
+from isp.services.domain import index_service
+from isp.services.infra import embedding_service
+from isp.services.infra import typesense_client as ts
 from isp.routers.indexes import _wrap_external_results
 
 router = APIRouter(prefix="/content", tags=["content-api"])
