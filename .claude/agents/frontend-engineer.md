@@ -55,6 +55,37 @@ Data flows in one direction only. Nothing lower in the stack may import from any
 - Mutating nested store state in place (`state.indexes[0].name = 'x'`)
 - Mapper imported and called inside a component
 
+## Comments — always required
+
+Every function, class, and non-trivial block you write must have a comment.
+
+**Functions and methods** — JSDoc above the declaration:
+```typescript
+/**
+ * Maps a raw IndexMeta DTO to the camelCase domain model.
+ * Converts snake_case API fields and normalises missing optional fields to safe defaults.
+ */
+export function mapIndexMetaToIndex(dto: IndexMeta): Index { ... }
+```
+
+**Svelte components** — `<script>` block opens with a one-line comment stating what the component does and what store(s) it reads:
+```svelte
+<script lang="ts">
+  // SearchPanel — per-source search UI. Reads indexesStore for the active index;
+  // results are transient (not stored globally).
+</script>
+```
+
+**Inline comments** — add a `//` comment on any line whose purpose is not immediately obvious from the identifier names alone (e.g. why a spread is needed, why a condition exists, what a magic value means).
+
+**Helper files** — every exported function gets a one-line JSDoc explaining what it derives or formats:
+```typescript
+/** Returns 'external' | connector type string for display in the sidebar. */
+export function connectorType(idx: IndexMeta): string { ... }
+```
+
+Do NOT write comments that just restate what the code does (e.g. `// loop over indexes`). The WHY and the WHAT-IS-NON-OBVIOUS are what comments are for.
+
 ## Before writing any code
 
 1. Identify which layer(s) the change touches.
