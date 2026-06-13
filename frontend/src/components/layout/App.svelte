@@ -13,14 +13,14 @@
    * events; this component translates them into store mutations or API calls.
    */
   import { onMount } from 'svelte';
-  import { appStateStore, indexesStore } from '../lib/store';
+  import { appStateStore, indexesStore } from '../../lib/store';
   import Header from './Header.svelte';
-  import SourcesSidebar from './SourcesSidebar.svelte';
-  import SourceContent from './SourceContent.svelte';
-  import IndexDetail from './IndexDetail.svelte';
-  import CreateWizard from './CreateWizard.svelte';
-  import ExtensionsPanel from './ExtensionsPanel.svelte';
-  import SettingsPanel from './SettingsPanel.svelte';
+  import SourcesSidebar from '../sources/SourcesSidebar.svelte';
+  import SourceContent from '../sources/SourceContent.svelte';
+  import IndexDetail from '../sources/IndexDetail.svelte';
+  import CreateWizard from '../sources/CreateWizard.svelte';
+  import ExtensionsPanel from '../extensions/ExtensionsPanel.svelte';
+  import SettingsPanel from '../settings/SettingsPanel.svelte';
 
   let showWizard = false;
   let windowWidth = 1024;

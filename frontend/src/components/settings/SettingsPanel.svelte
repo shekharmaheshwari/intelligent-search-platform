@@ -23,8 +23,8 @@
    * fully rebuilt before semantic search will work again.
    */
   import { onMount } from 'svelte';
-  import { settingsStore } from '../lib/store';
-  import type { AppSettings } from '../lib/types';
+  import { settingsStore } from '../../lib/store';
+  import type { AppSettings } from '../../lib/types';
   import { modelOption, effectiveDim, dimensionWillChange } from './SettingsPanel.helpers';
 
   $: settings = $settingsStore.settings;

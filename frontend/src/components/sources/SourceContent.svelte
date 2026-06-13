@@ -11,10 +11,10 @@
    */
   import { onMount } from 'svelte';
   import { createEventDispatcher } from 'svelte';
-  import { indexService } from '../lib/services/indexes/IndexService';
-  import type { IndexMeta, DocumentItem } from '../lib/types';
+  import { indexService } from '../../lib/services/indexes/IndexService';
+  import type { IndexMeta, DocumentItem } from '../../lib/types';
   import RebuildPanel from './RebuildPanel.svelte';
-  import IndexExtensionsPanel from './IndexExtensionsPanel.svelte';
+  import IndexExtensionsPanel from '../extensions/IndexExtensionsPanel.svelte';
   import {
     excerpt, fmtDate, connectorUrl, docFields,
     tryParseJson, isMetadataKey, formatValue, formatMetaValue,

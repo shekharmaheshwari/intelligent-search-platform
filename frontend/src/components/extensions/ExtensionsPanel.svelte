@@ -10,8 +10,8 @@
    * Actual per-index assignment is managed in ``IndexExtensionsPanel``.
    */
   import { onMount } from 'svelte';
-  import { extensionsStore } from '../lib/store';
-  import type { ExtensionMeta } from '../lib/types';
+  import { extensionsStore } from '../../lib/store';
+  import type { ExtensionMeta } from '../../lib/types';
   import { fmtDate } from './ExtensionsPanel.helpers';
 
   $: extensions = $extensionsStore.library;

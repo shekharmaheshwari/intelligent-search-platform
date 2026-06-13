@@ -6,8 +6,8 @@
    * (Title, Source, URL, Indexed) with prev/next pagination and a manual refresh button.
    */
   import { onMount } from 'svelte';
-  import { indexService } from '../lib/services/indexes/IndexService';
-  import type { DocumentItem } from '../lib/types';
+  import { indexService } from '../../lib/services/indexes/IndexService';
+  import type { DocumentItem } from '../../lib/types';
   import { fmtDate } from './DocumentTable.helpers';
 
   export let indexId: string;

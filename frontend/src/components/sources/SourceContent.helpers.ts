@@ -1,4 +1,4 @@
-import type { IndexMeta, DocumentItem } from '../lib/types';
+import type { IndexMeta, DocumentItem } from '../../lib/types';
 
 /**
  * Truncate ``text`` to ``max`` characters, appending an ellipsis when cut.

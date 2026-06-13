@@ -8,8 +8,8 @@
    */
   import { onMount } from 'svelte';
   import { createEventDispatcher } from 'svelte';
-  import { indexService } from '../lib/services/indexes/IndexService';
-  import type { IndexMeta, IngestStatus } from '../lib/types';
+  import { indexService } from '../../lib/services/indexes/IndexService';
+  import type { IndexMeta, IngestStatus } from '../../lib/types';
   import DocumentTable from './DocumentTable.svelte';
   import SearchPanel from './SearchPanel.svelte';
   import ApiPanel from './ApiPanel.svelte';

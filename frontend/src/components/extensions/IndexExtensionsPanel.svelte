@@ -12,8 +12,8 @@
    * Dispatches ``close`` when the overlay backdrop or ✕ button is clicked.
    */
   import { onMount, createEventDispatcher } from 'svelte';
-  import { extensionsStore } from '../lib/store';
-  import type { IndexExtension, ExtensionMeta } from '../lib/types';
+  import { extensionsStore } from '../../lib/store';
+  import type { IndexExtension, ExtensionMeta } from '../../lib/types';
 
   export let indexId: string;
 

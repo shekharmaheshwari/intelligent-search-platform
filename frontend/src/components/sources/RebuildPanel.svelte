@@ -11,8 +11,8 @@
    * Dispatches ``done`` when the rebuild completes and ``close`` when dismissed.
    */
   import { createEventDispatcher } from 'svelte';
-  import { indexService } from '../lib/services/indexes/IndexService';
-  import type { IndexMeta, IngestStatus, RestConnectorConfig } from '../lib/types';
+  import { indexService } from '../../lib/services/indexes/IndexService';
+  import type { IndexMeta, IngestStatus, RestConnectorConfig } from '../../lib/types';
   import { getExistingRest, parseCurl as parseCurlHelper, buildCurl } from './RebuildPanel.helpers';
 
   export let index: IndexMeta;

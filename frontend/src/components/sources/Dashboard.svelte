@@ -6,7 +6,7 @@
    * Dispatches ``open`` (index id), ``create``, and ``delete`` (index id) for App.svelte to handle.
    */
   import { createEventDispatcher } from 'svelte';
-  import type { IndexMeta } from '../lib/types';
+  import type { IndexMeta } from '../../lib/types';
   import IndexCard from './IndexCard.svelte';
 
   export let indexes: IndexMeta[] = [];
