@@ -17,4 +17,11 @@ All code you write must conform to the 7-layer data architecture defined in `doc
 - All types imported from the barrel: `import type { X } from '../lib/types'`.
 - Component files live in `src/components/<domain>/` and use `../../lib/` import depth.
 
+**Comments — required on all code you write:**
+- Every exported function gets a JSDoc (`/** ... */`) explaining what it does and any non-obvious behaviour.
+- Every Svelte `<script>` block opens with a `//` comment naming the component, what store(s) it reads, and what it does not own.
+- Every helper function gets a one-line JSDoc.
+- Inline `//` comments on any line whose purpose is not obvious from the identifiers alone.
+- Do NOT restate what the code does — explain WHY or WHAT IS NON-OBVIOUS.
+
 The task to work on: $ARGUMENTS

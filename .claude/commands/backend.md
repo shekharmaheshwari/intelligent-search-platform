@@ -18,4 +18,10 @@ All code you write must conform to the 5-layer architecture defined in `docs/bac
 - New connector config fields must be `Optional` or carry a default (stored as JSON in PostgreSQL).
 - `config.py` Settings singleton is never mutated at runtime — use `app_settings` table + `settings_service`.
 
+**Comments — required on all code you write:**
+- Every module opens with a `"""..."""` docstring stating what it owns and what it deliberately does NOT do (e.g. "never calls typesense_client directly").
+- Every `def` / `async def` gets a one-line docstring; add a second line when behaviour is non-obvious (side effects, invariants, error cases).
+- Inline `#` comments on any line whose purpose is not obvious from the identifiers alone (lazy imports, magic constants, ordering rationale).
+- Do NOT restate what the code does — explain WHY or WHAT IS NON-OBVIOUS.
+
 The task to work on: $ARGUMENTS

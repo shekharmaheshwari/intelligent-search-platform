@@ -66,6 +66,46 @@ Dependency flows downward only. Routers import from domain services. Domain serv
 - `asyncio.create_task` for background jobs (use FastAPI `BackgroundTasks`)
 - New `RestConnectorConfig` / `SitemapConnectorConfig` field without `Optional` or default
 
+## Comments — always required
+
+Every function, class, and non-trivial block you write must have a comment.
+
+**Module-level docstring** — every file opens with a `"""..."""` that states what the module owns and what it does NOT do:
+```python
+"""
+/v1/indexes — Index CRUD, ingest/rebuild background tasks, and document listing.
+
+Never calls database.py or typesense_client directly — all I/O goes through
+index_service (domain) and the infra service modules.
+"""
+```
+
+**Function docstrings** — every `def` / `async def` gets a one-line docstring. Add a second line only when the behaviour is non-obvious (side effects, error cases, invariants):
+```python
+async def get_index(idx_id: str) -> IndexMeta | None:
+    """Return index metadata by ID, or None if not found."""
+```
+
+```python
+async def set_embed_config(...) -> None:
+    """
+    Persist new embedding config to app_settings and hot-reload module globals.
+
+    Switching to a model with a different vector dimension invalidates all existing
+    Typesense collections — callers must prompt the operator to rebuild affected indexes.
+    """
+```
+
+**Inline comments** — add a `#` comment on any line whose purpose is not immediately obvious from the identifier names (e.g. why a lazy import is inside the function body, what a magic constant means, why a condition is ordered a certain way):
+```python
+# Lazy import avoids circular dependency between main and extension_service at module load.
+from isp.services.domain import extension_service
+```
+
+**Private helpers** — `_row_to_meta`, `_slug`, etc. each get a one-line docstring.
+
+Do NOT write comments that just restate what the code does (e.g. `# fetch row from db`). The WHY and the WHAT-IS-NON-OBVIOUS are what comments are for.
+
 ## Before writing any code
 
 1. Identify which layer(s) the change touches using the table above.
