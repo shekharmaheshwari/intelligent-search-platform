@@ -16,7 +16,7 @@ synchronise the in-memory state in ``embedding_service`` and
 ``typesense_client`` with whatever the operator last saved.
 """
 from __future__ import annotations
-from isp.services.database import get_pool
+from isp.services.infra.database import get_pool
 from isp.config import settings
 
 # ── Catalogue of available embedding models ──────────────────────────────────
@@ -274,7 +274,7 @@ async def set_embed_config(
     await set_setting("embed_model", model_id)
 
     # Apply immediately — no restart required
-    from isp.services import embedding_service, typesense_client
+    from isp.services.infra import embedding_service, typesense_client
 
     if provider == "custom":
         cfg = await get_custom_config()
@@ -322,7 +322,7 @@ async def load_embed_model() -> None:
     model_id = await get_embed_model()
     provider  = PROVIDER_BY_MODEL.get(model_id, "voyage")
 
-    from isp.services import embedding_service, typesense_client
+    from isp.services.infra import embedding_service, typesense_client
 
     embedding_service.set_current_model(model_id)
 

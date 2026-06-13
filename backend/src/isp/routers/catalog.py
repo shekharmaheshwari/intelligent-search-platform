@@ -13,8 +13,8 @@ from __future__ import annotations
 import json
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from isp.services import embedding_service
-from isp.services import typesense_client as ts
+from isp.services.infra import embedding_service
+from isp.services.infra import typesense_client as ts
 
 router = APIRouter(tags=["catalog-api"])
 

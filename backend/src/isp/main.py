@@ -21,9 +21,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router
-from isp.services.database import init_db
-from isp.services.settings_service import load_embed_model
-from isp.services import typesense_client as ts
+from isp.services.infra.database import init_db
+from isp.services.domain.settings_service import load_embed_model
+from isp.services.infra import typesense_client as ts
 from isp.config import settings
 
 log = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ async def _seed_extensions_from_files() -> None:
     This makes the repo the single source of truth for extension code — committing
     a new .js file is all it takes to deploy a new extension.
     """
-    from isp.services import extension_service, index_service
+    from isp.services.domain import extension_service, index_service
 
     ext_dir = Path(settings.extensions_dir)
     if not ext_dir.is_dir():
