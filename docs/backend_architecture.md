@@ -36,7 +36,7 @@ HTTP Request
        ▼
 ┌─────────────────┐
 │  Domain Service │  PostgreSQL CRUD, orchestrates infrastructure services
-│  (services/)    │
+│(services/domain)│
 └──────┬──────────┘
        │
        ├──────────────────────────────────────────┐
@@ -68,11 +68,11 @@ HTTP Request
 
 | Layer                    | Responsibility                                                          | Lives in                        |
 | ------------------------ | ----------------------------------------------------------------------- | ------------------------------- |
-| **Config**               | Load env vars / `.env` into a typed `Settings` object                  | `config.py`                     |
-| **Models**               | Pydantic request/response/config shapes shared by routers and services  | `models.py`                     |
-| **Router**               | HTTP endpoints, request validation, background task dispatch            | `routers/<domain>.py`           |
-| **Domain Service**       | PostgreSQL CRUD and orchestration logic for one domain                  | `services/<domain>_service.py`  |
-| **Infrastructure Service** | Thin wrappers around external systems (Typesense, Redis, V8, HTTP)   | `services/<name>.py`            |
+| **Config**               | Load env vars / `.env` into a typed `Settings` object                  | `config.py`                           |
+| **Models**               | Pydantic request/response/config shapes shared by routers and services  | `models/` (barrel: `models/__init__.py`) |
+| **Router**               | HTTP endpoints, request validation, background task dispatch            | `routers/<domain>.py`                 |
+| **Domain Service**       | PostgreSQL CRUD and orchestration logic for one domain                  | `services/domain/<domain>_service.py` |
+| **Infrastructure Service** | Thin wrappers around external systems (Typesense, Redis, V8, HTTP)   | `services/infra/<name>.py`            |
 
 ---
 
@@ -99,20 +99,33 @@ class Settings(BaseSettings):
 settings = Settings()
 ```
 
-### Models (`models.py`)
+### Models (`models/`)
 
-All Pydantic models that cross the router ↔ service boundary live here. Three categories:
+All Pydantic models that cross the router ↔ service boundary are split into domain files under `models/`, with a barrel `__init__.py` that re-exports everything so all callers import from the package root (`from isp.models import IndexMeta`). Three categories:
 
-| Category         | Examples                                                   | Convention            |
-| ---------------- | ---------------------------------------------------------- | --------------------- |
-| **Request**      | `IndexCreate`, `SearchRequest`, `ConnectorAdd`             | Verb + noun           |
-| **Response**     | `IndexMeta`, `IngestStatus`, `DocumentItem`                | Noun only             |
-| **Config/union** | `RestConnectorConfig`, `SitemapConnectorConfig`, `ConnectorConfig` | Noun + Config |
+| Category         | Examples                                                   | Convention            | File               |
+| ---------------- | ---------------------------------------------------------- | --------------------- | ------------------ |
+| **Request**      | `IndexCreate`, `SearchRequest`, `ConnectorAdd`             | Verb + noun           | `models/index.py`, `models/search.py` |
+| **Response**     | `IndexMeta`, `IngestStatus`, `DocumentItem`                | Noun only             | `models/index.py`, `models/search.py` |
+| **Config/union** | `RestConnectorConfig`, `SitemapConnectorConfig`, `ConnectorConfig` | Noun + Config | `models/index.py` |
+
+```python
+# models/__init__.py — barrel re-export (all existing imports unchanged)
+from isp.models.index import (  # noqa: F401
+    RestConnectorConfig, SitemapConnectorConfig, ConnectorConfig,
+    IndexCreate, ConnectorAdd, IndexMeta, IngestStatus,
+)
+from isp.models.search import (  # noqa: F401
+    SearchRequest, DocumentItem,
+)
+```
 
 **Rules:**
+- Always import from the package root: `from isp.models import IndexMeta` — never from the sub-module directly.
 - Add a field here when it appears in an API request or response body.
 - Do not define per-router inline models here — only models shared across two or more files.
 - Config models (`RestConnectorConfig`, `SitemapConnectorConfig`) are persisted as JSON in the PostgreSQL `connectors` JSONB column; new fields must be optional or have defaults to remain backward-compatible.
+- New model files go under `models/<domain>.py`; add re-exports to `models/__init__.py`.
 
 ### Router (`routers/`)
 
@@ -133,7 +146,7 @@ async def ingest_rest(idx_id: str, cfg: RestConnectorConfig, bg: BackgroundTasks
     return {"status": "queued"}
 ```
 
-### Domain Service (`services/<domain>_service.py`)
+### Domain Service (`services/domain/<domain>_service.py`)
 
 Three domain services own PostgreSQL CRUD for their respective tables:
 
@@ -144,13 +157,16 @@ Three domain services own PostgreSQL CRUD for their respective tables:
 | `settings_service.py`   | `app_settings`                            | Embed model catalogue, runtime config persistence      |
 
 **Rules:**
-- All PostgreSQL I/O uses `await get_pool()` from `database.py` — never creates its own connection.
+- All PostgreSQL I/O uses `await get_pool()` from `services/infra/database.py` — never creates its own connection.
 - Functions are `async def` and return typed values (Pydantic models or plain dicts).
 - No FastAPI imports — services are framework-agnostic.
 - Row → model conversion is handled by a private `_row_to_meta(row)` helper in the same file.
+- Import infra services via `from isp.services.infra import <module>` — never from the flat `isp.services` namespace.
 
 ```python
-# services/index_service.py
+# services/domain/index_service.py
+from isp.services.infra.database import get_pool
+
 async def get_index(idx_id: str) -> IndexMeta | None:
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -158,7 +174,7 @@ async def get_index(idx_id: str) -> IndexMeta | None:
     return _row_to_meta(dict(row)) if row else None
 ```
 
-### Infrastructure Service
+### Infrastructure Service (`services/infra/<name>.py`)
 
 Six infrastructure services each wrap one external system:
 
@@ -170,6 +186,13 @@ Six infrastructure services each wrap one external system:
 | `extension_runner.py`   | PyMiniRacer (V8)   | One V8 isolate per extension per batch; sync loop in thread pool  |
 | `rest_connector.py`     | httpx              | Fetch → extract → field-normalise → `DocumentItem` dicts         |
 | `sitemap_connector.py`  | httpx + BeautifulSoup | Fetch sitemap → crawl pages → extract text → `DocumentItem` dicts |
+
+```python
+# routers/indexes.py — correct infra import pattern
+from isp.services.domain import index_service, extension_service
+from isp.services.infra import embedding_service, typesense_client as ts
+from isp.services.infra import rest_connector, sitemap_connector
+```
 
 **Rules:**
 - Each module exposes only plain functions or async functions — no classes, no FastAPI dependency injection.
@@ -188,7 +211,11 @@ backend/
     __init__.py
     main.py                   ← FastAPI app, lifespan (init_db, seed extensions), router registration
     config.py                 ← pydantic-settings: all env vars with local-dev defaults
-    models.py                 ← shared Pydantic models (request, response, connector config)
+
+    models/                   ← shared Pydantic models split by domain
+      __init__.py             ← barrel re-export (from isp.models import X — unchanged for all callers)
+      index.py                ← IndexMeta, IndexCreate, IngestStatus, ConnectorConfig, RestConnectorConfig, SitemapConnectorConfig, ConnectorAdd
+      search.py               ← SearchRequest, DocumentItem
 
     routers/
       __init__.py
@@ -201,18 +228,21 @@ backend/
 
     services/
       __init__.py
-      # ── Domain services (own PostgreSQL tables) ───────────────────
-      index_service.py        ← indexes + ingest_status + deleted_splits CRUD; auto-discovery
-      extension_service.py    ← extensions + index_extensions CRUD; file-based seed helpers
-      settings_service.py     ← app_settings CRUD; model catalogue; runtime config sync
 
-      # ── Infrastructure services (wrap external systems) ───────────
-      database.py             ← asyncpg lazy pool; init_db() schema creation
-      typesense_client.py     ← Typesense client; collection provision; search; upsert
-      embedding_service.py    ← multi-provider embed (Voyage/OpenAI/RexBERT/custom) + LRU+Redis cache
-      extension_runner.py     ← PyMiniRacer V8 sandbox; apply_extensions(docs, extensions)
-      rest_connector.py       ← httpx REST fetch; field-map renames; DocumentItem normalisation
-      sitemap_connector.py    ← httpx sitemap crawl; BeautifulSoup HTML extraction
+      domain/                 ← own PostgreSQL tables; call infra services for external I/O
+        __init__.py
+        index_service.py      ← indexes + ingest_status + deleted_splits CRUD; auto-discovery
+        extension_service.py  ← extensions + index_extensions CRUD; file-based seed helpers
+        settings_service.py   ← app_settings CRUD; model catalogue; runtime config sync
+
+      infra/                  ← thin wrappers around external systems; no PostgreSQL ownership
+        __init__.py
+        database.py           ← asyncpg lazy pool; init_db() schema creation
+        typesense_client.py   ← Typesense client; collection provision; search; upsert
+        embedding_service.py  ← multi-provider embed (Voyage/OpenAI/RexBERT/custom) + LRU+Redis cache
+        extension_runner.py   ← PyMiniRacer V8 sandbox; apply_extensions(docs, extensions)
+        rest_connector.py     ← httpx REST fetch; field-map renames; DocumentItem normalisation
+        sitemap_connector.py  ← httpx sitemap crawl; BeautifulSoup HTML extraction
 
   extensions/
     tmobile_catalog.js        ← seeded JS extension (T-Mobile catalog field mapper)
@@ -407,8 +437,10 @@ Order matters: `init_db` must complete before `_seed_extensions_from_files` beca
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | Router calls `database.py` directly (`await get_pool()`)        | Router now knows about the persistence layer; bypasses domain service           | Call the domain service function instead                         |
 | Router calls `typesense_client` directly                        | Same as above — infrastructure bypassed                                         | Call the domain service; let it call Typesense                  |
-| Domain service imports from a router                            | Creates a circular dependency; services must be framework-agnostic              | Move shared logic to a service or to `models.py`                |
-| Adding a new Pydantic model inside a router file                | If the model is also used by a service it will cause an import cycle            | Define it in `models.py` and import from there                  |
+| Domain service imports from a router                            | Creates a circular dependency; services must be framework-agnostic              | Move shared logic to a service or to `models/`                  |
+| Adding a new Pydantic model inside a router file                | If the model is also used by a service it will cause an import cycle            | Define it in `models/<domain>.py`, re-export from `models/__init__.py` |
+| Importing directly from `isp.services.index_service` (flat path) | Flat path no longer exists; module is now under `services/domain/`            | Use `from isp.services.domain import index_service`             |
+| Importing directly from `isp.services.database` (flat path)    | Flat path no longer exists; module is now under `services/infra/`              | Use `from isp.services.infra.database import get_pool`          |
 | Calling `embedding_service` from a router                       | Embedding is infrastructure; router should not orchestrate multi-service calls  | Move the embed + search orchestration into a domain service      |
 | Mutating `settings` (the `config.py` singleton) at runtime     | `Settings` is loaded once; changes are invisible to other parts of the process  | Store runtime values in `app_settings` table; inject into module globals via `settings_service` |
 | Starting a background task with `asyncio.create_task`          | Task lifecycle is unmanaged; no status tracking; errors are silently lost        | Use FastAPI `BackgroundTasks`; update `ingest_status` row for progress |
@@ -418,7 +450,7 @@ Order matters: `init_db` must complete before `_seed_extensions_from_files` beca
 
 ## Adding a New Domain
 
-1. **Models** — add Pydantic request/response models to `models.py`.
-2. **Domain service** — create `services/<domain>_service.py` with `async def` CRUD functions. Add the table(s) to `init_db()` in `database.py`.
-3. **Router** — create `routers/<domain>.py`, define endpoints, import the domain service. Register with `app.include_router(<domain>.router, prefix="/v1")` in `main.py`.
-4. **Infrastructure** (if needed) — add a new `services/<name>.py` wrapping the external system. Keep it pure-function; no FastAPI imports.
+1. **Models** — create `models/<domain>.py` with Pydantic request/response models. Add re-exports to `models/__init__.py` so callers use `from isp.models import MyModel`.
+2. **Domain service** — create `services/domain/<domain>_service.py` with `async def` CRUD functions. Import the pool via `from isp.services.infra.database import get_pool`. Add the table(s) to `init_db()` in `services/infra/database.py`.
+3. **Router** — create `routers/<domain>.py`, define endpoints, import the domain service with `from isp.services.domain import <domain>_service`. Register with `app.include_router(<domain>.router, prefix="/v1")` in `main.py`.
+4. **Infrastructure** (if needed) — add a new `services/infra/<name>.py` wrapping the external system. Keep it pure-function; no FastAPI imports. Import it in domain services via `from isp.services.infra import <name>`.
