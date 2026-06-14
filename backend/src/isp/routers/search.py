@@ -38,11 +38,13 @@ async def search(idx_id: str, req: SearchRequest):
         raise HTTPException(404, "Index not found")
 
     mode = req.mode or "hybrid"
+    # Use this index's dedicated embedding model, or fall back to the global default.
+    effective_model = meta.embed_model or embedding_service.get_current_model()
 
     if meta.is_external:
         vec = None
         if mode in ("hybrid", "semantic") and req.q.strip():
-            vec = await embedding_service.embed_query(req.q)
+            vec = await embedding_service.embed_query(req.q, model=effective_model)
         raw = ts.search_external(
             meta.external_collection,
             req.q,
@@ -55,7 +57,7 @@ async def search(idx_id: str, req: SearchRequest):
         return _wrap_external_results(raw, meta)
 
     if mode in ("hybrid", "semantic"):
-        vec = await embedding_service.embed_query(req.q)
+        vec = await embedding_service.embed_query(req.q, model=effective_model)
         if vec:
             return ts.search_with_vec(idx_id, req.q, vec, req.page, req.per_page)
 

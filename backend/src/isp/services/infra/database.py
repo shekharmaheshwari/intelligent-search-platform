@@ -84,3 +84,8 @@ async def init_db() -> None:
                 value TEXT NOT NULL
             );
         """)
+        # Idempotent column additions — safe to run on existing databases.
+        await conn.execute("""
+            ALTER TABLE indexes
+            ADD COLUMN IF NOT EXISTS embed_model VARCHAR(50) DEFAULT '';
+        """)

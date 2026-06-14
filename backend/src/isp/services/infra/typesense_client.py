@@ -55,14 +55,18 @@ def collection_name(index_id: str) -> str:
     return f"isp_{index_id}"
 
 
-def create_collection(index_id: str) -> None:
+def create_collection(index_id: str, vec_dim: int | None = None) -> None:
     """
     Provision a new ISP-managed Typesense collection.
 
     Idempotent — does nothing if the collection already exists.
     The ``vec`` field is optional so documents without embeddings can still
     be stored (e.g. when VOYAGE_API_KEY is not set).
+
+    ``vec_dim`` allows the caller to specify the vector dimension for a
+    per-index embedding model; falls back to the global ``_VEC_DIM`` when omitted.
     """
+    dim = vec_dim if vec_dim is not None else _VEC_DIM
     name = collection_name(index_id)
     client = get_client()
     try:
@@ -84,7 +88,7 @@ def create_collection(index_id: str) -> None:
             # Editorial signals — top-level so Typesense can sort and filter on them.
             {"name": "popularity",  "type": "int32",   "optional": True, "sort": True},
             {"name": "is_featured", "type": "bool",    "optional": True},
-            {"name": "vec",         "type": "float[]", "num_dim": _VEC_DIM, "optional": True},
+            {"name": "vec",         "type": "float[]", "num_dim": dim, "optional": True},
         ],
     })
 
@@ -149,7 +153,7 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int)
             "q": q, "query_by": "title,content",
             "query_by_weights": "2,1",
             "num_typos": 2,
-            "sort_by": "_text_match:desc",
+            "sort_by": "is_featured:desc,_text_match:desc",
             "page": page, "per_page": per_page,
         })
 
@@ -158,7 +162,7 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int)
         "q": q, "query_by": "title,content",
         "query_by_weights": "2,1",
         "num_typos": 2,
-        "sort_by": "_text_match:desc",
+        "sort_by": "is_featured:desc,_text_match:desc",
         "page": page, "per_page": per_page,
     })
 
@@ -200,6 +204,17 @@ def search_with_vec(index_id: str, q: str, vec: list[float], page: int, per_page
         scores[did] = scores.get(did, 0) + 0.3 / (K + rank + 1)
     all_docs = {**{d: doc for d, (_, doc) in lex_hits.items()},
                 **{d: doc for d, (_, doc) in sem_hits.items()}}
+
+    # Editorial boosts — mirror the same logic in catalog.py _rrf_search.
+    # is_featured adds a large fixed bonus that overrides pure relevance order.
+    # popularity scales linearly (1 000 000 pop ≈ +0.5, same magnitude as featured).
+    for did, doc in all_docs.items():
+        if doc.get("is_featured"):
+            scores[did] = scores.get(did, 0) + 0.5
+        pop = doc.get("popularity") or 0
+        if pop > 0:
+            scores[did] = scores.get(did, 0) + min(int(pop), 1_000_000) / 2_000_000
+
     ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
     start = (page - 1) * per_page
     page_docs = [all_docs[d] for d in ranked[start:start + per_page]]

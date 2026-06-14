@@ -57,6 +57,7 @@ class IndexCreate(BaseModel):
     """Request body for creating a new ISP index."""
     name: str = Field(min_length=1, max_length=80)
     description: str = ""
+    embed_model: str = ""  # empty string means "use the global default at ingest time"
 
 
 class ConnectorAdd(BaseModel):
@@ -88,6 +89,7 @@ class IndexMeta(BaseModel):
     external_query_by: str = "display"
     external_title_field: str = "display"
     external_url_field: str = ""
+    embed_model: str = ""  # empty string means "use the global default at ingest/search time"
 
 
 class IngestStatus(BaseModel):

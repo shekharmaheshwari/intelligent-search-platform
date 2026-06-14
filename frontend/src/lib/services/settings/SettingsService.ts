@@ -48,6 +48,18 @@ export class SettingsService {
     const dto = await this.repo.updateSettings(modelId, opts);
     return mapAppSettingsToSettings(dto);
   }
+
+  /**
+   * Save RexBERT endpoint and optional API key without changing the global model.
+   *
+   * Call this when the global model is voyage/openai but one or more indexes use
+   * a per-index RexBERT override — the endpoint must be stored so the backend can
+   * reach the RexBERT server at ingest and search time.
+   */
+  async saveRexbertConfig(endpoint: string, apiKey?: string): Promise<Settings> {
+    const dto = await this.repo.saveRexbertConfig(endpoint, apiKey);
+    return mapAppSettingsToSettings(dto);
+  }
 }
 
 export const settingsService = new SettingsService(settingsRepository);

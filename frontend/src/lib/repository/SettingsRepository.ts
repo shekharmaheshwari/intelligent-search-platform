@@ -39,6 +39,16 @@ export class SettingsRepository {
   ): Promise<AppSettings> {
     return api.updateSettings(modelId, opts);
   }
+
+  /**
+   * Save RexBERT endpoint and optional API key without changing the global model.
+   *
+   * @param endpoint  Full URL of the RexBERT embeddings server.
+   * @param apiKey    Optional bearer token.
+   */
+  saveRexbertConfig(endpoint: string, apiKey?: string): Promise<AppSettings> {
+    return api.saveRexbertConfig(endpoint, apiKey);
+  }
 }
 
 export const settingsRepository = new SettingsRepository();

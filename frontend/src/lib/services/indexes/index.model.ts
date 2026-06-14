@@ -14,6 +14,8 @@ export interface Index {
   externalQueryBy?: string;
   externalTitleField?: string;
   externalUrlField?: string;
+  /** Per-index embedding model override. Empty string means "use the global default". */
+  embedModel?: string;
 }
 
 export type { IngestStatus, SearchResult, DocumentItem };

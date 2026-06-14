@@ -113,6 +113,16 @@ export class IndexRepository {
   rebuild(id: string, cfg: RestConnectorConfig): Promise<IngestStatus> {
     return api.rebuild(id, cfg);
   }
+
+  /**
+   * Set (or clear) the per-index embedding model override.
+   *
+   * @param modelId  Model id string (e.g. ``"voyage-3"``).
+   *                 Pass ``""`` to revert to the global default.
+   */
+  setIndexEmbedModel(id: string, modelId: string): Promise<IndexMeta> {
+    return api.setIndexEmbedModel(id, modelId);
+  }
 }
 
 export const indexRepository = new IndexRepository();

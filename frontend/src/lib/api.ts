@@ -134,6 +134,19 @@ export const api = {
       body: JSON.stringify(cfg),
     }),
 
+  /**
+   * Set (or clear) the per-index embedding model override.
+   *
+   * Pass an empty string to revert to the global default.
+   * The index must be rebuilt after changing to a model with a different
+   * vector dimension, or semantic search will return incorrect results.
+   */
+  setIndexEmbedModel: (id: string, modelId: string) =>
+    req<IndexMeta>(`/indexes/${id}/embed-model`, {
+      method: 'PUT',
+      body: JSON.stringify({ model_id: modelId }),
+    }),
+
   // ── Extensions library ─────────────────────────────────────────────────────
 
   /** Fetch all extensions from the global library, newest first. */
@@ -191,6 +204,19 @@ export const api = {
    * and the full catalogue of available models.
    */
   getSettings: () => req<AppSettings>('/settings'),
+
+  /**
+   * Save the RexBERT endpoint and optional API key without changing the global model.
+   *
+   * Use this when the global model is voyage/openai but one or more indexes use a
+   * per-index RexBERT override.  The credentials must be stored so the embedding
+   * service can reach the RexBERT server at ingest and search time.
+   */
+  saveRexbertConfig: (endpoint: string, apiKey?: string) =>
+    req<AppSettings>('/settings/rexbert-config', {
+      method: 'PUT',
+      body: JSON.stringify({ endpoint, api_key: apiKey ?? null }),
+    }),
 
   /**
    * Update the active embedding model and any associated provider config.

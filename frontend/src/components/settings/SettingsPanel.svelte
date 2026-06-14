@@ -24,6 +24,7 @@
    */
   import { onMount } from 'svelte';
   import { settingsStore } from '../../lib/store';
+  import { settingsService } from '../../lib/services/settings/SettingsService';
   import type { AppSettings } from '../../lib/types';
   import { modelOption, effectiveDim, dimensionWillChange } from './SettingsPanel.helpers';
 
@@ -35,6 +36,13 @@
   let errMsg = '';
   let saved = false;
   let dimWarning = '';
+
+  // ── RexBERT standalone config ────────────────────────────────────────────────
+
+  /** Whether the "RexBERT server config" section is currently saving. */
+  let rexbertSaving = false;
+  let rexbertSaved = false;
+  let rexbertErr = '';
 
   // ── Extra provider fields ────────────────────────────────────────────────────
 
@@ -124,6 +132,31 @@
   function onAnyChange() {
     saved = false;
     dimWarning = '';
+  }
+
+  /**
+   * Save the RexBERT endpoint and optional API key without changing the global model.
+   * Used when the global is voyage/openai but per-index RexBERT overrides are needed.
+   */
+  async function saveRexbertOnly() {
+    if (!rexbertEndpoint.trim()) return;
+    rexbertSaving = true; rexbertErr = ''; rexbertSaved = false;
+    try {
+      const result = await settingsService.saveRexbertConfig(
+        rexbertEndpoint.trim(),
+        rexbertApiKey.trim() || undefined,
+      );
+      // Reflect the now-stored endpoint back so the "(stored)" label appears
+      rexbertEndpoint = result.rexbert_endpoint ?? rexbertEndpoint;
+      rexbertApiKey = '';
+      rexbertSaved = true;
+      // Refresh the store so rexbert_endpoint shows correctly everywhere
+      await settingsStore.load();
+    } catch (e) {
+      rexbertErr = String(e);
+    } finally {
+      rexbertSaving = false;
+    }
   }
 </script>
 
@@ -381,6 +414,65 @@
       </div>
     </section>
 
+    <!-- RexBERT Server Config — always visible so the endpoint can be stored
+         independently of the global model (needed for per-index RexBERT overrides). -->
+    <section class="section rexbert-section">
+      <div class="section-header">
+        <h3>RexBERT Server</h3>
+        <p class="section-sub">
+          Configure the RexBERT inference endpoint. This is stored independently
+          of the global model so per-index RexBERT overrides work even when the
+          global model is Voyage or OpenAI.
+        </p>
+      </div>
+
+      <div class="field-group">
+        <div class="field-row">
+          <label class="field-label" for="rexbert-standalone-endpoint">
+            Endpoint URL
+            {#if settings.rexbert_endpoint}
+              <span class="key-stored">(stored — update to change)</span>
+            {/if}
+          </label>
+          <input
+            id="rexbert-standalone-endpoint"
+            class="text-input"
+            type="url"
+            placeholder="http://rexbert.internal/v1/embeddings"
+            bind:value={rexbertEndpoint}
+            disabled={rexbertSaving}
+          />
+        </div>
+        <div class="field-row">
+          <label class="field-label" for="rexbert-standalone-key">
+            API key (optional)
+            {#if settings.rexbert_api_key_set}
+              <span class="key-stored">(key stored — leave blank to keep)</span>
+            {/if}
+          </label>
+          <input
+            id="rexbert-standalone-key"
+            class="text-input"
+            type="password"
+            placeholder={settings.rexbert_api_key_set ? '••••••••••••' : 'Bearer token if required'}
+            bind:value={rexbertApiKey}
+            disabled={rexbertSaving}
+          />
+        </div>
+
+        {#if rexbertErr}<p class="err">{rexbertErr}</p>{/if}
+        {#if rexbertSaved}<p class="success">RexBERT endpoint saved.</p>{/if}
+
+        <button
+          class="btn-save"
+          on:click={saveRexbertOnly}
+          disabled={rexbertSaving || !rexbertEndpoint.trim()}
+        >
+          {rexbertSaving ? 'Saving…' : 'Save RexBERT config'}
+        </button>
+      </div>
+    </section>
+
   {/if}
 </div>
 
@@ -407,6 +499,7 @@
 
   /* Section */
   .section { display: flex; flex-direction: column; gap: 20px; }
+  .rexbert-section { margin-top: 32px; padding-top: 28px; border-top: 1px solid #222; }
   .section-header { display: flex; flex-direction: column; gap: 4px; }
   h3 { margin: 0; font-size: 15px; font-weight: 600; color: #ddd; }
   .section-sub { margin: 0; font-size: 12px; color: #555; }
