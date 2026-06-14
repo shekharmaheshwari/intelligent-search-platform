@@ -27,7 +27,9 @@ from isp.services.domain.settings_service import (
     get_rexbert_config,
     get_custom_config,
     set_embed_config,
+    set_setting,
 )
+from isp.services.infra import embedding_service
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -131,6 +133,37 @@ async def _build_response(model_id: str) -> dict:
         "custom_model_name": custom_cfg["model_name"] or None,
         "custom_num_dim":    custom_cfg["num_dim"]    or None,
     }
+
+
+class RexbertConfigUpdate(BaseModel):
+    """Request body for saving RexBERT credentials without changing the global model."""
+
+    endpoint: str
+    api_key: str | None = None
+
+
+@router.put("/rexbert-config", response_model=SettingsResponse)
+async def save_rexbert_config(body: RexbertConfigUpdate) -> SettingsResponse:
+    """
+    Persist the RexBERT endpoint and optional API key without changing the global model.
+
+    Useful when the global model is voyage/openai but one or more indexes use a
+    per-index RexBERT override — the credentials must be stored so the embedding
+    service can reach the RexBERT server at ingest and search time.
+    """
+    if body.endpoint.strip():
+        await set_setting("rexbert_endpoint", body.endpoint.strip())
+    if body.api_key is not None:
+        await set_setting("rexbert_api_key", body.api_key)
+
+    rexbert_cfg = await get_rexbert_config()
+    embedding_service.set_rexbert_config(
+        endpoint=rexbert_cfg["endpoint"],
+        api_key=rexbert_cfg.get("api_key", ""),
+    )
+
+    model = await get_embed_model()
+    return SettingsResponse(**(await _build_response(model)))
 
 
 @router.get("", response_model=SettingsResponse)

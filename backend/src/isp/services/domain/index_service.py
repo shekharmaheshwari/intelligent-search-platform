@@ -30,6 +30,8 @@ def _row_to_meta(row: dict) -> IndexMeta:
         external_query_by=row["external_query_by"] or "display",
         external_title_field=row["external_title_field"] or "display",
         external_url_field=row["external_url_field"] or "",
+        # embed_model column added via ALTER TABLE; older rows will have NULL here
+        embed_model=row.get("embed_model") or "",
     )
 
 
@@ -49,12 +51,15 @@ async def get_index(idx_id: str) -> IndexMeta | None:
     return _row_to_meta(dict(row)) if row else None
 
 
-async def create_index(name: str, description: str) -> IndexMeta:
+async def create_index(name: str, description: str, embed_model: str = "") -> IndexMeta:
     """
     Insert a new index row and return the populated ``IndexMeta``.
 
     The collection name is pre-computed as ``isp_{id}`` but the Typesense collection
     itself is provisioned separately in the router (``ts.create_collection``).
+
+    ``embed_model`` overrides the global setting for all ingest and search operations
+    on this index.  Pass empty string to inherit the global default at runtime.
     """
     idx_id = uuid.uuid4().hex[:12]
     meta = IndexMeta(
@@ -63,6 +68,7 @@ async def create_index(name: str, description: str) -> IndexMeta:
         description=description,
         created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         collection_name=f"isp_{idx_id}",
+        embed_model=embed_model,
     )
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -71,14 +77,14 @@ async def create_index(name: str, description: str) -> IndexMeta:
                 (id, name, description, created_at, doc_count, status,
                  connectors, collection_name, is_external,
                  external_collection, external_filter, external_query_by,
-                 external_title_field, external_url_field)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                 external_title_field, external_url_field, embed_model)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
         """,
             meta.id, meta.name, meta.description, meta.created_at,
             meta.doc_count, meta.status,
             json.dumps(meta.connectors), meta.collection_name, meta.is_external,
             meta.external_collection, meta.external_filter, meta.external_query_by,
-            meta.external_title_field, meta.external_url_field,
+            meta.external_title_field, meta.external_url_field, meta.embed_model,
         )
     return meta
 
@@ -136,14 +142,15 @@ async def update_index(meta: IndexMeta) -> None:
                 external_filter      = $11,
                 external_query_by    = $12,
                 external_title_field = $13,
-                external_url_field   = $14
+                external_url_field   = $14,
+                embed_model          = $15
             WHERE id = $1
         """,
             meta.id, meta.name, meta.description,
             meta.doc_count, meta.last_ingested, meta.status,
             json.dumps(meta.connectors), meta.collection_name, meta.is_external,
             meta.external_collection, meta.external_filter, meta.external_query_by,
-            meta.external_title_field, meta.external_url_field,
+            meta.external_title_field, meta.external_url_field, meta.embed_model,
         )
 
 
@@ -259,14 +266,14 @@ async def discover_external_collections() -> list[IndexMeta]:
                         (id, name, description, created_at, doc_count, status,
                          connectors, collection_name, is_external,
                          external_collection, external_filter, external_query_by,
-                         external_title_field, external_url_field)
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                         external_title_field, external_url_field, embed_model)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
                 """,
                     meta.id, meta.name, meta.description, meta.created_at,
                     meta.doc_count, meta.status,
                     json.dumps(meta.connectors), meta.collection_name, meta.is_external,
                     meta.external_collection, meta.external_filter, meta.external_query_by,
-                    meta.external_title_field, meta.external_url_field,
+                    meta.external_title_field, meta.external_url_field, meta.embed_model,
                 )
             created.append(meta)
 

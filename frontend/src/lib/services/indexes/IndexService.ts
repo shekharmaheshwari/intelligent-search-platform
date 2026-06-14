@@ -118,6 +118,17 @@ export class IndexService {
   rebuild(id: string, cfg: RestConnectorConfig): Promise<IngestStatus> {
     return this.repo.rebuild(id, cfg);
   }
+
+  /**
+   * Set (or clear) the per-index embedding model override and return the updated domain model.
+   *
+   * @param modelId  Model id string (e.g. ``"voyage-3"``).
+   *                 Pass ``""`` to revert to the global default.
+   */
+  async setIndexEmbedModel(id: string, modelId: string): Promise<Index> {
+    const dto = await this.repo.setIndexEmbedModel(id, modelId);
+    return mapIndexMetaToIndex(dto);
+  }
 }
 
 export const indexService = new IndexService(indexRepository);

@@ -10,9 +10,8 @@
    *           during indexing; selected extensions are assigned (in displayed
    *           order) before the ingest job is queued.
    * Step 5 — Embedding model: choose which embedding model to use for this
-   *           index.  Selecting a model here updates the global setting before
-   *           ingestion begins; a dimension-change warning is shown when the
-   *           new model would break existing indexes.
+   *           index.  The selection is stored on the index only — the global
+   *           default is not changed; other indexes keep using their own model.
    * Step 6 — Progress: starts the ingest job and polls until done.
    *
    * Dispatches ``done`` (with the new index id) on completion and ``cancel`` on dismiss.
@@ -248,9 +247,9 @@
   async function stepFive() {
     busy = true; errMsg = '';
     try {
-      // 1. Update global embedding model if the user changed it
+      // 1. Store the selected model on this index (not the global default)
       if (embedIsDirty && selectedEmbedModel) {
-        await settingsService.updateSettings(selectedEmbedModel);
+        await indexService.setIndexEmbedModel(indexId, selectedEmbedModel);
       }
 
       // 2. Assign selected extensions in display order
@@ -608,8 +607,8 @@
       <div class="step-desc-block">
         <p class="step-desc">
           Choose the embedding model used to vectorise documents in this index.
-          This updates the global setting — all future ingests will use the selected
-          model until changed in Settings.
+          This is stored on this index only — the global default is not changed,
+          and other indexes keep using their own models.
         </p>
       </div>
 
@@ -654,7 +653,7 @@
 
         {#if embedSettings && embedDimWillChange(embedSettings, selectedEmbedModel)}
           <div class="embed-dim-warn">
-            Dimension change detected — existing indexes will need a full rebuild before semantic search works.
+            This model uses a different vector dimension than the global default — this index will be built with the new dimension, and no other indexes are affected.
           </div>
         {/if}
       {/if}

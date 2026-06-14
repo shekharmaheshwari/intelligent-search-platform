@@ -348,3 +348,14 @@ async def load_embed_model() -> None:
         typesense_client.set_vec_dim(DIM_BY_MODEL.get(model_id, 1536))
     else:
         typesense_client.set_vec_dim(DIM_BY_MODEL.get(model_id, 1024))
+
+    # Always load RexBERT config so per-index model overrides work even when
+    # the global active model is not RexBERT.  get_rexbert_config returns empty
+    # strings when no endpoint has been configured — safe to call unconditionally.
+    if provider != "rexbert":
+        rexbert_cfg = await get_rexbert_config()
+        if rexbert_cfg.get("endpoint"):
+            embedding_service.set_rexbert_config(
+                endpoint=rexbert_cfg["endpoint"],
+                api_key=rexbert_cfg.get("api_key", ""),
+            )

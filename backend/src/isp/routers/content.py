@@ -114,10 +114,13 @@ async def search_content(
         raise HTTPException(404, f"No source found for slug '{slug}'. "
                                  f"Call GET /v1/content to see available slugs.")
 
+    # Use this index's dedicated embedding model, or fall back to the global default.
+    effective_model = idx.embed_model or embedding_service.get_current_model()
+
     if idx.is_external:
         vec = None
         if mode in ("hybrid", "semantic") and q.strip():
-            vec = await embedding_service.embed_query(q)
+            vec = await embedding_service.embed_query(q, model=effective_model)
         raw = ts.search_external(
             idx.external_collection, q,
             idx.external_filter, idx.external_query_by,
@@ -126,7 +129,7 @@ async def search_content(
         result = _wrap_external_results(raw, idx)
     else:
         if mode in ("hybrid", "semantic"):
-            vec = await embedding_service.embed_query(q)
+            vec = await embedding_service.embed_query(q, model=effective_model)
             if vec:
                 result = ts.search_with_vec(idx.id, q, vec, page, per_page)
             else:

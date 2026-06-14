@@ -20,6 +20,7 @@ from isp.models import (
     RestConnectorConfig, SitemapConnectorConfig,
 )
 from isp.services.domain import index_service, extension_service
+from isp.services.domain.settings_service import DIM_BY_MODEL, get_custom_config
 from isp.services.infra import embedding_service, typesense_client as ts
 from isp.services.infra import rest_connector, sitemap_connector
 from isp.services.infra.extension_runner import apply_extensions
@@ -317,10 +318,23 @@ async def discover_indexes():
 async def create_index(body: IndexCreate):
     """
     Create a new ISP-managed index and provision its Typesense collection.
+
+    When ``embed_model`` is provided the collection is created with the matching
+    vector dimension; otherwise the global active dimension is used.
     The index starts empty; use a connector + ingest or rebuild to populate it.
     """
-    meta = await index_service.create_index(body.name, body.description)
-    ts.create_collection(meta.id)
+    meta = await index_service.create_index(body.name, body.description, embed_model=body.embed_model)
+
+    # Resolve the vector dimension for this index's chosen model so the Typesense
+    # collection schema matches the vectors that will be written during ingest.
+    effective_model = body.embed_model or embedding_service.get_current_model()
+    if effective_model == "custom":
+        cfg = await get_custom_config()
+        vec_dim = cfg["num_dim"] or ts.get_vec_dim()
+    else:
+        vec_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
+
+    ts.create_collection(meta.id, vec_dim=vec_dim)
     return meta
 
 
@@ -349,6 +363,32 @@ async def delete_index(idx_id: str):
         ts.delete_from_collection(meta.external_collection, meta.external_filter)
     else:
         ts.drop_collection(idx_id)
+
+
+class EmbedModelUpdate(BaseModel):
+    """Request body for setting a per-index embedding model override."""
+    model_id: str
+
+
+@router.put("/{idx_id}/embed-model", response_model=IndexMeta, summary="Set per-index embedding model")
+async def set_embed_model(idx_id: str, body: EmbedModelUpdate):
+    """
+    Store an embedding model override on this index.
+
+    All subsequent ingest and search operations on this index will use the
+    specified model instead of the global default.  Set ``model_id`` to ``""``
+    (empty string) to revert to the global default.
+
+    Changing the model does NOT automatically rebuild the index.  The vector
+    dimension of the new model must match the Typesense collection schema, or
+    the index must be fully rebuilt before semantic search will work correctly.
+    """
+    meta = await index_service.get_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    meta.embed_model = body.model_id
+    await index_service.update_index(meta)
+    return meta
 
 
 @router.get("/{idx_id}/status", response_model=IngestStatus, summary="Get ingest / rebuild status")
@@ -434,12 +474,19 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
         # Ensure the Typesense collection exists (idempotent; required for first-ever ingest).
         ts.create_collection(idx_id)
 
+        meta = await index_service.get_index(idx_id)
+        # Use this index's dedicated model, or fall back to the global active model.
+        effective_model = (meta.embed_model if meta else "") or embedding_service.get_current_model()
+
         # Only embed docs that have non-empty text; skip the rest to avoid
         # empty-string rejections from the embedding provider.
         raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
         embed_idxs = [i for i, t in enumerate(raw_texts) if t]
         if embed_idxs:
-            vecs = await embedding_service.embed_texts([raw_texts[i] for i in embed_idxs])
+            vecs = await embedding_service.embed_texts(
+                [raw_texts[i] for i in embed_idxs],
+                model=effective_model,
+            )
             for list_pos, doc_idx in enumerate(embed_idxs):
                 if vecs[list_pos]:
                     docs[doc_idx]["vec"] = vecs[list_pos]
@@ -448,7 +495,6 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
         s.indexed = ok
         s.state = "done"
 
-        meta = await index_service.get_index(idx_id)
         if meta:
             meta.doc_count = ts.count_documents(idx_id)
             meta.connectors = [connector_cfg]
@@ -554,12 +600,15 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             catalog_docs = [_generic_catalog_mapper(item, i) for i, item in enumerate(raw_items)]
             catalog_docs = [d for d in catalog_docs if d]
 
+            # Use this index's dedicated model, or fall back to the global active model.
+            effective_model = meta.embed_model or embedding_service.get_current_model()
+
             # Embed on display + description for semantic search
             texts = [
                 d["display"] + " " + json.loads(d.get("metadata", "{}")).get("description", "")
                 for d in catalog_docs
             ]
-            vectors = await embedding_service.embed_texts(texts)
+            vectors = await embedding_service.embed_texts(texts, model=effective_model)
             for doc, vec in zip(catalog_docs, vectors):
                 if vec:
                     doc["vec"] = vec
@@ -594,18 +643,31 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             if not docs:
                 raise ValueError("0 documents parsed — check field mapping.")
 
+            # effective_model was resolved in the write-back branch above; resolve
+            # it here too for the ISP-managed path.
+            effective_model = meta.embed_model or embedding_service.get_current_model()
+
             # Only embed docs that have non-empty text; skip the rest to avoid
             # empty-string rejections from the embedding provider.
             raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
-                vecs = await embedding_service.embed_texts([raw_texts[i] for i in embed_idxs])
+                vecs = await embedding_service.embed_texts(
+                    [raw_texts[i] for i in embed_idxs],
+                    model=effective_model,
+                )
                 for list_pos, doc_idx in enumerate(embed_idxs):
                     if vecs[list_pos]:
                         docs[doc_idx]["vec"] = vecs[list_pos]
 
             ts.drop_collection(idx_id)
-            ts.create_collection(idx_id)
+            # Recreate with the correct dimension for this index's model.
+            if effective_model == "custom":
+                cfg_c = await get_custom_config()
+                rebuild_dim = cfg_c["num_dim"] or ts.get_vec_dim()
+            else:
+                rebuild_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
+            ts.create_collection(idx_id, vec_dim=rebuild_dim)
 
             ok = ts.upsert_documents(idx_id, docs)
             s.indexed = ok

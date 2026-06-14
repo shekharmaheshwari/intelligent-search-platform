@@ -126,18 +126,20 @@ def set_custom_config(
     _custom_num_dim    = num_dim
 
 
-def _get_provider() -> str:
+def _get_provider(model_id: str | None = None) -> str:
     """
-    Derive the active embedding provider from the current model id.
+    Derive the embedding provider from a model id.
 
-    Returns ``"voyage"``, ``"openai"``, or ``"custom"``.
-    Voyage is the fallback for any unrecognised model id.
+    Accepts an explicit ``model_id`` so per-index model overrides work without
+    changing the global ``_current_model``.  Falls back to ``_current_model``
+    when ``model_id`` is None.  Voyage is the default for unrecognised ids.
     """
-    if _current_model == "custom":
+    m = model_id or _current_model
+    if m == "custom":
         return "custom"
-    if _current_model.startswith("rexbert-"):
+    if m.startswith("rexbert-"):
         return "rexbert"
-    if _current_model == "text-embedding-3-small":
+    if m == "text-embedding-3-small":
         return "openai"
     return "voyage"
 
@@ -164,14 +166,16 @@ async def _get_redis() -> aioredis.Redis | None:
     return _redis_client
 
 
-def _cache_key(text: str, input_type: str) -> str:
+def _cache_key(text: str, input_type: str, model_id: str | None = None) -> str:
     """
-    Build a stable Redis / LRU cache key from active model, input_type, and text.
+    Build a stable Redis / LRU cache key from model id, input_type, and text.
 
-    The model name is included so switching models never returns cached vectors
-    from the previous model — vectors from different models are not comparable.
+    Accepts an explicit ``model_id`` for per-index model calls; falls back to
+    ``_current_model``.  The model name is always part of the key so vectors
+    from different models are never mixed in the cache.
     """
-    h = hashlib.sha256(f"{_current_model}:{input_type}:{text}".encode()).hexdigest()
+    m = model_id or _current_model
+    h = hashlib.sha256(f"{m}:{input_type}:{text}".encode()).hexdigest()
     return f"emb:{h}"
 
 
@@ -258,23 +262,22 @@ async def _call_openai_compat(
         return [item["embedding"] for item in data["data"]]
 
 
-async def embed_texts(texts: list[str]) -> list[list[float]]:
+async def embed_texts(texts: list[str], model: str | None = None) -> list[list[float]]:
     """
     Embed a batch of document strings for indexing.
 
+    Accepts an optional ``model`` override so an index can use a different model
+    than the global default without changing the global state.  When ``model`` is
+    None the global ``_current_model`` is used.
+
     Checks the two-tier cache for each text first; only calls the embedding
-    provider for texts that are not cached.  Results are stored back into both
-    cache tiers.  Voyage AI batches are capped at 128 texts per API call.
+    provider for uncached texts.  Voyage AI batches are capped at 128 per call.
 
     Returns a list of the same length as ``texts``; uncacheable or failed texts
     get an empty list ``[]`` (caller skips embedding for those documents).
-
-    Provider is selected by the current model id:
-    - voyage models → voyageai.AsyncClient
-    - text-embedding-3-small → OpenAI API via httpx
-    - custom → user-supplied endpoint via httpx
     """
-    provider = _get_provider()
+    active_model = model or _current_model
+    provider = _get_provider(active_model)
 
     if provider == "voyage"  and not settings.voyage_api_key:
         return [[] for _ in texts]
@@ -292,7 +295,7 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
     uncached_texts: list[str] = []
 
     for i, text in enumerate(texts):
-        key = _cache_key(text, "document")
+        key = _cache_key(text, "document", active_model)
         vec = await _cache_get(key)
         if vec is not None:
             results[i] = vec
@@ -306,21 +309,21 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
             fresh: list[list[float]] = []
             for i in range(0, len(uncached_texts), 128):
                 batch = uncached_texts[i:i + 128]
-                resp = await client.embed(batch, model=_current_model, input_type="document")
+                resp = await client.embed(batch, model=active_model, input_type="document")
                 fresh.extend(resp.embeddings)
         elif provider == "openai":
             fresh = await _call_openai_compat(
                 uncached_texts,
                 endpoint="https://api.openai.com/v1/embeddings",
                 api_key=_openai_api_key,
-                model_name=_current_model,
+                model_name=active_model,
             )
         elif provider == "rexbert":
             fresh = await _call_openai_compat(
                 uncached_texts,
                 endpoint=_rexbert_endpoint,
                 api_key=_rexbert_api_key,
-                model_name=_current_model,  # e.g. "rexbert-base"
+                model_name=active_model,  # e.g. "rexbert-base"
             )
         else:  # custom
             fresh = await _call_openai_compat(
@@ -332,22 +335,26 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
 
         for idx, vec in zip(uncached_indices, fresh):
             results[idx] = vec
-            await _cache_set(_cache_key(texts[idx], "document"), vec)
+            await _cache_set(_cache_key(texts[idx], "document", active_model), vec)
 
     return [r or [] for r in results]
 
 
-async def embed_query(text: str) -> list[float]:
+async def embed_query(text: str, model: str | None = None) -> list[float]:
     """
     Embed a single search query for retrieval.
 
+    Accepts an optional ``model`` override so search can use the index's own model
+    rather than the global default.  When ``model`` is None, ``_current_model`` is used.
+
     For Voyage AI, uses ``input_type="query"`` which produces asymmetrically-
-    optimised vectors that rank better against ``input_type="document"`` vectors
-    in cosine similarity.  OpenAI and custom endpoints do not distinguish types.
+    optimised vectors that rank better against ``input_type="document"`` vectors.
+    OpenAI and custom endpoints do not distinguish input types.
 
     Returns ``[]`` when the required API key / endpoint is not configured.
     """
-    provider = _get_provider()
+    active_model = model or _current_model
+    provider = _get_provider(active_model)
 
     if provider == "voyage"  and not settings.voyage_api_key:
         return []
@@ -360,21 +367,21 @@ async def embed_query(text: str) -> list[float]:
     if not text:
         return []
 
-    key = _cache_key(text, "query")
+    key = _cache_key(text, "query", active_model)
     cached = await _cache_get(key)
     if cached is not None:
         return cached
 
     if provider == "voyage":
         client = _get_voyage()
-        resp = await client.embed([text], model=_current_model, input_type="query")
+        resp = await client.embed([text], model=active_model, input_type="query")
         vec = resp.embeddings[0]
     elif provider == "openai":
         vecs = await _call_openai_compat(
             [text],
             endpoint="https://api.openai.com/v1/embeddings",
             api_key=_openai_api_key,
-            model_name=_current_model,
+            model_name=active_model,
         )
         vec = vecs[0]
     elif provider == "rexbert":
@@ -382,7 +389,7 @@ async def embed_query(text: str) -> list[float]:
             [text],
             endpoint=_rexbert_endpoint,
             api_key=_rexbert_api_key,
-            model_name=_current_model,
+            model_name=active_model,
         )
         vec = vecs[0]
     else:  # custom

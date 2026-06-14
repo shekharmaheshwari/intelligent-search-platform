@@ -1,0 +1,106 @@
+version: "3.9"
+
+networks:
+  isp-net:
+    name: isp-net
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: isp-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - isp-api
+      - isp-ui
+    networks:
+      - isp-net
+    restart: unless-stopped
+
+  typesense:
+    image: typesense/typesense:0.25.2
+    container_name: typesense
+    volumes:
+      - isp-typesense-data:/data
+    command: >
+      --data-dir /data
+      --api-key ${TYPESENSE_API_KEY}
+      --enable-cors
+    networks:
+      - isp-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "perl -e 'use Socket; socket(S,PF_INET,SOCK_STREAM,getprotobyname(\"tcp\")); connect(S,sockaddr_in(8108,inet_aton(\"127.0.0.1\"))) or exit 1; exit 0'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+
+  isp-redis:
+    image: redis:7-alpine
+    container_name: isp-redis
+    volumes:
+      - isp-redis-data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    networks:
+      - isp-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  isp-db:
+    image: postgres:16-alpine
+    container_name: isp-db
+    environment:
+      POSTGRES_DB: isp
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - isp-db-data:/var/lib/postgresql/data
+    networks:
+      - isp-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d isp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  isp-api:
+    build:
+      context: ./backend
+    container_name: isp-api
+    env_file:
+      - .env.prod
+    depends_on:
+      isp-db:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+      isp-redis:
+        condition: service_healthy
+    networks:
+      - isp-net
+    restart: unless-stopped
+
+  isp-ui:
+    build:
+      context: ./frontend
+      args:
+        PUBLIC_API_URL: ${PUBLIC_API_URL}
+    container_name: isp-ui
+    depends_on:
+      - isp-api
+    networks:
+      - isp-net
+    restart: unless-stopped
+
+volumes:
+  isp-db-data:
+  isp-typesense-data:
+  isp-redis-data:
