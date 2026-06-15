@@ -19,6 +19,8 @@ export interface IndexMeta {
   external_url_field?: string;
   /** Per-index embedding model override. Empty string means "use the global default". */
   embed_model?: string;
+  /** When true, newer product generations receive a small relevance boost at search time. */
+  version_boost?: boolean;
 }
 
 /** Connector configuration stored in the ``connectors`` JSONB column on an index. */

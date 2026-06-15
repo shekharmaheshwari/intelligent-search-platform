@@ -64,27 +64,39 @@ def _ensure_catalog_collection() -> None:
     })
 
 
-def _parse_js_header(code: str) -> tuple[str, str]:
-    """Extract ``// @name`` and ``// @description`` from a JS file's leading comment block."""
-    """Extract @name and @description from JS comment header. Returns (name, description)."""
-    name = desc = ""
+def _parse_js_header(code: str) -> dict:
+    """
+    Extract annotation tags from a JS file's leading ``//`` comment block.
+
+    Supported tags:
+    - ``@name``        Display name for the extension.
+    - ``@description`` One-line description.
+    - ``@assign``      Scope for auto-assignment: ``external`` (default) or ``all``.
+    - ``@run_order``   Integer execution order (default 0). Higher numbers run later.
+    """
+    result = {"name": "", "description": "", "assign": "external", "run_order": 0}
     for line in code.splitlines():
         line = line.strip()
         if not line.startswith("//"):
             break
-        m = re.match(r"//\s*@name\s+(.+)", line)
+        for tag, key in (("@name", "name"), ("@description", "description"), ("@assign", "assign")):
+            m = re.match(rf"//\s*{tag}\s+(.+)", line)
+            if m:
+                result[key] = m.group(1).strip()
+        m = re.match(r"//\s*@run_order\s+(\d+)", line)
         if m:
-            name = m.group(1).strip()
-        m = re.match(r"//\s*@description\s+(.+)", line)
-        if m:
-            desc = m.group(1).strip()
-    return name, desc
+            result["run_order"] = int(m.group(1))
+    return result
 
 
 async def _seed_extensions_from_files() -> None:
     """
     Scan settings.extensions_dir for *.js files, upsert each into the DB, and
-    auto-assign to any existing external (catalog write-back) indexes.
+    auto-assign to the appropriate indexes based on the ``@assign`` annotation.
+
+    - ``@assign external`` (default): assign to external (catalog write-back) indexes only.
+    - ``@assign all``: assign to every index, ISP-managed and external alike.
+    - ``@run_order N``: set the execution order (default 0). Extensions chain in ascending order.
 
     This makes the repo the single source of truth for extension code — committing
     a new .js file is all it takes to deploy a new extension.
@@ -106,15 +118,19 @@ async def _seed_extensions_from_files() -> None:
 
     for js_path in js_files:
         code = js_path.read_text(encoding="utf-8")
-        name, desc = _parse_js_header(code)
-        if not name:
-            name = js_path.stem.replace("_", " ").title()
+        meta = _parse_js_header(code)
+        name = meta["name"] or js_path.stem.replace("_", " ").title()
+        desc = meta["description"]
+        assign = meta["assign"]
+        run_order = meta["run_order"]
 
         ext = await extension_service.upsert_extension_by_name(name, desc, code)
-        log.info("Seeded extension '%s' from %s", name, js_path.name)
+        log.info("Seeded extension '%s' from %s (assign=%s, run_order=%d)",
+                 name, js_path.name, assign, run_order)
 
-        for idx in external_indexes:
-            await extension_service.assign_extension_if_new(idx.id, ext["id"], run_order=0)
+        targets = all_indexes if assign == "all" else external_indexes
+        for idx in targets:
+            await extension_service.assign_extension_if_new(idx.id, ext["id"], run_order=run_order)
             log.debug("Auto-assigned '%s' to index '%s'", name, idx.name)
 
 
@@ -130,6 +146,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     await load_embed_model()          # restore operator-chosen model before serving requests
     _ensure_catalog_collection()
+    ts.migrate_isp_fields()
     await _seed_extensions_from_files()
     yield
 

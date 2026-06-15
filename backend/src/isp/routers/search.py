@@ -59,6 +59,9 @@ async def search(idx_id: str, req: SearchRequest):
     if mode in ("hybrid", "semantic"):
         vec = await embedding_service.embed_query(req.q, model=effective_model)
         if vec:
-            return ts.search_with_vec(idx_id, req.q, vec, req.page, req.per_page)
+            return ts.search_with_vec(
+                idx_id, req.q, vec, req.page, req.per_page,
+                version_boost=meta.version_boost,
+            )
 
     return ts.search_documents(idx_id, req.q, "lexical", req.page, req.per_page)

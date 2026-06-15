@@ -90,6 +90,7 @@ class IndexMeta(BaseModel):
     external_title_field: str = "display"
     external_url_field: str = ""
     embed_model: str = ""  # empty string means "use the global default at ingest/search time"
+    version_boost: bool = False  # when True, newer product generations rank higher in search results
 
 
 class IngestStatus(BaseModel):

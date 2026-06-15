@@ -16,6 +16,8 @@ export interface Index {
   externalUrlField?: string;
   /** Per-index embedding model override. Empty string means "use the global default". */
   embedModel?: string;
+  /** When true, newer product generations receive a small relevance boost at search time. */
+  versionBoost?: boolean;
 }
 
 export type { IngestStatus, SearchResult, DocumentItem };
