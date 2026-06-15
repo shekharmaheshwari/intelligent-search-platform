@@ -145,15 +145,24 @@ def _rrf_search(collections: list[str], q: str, vec, filter_by: str, page: int, 
                 scores[did] = scores.get(did, 0) + 0.7 / (K + rank + 1)
                 all_docs[did] = h["document"]
 
-    # Apply editorial boosts so featured/high-popularity items surface before pure
-    # relevance scores. is_featured adds a large fixed bonus; popularity scales linearly
-    # (100 000 popularity ≈ +0.05, comparable to a top-ranked RRF hit at ~0.011).
+    # Editorial boosts applied after RRF merge.
+    # is_featured: large fixed bonus that overrides pure relevance order.
+    # popularity: linear scale (1 000 000 pop ≈ +0.5, same magnitude as featured).
+    # boost_queries_equal: +0.5 when the full query exactly matches a merchandising term.
+    # boost_queries_contains: +0.3 when the query contains a merchandising term.
+    q_lower = (q or "").lower().strip()
     for did, doc in all_docs.items():
         if doc.get("is_featured"):
             scores[did] = scores.get(did, 0) + 0.5
         pop = doc.get("popularity") or 0
         if pop > 0:
             scores[did] = scores.get(did, 0) + min(int(pop), 1_000_000) / 2_000_000
+        boost_eq = doc.get("boost_queries_equal") or []
+        if isinstance(boost_eq, list) and q_lower in [t.lower() for t in boost_eq if t]:
+            scores[did] = scores.get(did, 0) + 0.5
+        boost_ct = doc.get("boost_queries_contains") or []
+        if isinstance(boost_ct, list) and any(t.lower() in q_lower for t in boost_ct if t):
+            scores[did] = scores.get(did, 0) + 0.3
 
     ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
     start = (page - 1) * per_page
