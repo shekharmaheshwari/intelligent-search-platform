@@ -12,7 +12,7 @@ Key design decisions:
   in the UI can display vec, tags, aliases, etc.
 """
 from __future__ import annotations
-import asyncio, hashlib, json, time
+import asyncio, hashlib, json, re, time
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel
 from isp.models import (
@@ -26,6 +26,38 @@ from isp.services.infra import rest_connector, sitemap_connector
 from isp.services.infra.extension_runner import apply_extensions
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
+
+
+def _version_score(title: str) -> float:
+    """
+    Extract a [0.0, 1.0] recency score from a product title.
+
+    Strategy (first match wins):
+    1. 4-digit year 2020-2029  →  (year - 2019) / 10   (2020=0.1 … 2029=1.0)
+    2. Model number 1-99 after a letter + optional space/dash,
+       not followed by a unit abbreviation (GB, W, K, mAh, …)  →  num / 100
+
+    The score is used as a small additive search boost when ``version_boost``
+    is enabled on an index, so newer product generations surface above older ones
+    for otherwise equally relevant queries (e.g. iPhone 16 > iPhone 14).
+    """
+    if not title:
+        return 0.0
+    # Year takes priority: "Galaxy Watch 2024" → 0.5
+    m = re.search(r'\b(202\d)\b', title)
+    if m:
+        return round((int(m.group(1)) - 2019) / 10.0, 4)
+    # Model number: "iPhone 16" / "Galaxy S25" / "Pixel 9" / "AirPods Pro 2"
+    # Skip numbers followed by unit suffixes (GB, TB, W, K, mAh, MHz, GHz, mm, MP, Hz, in, ft)
+    _UNITS = re.compile(r'(?i)^\s*(?:GB|TB|K\b|mAh|W\b|MHz|GHz|mm\b|MP\b|Hz\b|in\b|ft\b)')
+    for m in re.finditer(r'(?<=[A-Za-z])[\s-]?(\d{1,2})\b', title):
+        n = int(m.group(1))
+        if n < 1:
+            continue
+        if _UNITS.match(title[m.end():]):
+            continue
+        return round(n / 100.0, 4)  # 16 → 0.16, 25 → 0.25, 9 → 0.09
+    return 0.0
 
 
 def _infer_isp_type(cfg_dict: dict) -> str:
@@ -53,7 +85,10 @@ def _infer_isp_type(cfg_dict: dict) -> str:
 
 
 # Fields stored directly on the ISP Typesense schema — anything else is packed into metadata.
-_ISP_FIELDS = {"id", "title", "content", "url", "source_type", "indexed_at", "metadata", "vec"}
+_ISP_FIELDS = {
+    "id", "title", "content", "url", "source_type", "indexed_at", "metadata", "vec",
+    "boost_queries_equal", "boost_queries_contains",
+}
 # Internal pipeline flags injected before extensions run — never surfaced to Typesense.
 _INTERNAL_FIELDS = {"_isp_type"}
 
@@ -147,6 +182,15 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
             feat = doc.get("is_featured")
         if feat is not None:
             out["is_featured"] = bool(feat)
+        # Version recency score — prefer extension-computed value; fall back to Python extraction.
+        vs = float(doc.get("version_score") or 0) or _version_score(title or content[:80])
+        if vs > 0:
+            out["version_score"] = round(vs, 4)
+        # Merchandising boost queries (stamped by merchandising_rules.js extension)
+        for bq_field in ("boost_queries_equal", "boost_queries_contains"):
+            val = combined_meta.get(bq_field) or doc.get(bq_field)
+            if isinstance(val, list) and val:
+                out[bq_field] = [str(v) for v in val if v]
         # Carry over a pre-computed vector if the doc already has one
         if "vec" in doc:
             out["vec"] = doc["vec"]
@@ -202,19 +246,29 @@ def _generic_catalog_mapper(item: dict, idx: int) -> dict | None:
         except (ValueError, TypeError):
             pass
 
-    return {
-        "id":         doc_id,
-        "display":    display,
-        "type":       str(item.get("type") or "device"),
-        "aliases":    list(item.get("aliases") or []),
-        "tags":       list(item.get("tags") or []),
-        "segment":    ["all"],
-        "popularity": int(item.get("popularity") or 0),
-        "is_featured": bool(item.get("is_featured", False)),
-        "created_at": now,
-        "updated_at": now,
-        "metadata":   json.dumps(metadata),
+    out: dict = {
+        "id":           doc_id,
+        "display":      display,
+        "type":         str(item.get("type") or "device"),
+        "aliases":      list(item.get("aliases") or []),
+        "tags":         list(item.get("tags") or []),
+        "segment":      ["all"],
+        "popularity":   int(item.get("popularity") or 0),
+        "is_featured":  bool(item.get("is_featured", False)),
+        "created_at":   now,
+        "updated_at":   now,
+        "metadata":     json.dumps(metadata),
     }
+    # Prefer extension-computed version_score; fall back to Python extraction.
+    vs = float(item.get("version_score") or 0) or _version_score(display)
+    if vs > 0:
+        out["version_score"] = round(vs, 4)
+    # Merchandising boost queries (stamped by merchandising_rules.js extension)
+    for bq_field in ("boost_queries_equal", "boost_queries_contains"):
+        val = item.get(bq_field)
+        if isinstance(val, list) and val:
+            out[bq_field] = [str(v) for v in val if v]
+    return out
 
 
 # ── Field mapper for external (non-ISP) Typesense collections ─────────────────
@@ -388,6 +442,32 @@ async def set_embed_model(idx_id: str, body: EmbedModelUpdate):
         raise HTTPException(404, "Index not found")
     meta.embed_model = body.model_id
     await index_service.update_index(meta)
+    return meta
+
+
+class VersionBoostUpdate(BaseModel):
+    """Request body for enabling / disabling the version recency boost."""
+    enabled: bool
+
+
+@router.put("/{idx_id}/version-boost", response_model=IndexMeta, summary="Toggle version recency boost")
+async def set_version_boost(idx_id: str, body: VersionBoostUpdate):
+    """
+    Enable or disable the version recency boost for this index.
+
+    When enabled, products with higher model/generation numbers in their title
+    receive a small additive score bonus during search, so newer items (e.g. iPhone 16)
+    surface above older ones (e.g. iPhone 14) when relevance is otherwise equal.
+
+    The ``version_score`` per document is computed at ingest time from the product
+    title and stored as a Typesense field.  Rebuild the index after enabling this
+    flag if documents were ingested before the feature was added.
+    """
+    meta = await index_service.get_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    await index_service.set_version_boost(idx_id, body.enabled)
+    meta.version_boost = body.enabled
     return meta
 
 
@@ -732,9 +812,11 @@ async def list_documents(idx_id: str, page: int = 1, per_page: int = 20):
 
 
 class DocPatchRequest(BaseModel):
-    """Payload for editing a document's editorial signals (score and featured flag)."""
+    """Payload for editing a document's editorial signals (score, featured flag, boost queries)."""
     popularity: int | None = None
     is_featured: bool | None = None
+    boost_queries_equal: list[str] | None = None
+    boost_queries_contains: list[str] | None = None
 
 
 @router.patch("/{idx_id}/documents/{doc_id}", summary="Update document score / featured flag")
@@ -769,12 +851,18 @@ async def update_document(idx_id: str, doc_id: str, patch: DocPatchRequest):
     if patch.is_featured is not None:
         meta_dict["is_featured"] = patch.is_featured
 
-    # Write metadata blob + top-level fields so Typesense can sort/boost by them
+    # Write metadata blob + top-level fields so Typesense can sort/boost by them.
+    # boost_queries_* are top-level array fields (not in metadata) — Typesense needs
+    # them at the document root so the ranker can read them from search results.
     update_fields: dict = {"metadata": json.dumps(meta_dict)}
     if patch.popularity is not None:
         update_fields["popularity"] = patch.popularity
     if patch.is_featured is not None:
         update_fields["is_featured"] = patch.is_featured
+    if patch.boost_queries_equal is not None:
+        update_fields["boost_queries_equal"] = [s for s in patch.boost_queries_equal if s]
+    if patch.boost_queries_contains is not None:
+        update_fields["boost_queries_contains"] = [s for s in patch.boost_queries_contains if s]
 
     ok = ts.update_document_fields(col, doc_id, update_fields)
     if not ok:

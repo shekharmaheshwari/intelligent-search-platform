@@ -86,9 +86,12 @@ def create_collection(index_id: str, vec_dim: int | None = None) -> None:
             # manufacturer, etc.) survives into ISP-managed collections intact.
             {"name": "metadata",    "type": "string", "optional": True, "index": False},
             # Editorial signals — top-level so Typesense can sort and filter on them.
-            {"name": "popularity",  "type": "int32",   "optional": True, "sort": True},
-            {"name": "is_featured", "type": "bool",    "optional": True},
-            {"name": "vec",         "type": "float[]", "num_dim": dim, "optional": True},
+            {"name": "popularity",            "type": "int32",    "optional": True, "sort": True},
+            {"name": "is_featured",           "type": "bool",     "optional": True},
+            {"name": "version_score",         "type": "float",    "optional": True},
+            {"name": "boost_queries_equal",   "type": "string[]", "optional": True},
+            {"name": "boost_queries_contains","type": "string[]", "optional": True},
+            {"name": "vec",                   "type": "float[]",  "num_dim": dim, "optional": True},
         ],
     })
 
@@ -97,6 +100,35 @@ def drop_collection(index_id: str) -> None:
     """Delete an ISP-managed collection. Silently ignores missing collections."""
     try:
         get_client().collections[collection_name(index_id)].delete()
+    except Exception:
+        pass
+
+
+def migrate_isp_fields() -> None:
+    """
+    Idempotent schema migration: add new fields to every existing ``isp_*``
+    collection that does not yet have them.
+
+    Called once at startup so collections created before a schema change are
+    updated without requiring a full rebuild.  Errors are swallowed — a missing
+    field means the feature is simply inactive for that collection until rebuilt.
+    """
+    _new_fields = [
+        {"name": "version_score",          "type": "float",    "optional": True},
+        {"name": "boost_queries_equal",    "type": "string[]", "optional": True},
+        {"name": "boost_queries_contains", "type": "string[]", "optional": True},
+    ]
+    try:
+        client = get_client()
+        for col in client.collections.retrieve():
+            name = col["name"]
+            # Migrate ISP-managed collections and the shared catalog collection.
+            if not name.startswith("isp_") and name != "catalog":
+                continue
+            existing = {f["name"] for f in col.get("fields", [])}
+            to_add = [f for f in _new_fields if f["name"] not in existing]
+            if to_add:
+                client.collections[name].update({"fields": to_add})
     except Exception:
         pass
 
@@ -167,7 +199,14 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int)
     })
 
 
-def search_with_vec(index_id: str, q: str, vec: list[float], page: int, per_page: int) -> dict:
+def search_with_vec(
+    index_id: str,
+    q: str,
+    vec: list[float],
+    page: int,
+    per_page: int,
+    version_boost: bool = False,
+) -> dict:
     """
     Hybrid search via Typesense multi_search + Reciprocal Rank Fusion.
 
@@ -206,14 +245,23 @@ def search_with_vec(index_id: str, q: str, vec: list[float], page: int, per_page
                 **{d: doc for d, (_, doc) in sem_hits.items()}}
 
     # Editorial boosts — mirror the same logic in catalog.py _rrf_search.
-    # is_featured adds a large fixed bonus that overrides pure relevance order.
-    # popularity scales linearly (1 000 000 pop ≈ +0.5, same magnitude as featured).
+    # is_featured: large fixed bonus that overrides pure relevance order.
+    # popularity: linear scale (1 000 000 pop ≈ +0.5, same magnitude as featured).
+    # boost_queries_equal: +0.5 when the full query exactly matches a merchandising term.
+    # boost_queries_contains: +0.3 when the query contains a merchandising term.
+    q_lower = q.lower().strip()
     for did, doc in all_docs.items():
         if doc.get("is_featured"):
             scores[did] = scores.get(did, 0) + 0.5
         pop = doc.get("popularity") or 0
         if pop > 0:
             scores[did] = scores.get(did, 0) + min(int(pop), 1_000_000) / 2_000_000
+        boost_eq = doc.get("boost_queries_equal") or []
+        if isinstance(boost_eq, list) and q_lower in [t.lower() for t in boost_eq if t]:
+            scores[did] = scores.get(did, 0) + 0.5
+        boost_ct = doc.get("boost_queries_contains") or []
+        if isinstance(boost_ct, list) and any(t.lower() in q_lower for t in boost_ct if t):
+            scores[did] = scores.get(did, 0) + 0.3
 
     ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
     start = (page - 1) * per_page
