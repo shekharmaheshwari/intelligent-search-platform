@@ -30,8 +30,9 @@ def _row_to_meta(row: dict) -> IndexMeta:
         external_query_by=row["external_query_by"] or "display",
         external_title_field=row["external_title_field"] or "display",
         external_url_field=row["external_url_field"] or "",
-        # embed_model column added via ALTER TABLE; older rows will have NULL here
+        # embed_model / version_boost added via ALTER TABLE; older rows may be NULL
         embed_model=row.get("embed_model") or "",
+        version_boost=bool(row.get("version_boost") or False),
     )
 
 
@@ -151,6 +152,16 @@ async def update_index(meta: IndexMeta) -> None:
             json.dumps(meta.connectors), meta.collection_name, meta.is_external,
             meta.external_collection, meta.external_filter, meta.external_query_by,
             meta.external_title_field, meta.external_url_field, meta.embed_model,
+        )
+
+
+async def set_version_boost(idx_id: str, enabled: bool) -> None:
+    """Toggle the version recency boost for an index."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET version_boost = $1 WHERE id = $2",
+            enabled, idx_id,
         )
 
 

@@ -93,6 +93,23 @@
     modelErr = '';
     modelSaved = false;
   }
+
+  // ── Version boost toggle ──────────────────────────────────────────────────────
+
+  let versionBoostSaving = false;
+  let versionBoostErr = '';
+
+  async function toggleVersionBoost() {
+    if (!meta) return;
+    versionBoostSaving = true; versionBoostErr = '';
+    try {
+      meta = await indexService.setVersionBoost(indexId, !meta.versionBoost);
+    } catch (e) {
+      versionBoostErr = String(e);
+    } finally {
+      versionBoostSaving = false;
+    }
+  }
 </script>
 
 <div class="detail">
@@ -277,6 +294,33 @@
                 </p>
               {/if}
             </div>
+
+            <!-- Version boost card -->
+            <div class="setting-card">
+              <div class="setting-header">
+                <div class="setting-title-group">
+                  <span class="setting-title">Version boost</span>
+                  <span class="setting-hint">
+                    Favours newer product generations (e.g. iPhone 16 over iPhone 14) when
+                    relevance scores are close. Version number is extracted from the product
+                    title at index time — rebuild to apply to existing documents.
+                  </span>
+                </div>
+                <div class="setting-current">
+                  <label class="toggle-switch" aria-label="Toggle version boost">
+                    <input
+                      type="checkbox"
+                      checked={meta.versionBoost ?? false}
+                      disabled={versionBoostSaving}
+                      on:change={toggleVersionBoost}
+                    />
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="toggle-label">{meta.versionBoost ? 'On' : 'Off'}</span>
+                </div>
+              </div>
+              {#if versionBoostErr}<p class="err">{versionBoostErr}</p>{/if}
+            </div>
           </div>
 
         </div>
@@ -439,4 +483,25 @@
   .btn-save-model:disabled, .btn-cancel:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .model-saved { font-size: 12px; color: #5cdb85; margin: 0; }
+
+  /* Version boost toggle */
+  .toggle-switch {
+    position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; inset: 0; background: #2a2a2a; border-radius: 20px;
+    transition: background 0.2s;
+  }
+  .toggle-slider::before {
+    content: ''; position: absolute; width: 14px; height: 14px;
+    left: 3px; top: 3px; background: #888; border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .toggle-switch input:checked + .toggle-slider { background: #7c6cf4; }
+  .toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(16px); background: #fff;
+  }
+  .toggle-switch input:disabled + .toggle-slider { opacity: 0.4; cursor: not-allowed; }
+  .toggle-label { font-size: 12px; color: #888; min-width: 22px; }
 </style>

@@ -89,3 +89,7 @@ async def init_db() -> None:
             ALTER TABLE indexes
             ADD COLUMN IF NOT EXISTS embed_model VARCHAR(50) DEFAULT '';
         """)
+        await conn.execute("""
+            ALTER TABLE indexes
+            ADD COLUMN IF NOT EXISTS version_boost BOOLEAN DEFAULT FALSE;
+        """)

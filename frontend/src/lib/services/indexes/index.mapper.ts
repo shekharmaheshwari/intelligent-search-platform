@@ -23,6 +23,7 @@ export function mapIndexMetaToIndex(dto: IndexMeta): Index {
     externalTitleField: dto.external_title_field,
     externalUrlField: dto.external_url_field,
     embedModel: dto.embed_model ?? '',
+    versionBoost: dto.version_boost ?? false,
   };
 }
 
