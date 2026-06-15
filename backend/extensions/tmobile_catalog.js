@@ -99,6 +99,18 @@ function transform(doc) {
   var skuCodes   = skus.slice(0, 5).map(function(s) { return s.skuCode || ''; }).filter(Boolean);
   var colorNames = (doc.colorOptions || []).map(function(c) { return c && c.name ? c.name : ''; }).filter(Boolean);
 
+  // Badges live per-SKU in the T-Mobile API, not at product level — collect and deduplicate.
+  var badgeSet = {}, badges = [];
+  skus.forEach(function(sku) {
+    (sku.badges || []).forEach(function(b) {
+      if (b && b.label && !badgeSet[b.label]) { badgeSet[b.label] = true; badges.push(b); }
+    });
+  });
+  // Also include any top-level badges the API may add in future.
+  (doc.badges || []).forEach(function(b) {
+    if (b && b.label && !badgeSet[b.label]) { badgeSet[b.label] = true; badges.push(b); }
+  });
+
   return {
     id:               rawId,
     display:          display,
@@ -118,6 +130,9 @@ function transform(doc) {
     aliases:          aliases,
     tags:             tags,
     popularity:       Math.max(0, 1000 - rank * 10),
-    is_featured:      rank <= 5
+    is_featured:      rank <= 5,
+    // Pass raw badges through so chained extensions (e.g. version_score.js) can
+    // inspect them. Not stored in Typesense — consumed and discarded by the mapper.
+    badges:           badges
   };
 }
