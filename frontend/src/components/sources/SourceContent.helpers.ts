@@ -96,3 +96,16 @@ export function getIsFeatured(doc: DocumentItem): boolean {
   const meta = tryParseJson(doc.metadata as string | null ?? null);
   return Boolean(meta?.is_featured);
 }
+
+/**
+ * Extract a boost-queries array (``boost_queries_equal`` or ``boost_queries_contains``)
+ * from a document's top-level fields, always returning a plain string array.
+ */
+export function getBoostQueries(
+  doc: DocumentItem,
+  field: 'boost_queries_equal' | 'boost_queries_contains'
+): string[] {
+  const val = (doc as Record<string, unknown>)[field];
+  if (Array.isArray(val)) return val.map(String);
+  return [];
+}
