@@ -85,16 +85,20 @@ export class IndexRepository {
   /**
    * Partially update a document's editorial signals.
    *
-   * @param popularity  Search boost score (0 = neutral, higher = boosted).
-   * @param isFeatured  Whether to pin this document as a featured result.
+   * @param popularity      Search boost score (0 = neutral, higher = boosted).
+   * @param isFeatured      Whether to pin this document as a featured result.
+   * @param boostEqual      Queries that must exactly match to boost this document.
+   * @param boostContains   Query substrings that trigger a softer boost.
    */
   updateDocument(
     indexId: string,
     docId: string,
     popularity: number,
-    isFeatured: boolean
+    isFeatured: boolean,
+    boostEqual: string[],
+    boostContains: string[],
   ): Promise<{ ok: boolean }> {
-    return api.updateDocument(indexId, docId, popularity, isFeatured);
+    return api.updateDocument(indexId, docId, popularity, isFeatured, boostEqual, boostContains);
   }
 
   /**
@@ -122,6 +126,11 @@ export class IndexRepository {
    */
   setIndexEmbedModel(id: string, modelId: string): Promise<IndexMeta> {
     return api.setIndexEmbedModel(id, modelId);
+  }
+
+  /** Enable or disable the version recency boost for an index. */
+  setVersionBoost(id: string, enabled: boolean): Promise<IndexMeta> {
+    return api.setVersionBoost(id, enabled);
   }
 }
 

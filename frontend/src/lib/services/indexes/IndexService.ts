@@ -90,16 +90,20 @@ export class IndexService {
   /**
    * Partially update a document's editorial signals.
    *
-   * @param popularity  Boost score (0 = neutral).
-   * @param isFeatured  Whether to pin this document as a featured result.
+   * @param popularity      Boost score (0 = neutral).
+   * @param isFeatured      Whether to pin this document as a featured result.
+   * @param boostEqual      Queries that must exactly match to boost this document.
+   * @param boostContains   Query substrings that trigger a softer boost.
    */
   updateDocument(
     indexId: string,
     docId: string,
     popularity: number,
-    isFeatured: boolean
+    isFeatured: boolean,
+    boostEqual: string[],
+    boostContains: string[],
   ): Promise<{ ok: boolean }> {
-    return this.repo.updateDocument(indexId, docId, popularity, isFeatured);
+    return this.repo.updateDocument(indexId, docId, popularity, isFeatured, boostEqual, boostContains);
   }
 
   /**
@@ -127,6 +131,12 @@ export class IndexService {
    */
   async setIndexEmbedModel(id: string, modelId: string): Promise<Index> {
     const dto = await this.repo.setIndexEmbedModel(id, modelId);
+    return mapIndexMetaToIndex(dto);
+  }
+
+  /** Enable or disable the version recency boost for an index. */
+  async setVersionBoost(id: string, enabled: boolean): Promise<Index> {
+    const dto = await this.repo.setVersionBoost(id, enabled);
     return mapIndexMetaToIndex(dto);
   }
 }

@@ -18,7 +18,7 @@
   import {
     excerpt, fmtDate, connectorUrl, docFields,
     tryParseJson, isMetadataKey, formatValue, formatMetaValue,
-    getPopularity, getIsFeatured,
+    getPopularity, getIsFeatured, getBoostQueries,
   } from './SourceContent.helpers';
 
   export let index: IndexMeta;
@@ -102,6 +102,10 @@
   let editDoc: DocumentItem | null = null;
   let editPopularity = 0;
   let editIsFeatured = false;
+  let editBoostEqual: string[] = [];
+  let editBoostContains: string[] = [];
+  let boostEqualInput = '';
+  let boostContainsInput = '';
   let editSaving = false;
   let editErr = '';
 
@@ -109,23 +113,72 @@
     editDoc = doc;
     editPopularity = getPopularity(doc);
     editIsFeatured = getIsFeatured(doc);
+    editBoostEqual = getBoostQueries(doc, 'boost_queries_equal');
+    editBoostContains = getBoostQueries(doc, 'boost_queries_contains');
+    boostEqualInput = '';
+    boostContainsInput = '';
     editErr = '';
   }
 
-  function closeEdit() { editDoc = null; editErr = ''; }
+  function closeEdit() {
+    editDoc = null; editErr = '';
+    boostEqualInput = ''; boostContainsInput = '';
+  }
+
+  function addTag(arr: string[], input: string): { arr: string[]; input: string } {
+    const v = input.trim().toLowerCase();
+    if (v && !arr.includes(v)) arr = [...arr, v];
+    return { arr, input: '' };
+  }
+
+  function onBoostEqualKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const r = addTag(editBoostEqual, boostEqualInput);
+      editBoostEqual = r.arr; boostEqualInput = r.input;
+    }
+  }
+
+  function onBoostContainsKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const r = addTag(editBoostContains, boostContainsInput);
+      editBoostContains = r.arr; boostContainsInput = r.input;
+    }
+  }
 
   async function saveEdit() {
     if (!editDoc) return;
+    // Flush any uncommitted tag-input text before saving
+    if (boostEqualInput.trim()) {
+      const r = addTag(editBoostEqual, boostEqualInput);
+      editBoostEqual = r.arr; boostEqualInput = r.input;
+    }
+    if (boostContainsInput.trim()) {
+      const r = addTag(editBoostContains, boostContainsInput);
+      editBoostContains = r.arr; boostContainsInput = r.input;
+    }
     editSaving = true; editErr = '';
     try {
-      await indexService.updateDocument(index.id, editDoc.id, editPopularity, editIsFeatured);
+      await indexService.updateDocument(
+        index.id, editDoc.id,
+        editPopularity, editIsFeatured,
+        editBoostEqual, editBoostContains,
+      );
       const target = editDoc;
+      const bEq = [...editBoostEqual];
+      const bCt = [...editBoostContains];
       docs = docs.map(d => {
         if (d.id !== target.id) return d;
         const meta = tryParseJson(d.metadata as string | null ?? null) ?? {};
         meta.popularity = editPopularity;
         meta.is_featured = editIsFeatured;
-        return { ...d, metadata: JSON.stringify(meta) };
+        return {
+          ...d,
+          metadata: JSON.stringify(meta),
+          boost_queries_equal: bEq,
+          boost_queries_contains: bCt,
+        };
       });
       closeEdit();
     } catch (e) {
@@ -327,6 +380,44 @@
                   <span class="toggle-thumb"></span>
                 </span>
               </label>
+
+              <div class="edit-label">
+                <span>Boost if query equals</span>
+                <span class="edit-hint">+0.5 boost when search exactly matches — press Enter or , to add</span>
+                <div class="tag-input-wrap">
+                  {#each editBoostEqual as tag}
+                    <span class="tag tag-equal">
+                      {tag}
+                      <button class="tag-remove" on:click={() => { editBoostEqual = editBoostEqual.filter(t => t !== tag); }}>×</button>
+                    </span>
+                  {/each}
+                  <input
+                    class="tag-input"
+                    placeholder={editBoostEqual.length ? '' : 'e.g. iphone 16'}
+                    bind:value={boostEqualInput}
+                    on:keydown={onBoostEqualKey}
+                  />
+                </div>
+              </div>
+
+              <div class="edit-label">
+                <span>Boost if query contains</span>
+                <span class="edit-hint">+0.3 boost when search includes this word — press Enter or , to add</span>
+                <div class="tag-input-wrap">
+                  {#each editBoostContains as tag}
+                    <span class="tag tag-contains">
+                      {tag}
+                      <button class="tag-remove" on:click={() => { editBoostContains = editBoostContains.filter(t => t !== tag); }}>×</button>
+                    </span>
+                  {/each}
+                  <input
+                    class="tag-input"
+                    placeholder={editBoostContains.length ? '' : 'e.g. apple'}
+                    bind:value={boostContainsInput}
+                    on:keydown={onBoostContainsKey}
+                  />
+                </div>
+              </div>
             </div>
             {#if editErr}<p class="edit-err">{editErr}</p>{/if}
             <div class="edit-actions">
@@ -911,6 +1002,30 @@
   .toggle-track.on .toggle-thumb { transform: translateX(16px); background: #fff; }
 
   .edit-err { margin: 0; font-size: 12px; color: #e55; }
+
+  /* Tag input */
+  .tag-input-wrap {
+    display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+    background: #1a1a1a; border: 1px solid #2e2e2e; border-radius: 6px;
+    padding: 6px 8px; min-height: 36px; cursor: text;
+  }
+  .tag-input-wrap:focus-within { border-color: #7c6cf4; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; border-radius: 4px; padding: 2px 6px;
+  }
+  .tag-equal   { background: #1e2a40; color: #70a8ff; }
+  .tag-contains { background: #1e2a1e; color: #5cdb85; }
+  .tag-remove {
+    background: none; border: none; cursor: pointer; font-size: 13px;
+    line-height: 1; padding: 0; opacity: 0.6; color: inherit;
+  }
+  .tag-remove:hover { opacity: 1; }
+  .tag-input {
+    flex: 1; min-width: 80px; background: none; border: none;
+    color: #eee; font-size: 12px; outline: none; padding: 0;
+  }
+  .tag-input::placeholder { color: #444; }
 
   .edit-actions {
     display: flex;

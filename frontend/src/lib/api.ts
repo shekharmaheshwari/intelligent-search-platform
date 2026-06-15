@@ -105,13 +105,27 @@ export const api = {
    * Partially update a document's editorial signals.
    * Only the supplied fields are changed — the vector and all other content are untouched.
    *
-   * @param popularity  Search boost score (0 = neutral, higher = boosted).
-   * @param isFeatured  Whether to pin this document as a featured result.
+   * @param popularity       Search boost score (0 = neutral, higher = boosted).
+   * @param isFeatured       Whether to pin this document as a featured result.
+   * @param boostEqual       Queries that must exactly match to boost this document.
+   * @param boostContains    Query substrings that trigger a softer boost.
    */
-  updateDocument: (indexId: string, docId: string, popularity: number, isFeatured: boolean) =>
+  updateDocument: (
+    indexId: string,
+    docId: string,
+    popularity: number,
+    isFeatured: boolean,
+    boostEqual: string[],
+    boostContains: string[],
+  ) =>
     req<{ ok: boolean }>(`/indexes/${indexId}/documents/${docId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ popularity, is_featured: isFeatured }),
+      body: JSON.stringify({
+        popularity,
+        is_featured: isFeatured,
+        boost_queries_equal: boostEqual,
+        boost_queries_contains: boostContains,
+      }),
     }),
 
   /**
@@ -145,6 +159,13 @@ export const api = {
     req<IndexMeta>(`/indexes/${id}/embed-model`, {
       method: 'PUT',
       body: JSON.stringify({ model_id: modelId }),
+    }),
+
+  /** Enable or disable the version recency boost for an index. */
+  setVersionBoost: (id: string, enabled: boolean) =>
+    req<IndexMeta>(`/indexes/${id}/version-boost`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
     }),
 
   // ── Extensions library ─────────────────────────────────────────────────────
