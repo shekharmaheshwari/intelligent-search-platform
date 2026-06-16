@@ -93,7 +93,11 @@
       poll();
     } catch (e) {
       runState = 'error';
-      errMsg = String(e);
+      const msg = String(e);
+      // 409 means a job is already active (same-instance fast-path check)
+      errMsg = msg.includes('409')
+        ? 'A rebuild is already in progress for this index. Wait for it to finish before starting another.'
+        : msg;
     }
   }
 
