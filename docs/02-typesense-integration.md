@@ -22,14 +22,16 @@ Created by ISP when a user adds a new source via the Create Wizard.
     { "name": "source_type", "type": "string",   "facet": true },
     { "name": "indexed_at",  "type": "int64" },
     { "name": "metadata",    "type": "string",   "optional": true, "index": false },
-    { "name": "popularity",  "type": "int32",    "optional": true, "sort": true },
-    { "name": "is_featured", "type": "bool",     "optional": true },
-    { "name": "vec",         "type": "float[]",  "num_dim": 1024, "optional": true }
+    { "name": "popularity",             "type": "int32",    "optional": true, "sort": true },
+    { "name": "is_featured",            "type": "bool",     "optional": true },
+    { "name": "boost_queries_equal",    "type": "string[]", "optional": true },
+    { "name": "boost_queries_contains", "type": "string[]", "optional": true },
+    { "name": "vec",                    "type": "float[]",  "num_dim": 1024, "optional": true }
   ]
 }
 ```
 
-`metadata` is a serialised JSON string carrying rich product fields (images, price, manufacturer, etc.) that don't need to be indexed/searched directly.  `popularity` and `is_featured` are promoted to **top-level fields** with `sort: true` so the catalog router can apply score boosts without parsing the metadata blob.
+`metadata` is a serialised JSON string carrying rich product fields (images, price, manufacturer, etc.) that don't need to be indexed/searched directly.  `popularity`, `is_featured`, `boost_queries_equal`, and `boost_queries_contains` are promoted to **top-level fields** so the ranker can apply score boosts without parsing the metadata blob.
 
 ### 2. External Collections (e.g. `catalog`)
 Pre-existing Typesense collections created outside of ISP. ISP registers them as external sources and writes back to them during rebuild.
@@ -44,9 +46,11 @@ Pre-existing Typesense collections created outside of ISP. ISP registers them as
     { "name": "aliases",     "type": "string[]", "optional": true },
     { "name": "tags",        "type": "string[]", "facet": true, "optional": true },
     { "name": "segment",     "type": "string[]", "facet": true, "optional": true },
-    { "name": "popularity",  "type": "int32" },
-    { "name": "is_featured", "type": "bool",     "optional": true },
-    { "name": "created_at",  "type": "int64",    "optional": true },
+    { "name": "popularity",             "type": "int32" },
+    { "name": "is_featured",            "type": "bool",     "optional": true },
+    { "name": "boost_queries_equal",    "type": "string[]", "optional": true },
+    { "name": "boost_queries_contains", "type": "string[]", "optional": true },
+    { "name": "created_at",             "type": "int64",    "optional": true },
     { "name": "updated_at",  "type": "int64",    "optional": true },
     { "name": "vec",         "type": "float[]",  "num_dim": 1024, "optional": true }
   ],
@@ -92,20 +96,26 @@ rrf_score = 0.7 / (60 + lexical_rank + 1)
 
 Lexical gets 0.7 weight, semantic 0.3 — biased toward exact keyword precision while still surfacing conceptually similar results.
 
-### Editorial Boosts (catalog search only)
-After the RRF merge, the catalog router applies score bonuses before the final sort:
+### Editorial Boosts (applied after RRF)
+After the RRF merge, the ranker applies score bonuses before the final sort:
 
 ```
 if doc.is_featured:
-    score += 0.5            # large fixed bonus — always surfaces above pure relevance
+    score += 0.5                                   # always surfaces above pure relevance
 
 if doc.popularity > 0:
     score += min(popularity, 1_000_000) / 2_000_000
     # popularity=100 000 → +0.05
     # popularity=1 000 000 → +0.50  (max)
+
+if query (exact) in doc.boost_queries_equal:
+    score += 0.5                                   # merchandising pin for exact-match queries
+
+if any term in doc.boost_queries_contains is substring of query:
+    score += 0.3                                   # softer merchandising lift for contains-match
 ```
 
-These bonuses are applied to the top-level `popularity` and `is_featured` fields returned by Typesense (not the `metadata` blob), so they are always available without JSON parsing.
+All four signals read from top-level Typesense fields (never the `metadata` blob), so no JSON parsing is required at query time. See `docs/scoreBoost.md` for full magnitude tables and configuration guidance.
 
 ```
 ┌─────────────────────────────────────┐
@@ -181,7 +191,7 @@ client.collections["isp_{id}"].delete()
 
 ## Document Listing
 
-All listing calls include `"include_fields": "id, *, vec, metadata"` to explicitly return both the vector embedding and the metadata string (Typesense excludes `float[]` fields by default):
+Internal listing calls include `"include_fields": "id, *, vec, metadata"` to explicitly return both the vector embedding and the metadata string (Typesense excludes `float[]` fields by default):
 
 ```python
 params = {
@@ -194,20 +204,34 @@ params = {
 }
 ```
 
+**Public listing** (`/documents/public`) passes `exclude_fields: "vec"` instead, stripping the 1 024-float array (~4 KB per document) before the response leaves ISP:
+
+```python
+params["exclude_fields"] = "vec"   # omit include_fields override; use this instead
+```
+
+Ranking is identical — the vector is used for candidate retrieval inside ISP and discarded before serialisation.
+
 ---
 
 ## Partial Document Update
 
-Used by the admin UI "Edit" modal to update `popularity` and `is_featured` without re-indexing:
+Used by the admin UI "Edit" modal to update editorial fields without re-indexing:
 
 ```python
 client.collections[col].documents.import_(
-    [{"id": doc_id, "popularity": 100000, "is_featured": True}],
+    [{
+        "id": doc_id,
+        "popularity": 100000,
+        "is_featured": True,
+        "boost_queries_equal":    ["iphone 16 pro"],
+        "boost_queries_contains": ["iphone", "apple"],
+    }],
     {"action": "update"},
 )
 ```
 
-Only the supplied keys are overwritten.  The vector and all other content are untouched.
+Only the supplied keys are overwritten.  The vector and all other content are untouched. `boost_queries_equal` and `boost_queries_contains` are stored as top-level `string[]` fields (not inside `metadata`) so the ranker can read them without JSON parsing.
 
 ---
 

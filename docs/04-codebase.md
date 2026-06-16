@@ -6,7 +6,9 @@
 intelligent-search-platform/
 ├── backend/
 │   ├── extensions/                     # JS transform extensions (source of truth)
-│   │   └── tmobile_catalog.js          # T-Mobile API → catalog schema mapper
+│   │   ├── tmobile_catalog.js          # T-Mobile API → catalog schema mapper (run_order 0)
+│   │   ├── version_score.js            # version/badge popularity boost (run_order 1)
+│   │   └── merchandising_rules.js      # query-aware boost_queries stamping (run_order 2)
 │   ├── src/isp/
 │   │   ├── main.py                     # FastAPI app, lifespan, CORS, router registration
 │   │   ├── config.py                   # Settings from env vars (.env)
@@ -129,7 +131,9 @@ All configuration is read from environment variables or `.env`:
 | POST | `/v1/indexes/{id}/ingest/rest` | Start REST ingest (background) |
 | POST | `/v1/indexes/{id}/ingest/sitemap` | Start sitemap ingest (background) |
 | POST | `/v1/indexes/{id}/rebuild` | Rebuild source (background) |
-| GET | `/v1/indexes/{id}/documents` | List documents (paginated) |
+| GET | `/v1/indexes/{id}/documents` | List documents — includes `vec` (paginated) |
+| GET | `/v1/indexes/{id}/documents/public` | List documents — `vec` excluded (external consumers) |
+| PATCH | `/v1/indexes/{id}/documents/{doc_id}` | Update editorial fields without re-indexing |
 
 Key internal functions:
 - `_generic_catalog_mapper(item, idx)` — packages extension output (flat dict) into Typesense catalog schema. Makes no assumptions about API field names; that is the extension's job.
@@ -165,7 +169,10 @@ URL in search results is read directly from `metadata.url` — set by the JS ext
 
 | Method | Path | Action |
 |---|---|---|
-| POST | `/v1/indexes/{id}/search` | Search index (hybrid/lexical/semantic) |
+| POST | `/v1/indexes/{id}/search` | Search index (hybrid/lexical/semantic) — includes `vec` |
+| POST | `/v1/indexes/{id}/search/public` | Same search — `vec` excluded (external consumers) |
+
+Both routes share `_run_search(exclude_vec)` internally. Ranking is identical; the vector is used for candidate retrieval inside ISP and stripped before the response is serialised.
 
 ### `routers/content.py` — Generic Content API
 
@@ -214,11 +221,13 @@ All Typesense API calls. Key functions:
 - `create_collection(id)` / `drop_collection(id)` — ISP-managed collection lifecycle
 - `upsert_documents(id, docs)` — ISP-managed collections
 - `upsert_to_collection(col, docs)` — any collection (write-back to `catalog`)
-- `search_documents(id, q, mode, page, per_page)` — lexical search
-- `search_with_vec(id, q, vec, page, per_page)` — hybrid RRF (ISP collections)
-- `search_external(col, q, filter_by, query_by, vec, page, per_page)` — hybrid RRF (external collections)
-- `list_documents(id, page, per_page)` — list from ISP collection
-- `list_documents_external(col, filter_by, query_by, page, per_page)` — list from external collection
+- `search_documents(id, q, mode, page, per_page, exclude_vec)` — lexical search
+- `search_with_vec(id, q, vec, page, per_page, exclude_vec)` — hybrid RRF (ISP collections); applies `is_featured`, `popularity`, `boost_queries_equal`, `boost_queries_contains` boosts after RRF
+- `search_external(col, q, filter_by, query_by, vec, page, per_page, exclude_vec)` — hybrid RRF (external collections); same boost logic
+- `list_documents(id, page, per_page, exclude_vec)` — list from ISP collection
+- `list_documents_external(col, filter_by, query_by, page, per_page, exclude_vec)` — list from external collection
+
+All read functions accept `exclude_vec=False` (default).  Pass `True` for public-facing calls to strip the `vec` field via Typesense `exclude_fields: "vec"`.
 - `delete_from_collection(col, filter_by)` — delete by filter
 - `list_all_collections()` — used by auto-discovery
 - `count_external(col, filter_by)` — count for doc_count display
