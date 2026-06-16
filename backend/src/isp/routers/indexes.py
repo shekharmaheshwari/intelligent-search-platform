@@ -512,10 +512,22 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
     """
     Background task: fetch → apply extensions → embed → append to ISP collection.
 
-    Extension records are loaded from the database at run time so changes made
-    via the Extensions UI take effect on the next ingest without a restart.
+    Acquires a distributed Redis lock before starting so concurrent ingest runs
+    across multiple ISP instances are serialised.  Extension records are loaded
+    from the database at run time so changes made via the Extensions UI take
+    effect on the next ingest without a restart.
     """
     from isp.models import IngestStatus
+    from isp.services.infra import job_lock
+
+    token = await job_lock.acquire(idx_id)
+    if token is None:
+        s = IngestStatus(index_id=idx_id, state="error",
+                         error="Ingest already running on another instance — try again shortly")
+        await index_service.set_status(s)
+        return
+
+    hb = asyncio.create_task(job_lock.heartbeat(idx_id, token))
     s = IngestStatus(index_id=idx_id, state="running")
     await index_service.set_status(s)
     try:
@@ -584,6 +596,10 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
         s.state = "error"
         s.error = str(exc)
 
+    finally:
+        hb.cancel()
+        await job_lock.release(idx_id, token)
+
     await index_service.set_status(s)
 
 
@@ -597,6 +613,10 @@ async def ingest_rest(idx_id: str, cfg: RestConnectorConfig, bg: BackgroundTasks
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
+    existing = await index_service.get_status(idx_id)
+    if existing and existing.state in ("running", "queued"):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            detail="Ingest already in progress for this index")
     # Persist connector immediately so Rebuild panel pre-populates even before ingest finishes
     meta.connectors = [{"type": "rest", **cfg.model_dump()}]
     await index_service.update_index(meta)
@@ -617,6 +637,10 @@ async def ingest_sitemap(idx_id: str, cfg: SitemapConnectorConfig, bg: Backgroun
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
+    existing = await index_service.get_status(idx_id)
+    if existing and existing.state in ("running", "queued"):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            detail="Ingest already in progress for this index")
     meta.connectors = [{"type": "sitemap", **cfg.model_dump()}]
     await index_service.update_index(meta)
     bg.add_task(_run_ingest, idx_id, {"type": "sitemap", **cfg.model_dump()})
@@ -637,6 +661,9 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
     """
     Background task for full rebuild.
 
+    Acquires a distributed Redis lock before starting so concurrent rebuilds
+    across multiple ISP instances are serialised per index.
+
     Two paths depending on ``meta.external_collection``:
 
     **Catalog write-back path** (external sources like Phones, Accessories):
@@ -649,6 +676,16 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
       Drop+recreate ensures deleted API items are removed from Typesense.
     """
     from isp.models import IngestStatus
+    from isp.services.infra import job_lock
+
+    token = await job_lock.acquire(idx_id)
+    if token is None:
+        s = IngestStatus(index_id=idx_id, state="error",
+                         error="Rebuild already running on another instance — try again shortly")
+        await index_service.set_status(s)
+        return
+
+    hb = asyncio.create_task(job_lock.heartbeat(idx_id, token))
     s = IngestStatus(index_id=idx_id, state="running")
     await index_service.set_status(s)
     try:
@@ -763,6 +800,10 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         s.state = "error"
         s.error = str(exc)
 
+    finally:
+        hb.cancel()
+        await job_lock.release(idx_id, token)
+
     await index_service.set_status(s)
 
 
@@ -778,6 +819,10 @@ async def rebuild(idx_id: str, cfg: RebuildRequest, bg: BackgroundTasks):
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
+    existing = await index_service.get_status(idx_id)
+    if existing and existing.state in ("running", "queued"):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            detail="Rebuild already in progress for this index")
     cfg_dict = {"type": "rest", **cfg.model_dump()}
     bg.add_task(_run_rebuild, idx_id, cfg_dict)
     from isp.models import IngestStatus as IS

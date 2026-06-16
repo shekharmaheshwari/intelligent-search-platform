@@ -143,6 +143,8 @@ async def lifespan(app: FastAPI):
     Startup order matters: ``init_db`` must complete before ``_seed_extensions_from_files``
     because seeding reads and writes PostgreSQL tables.
     """
+    from isp.services.infra import job_lock
+    await job_lock.release_stale_for_instance()  # clear any locks left by a prior crash of this container
     await init_db()
     await load_embed_model()          # restore operator-chosen model before serving requests
     _ensure_catalog_collection()
