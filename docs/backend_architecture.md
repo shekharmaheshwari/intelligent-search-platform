@@ -1,6 +1,6 @@
 # Backend Architecture
 
-**Last Updated**: 2026-06-13
+**Last Updated**: 2026-06-16
 
 This document defines the structure, layers, and design decisions of the ISP backend: a FastAPI application that indexes content from REST APIs and sitemaps into Typesense, generates vector embeddings, and exposes hybrid search.
 
@@ -186,6 +186,7 @@ Six infrastructure services each wrap one external system:
 | `extension_runner.py`   | PyMiniRacer (V8)   | One V8 isolate per extension per batch; sync loop in thread pool  |
 | `rest_connector.py`     | httpx              | Fetch → extract → field-normalise → `DocumentItem` dicts         |
 | `sitemap_connector.py`  | httpx + BeautifulSoup | Fetch sitemap → crawl pages → extract text → `DocumentItem` dicts |
+| `job_lock.py`           | Redis (SET NX)     | Distributed mutex preventing concurrent rebuilds across instances |
 
 ```python
 # routers/indexes.py — correct infra import pattern
@@ -243,9 +244,12 @@ backend/
         extension_runner.py   ← PyMiniRacer V8 sandbox; apply_extensions(docs, extensions)
         rest_connector.py     ← httpx REST fetch; field-map renames; DocumentItem normalisation
         sitemap_connector.py  ← httpx sitemap crawl; BeautifulSoup HTML extraction
+        job_lock.py           ← Redis distributed lock for ingest/rebuild (acquire/release/heartbeat)
 
   extensions/
-    tmobile_catalog.js        ← seeded JS extension (T-Mobile catalog field mapper)
+    tmobile_catalog.js        ← seeded JS extension: T-Mobile API → catalog schema (run_order 0)
+    version_score.js          ← seeded JS extension: version/badge popularity boost (run_order 1)
+    merchandising_rules.js    ← seeded JS extension: boost_queries_equal/contains stamping (run_order 2)
 
   Dockerfile                  ← python:3.12-slim; installs via uv; CMD uvicorn isp.main:app
   pyproject.toml              ← dependencies, build config (hatchling)
@@ -384,14 +388,56 @@ Each extension must define `function transform(doc) { ...; return doc; }`. Compi
 ```python
 @asynccontextmanager
 async def lifespan(app):
-    await init_db()                      # 1. Create tables (idempotent IF NOT EXISTS)
-    await load_embed_model()             # 2. Restore operator's model choice from app_settings
-    _ensure_catalog_collection()         # 3. Create 'catalog' Typesense collection if absent
-    await _seed_extensions_from_files()  # 4. Upsert *.js files → extensions table → auto-assign to external indexes
+    await job_lock.release_stale_for_instance()  # 0. Clear Redis locks left by a prior crash of this container
+    await init_db()                              # 1. Create tables (idempotent IF NOT EXISTS)
+    await load_embed_model()                     # 2. Restore operator's model choice from app_settings
+    _ensure_catalog_collection()                 # 3. Create 'catalog' Typesense collection if absent
+    ts.migrate_isp_fields()                      # 4. Add new Typesense fields to existing collections
+    await _seed_extensions_from_files()          # 5. Upsert *.js files → extensions table → auto-assign to external indexes
     yield
 ```
 
-Order matters: `init_db` must complete before `_seed_extensions_from_files` because seeding writes to PostgreSQL tables.
+Order matters: `init_db` must complete before `_seed_extensions_from_files` because seeding writes to PostgreSQL tables. `release_stale_for_instance` runs first so no requests are served with orphaned locks still present.
+
+### Distributed Job Lock
+
+Prevents two ISP instances from rebuilding the same index simultaneously. Without this, concurrent rebuilds race to drop and recreate the Typesense collection, producing partial or corrupt data.
+
+```
+Instance A receives POST /rebuild for index X
+          │
+          ▼  (background task starts)
+    job_lock.acquire(idx_id)
+          │
+          ├── TRUE  → start heartbeat task → run rebuild → finally: cancel heartbeat + release lock
+          │
+          └── FALSE → set ingest_status = error("already running on another instance") → return
+
+Instance B receives POST /rebuild for index X at the same time
+          │
+          ▼  (background task starts, after A holds the lock)
+    job_lock.acquire(idx_id)  ← Redis SET NX returns nil → returns None
+          │
+          └── FALSE → surface error so UI poller stops waiting
+```
+
+**Redis key structure:**
+
+| Field  | Value                        |
+| ------ | ---------------------------- |
+| Key    | `isp:job:{idx_id}`           |
+| Value  | `{hostname}:{uuid4()}`       |
+| TTL    | 10 minutes (initial)         |
+
+Hostname is `socket.gethostname()` — stable within one Docker container across process restarts, unique across containers. Embedding the hostname in the value allows startup cleanup to identify stale locks from a prior crash of *this* container without SCAN-ing for PID matches.
+
+**Heartbeat:** a background `asyncio.Task` extends the TTL by 10 minutes every 5 minutes while the job runs. Long rebuilds (large catalogs) are kept alive indefinitely; a crashed instance unblocks in at most 10 minutes without a clean restart.
+
+**Release:** a Lua compare-and-delete script ensures only the lock holder can release it. Prevents instance A from releasing a key that instance B re-acquired after A's TTL expired.
+
+**Degraded mode:** if Redis is unreachable, `acquire` logs a warning and returns a token anyway so the rebuild proceeds — single-instance deployments and Redis outages do not block ingestion.
+
+**Endpoint fast-path:** before enqueuing the background task, the HTTP handler checks `ingest_status.state` and returns **HTTP 409** immediately if a job is already `running` or `queued`. This avoids the overhead of acquiring a Redis lock for the common same-instance duplicate-click case.
 
 ---
 
@@ -404,14 +450,16 @@ Order matters: `init_db` must complete before `_seed_extensions_from_files` beca
 | GET    | `/v1/indexes/{id}`                          | Get source metadata                              |
 | DELETE | `/v1/indexes/{id}`                          | Delete source + Typesense collection             |
 | POST   | `/v1/indexes/{id}/connectors`               | Add a connector config                           |
-| POST   | `/v1/indexes/{id}/ingest/rest`              | Trigger REST ingest (background)                 |
-| POST   | `/v1/indexes/{id}/ingest/sitemap`           | Trigger sitemap crawl (background)               |
-| POST   | `/v1/indexes/{id}/rebuild`                  | Full rebuild from stored connector config        |
-| GET    | `/v1/indexes/{id}/status`                   | Poll ingest/rebuild job state                    |
-| GET    | `/v1/indexes/{id}/documents`                | Paginated document listing                       |
-| PATCH  | `/v1/indexes/{id}/documents/{doc_id}`       | Partial document update (editorial boosts)       |
+| POST   | `/v1/indexes/{id}/ingest/rest`              | Trigger REST ingest (background); 409 if already running |
+| POST   | `/v1/indexes/{id}/ingest/sitemap`           | Trigger sitemap crawl (background); 409 if already running |
+| POST   | `/v1/indexes/{id}/rebuild`                  | Full rebuild (background); 409 if already running        |
+| GET    | `/v1/indexes/{id}/status`                   | Poll ingest/rebuild job state                            |
+| GET    | `/v1/indexes/{id}/documents`                | Paginated document listing — includes `vec`              |
+| GET    | `/v1/indexes/{id}/documents/public`         | Paginated document listing — `vec` excluded              |
+| PATCH  | `/v1/indexes/{id}/documents/{doc_id}`       | Partial document update (popularity, is_featured, boost_queries) |
+| POST   | `/v1/indexes/{id}/search`                   | Hybrid/lexical/semantic search — includes `vec`          |
+| POST   | `/v1/indexes/{id}/search/public`            | Same search — `vec` excluded (for external consumers)    |
 | POST   | `/v1/indexes/discover`                      | Scan Typesense for untracked external collections |
-| POST   | `/v1/indexes/{id}/search`                   | Hybrid/lexical/semantic search                   |
 | GET    | `/v1/extensions`                            | List global extension library                    |
 | POST   | `/v1/extensions`                            | Create extension                                 |
 | PUT    | `/v1/extensions/{id}`                       | Update extension                                 |
@@ -444,6 +492,8 @@ Order matters: `init_db` must complete before `_seed_extensions_from_files` beca
 | Calling `embedding_service` from a router                       | Embedding is infrastructure; router should not orchestrate multi-service calls  | Move the embed + search orchestration into a domain service      |
 | Mutating `settings` (the `config.py` singleton) at runtime     | `Settings` is loaded once; changes are invisible to other parts of the process  | Store runtime values in `app_settings` table; inject into module globals via `settings_service` |
 | Starting a background task with `asyncio.create_task`          | Task lifecycle is unmanaged; no status tracking; errors are silently lost        | Use FastAPI `BackgroundTasks`; update `ingest_status` row for progress |
+| Acquiring the job lock in the HTTP handler before `bg.add_task` | If the worker dies between acquire and task-start the lock is orphaned with no heartbeat to release it | Acquire the lock as the **first line of the background task** itself |
+| Calling `job_lock.release()` without cancelling the heartbeat task first | Heartbeat may re-extend a key after release, causing a new acquire to fail | Always `hb.cancel()` before `job_lock.release()` in the `finally` block |
 | Adding fields to `RestConnectorConfig` without defaults         | Breaks existing rows stored as JSON in the `connectors` JSONB column            | Always add new fields as `Optional` or with a default value      |
 
 ---
