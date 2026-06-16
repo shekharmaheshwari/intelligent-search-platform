@@ -114,24 +114,32 @@ Two read paths:
 
 ```
 ISP collection search (admin UI):
-  search_with_vec(id, q, vec, ...) → multi_search → RRF merge
+  search_with_vec(id, q, vec, ..., exclude_vec) → multi_search → RRF merge
+  + editorial boosts (is_featured +0.5, popularity scaled,
+                      boost_queries_equal +0.5, boost_queries_contains +0.3)
 
 Catalog / PLP search:
   _get_isp_collections() → discover all isp_* collections
-  multi_search across ALL isp_* → RRF merge
-  + editorial boosts (is_featured +0.5, popularity scaled)
+  multi_search across ALL isp_* → RRF merge + same editorial boosts
   (PLP no longer reads from catalog collection directly)
 
 External collection search (admin UI only):
-  search_external(col, q, filter_by, query_by, vec, ...) → same RRF logic
+  search_external(col, q, filter_by, query_by, vec, ..., exclude_vec)
   _wrap_external_results() → maps to ISP DocumentItem shape
+```
+
+Public variants strip `vec` from results before returning (`exclude_vec=True`):
+```
+POST /v1/indexes/{id}/search/public   → _run_search(exclude_vec=True)
+GET  /v1/indexes/{id}/documents/public → _list_docs(exclude_vec=True)
 ```
 
 Partial update (admin UI edit modal):
 ```
 PATCH /v1/indexes/{id}/documents/{doc_id}
-  → update_document_fields(col, doc_id, {popularity, is_featured, metadata})
+  → {popularity, is_featured, boost_queries_equal, boost_queries_contains}
   → action=update (only supplied keys overwritten, vector unchanged)
+  boost_queries_* stored as top-level string[] fields, not inside metadata
 ```
 
 ---
@@ -193,18 +201,28 @@ Thread executor (asyncio)
   — run in loop.run_in_executor(None, ...) to avoid blocking the event loop
 ```
 
+**Seeded extension files (run in `run_order` sequence):**
+
+| File | run_order | What it does |
+|---|---|---|
+| `tmobile_catalog.js` | 0 | Maps T-Mobile API response → catalog schema (title, url, skus, badges, images, price, popularity) |
+| `version_score.js` | 1 | Adds a small version/badge popularity signal to `popularity` field (NEW badge +0.5) |
+| `merchandising_rules.js` | 2 | Stamps `boost_queries_equal` / `boost_queries_contains` arrays by matching `doc.skus` against rule tables |
+
+`merchandising_rules.js` contains two editable rule tables (`BOOST_EQUAL`, `BOOST_CONTAINS`). Each rule maps a query term to a list of `skuCode` values. The Python ranker reads these arrays at query time to apply fixed score bonuses (+0.5 exact, +0.3 contains). See `docs/scoreBoost.md` for full details.
+
 **Full pipeline (catalog write-back):**
 ```
 1. fetch_raw_items(cfg)          — raw dicts from REST API
 2. item.setdefault("_isp_type", type_label)
                                   — inject device/accessory hint for JS
-3. apply_extensions(docs, ext_records)
-                                  — V8 isolates transform each doc
-                                  — output: flat dict with standard keys
-                                    (display, type, url, manufacturer, price, ...)
+3. apply_extensions(docs, ext_records)  — run_order: 0 → 1 → 2
+   ├─ tmobile_catalog.js         — map fields, set skus, badges, popularity
+   ├─ version_score.js           — adjust popularity for NEW badge items
+   └─ merchandising_rules.js     — stamp boost_queries_equal / _contains
 4. _generic_catalog_mapper(item, idx)
                                   — packages flat dict → Typesense catalog schema
-                                  — metadata stored as JSON string
+                                  — promotes boost_queries_* to top-level string[]
 5. embed_texts([display + description])
                                   — Voyage AI → vec
 6. upsert_to_collection("catalog", docs)
@@ -235,14 +253,13 @@ ISP indexes Phones and Accessories into ISP-managed `isp_*` collections.  The T-
 ISP Rebuild (Phones / Accessories — ISP managed)
   → fetch from T-Mobile product API
   → _infer_isp_type() → inject _isp_type = "device" | "accessory"
-  → apply T-Mobile Catalog Mapper extension (JS)
-      — maps familyName → title
-      — builds URL: https://www.t-mobile.com/cell-phone/{urlSlug}
-      — extracts price, images, SKUs from nested response
-      — sets popularity (rank-based) and is_featured (top-5 rank)
+  → apply extensions in run_order (JS)
+      — tmobile_catalog.js: maps familyName → title, builds URL, extracts price/images/SKUs, sets popularity
+      — version_score.js:   adjusts popularity for NEW badge items
+      — merchandising_rules.js: stamps boost_queries_equal / boost_queries_contains
   → _ensure_isp_schema() → ISP collection schema
       — packs images/price/manufacturer into metadata JSON
-      — promotes popularity + is_featured to top-level fields
+      — promotes popularity, is_featured, boost_queries_* to top-level fields
   → embed → drop + recreate isp_{id} → upsert all docs
 
 T-Mobile PLP (localhost:3000)
