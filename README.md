@@ -1,15 +1,14 @@
 # Intelligent Search Platform (ISP)
 
-A self-contained search backend that indexes content from REST APIs and sitemaps into [Typesense](https://typesense.org/), generates 1024-dim vector embeddings via [Voyage AI](https://www.voyageai.com/), and exposes hybrid (lexical + semantic) search. Ships with a Svelte management UI and powers the T-Mobile PLP product search.
+A self-contained search backend that indexes content from REST APIs and sitemaps into [Typesense](https://typesense.org/), generates 1024-dim vector embeddings via [Voyage AI](https://www.voyageai.com/), and exposes hybrid (lexical + semantic) search. Ships with a Svelte management UI, a JavaScript extension pipeline for field normalisation and merchandising, and public API endpoints for external consumers.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Copy env template
+# 1. Copy env template and add your Voyage AI key
 cp backend/.env.example backend/.env
-# Edit VOYAGE_API_KEY in .env
 
 # 2. Start everything (db → api → ui)
 ./deploy-all.sh
@@ -19,19 +18,19 @@ cp backend/.env.example backend/.env
 |---|---|
 | ISP Admin UI | http://localhost:3001 |
 | ISP API + Swagger | http://localhost:8001/docs |
-| T-Mobile PLP | http://localhost:3000 |
 
 ---
 
 ## Architecture
 
 ```
-Browser
+Browser (Admin UI / External App)
   └─► isp-ui :3001 (Astro + Svelte)
         └─► isp-api :8001 (FastAPI)
-              ├─► isp-db :5432 (PostgreSQL — metadata, connectors, extensions)
-              ├─► typesense :8108 (documents + vectors)
-              └─► Voyage AI (cloud — 1024-dim embeddings)
+              ├─► isp-db :5432      (PostgreSQL — metadata, connectors, extensions)
+              ├─► typesense :8108   (documents + 1024-dim vectors)
+              ├─► isp-redis :6379   (L2 embedding cache + distributed job lock)
+              └─► Voyage AI (cloud — embeddings)
 ```
 
 ---
@@ -40,54 +39,104 @@ Browser
 
 | Term | Meaning |
 |---|---|
-| **Index** | A named data source (e.g. *Phones*, *Blog*). Each index maps to a Typesense collection. |
+| **Index** | A named data source (e.g. *Products*, *Blog*). Each index maps to one Typesense collection. |
 | **Connector** | Config telling ISP where to fetch data: REST endpoint or sitemap URL. |
-| **Ingest** | Background job that fetches, transforms, embeds, and upserts documents. |
-| **Extension** | JavaScript `transform(doc)` function run inside a V8 isolate before indexing. Used to normalise API responses, compute URLs, rename fields. |
-| **Catalog** | Shared Typesense collection used by the T-Mobile PLP — ISP writes to it via rebuild. |
-| **External index** | ISP view over a pre-existing Typesense collection (e.g. `catalog`) that ISP did not create. |
+| **Ingest / Rebuild** | Background job: fetch → extensions → embed → upsert. Rebuild drops and recreates the collection; ingest appends. |
+| **Extension** | JavaScript `transform(doc)` function run in a V8 isolate before indexing. Chained by `run_order`. |
+| **External index** | ISP view over a pre-existing Typesense collection that ISP did not create. |
+| **Editorial boost** | Per-document ranking signals (`popularity`, `is_featured`, `boost_queries_equal`, `boost_queries_contains`) stored as top-level Typesense fields and applied after RRF fusion. |
+
+---
+
+## Hybrid Search
+
+ISP fuses BM25 lexical and cosine-similarity semantic results using **Reciprocal Rank Fusion**:
+
+```
+score(d) = 0.7 / (rank_lexical(d) + 60)
+         + 0.3 / (rank_semantic(d) + 60)
+```
+
+After RRF, four editorial signals are added:
+
+| Signal | Boost | Set by |
+|---|---|---|
+| `is_featured` | +0.50 | Edit modal — Featured toggle |
+| `popularity` | up to +0.50 | Edit modal or extension at index time |
+| `boost_queries_equal` | +0.50 | Edit modal or `merchandising_rules.js` |
+| `boost_queries_contains` | +0.30 | Edit modal or `merchandising_rules.js` |
+
+`boost_queries_equal` fires when the search query exactly matches a registered term; `boost_queries_contains` fires when the query contains it as a substring — enabling SKU-level query-aware merchandising without reindexing.
 
 ---
 
 ## Extension System
 
-Extensions are JavaScript files stored in `backend/extensions/*.js`. On startup ISP seeds them into the database and auto-assigns them to matching external indexes.
+Extensions are JavaScript files in `backend/extensions/*.js`. ISP seeds them into the database on startup and auto-assigns them to indexes based on the `@assign` header.
 
 ```js
-// backend/extensions/my_mapper.js
-// @name My API Mapper
-// @description Normalises MyAPI response to ISP catalog schema
+// @name       My API Mapper
+// @run_order  0
+// @assign     external
 
 function transform(doc) {
-  doc.display  = doc.productName;
-  doc.url      = 'https://example.com/product/' + doc.slug;
-  doc.price    = parseFloat(doc.msrp || 0);
+  doc.display    = doc.productName;
+  doc.url        = 'https://example.com/product/' + doc.slug;
+  doc.price      = parseFloat(doc.msrp || 0);
+  doc.popularity = Math.max(0, 1000 - (doc.rank || 999) * 10);
   return doc;
 }
 ```
 
-Each extension runs inside a PyMiniRacer V8 isolate — no filesystem, no network, pure JS only. Multiple extensions can be chained via `run_order`. The extension output feeds directly into the generic catalog mapper which packages the flat dict into the Typesense schema.
+Each extension runs inside a **PyMiniRacer V8 isolate** — no filesystem, no network, pure ECMAScript only. Chain multiple extensions by assigning them increasing `run_order` values. ISP ships three example extensions:
+
+| `run_order` | File | Purpose |
+|---|---|---|
+| 0 | `catalog_mapper.js` | Maps vendor API fields → ISP schema |
+| 1 | `version_score.js` | Adjusts `popularity` for new-badge items |
+| 2 | `merchandising_rules.js` | Stamps `boost_queries_equal` / `boost_queries_contains` by SKU |
+
+---
+
+## Public API
+
+External applications should use the `/public` endpoints which strip the `vec` embedding field (~4 KB per document) before responding. Ranking is identical.
+
+```bash
+# Search — no vec in response
+curl -X POST http://localhost:8001/v1/indexes/{id}/search/public \
+  -H "Content-Type: application/json" \
+  -d '{"q": "your query", "mode": "hybrid", "page": 1, "per_page": 10}'
+
+# List documents — no vec in response
+curl http://localhost:8001/v1/indexes/{id}/documents/public?page=1&per_page=20
+```
 
 ---
 
 ## API Reference
 
-Full Swagger UI available at **http://localhost:8001/docs**
+Full Swagger UI at **http://localhost:8001/docs**
 
-Key endpoint groups:
+| Method | Path | Purpose |
+|---|---|---|
+| GET/POST | `/v1/indexes` | List / create sources |
+| GET/DELETE | `/v1/indexes/{id}` | Get / delete a source |
+| POST | `/v1/indexes/{id}/ingest/rest` | Append from REST API |
+| POST | `/v1/indexes/{id}/ingest/sitemap` | Append from sitemap |
+| POST | `/v1/indexes/{id}/rebuild` | Full rebuild (drop + re-index) |
+| GET | `/v1/indexes/{id}/status` | Poll job state |
+| GET | `/v1/indexes/{id}/documents` | List documents (includes `vec`) |
+| GET | `/v1/indexes/{id}/documents/public` | List documents (no `vec`) |
+| PATCH | `/v1/indexes/{id}/documents/{doc_id}` | Update editorial fields without re-indexing |
+| POST | `/v1/indexes/{id}/search` | Hybrid/lexical/semantic search (includes `vec`) |
+| POST | `/v1/indexes/{id}/search/public` | Same search (no `vec`) |
+| GET/POST | `/v1/extensions` | Global extension library |
+| GET/POST | `/v1/indexes/{id}/extensions` | Per-index extension assignment |
+| GET/PUT | `/v1/settings` | Embedding model config |
+| GET | `/v1/content/{slug}/search` | Public slug-based search |
 
-| Prefix | Purpose |
-|---|---|
-| `GET/POST /v1/indexes` | Manage data sources |
-| `POST /v1/indexes/{id}/ingest/rest` | Fetch from REST API |
-| `POST /v1/indexes/{id}/rebuild` | Full rebuild with write-back |
-| `POST /v1/indexes/{id}/search` | Hybrid search |
-| `GET/POST /v1/extensions` | Global extension library |
-| `GET/POST /v1/indexes/{id}/extensions` | Per-index assignment |
-| `POST /v1/catalog` | PLP product search |
-| `GET /v1/catalog/facets` | Filter sidebar facets |
-| `GET /v1/suggest` | Typeahead autocomplete |
-| `GET /v1/content/{slug}` | Generic content API |
+Ingest and rebuild endpoints return **HTTP 409** if a job is already running for that index.
 
 ---
 
@@ -99,33 +148,38 @@ TYPESENSE_HOST=typesense
 TYPESENSE_PORT=8108
 TYPESENSE_API_KEY=local-dev-key-change-me
 DATABASE_URL=postgresql://isp:isp-dev-password@isp-db:5432/isp
-VOYAGE_API_KEY=<your-voyage-key>
+VOYAGE_API_KEY=<your-voyage-key>          # optional — falls back to lexical-only
 REDIS_URL=redis://isp-redis:6379/0
 EXTENSIONS_DIR=/app/extensions
 HOST=0.0.0.0
 PORT=8001
 ```
 
-`VOYAGE_API_KEY` is optional. If empty, ISP falls back to lexical-only search with no embeddings.
-
 ---
 
 ## Deployment Scripts
 
 ```bash
-./deploy-all.sh      # full stack (db → api → ui)
-./deploy-api.sh      # rebuild + restart backend only
+./deploy-all.sh      # full stack: db → api → ui
+./deploy-api.sh      # rebuild + restart backend only (use after any Python or .js change)
 ./deploy-ui.sh       # rebuild + restart frontend only
 ./deploy-db.sh       # start + wait for PostgreSQL
 ```
 
 ---
 
+## Multi-Instance Deployment
+
+ISP is safe to run behind a load balancer. A Redis-backed distributed lock prevents two instances from rebuilding the same index concurrently. The lock is acquired inside the background task (never in the HTTP handler), extended by a heartbeat every 5 minutes, and released in a `finally` block. A crashed container releases its stale locks automatically on restart.
+
+---
+
 ## Docs
 
-- **[Full Codebase Documentation](DOCUMENTATION.md)** — architecture, all modules and components, data flows, extension system, API reference, database schema, and deployment
 - [Application Overview](docs/01-application-overview.md)
 - [Typesense Integration](docs/02-typesense-integration.md)
 - [Database Schema](docs/03-database.md)
 - [Codebase Structure](docs/04-codebase.md)
 - [Component Integrations](docs/05-integrations.md)
+- [Backend Architecture](docs/backend_architecture.md)
+- [Score Boost Reference](docs/scoreBoost.md)
