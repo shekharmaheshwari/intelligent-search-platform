@@ -2,8 +2,8 @@
   /**
    * ApiPanel — API reference card for a specific index.
    *
-   * Shown in the IndexDetail "API" tab.  Renders copy-ready curl examples for
-   * hybrid and lexical search, plus the expected response JSON shape.
+   * Shown in the IndexDetail "API" tab. Renders copy-ready curl examples for
+   * both the internal (full) endpoints and the public (no-vec) endpoints.
    * The base URL is derived at runtime from ``window.location`` so examples
    * point at the correct host in both local and deployed environments.
    */
@@ -13,6 +13,14 @@
     ? `${window.location.protocol}//${window.location.hostname}:8001/v1`
     : 'http://localhost:8001/v1';
 
+  // ── Public endpoints ──────────────────────────────────────────────────────
+  const curlPublicSearch = `curl -X POST "${base}/indexes/${indexId}/search/public" \\
+  -H "Content-Type: application/json" \\
+  -d '{"q": "your query", "mode": "hybrid", "page": 1, "per_page": 10}'`;
+
+  const curlPublicDocs = `curl "${base}/indexes/${indexId}/documents/public?page=1&per_page=20"`;
+
+  // ── Internal endpoints ────────────────────────────────────────────────────
   const curlHybrid = `curl -X POST "${base}/indexes/${indexId}/search" \\
   -H "Content-Type: application/json" \\
   -d '{"q": "your query", "mode": "hybrid", "page": 1, "per_page": 10}'`;
@@ -20,6 +28,8 @@
   const curlLexical = `curl -X POST "${base}/indexes/${indexId}/search" \\
   -H "Content-Type: application/json" \\
   -d '{"q": "your query", "mode": "lexical", "page": 1, "per_page": 10}'`;
+
+  const curlDocs = `curl "${base}/indexes/${indexId}/documents?page=1&per_page=20"`;
 
   let copied = '';
 
@@ -32,99 +42,233 @@
 </script>
 
 <div class="api-panel">
-  <p class="intro">Use these endpoints to integrate search into your application.</p>
 
-  <section>
-    <div class="section-head">
-      <h3>POST /v1/indexes/{indexId}/search</h3>
+  <!-- ── Public API ──────────────────────────────────────────────────────── -->
+  <div class="api-group">
+    <div class="group-header">
+      <span class="group-title">Public API</span>
+      <span class="group-badge public-badge">No embeddings · For external consumers</span>
     </div>
-    <p class="desc">Search documents in this index. Supports hybrid, lexical, and semantic modes.</p>
+    <p class="group-desc">
+      Use these endpoints from external applications. The <code>vec</code> embedding
+      field is stripped before the response is sent, saving ~4 KB per document
+      (1 024 floats). Ranking is identical to the internal endpoints.
+    </p>
 
-    <div class="request-body">
-      <pre><code>{`{
-  "q": "string",         // search query
-  "mode": "hybrid",      // "hybrid" | "lexical" | "semantic"
-  "page": 1,
-  "per_page": 10
-}`}</code></pre>
-    </div>
-  </section>
+    <section>
+      <div class="section-head">
+        <div class="endpoint-line">
+          <span class="method post">POST</span>
+          <span class="path">/v1/indexes/{indexId}/search/public</span>
+        </div>
+        <button class="copy-btn" on:click={() => copy(curlPublicSearch, 'pub-search')}>
+          {copied === 'pub-search' ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <p class="desc">Hybrid / lexical / semantic search — response excludes <code>vec</code>.</p>
+      <pre class="code-block"><code>{curlPublicSearch}</code></pre>
+    </section>
 
-  <section>
-    <div class="section-head">
-      <span>Hybrid search</span>
-      <button class="copy-btn" on:click={() => copy(curlHybrid, 'hybrid')}>
-        {copied === 'hybrid' ? '✓ Copied' : 'Copy'}
-      </button>
-    </div>
-    <pre class="code-block"><code>{curlHybrid}</code></pre>
-  </section>
+    <section>
+      <div class="section-head">
+        <div class="endpoint-line">
+          <span class="method get">GET</span>
+          <span class="path">/v1/indexes/{indexId}/documents/public</span>
+        </div>
+        <button class="copy-btn" on:click={() => copy(curlPublicDocs, 'pub-docs')}>
+          {copied === 'pub-docs' ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <p class="desc">Paginated document listing — response excludes <code>vec</code>.</p>
+      <pre class="code-block"><code>{curlPublicDocs}</code></pre>
+    </section>
 
-  <section>
-    <div class="section-head">
-      <span>Lexical search</span>
-      <button class="copy-btn" on:click={() => copy(curlLexical, 'lexical')}>
-        {copied === 'lexical' ? '✓ Copied' : 'Copy'}
-      </button>
-    </div>
-    <pre class="code-block"><code>{curlLexical}</code></pre>
-  </section>
-
-  <section>
-    <h3>Response format</h3>
-    <pre class="code-block"><code>{`{
+    <section>
+      <div class="section-head"><span class="section-label">Public response format</span></div>
+      <pre class="code-block"><code>{`{
   "hits": [
     {
       "document": {
-        "id": "abc123",
-        "title": "Page Title",
-        "content": "Page content text…",
-        "url": "https://example.com/page",
-        "source_type": "sitemap",
-        "indexed_at": 1717000000
+        "id":          "abc123",
+        "title":       "iPhone 17e",
+        "content":     "iPhone 17e by Apple. iOS smartphone.",
+        "url":         "https://www.t-mobile.com/cell-phone/apple-iphone-17e",
+        "source_type": "device",
+        "indexed_at":  1749859200,
+        "popularity":  660,
+        "is_featured": false,
+        "metadata":    "{\"manufacturer\":\"Apple\",\"price\":499.99,...}"
+        // vec is omitted
       }
     }
   ],
   "found": 42,
   "page": 1
 }`}</code></pre>
-  </section>
+    </section>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── Internal API ────────────────────────────────────────────────────── -->
+  <div class="api-group">
+    <div class="group-header">
+      <span class="group-title">Internal API</span>
+      <span class="group-badge internal-badge">Includes embeddings · ISP use only</span>
+    </div>
+    <p class="group-desc">
+      Full documents including the <code>vec</code> field. Use these endpoints within
+      ISP or when the raw embedding vector is needed.
+    </p>
+
+    <section>
+      <div class="section-head">
+        <div class="endpoint-line">
+          <span class="method post">POST</span>
+          <span class="path">/v1/indexes/{indexId}/search</span>
+        </div>
+      </div>
+      <p class="desc">Request body — all fields optional except <code>q</code>.</p>
+      <pre class="code-block"><code>{`{
+  "q":        "string",   // search query
+  "mode":     "hybrid",   // "hybrid" | "lexical" | "semantic"
+  "page":     1,
+  "per_page": 10
+}`}</code></pre>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div class="endpoint-line">
+          <span class="method post">POST</span>
+          <span class="path">/v1/indexes/{indexId}/search</span>
+          <span class="mode-tag">hybrid</span>
+        </div>
+        <button class="copy-btn" on:click={() => copy(curlHybrid, 'hybrid')}>
+          {copied === 'hybrid' ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre class="code-block"><code>{curlHybrid}</code></pre>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div class="endpoint-line">
+          <span class="method post">POST</span>
+          <span class="path">/v1/indexes/{indexId}/search</span>
+          <span class="mode-tag">lexical</span>
+        </div>
+        <button class="copy-btn" on:click={() => copy(curlLexical, 'lexical')}>
+          {copied === 'lexical' ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre class="code-block"><code>{curlLexical}</code></pre>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div class="endpoint-line">
+          <span class="method get">GET</span>
+          <span class="path">/v1/indexes/{indexId}/documents</span>
+        </div>
+        <button class="copy-btn" on:click={() => copy(curlDocs, 'docs')}>
+          {copied === 'docs' ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <p class="desc">Paginated listing sorted by recency. Query params: <code>page</code>, <code>per_page</code>.</p>
+      <pre class="code-block"><code>{curlDocs}</code></pre>
+    </section>
+
+    <section>
+      <div class="section-head"><span class="section-label">Internal response format</span></div>
+      <pre class="code-block"><code>{`{
+  "hits": [
+    {
+      "document": {
+        "id":          "abc123",
+        "title":       "iPhone 17e",
+        "content":     "...",
+        "url":         "https://...",
+        "source_type": "device",
+        "indexed_at":  1749859200,
+        "vec":         [0.023, -0.041, ...] // 1 024 floats
+      }
+    }
+  ],
+  "found": 42,
+  "page": 1
+}`}</code></pre>
+    </section>
+  </div>
+
 </div>
 
 <style>
-  .api-panel { display: flex; flex-direction: column; gap: 24px; }
-  .intro { font-size: 13px; color: #777; margin: 0; }
-  section { display: flex; flex-direction: column; gap: 10px; }
-  h3 { font-size: 13px; color: #aaa; font-weight: 500; margin: 0; font-family: monospace; }
-  .section-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .api-panel { display: flex; flex-direction: column; gap: 0; }
+
+  .api-group { display: flex; flex-direction: column; gap: 18px; padding: 4px 0 24px; }
+
+  .group-header {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   }
-  .section-head span { font-size: 13px; color: #aaa; }
-  .desc { font-size: 12px; color: #666; margin: 0; }
-  .code-block, .request-body pre {
-    background: #0d0d0d;
-    border: 1px solid #1e1e1e;
-    border-radius: 7px;
-    padding: 14px 16px;
-    overflow-x: auto;
-    margin: 0;
+  .group-title { font-size: 13px; font-weight: 700; color: #ddd; }
+  .group-badge {
+    font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 10px; letter-spacing: 0.03em;
+  }
+  .public-badge  { background: #0d2a1f; color: #4cde93; border: 1px solid #1a4a30; }
+  .internal-badge { background: #1a1a2e; color: #7c7caa; border: 1px solid #2a2a44; }
+
+  .group-desc { font-size: 12px; color: #555; margin: 0; line-height: 1.6; }
+  .group-desc code { color: #9d91f5; background: #1a1a2e; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+
+  .divider { border: none; border-top: 1px solid #1a1a1a; margin: 8px 0 24px; }
+
+  section { display: flex; flex-direction: column; gap: 8px; }
+
+  .section-head {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+  .section-label { font-size: 12px; color: #555; }
+
+  .endpoint-line {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;
+  }
+
+  .method {
+    font-size: 10px; font-weight: 700; padding: 2px 6px;
+    border-radius: 4px; flex-shrink: 0; letter-spacing: 0.04em;
+  }
+  .post { background: #1e2a40; color: #70a8ff; }
+  .get  { background: #0d2a1f; color: #4cde93; }
+
+  .path {
+    font-size: 12px; color: #aaa; font-family: 'SF Mono', 'Fira Code', monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .mode-tag {
+    font-size: 10px; color: #666; background: #1a1a1a;
+    border: 1px solid #2a2a2a; border-radius: 4px; padding: 1px 6px; flex-shrink: 0;
+  }
+
+  .desc { font-size: 12px; color: #555; margin: 0; }
+  .desc code { color: #9d91f5; background: #1a1a2e; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+
+  .code-block {
+    background: #0d0d0d; border: 1px solid #1e1e1e;
+    border-radius: 7px; padding: 14px 16px;
+    overflow-x: auto; margin: 0;
   }
   code {
-    font-size: 12px;
-    color: #a8d8a8;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    white-space: pre;
+    font-size: 12px; color: #a8d8a8;
+    font-family: 'SF Mono', 'Fira Code', monospace; white-space: pre;
   }
+
   .copy-btn {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    color: #888;
-    border-radius: 5px;
-    padding: 4px 10px;
-    font-size: 11px;
-    cursor: pointer;
+    background: #1a1a1a; border: 1px solid #2a2a2a;
+    color: #888; border-radius: 5px;
+    padding: 4px 10px; font-size: 11px; cursor: pointer; flex-shrink: 0;
   }
   .copy-btn:hover { border-color: #7c6cf4; color: #9d91f5; }
 </style>
