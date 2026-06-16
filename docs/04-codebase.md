@@ -130,7 +130,8 @@ All configuration is read from environment variables or `.env`:
 | POST | `/v1/indexes/{id}/connectors/sitemap` | Save sitemap connector config (no crawl) |
 | POST | `/v1/indexes/{id}/ingest/rest` | Start REST ingest (background) |
 | POST | `/v1/indexes/{id}/ingest/sitemap` | Start sitemap ingest (background) |
-| POST | `/v1/indexes/{id}/rebuild` | Rebuild source (background) |
+| POST | `/v1/indexes/{id}/rebuild` | Rebuild source (background); **409** if already running |
+| GET | `/v1/indexes/{id}/status` | Poll ingest/rebuild job state |
 | GET | `/v1/indexes/{id}/documents` | List documents — includes `vec` (paginated) |
 | GET | `/v1/indexes/{id}/documents/public` | List documents — `vec` excluded (external consumers) |
 | PATCH | `/v1/indexes/{id}/documents/{doc_id}` | Update editorial fields without re-indexing |
@@ -138,8 +139,9 @@ All configuration is read from environment variables or `.env`:
 Key internal functions:
 - `_generic_catalog_mapper(item, idx)` — packages extension output (flat dict) into Typesense catalog schema. Makes no assumptions about API field names; that is the extension's job.
 - `_map_external_doc(raw, meta)` — converts raw Typesense doc to ISP DocumentItem shape for search results.
-- `_run_ingest(idx_id, connector_cfg)` — background task: fetch → extensions → embed → upsert.
-- `_run_rebuild(idx_id, cfg, type_label)` — background task for rebuilds; handles both catalog write-back and ISP-managed paths.
+- `_run_ingest(idx_id, connector_cfg)` — background task: acquire job lock → heartbeat → fetch → extensions → embed → upsert → release lock.
+- `_run_rebuild(idx_id, cfg_dict)` — background task: acquire job lock → heartbeat → fetch → extensions → embed → drop+recreate collection → upsert → release lock.
+- `_list_docs(idx_id, page, per_page, exclude_vec)` — shared helper for `/documents` and `/documents/public`.
 
 ### `routers/catalog.py` — PLP Product Search
 
@@ -228,6 +230,13 @@ All Typesense API calls. Key functions:
 - `list_documents_external(col, filter_by, query_by, page, per_page, exclude_vec)` — list from external collection
 
 All read functions accept `exclude_vec=False` (default).  Pass `True` for public-facing calls to strip the `vec` field via Typesense `exclude_fields: "vec"`.
+
+### `services/infra/job_lock.py`
+Redis-backed distributed mutex preventing concurrent ingest/rebuild runs across multiple ISP instances:
+- `acquire(idx_id)` — `SET NX EX 600`; returns a token string on success or `None` if another instance holds the lock. Degrades gracefully (returns token) when Redis is unreachable.
+- `release(idx_id, token)` — Lua compare-and-delete; only the lock holder can release.
+- `heartbeat(idx_id, token)` — async coroutine; extends TTL by 10 minutes every 5 minutes until cancelled. Run as an `asyncio.Task` alongside the background job.
+- `release_stale_for_instance()` — called at startup; scans `isp:job:*` keys and deletes any whose value starts with this container's hostname, clearing orphaned locks from a prior crash.
 - `delete_from_collection(col, filter_by)` — delete by filter
 - `list_all_collections()` — used by auto-discovery
 - `count_external(col, filter_by)` — count for doc_count display
