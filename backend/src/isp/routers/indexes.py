@@ -788,13 +788,9 @@ async def rebuild(idx_id: str, cfg: RebuildRequest, bg: BackgroundTasks):
 
 # ── Documents ─────────────────────────────────────────────────────────────────
 
-@router.get("/{idx_id}/documents", summary="Browse indexed documents")
-async def list_documents(idx_id: str, page: int = 1, per_page: int = 20):
-    """
-    Paginated list of documents in an index, sorted by recency.
-    For external/catalog sources the results come from the shared Typesense collection
-    filtered by this source's `external_filter`.
-    """
+async def _list_docs(idx_id: str, page: int, per_page: int,
+                    exclude_vec: bool = False) -> dict:
+    """Shared listing logic used by both /documents and /documents/public."""
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
@@ -805,10 +801,34 @@ async def list_documents(idx_id: str, page: int = 1, per_page: int = 20):
             meta.external_filter,
             meta.external_query_by,
             page, per_page,
+            exclude_vec=exclude_vec,
         )
         return _wrap_external_results(raw, meta)
 
-    return ts.list_documents(idx_id, page, per_page)
+    return ts.list_documents(idx_id, page, per_page, exclude_vec=exclude_vec)
+
+
+@router.get("/{idx_id}/documents", summary="Browse indexed documents")
+async def list_documents(idx_id: str, page: int = 1, per_page: int = 20):
+    """
+    Paginated list of documents in an index, sorted by recency.
+    Returns full documents including the ``vec`` embedding field.
+    Use ``/documents/public`` for external consumers.
+    """
+    return await _list_docs(idx_id, page, per_page, exclude_vec=False)
+
+
+@router.get("/{idx_id}/documents/public", summary="Browse documents — no embeddings",
+            tags=["public"])
+async def list_documents_public(idx_id: str, page: int = 1, per_page: int = 20):
+    """
+    Paginated document list with the ``vec`` embedding field stripped.
+
+    Intended for external applications that browse or display index content
+    without needing the raw embedding vectors.  Reduces response payload by
+    ~4 KB per document (1 024 floats × 4 bytes).
+    """
+    return await _list_docs(idx_id, page, per_page, exclude_vec=True)
 
 
 class DocPatchRequest(BaseModel):

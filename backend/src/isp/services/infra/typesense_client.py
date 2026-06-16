@@ -163,21 +163,26 @@ def count_documents(index_id: str) -> int:
         return 0
 
 
-def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int) -> dict:
+def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
+                     exclude_vec: bool = False) -> dict:
     """
     Single-pass lexical search on an ISP-managed collection.
 
     Hybrid mode falls back to lexical here; the caller (``search_with_vec``) handles
     the actual RRF merge when a query vector is available.
+
+    ``exclude_vec`` tells Typesense not to return the ``vec`` field at all so the
+    large embedding array is never transferred — useful for public-facing endpoints.
     """
     name = collection_name(index_id)
     client = get_client()
+    extra: dict = {"exclude_fields": "vec"} if exclude_vec else {}
 
     if mode == "semantic":
         return client.collections[name].documents.search({
             "q": "*", "query_by": "title",
-            "vector_query": f"vec:([],  k:{per_page})",   # placeholder; caller injects vec
-            "page": page, "per_page": per_page,
+            "vector_query": f"vec:([],  k:{per_page})",
+            "page": page, "per_page": per_page, **extra,
         })
 
     if mode == "lexical":
@@ -186,7 +191,7 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int)
             "query_by_weights": "2,1",
             "num_typos": 2,
             "sort_by": "is_featured:desc,_text_match:desc",
-            "page": page, "per_page": per_page,
+            "page": page, "per_page": per_page, **extra,
         })
 
     # hybrid — default
@@ -195,7 +200,7 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int)
         "query_by_weights": "2,1",
         "num_typos": 2,
         "sort_by": "is_featured:desc,_text_match:desc",
-        "page": page, "per_page": per_page,
+        "page": page, "per_page": per_page, **extra,
     })
 
 
@@ -206,6 +211,7 @@ def search_with_vec(
     page: int,
     per_page: int,
     version_boost: bool = False,
+    exclude_vec: bool = False,
 ) -> dict:
     """
     Hybrid search via Typesense multi_search + Reciprocal Rank Fusion.
@@ -218,18 +224,19 @@ def search_with_vec(
     name = collection_name(index_id)
     vec_str = ",".join(str(v) for v in vec)
     client = get_client()
+    extra: dict = {"exclude_fields": "vec"} if exclude_vec else {}
     resp = client.multi_search.perform({"searches": [
         {
             "collection": name,
             "q": q, "query_by": "title,content",
             "query_by_weights": "2,1",
-            "per_page": str(per_page * 3),
+            "per_page": str(per_page * 3), **extra,
         },
         {
             "collection": name,
             "q": "*", "query_by": "title",
             "vector_query": f"vec:([{vec_str}], k:{per_page * 3})",
-            "per_page": str(per_page * 3),
+            "per_page": str(per_page * 3), **extra,
         },
     ]}, {})
     results = resp.get("results", [{}, {}])
@@ -271,13 +278,15 @@ def search_with_vec(
             "page": page}
 
 
-def list_documents(index_id: str, page: int, per_page: int) -> dict:
+def list_documents(index_id: str, page: int, per_page: int,
+                   exclude_vec: bool = False) -> dict:
     """Paginated document listing for an ISP-managed collection, sorted by most recently indexed."""
+    fields = "id, *, metadata" if exclude_vec else "id, *, vec, metadata"
     return get_client().collections[collection_name(index_id)].documents.search({
         "q": "*", "query_by": "title",
         "sort_by": "indexed_at:desc",
         "page": page, "per_page": per_page,
-        "include_fields": "id, *, vec, metadata",
+        "include_fields": fields,
     })
 
 
@@ -297,15 +306,17 @@ def list_documents_external(
     query_by: str,
     page: int,
     per_page: int,
+    exclude_vec: bool = False,
 ) -> dict:
     """Paginated document listing from an external (non-ISP) Typesense collection."""
+    fields = "id, *, metadata" if exclude_vec else "id, *, vec, metadata"
     params: dict = {
         "q": "*",
         "query_by": query_by or "display",
         "sort_by": "popularity:desc",
         "page": page,
         "per_page": per_page,
-        "include_fields": "id, *, vec, metadata",
+        "include_fields": fields,
     }
     if filter_by:
         params["filter_by"] = filter_by
@@ -320,6 +331,7 @@ def search_external(
     vec: list[float] | None,
     page: int,
     per_page: int,
+    exclude_vec: bool = False,
 ) -> dict:
     """
     Search an external Typesense collection with optional hybrid RRF.
@@ -329,13 +341,14 @@ def search_external(
     ``filter_by`` is applied to both passes so external source isolation is preserved.
     """
     qb = query_by or "display"
+    fields = "id, *, metadata" if exclude_vec else "id, *, vec, metadata"
     params: dict = {
         "q": q or "*",
         "query_by": qb,
         "num_typos": 2,
         "page": page,
         "per_page": per_page,
-        "include_fields": "id, *, vec, metadata",
+        "include_fields": fields,
     }
     if filter_by:
         params["filter_by"] = filter_by
@@ -348,7 +361,7 @@ def search_external(
             "query_by": qb,
             "vector_query": f"vec:([{vec_str}], k:{per_page * 3})",
             "per_page": str(per_page * 3),
-            "include_fields": "id, *, vec, metadata",
+            "include_fields": fields,
         }
         if filter_by:
             sem_params["filter_by"] = filter_by

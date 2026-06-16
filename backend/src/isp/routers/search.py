@@ -19,26 +19,13 @@ from isp.routers.indexes import _wrap_external_results
 router = APIRouter(prefix="/indexes", tags=["search"])
 
 
-@router.post("/{idx_id}/search", summary="Search an index")
-async def search(idx_id: str, req: SearchRequest):
-    """
-    Search documents in an index using the specified mode:
-
-    - **lexical** — BM25 full-text search via Typesense (fast, exact keyword matching).
-    - **semantic** — vector nearest-neighbour search using Voyage AI `voyage-3` embeddings
-      (finds conceptually similar results even without exact keyword matches).
-    - **hybrid** — RRF fusion of lexical (weight 0.7) and semantic (weight 0.3) results,
-      offering the best of both. This is the default mode.
-
-    Query embeddings are served from a two-tier cache (in-memory LRU → Redis) so repeated
-    queries do not incur additional Voyage AI API calls.
-    """
+async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False) -> dict:
+    """Shared search logic used by both /search and /search/public."""
     meta = await index_service.get_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
 
     mode = req.mode or "hybrid"
-    # Use this index's dedicated embedding model, or fall back to the global default.
     effective_model = meta.embed_model or embedding_service.get_current_model()
 
     if meta.is_external:
@@ -53,6 +40,7 @@ async def search(idx_id: str, req: SearchRequest):
             vec,
             req.page,
             req.per_page,
+            exclude_vec=exclude_vec,
         )
         return _wrap_external_results(raw, meta)
 
@@ -62,6 +50,39 @@ async def search(idx_id: str, req: SearchRequest):
             return ts.search_with_vec(
                 idx_id, req.q, vec, req.page, req.per_page,
                 version_boost=meta.version_boost,
+                exclude_vec=exclude_vec,
             )
 
-    return ts.search_documents(idx_id, req.q, "lexical", req.page, req.per_page)
+    return ts.search_documents(idx_id, req.q, "lexical", req.page, req.per_page,
+                               exclude_vec=exclude_vec)
+
+
+@router.post("/{idx_id}/search", summary="Search an index")
+async def search(idx_id: str, req: SearchRequest):
+    """
+    Search documents in an index using the specified mode:
+
+    - **lexical** — BM25 full-text search via Typesense (fast, exact keyword matching).
+    - **semantic** — vector nearest-neighbour search using Voyage AI embeddings.
+    - **hybrid** — RRF fusion of lexical (weight 0.7) and semantic (weight 0.3) results.
+
+    Returns full documents including the ``vec`` embedding field.
+    Use ``/search/public`` when the caller does not need the embedding vector.
+    """
+    return await _run_search(idx_id, req, exclude_vec=False)
+
+
+@router.post("/{idx_id}/search/public", summary="Search an index — no embeddings",
+             tags=["public"])
+async def search_public(idx_id: str, req: SearchRequest):
+    """
+    Identical to ``/search`` but strips the ``vec`` embedding field from every
+    result document before returning.
+
+    Use this endpoint from external applications and integrations to avoid
+    transferring 1 024-float arrays (~4 KB per document) that are only needed
+    internally for semantic ranking.  The ranking itself is unaffected — vectors
+    are used during candidate retrieval inside ISP and discarded before the
+    response is serialised.
+    """
+    return await _run_search(idx_id, req, exclude_vec=True)
