@@ -58,6 +58,8 @@ class IndexCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     description: str = ""
     embed_model: str = ""  # empty string means "use the global default at ingest time"
+    intent_label: str = ""  # semantic category for intent detection
+    slug: str = ""  # URL-friendly identifier; auto-generated from name if omitted
 
 
 class ConnectorAdd(BaseModel):
@@ -91,6 +93,8 @@ class IndexMeta(BaseModel):
     external_url_field: str = ""
     embed_model: str = ""  # empty string means "use the global default at ingest/search time"
     version_boost: bool = False  # when True, newer product generations rank higher in search results
+    intent_label: str = ""  # semantic category for intent detection (e.g. "device", "accessory", "smartwatch", "tablet")
+    slug: str = ""  # URL-friendly identifier enabling /v1/indexes/{slug}/... resolution
 
 
 class IngestStatus(BaseModel):
