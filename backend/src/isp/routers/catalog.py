@@ -192,7 +192,7 @@ async def intent_tab(q: str = Query(..., description="Search query")):
 
     q_stripped = q.strip()
     if not q_stripped:
-        return {"tab": "device", "confidence": 1.0, "scores": {"device": 1.0}}
+        return {"tab": None, "confidence": 0.0, "scores": {}}
 
     # Build collection → (intent_label, doc_count) map from DB — no hardcoded IDs.
     all_indexes = await list_indexes()
@@ -203,7 +203,7 @@ async def intent_tab(q: str = Query(..., description="Search query")):
     }
 
     if not col_meta:
-        return {"tab": "device", "confidence": 0.6, "scores": {"device": 0.6}}
+        return {"tab": None, "confidence": 0.0, "scores": {}}
 
     cols = list(col_meta.keys())
     global_model = embedding_service.get_current_model()
@@ -279,7 +279,7 @@ async def intent_tab(q: str = Query(..., description="Search query")):
     except Exception:
         pass
 
-    return {"tab": "device", "confidence": 0.6, "scores": {"device": 0.6}}
+    return {"tab": None, "confidence": 0.0, "scores": {}}
 
 
 # ── POST /v1/catalog ──────────────────────────────────────────────────────────
