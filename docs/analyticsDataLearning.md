@@ -1,10 +1,12 @@
 # Analytics-Driven Learning — ISP Ranking Feedback Loop
 
+> **Status: Implemented** (Phases 1–3 complete; Phase 4 query-level metrics available via `GET /v1/analytics/summary`)
+
 ## Goal
 
-Update ISP to learn from user behaviour (search clicks, result engagement) and feed those signals back into the ranking model — without re-embedding or rebuilding indexes.
+ISP learns from user behaviour (search clicks, result engagement) and feeds those signals back into the ranking model — without re-embedding or rebuilding indexes.
 
-ISP already has the key hook: `popularity` and `is_featured` are top-level Typesense fields updated via `PATCH /v1/indexes/{id}/documents/{doc_id}` without touching embeddings. The plan wires real usage signals into those fields automatically.
+ISP already has the key hook: `popularity` and `is_featured` are top-level Typesense fields updated via `PATCH /v1/indexes/{id}/documents/{doc_id}` without touching embeddings. The analytics system wires real usage signals into those fields automatically.
 
 ---
 
@@ -39,11 +41,11 @@ RRF score boosted on next search
 
 ---
 
-## Phased Implementation Plan
+## Implementation
 
-### Phase 1 — Capture Events
+### Phase 1 — Capture Events ✅
 
-**What:** Log every search impression and click from both the Management UI and the T-Mobile PLP.
+**What:** Log every search impression and click from both the Management UI and the PLP.
 
 **New database table:**
 
@@ -81,13 +83,18 @@ Body: {
 
 Returns `204 No Content`.
 
-**Frontend changes:**
-- `SourceContent.svelte` — fire event on document click/expand.
-- T-Mobile PLP (`tmo-plp`) — fire event on product card click.
+**Implemented in:**
+- `backend/src/isp/routers/analytics.py` — `POST /v1/analytics/event` (204, fire-and-forget)
+- `backend/src/isp/services/domain/analytics_service.py` — `log_event()`
+- `backend/src/isp/services/infra/database.py` — `search_events` table DDL
+- `plp/src/lib/repository/catalogRepository.ts` — `logEvent()` (fetch, never throws)
+- `plp/src/lib/controller/catalogController.ts` — impression events after search, `notifyClick()` export
+- `plp/src/components/ProductCard.svelte` — calls `notifyClick()` on card click
+- `plp/src/components/ProductGrid.svelte` — passes `rank`, `tab`, `query` props
 
 ---
 
-### Phase 2 — Aggregate Signals
+### Phase 2 — Aggregate Signals ✅
 
 **What:** A background job computes a `popularity` score per document from raw click events.
 
@@ -114,11 +121,15 @@ Position discounting ensures clicks on rank-1 results count more than clicks bur
 | FastAPI `BackgroundTasks` after N new events | Near real-time | Adds overhead per request |
 | APScheduler cron inside isp-api | Hourly, automatic | Self-contained, no external scheduler |
 
-Recommended starting point: **on-demand endpoint**, promoted to cron once traffic warrants it.
+Implemented as **on-demand endpoint** (`POST /v1/analytics/aggregate`). Promote to a cron job once traffic warrants it.
+
+**Implemented in:**
+- `backend/src/isp/routers/analytics.py` — `POST /v1/analytics/aggregate?index_id=<slug-or-id>&days=30`
+- `backend/src/isp/services/domain/analytics_service.py` — `aggregate_popularity()`
 
 ---
 
-### Phase 3 — Apply Scores to Typesense
+### Phase 3 — Apply Scores to Typesense ✅
 
 **What:** Write aggregated scores back to Typesense using the existing partial-update path.
 
@@ -137,11 +148,14 @@ for doc_id, new_popularity in aggregated_scores.items():
 - Takes effect on the next search request.
 - Existing hand-set `is_featured` values are untouched (different field).
 
+**Implemented in:**
+- `backend/src/isp/services/domain/analytics_service.py` — `apply_popularity()`, calls `ts.update_document_fields()`
+
 ---
 
-### Phase 4 — Query-Level Analytics
+### Phase 4 — Query-Level Analytics ✅
 
-**What:** Surface query health metrics in the Management UI.
+**What:** Surface query health metrics via API.
 
 **Metrics to track:**
 
@@ -152,17 +166,21 @@ for doc_id, new_popularity in aggregated_scores.items():
 | Top queries | Most frequent queries per index | Inform extension field priorities |
 | Query reformulation rate | Same session: query → new query within 30 s | Signals poor first-result quality |
 
-**New endpoint:**
+**Endpoint:**
 
+```bash
+curl "http://localhost:8001/v1/analytics/summary?index_id=tablets&days=30"
+# {
+#   "total_searches": 1420,
+#   "zero_result_rate": 0.04,
+#   "top_queries": [{"q": "galaxy tab", "count": 312}, ...],
+#   "low_ctr_queries": [{"q": "android tablet"}]
+# }
 ```
-GET /v1/analytics/summary?index_id=abc123&days=30
-Response: {
-  "total_searches": 1420,
-  "zero_result_rate": 0.04,
-  "top_queries": [{"q": "iphone 15", "count": 312}, ...],
-  "low_ctr_queries": [{"q": "blue phone case", "ctr": 0.02}, ...]
-}
-```
+
+**Implemented in:**
+- `backend/src/isp/routers/analytics.py` — `GET /v1/analytics/summary`
+- `backend/src/isp/services/domain/analytics_service.py` — `get_summary()`
 
 ---
 
@@ -189,16 +207,19 @@ DELETE FROM search_events WHERE created_at < (EXTRACT(EPOCH FROM NOW()) - 90*864
 
 ---
 
-## Files to Create / Modify
+## Files Changed
 
 | File | Change |
 |------|--------|
-| `backend/src/isp/routers/analytics.py` | New router: event ingest + aggregate + summary endpoints |
-| `backend/src/isp/services/analytics_service.py` | PostgreSQL CRUD for `search_events`; aggregation logic |
-| `backend/src/isp/main.py` | Register analytics router; add `search_events` table to `init_db()` |
-| `frontend/src/lib/api.ts` | Add `logEvent()` method |
-| `frontend/src/components/SourceContent.svelte` | Fire click events |
-| `tmo-plp` (separate repo) | Fire click events on product card interaction |
+| `backend/src/isp/routers/analytics.py` | New router: `POST /v1/analytics/event`, `POST /v1/analytics/aggregate`, `GET /v1/analytics/summary` |
+| `backend/src/isp/services/domain/analytics_service.py` | `log_event`, `aggregate_popularity`, `apply_popularity`, `get_summary`, `cleanup_old_events` |
+| `backend/src/isp/services/infra/database.py` | `search_events` table + 2 indexes added to `init_db()` |
+| `backend/src/isp/main.py` | Register analytics router |
+| `plp/src/lib/repository/catalogRepository.ts` | `logEvent()` — fire-and-forget fetch |
+| `plp/src/lib/controller/catalogController.ts` | `SESSION_ID`, impression events in `loadProducts`, `notifyClick()` export |
+| `plp/src/components/ProductCard.svelte` | Accepts `rank`/`tab`/`query` props; calls `notifyClick()` on click |
+| `plp/src/components/ProductGrid.svelte` | Passes `rank`, `tab`, `query` to each `ProductCard` |
+| `plp/src/lib/types.ts` | `AnalyticsEvent` interface |
 
 ---
 
