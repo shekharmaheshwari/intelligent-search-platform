@@ -49,11 +49,11 @@ GET /v1/intent/tab?q=<query>
 }
 ```
 
-| Field        | Description                                                          |
-|--------------|----------------------------------------------------------------------|
-| `tab`        | The winning `intent_label` — the label of the best-matching index   |
-| `confidence` | Winning score divided by the sum of all scores — in (0, 1]          |
-| `scores`     | Per-label scores used to select the winner                          |
+| Field        | Description                                                                                        |
+|--------------|----------------------------------------------------------------------------------------------------|
+| `tab`        | The winning `intent_label`, or `null` when intent cannot be determined (see *Null response* below) |
+| `confidence` | Winning score divided by the sum of all scores — in (0, 1]; `0.0` when `tab` is `null`            |
+| `scores`     | Per-label scores used to select the winner; empty object `{}` when `tab` is `null`                |
 
 **Examples**
 
@@ -73,7 +73,22 @@ curl 'http://localhost:8001/v1/intent/tab?q=galaxy+tab'
 # Accessory query
 curl 'http://localhost:8001/v1/intent/tab?q=phone+case+charger'
 # {"tab":"accessory","confidence":0.36,"scores":{"device":0.67,"accessory":0.72,"smartwatch":0.63,"tablet":0.64}}
+
+# No intent_label configured / empty query / embedding failure
+# {"tab":null,"confidence":0.0,"scores":{}}
 ```
+
+**Null response**
+
+`tab` is `null` (and `scores` is `{}`) in three cases:
+
+| Condition | Reason |
+|-----------|--------|
+| Empty or whitespace-only `q` | No query to classify |
+| No indexes have `intent_label` set | Nothing to compare against |
+| Embedding failure or all scores zero | Ambiguous result — caller decides the fallback |
+
+Callers must treat `null` as "no opinion" and apply their own default (e.g. stay on the current tab).
 
 ---
 
@@ -134,7 +149,7 @@ best_label = argmax(label_score)
 confidence = label_score[best_label] / sum(all_scores)
 ```
 
-If all scores are zero (e.g. embedding service down, no indexed documents), the endpoint falls back to `device` with `confidence: 0.6`.
+If all scores are zero (e.g. embedding service down, no indexed documents), the endpoint returns `{"tab": null, "confidence": 0.0, "scores": {}}`. ISP does not know which tab is the caller's default — that decision belongs to the consumer.
 
 ### 4. Parallel Typesense multi_search
 
@@ -218,7 +233,8 @@ If the intent API returns a label not present in this map, the PLP stays on the 
 ```typescript
 if (!options.skipIntent && state.query.trim().length > 1) {
   const intent = await getTabIntent(state.query.trim());
-  const intentTab = INTENT_TO_TAB[intent.tab] ?? state.tab;
+  // intent.tab is null when ISP has no opinion — fall back to current tab.
+  const intentTab = (intent.tab ? INTENT_TO_TAB[intent.tab] : undefined) ?? state.tab;
   if (intentTab !== state.tab) {
     navigateToTab(intentTab, state.query.trim()); // full page navigation
     return;
@@ -226,7 +242,7 @@ if (!options.skipIntent && state.query.trim().length > 1) {
 }
 ```
 
-`skipIntent` is set to `true` when the user explicitly clicks a tab, so a manual tab selection is never overridden by intent.
+`skipIntent` is set to `true` when the user explicitly clicks a tab, so a manual tab selection is never overridden by intent. When `tab` is `null` the `?? state.tab` fallback keeps the user on their current tab.
 
 ---
 
