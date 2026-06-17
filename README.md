@@ -178,12 +178,26 @@ ISP records every search impression and product click in a `search_events` Postg
 
 ### Event ingestion
 
-The PLP fires one event per impression (when results are displayed) and one click event when the user opens a product card. Both are sent to the same endpoint:
+The PLP uses two separate endpoints — one batch call per search for impressions, and one call per click:
 
 ```bash
-# Impression (clicked: false) — logged automatically by the PLP after each search
-# Click (clicked: true) — logged when the user clicks a product card
-curl -X POST http://localhost:8001/v1/analytics/event \
+# All impressions from one search — one request regardless of result count
+curl -X POST http://localhost:8001/v1/analytics/impressions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "index_id":   "tablets",
+    "session_id": "anon-uuid-per-page-load",
+    "query":      "galaxy tab",
+    "source":     "plp",
+    "items": [
+      {"doc_id": "327cfc86774f41c3", "rank": 0},
+      {"doc_id": "2c8075f4777968b8", "rank": 1}
+    ]
+  }'
+# 204 No Content
+
+# Single click when the user opens a product card
+curl -X POST http://localhost:8001/v1/analytics/click \
   -H "Content-Type: application/json" \
   -d '{
     "index_id":   "tablets",
@@ -191,29 +205,30 @@ curl -X POST http://localhost:8001/v1/analytics/event \
     "query":      "galaxy tab",
     "doc_id":     "327cfc86774f41c3",
     "rank":       0,
-    "clicked":    true,
     "source":     "plp"
   }'
-# 204 No Content — fire-and-forget, never surfaces errors to the user
+# 204 No Content
 ```
 
 `index_id` accepts a slug or hex ID. Unknown indexes are silently dropped.
 
 ### Aggregation
 
-Run after collecting enough clicks to compute popularity scores and write them to Typesense:
+Run after collecting signals to compute popularity scores and write them to Typesense:
 
 ```bash
 curl -X POST "http://localhost:8001/v1/analytics/aggregate?index_id=tablets&days=30"
-# {"index_id":"9ed56100f220","slug":"tablets","updated":2}
+# {"index_id":"9ed56100f220","slug":"tablets","updated":3}
 ```
 
-Scoring formula (position-discounted CTR):
+Scoring formula — both impressions and clicks contribute, clicks count 10× more:
 
 ```
-position_weight(rank) = 1 / log2(rank + 2)   # rank 0 = 1.0, rank 9 ≈ 0.29
-raw_score(doc)        = SUM(position_weight) across all clicks in the window
-popularity(doc)       = round(raw_score / max_raw_score × 1,000,000)
+position_weight(rank)  = 1 / log2(rank + 2)       # rank 0 = 1.0, rank 9 ≈ 0.29
+contribution(event)    = position_weight × 1.0     # click
+                       = position_weight × 0.1     # impression
+raw_score(doc)         = SUM(contribution) across all events in the window
+popularity(doc)        = round(raw_score / max_raw_score × 1,000,000)
 ```
 
 The resulting `popularity` field is consumed by the post-RRF ranker:
@@ -270,8 +285,9 @@ Full Swagger UI at **http://localhost:8001/docs**
 | POST | `/v1/catalog` | Cross-collection product search |
 | GET | `/v1/catalog/facets` | Aggregate facets for a source type |
 | GET | `/v1/suggest` | Autocomplete suggestions |
-| POST | `/v1/analytics/event` | Log a search impression or click (204, fire-and-forget) |
-| POST | `/v1/analytics/aggregate` | Aggregate click signals → write popularity scores to Typesense |
+| POST | `/v1/analytics/impressions` | Batch-log all result impressions from one search (204, fire-and-forget) |
+| POST | `/v1/analytics/click` | Log a single product click (204, fire-and-forget) |
+| POST | `/v1/analytics/aggregate` | Aggregate impression+click signals → write popularity scores to Typesense |
 | GET | `/v1/analytics/summary` | Query health metrics: zero-result rate, top queries, low-CTR queries |
 
 The `{id}` path segment in all routes accepts either a **slug** (e.g. `tablets`) or a **hex ID** (e.g. `9ed56100f220`). Slug lookup is tried first; hex ID is the fallback.
