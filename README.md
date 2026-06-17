@@ -46,6 +46,7 @@ Browser (Admin UI / External App)
 | **External index** | ISP view over a pre-existing Typesense collection that ISP did not create. |
 | **Editorial boost** | Per-document ranking signals (`popularity`, `is_featured`, `boost_queries_equal`, `boost_queries_contains`) stored as top-level Typesense fields and applied after RRF fusion. |
 | **intent_label** | Free-text field on each index that maps it to a PLP tab (e.g. `device`, `accessory`, `smartwatch`, `tablet`). Drives self-configuring tab intent detection — no hardcoded keywords or collection IDs. |
+| **slug** | Human-readable URL alias for an index (e.g. `tablets`). Auto-generated from the index name on creation and back-filled for existing indexes on first startup after upgrade. All index routes accept either a slug or a hex ID — both always work. |
 
 ---
 
@@ -103,14 +104,21 @@ Each extension runs inside a **PyMiniRacer V8 isolate** — no filesystem, no ne
 
 External applications should use the `/public` endpoints which strip the `vec` embedding field (~4 KB per document) before responding. Ranking is identical.
 
+All `{id}` path segments accept either a **slug** (human-readable, e.g. `tablets`) or a **hex ID** (e.g. `9ed56100f220`). Both forms always work and resolve to the same index.
+
 ```bash
-# Search — no vec in response
-curl -X POST http://localhost:8001/v1/indexes/{id}/search/public \
+# Search by slug — consumer-friendly URL
+curl -X POST http://localhost:8001/v1/indexes/tablets/search/public \
   -H "Content-Type: application/json" \
-  -d '{"q": "your query", "mode": "hybrid", "page": 1, "per_page": 10}'
+  -d '{"q": "galaxy tab", "mode": "hybrid", "page": 1, "per_page": 10}'
+
+# Equivalent — hex ID form still works
+curl -X POST http://localhost:8001/v1/indexes/9ed56100f220/search/public \
+  -H "Content-Type: application/json" \
+  -d '{"q": "galaxy tab", "mode": "hybrid", "page": 1, "per_page": 10}'
 
 # List documents — no vec in response
-curl http://localhost:8001/v1/indexes/{id}/documents/public?page=1&per_page=20
+curl http://localhost:8001/v1/indexes/tablets/documents/public?page=1&per_page=20
 ```
 
 ---
@@ -189,6 +197,8 @@ Full Swagger UI at **http://localhost:8001/docs**
 | POST | `/v1/catalog` | Cross-collection product search |
 | GET | `/v1/catalog/facets` | Aggregate facets for a source type |
 | GET | `/v1/suggest` | Autocomplete suggestions |
+
+The `{id}` path segment in all routes accepts either a **slug** (e.g. `tablets`) or a **hex ID** (e.g. `9ed56100f220`). Slug lookup is tried first; hex ID is the fallback.
 
 Ingest and rebuild endpoints return **HTTP 409** if a job is already running for that index.
 

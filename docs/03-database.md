@@ -42,8 +42,18 @@ CREATE TABLE indexes (
     external_filter      VARCHAR(500) DEFAULT '',        -- e.g. "type:=device"
     external_query_by    VARCHAR(100) DEFAULT 'display',
     external_title_field VARCHAR(100) DEFAULT 'display',
-    external_url_field   TEXT         DEFAULT ''         -- deprecated; URL now owned by extension
+    external_url_field   TEXT         DEFAULT '',        -- deprecated; URL now owned by extension
+
+    -- Added via ALTER TABLE on existing deployments:
+    embed_model          VARCHAR(50)  DEFAULT '',        -- per-index embedding model override ('' = inherit global)
+    version_boost        BOOLEAN      DEFAULT FALSE,     -- recency score bump for new-badge items
+    intent_label         TEXT         DEFAULT '',        -- PLP tab this index maps to (e.g. 'device', 'tablet')
+    slug                 VARCHAR(120) DEFAULT ''         -- human-readable URL alias (e.g. 'tablets')
 );
+
+-- Partial unique index: only non-empty slugs are constrained, allowing '' during the
+-- init_db → seed_slugs startup window before back-fill completes.
+CREATE UNIQUE INDEX indexes_slug_unique ON indexes (slug) WHERE slug <> '';
 ```
 
 **`connectors` JSONB examples:**
@@ -152,6 +162,39 @@ CREATE TABLE index_extensions (
 
 ---
 
+## Slug and Intent Label
+
+### Slug
+
+`slug` is a URL-safe alias for an index. It is generated from the display `name` at creation time using these rules:
+
+1. Lowercase the name
+2. Spaces and underscores → hyphens
+3. Strip characters outside `[a-z0-9-]`
+4. Collapse runs of multiple hyphens to one
+5. Strip leading/trailing hyphens
+
+Examples: `"TABLETS"` → `"tablets"`, `"My Products v2"` → `"my-products-v2"`.
+
+If the generated slug is already taken by another index, the first 4 hex chars of the index ID are appended as a disambiguator (e.g. `tablets-9ed5`).
+
+**Startup back-fill:** on every startup `seed_slugs()` runs after `init_db()` and assigns slugs to any indexes that have an empty slug. This means existing deployments receive slugs automatically on the first restart after upgrading.
+
+**API resolution:** all routes that accept `{id}` in the path call `_resolve_index(id_or_slug)`, which tries slug lookup first and falls back to hex ID. Both URL forms always work:
+
+```
+/v1/indexes/tablets/search/public    ← slug form
+/v1/indexes/9ed56100f220/search/public  ← hex ID form (still valid)
+```
+
+You can pass `slug` when creating an index via `POST /v1/indexes`. If omitted, it is auto-generated.
+
+### Intent Label
+
+`intent_label` maps an index to a PLP tab identifier (e.g. `device`, `accessory`, `smartwatch`, `tablet`). The `/v1/intent/tab` endpoint reads this column at request time — there are no hardcoded collection IDs or keywords in the code. Adding a new tab is as simple as setting `intent_label` on an index and the intent detection self-configures. See [Tab Intent Detection](tabIntent.md) for the scoring algorithm.
+
+---
+
 ## Data Flow
 
 ```
@@ -211,9 +254,15 @@ Tables are created on startup via `init_db()` called from FastAPI's lifespan han
 ## Useful Queries
 
 ```sql
--- List all sources with doc counts
-SELECT id, name, doc_count, is_external, external_collection
+-- List all sources with slugs, intent labels, and doc counts
+SELECT id, name, slug, intent_label, doc_count, is_external
 FROM indexes ORDER BY created_at DESC;
+
+-- Look up an index by slug (same as API resolution)
+SELECT * FROM indexes WHERE slug = 'tablets';
+
+-- Find indexes that still have no slug (should be empty after first startup)
+SELECT id, name FROM indexes WHERE slug = '' OR slug IS NULL;
 
 -- Check ingest status for all sources
 SELECT i.name, s.state, s.indexed, s.total, s.error
