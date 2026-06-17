@@ -97,6 +97,26 @@ async def init_db() -> None:
             ALTER TABLE indexes
             ADD COLUMN IF NOT EXISTS intent_label TEXT DEFAULT '';
         """)
+        await conn.execute("""
+            ALTER TABLE indexes
+            ADD COLUMN IF NOT EXISTS slug VARCHAR(120) DEFAULT '';
+        """)
+        # Partial unique index on slug — only non-empty slugs are constrained so
+        # the column can hold '' during the window between init_db and seed_slugs.
+        # Using a CREATE INDEX (not ALTER TABLE ... UNIQUE) because PostgreSQL
+        # partial uniqueness requires an index, not a table constraint.
+        await conn.execute("""
+            DO $$ BEGIN
+              IF NOT EXISTS (
+                SELECT 1 FROM pg_indexes
+                WHERE indexname = 'indexes_slug_unique'
+              ) THEN
+                CREATE UNIQUE INDEX indexes_slug_unique
+                ON indexes (slug)
+                WHERE slug <> '';
+              END IF;
+            END $$;
+        """)
         # Seed intent labels for the four known ISP indexes (idempotent).
         for col_name, label in [
             ("isp_22ffabfef4d1", "device"),
