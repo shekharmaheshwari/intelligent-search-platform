@@ -83,6 +83,18 @@ async def init_db() -> None:
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS search_events (
+                id          BIGSERIAL    PRIMARY KEY,
+                index_id    VARCHAR(12)  REFERENCES indexes(id) ON DELETE CASCADE,
+                session_id  VARCHAR(64),
+                query       TEXT,
+                doc_id      VARCHAR(128),
+                rank        INTEGER,
+                clicked     BOOLEAN      DEFAULT FALSE,
+                source      VARCHAR(32),
+                created_at  BIGINT
+            );
         """)
         # Idempotent column additions — safe to run on existing databases.
         await conn.execute("""
@@ -116,6 +128,15 @@ async def init_db() -> None:
                 WHERE slug <> '';
               END IF;
             END $$;
+        """)
+        # Indexes on search_events — idempotent via IF NOT EXISTS.
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS search_events_index_doc_created
+            ON search_events (index_id, doc_id, created_at);
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS search_events_created
+            ON search_events (created_at);
         """)
         # Seed intent labels for the four known ISP indexes (idempotent).
         for col_name, label in [
