@@ -30,9 +30,10 @@ def _row_to_meta(row: dict) -> IndexMeta:
         external_query_by=row["external_query_by"] or "display",
         external_title_field=row["external_title_field"] or "display",
         external_url_field=row["external_url_field"] or "",
-        # embed_model / version_boost added via ALTER TABLE; older rows may be NULL
+        # embed_model / version_boost / intent_label added via ALTER TABLE; older rows may be NULL
         embed_model=row.get("embed_model") or "",
         version_boost=bool(row.get("version_boost") or False),
+        intent_label=row.get("intent_label") or "",
     )
 
 
@@ -52,7 +53,7 @@ async def get_index(idx_id: str) -> IndexMeta | None:
     return _row_to_meta(dict(row)) if row else None
 
 
-async def create_index(name: str, description: str, embed_model: str = "") -> IndexMeta:
+async def create_index(name: str, description: str, embed_model: str = "", intent_label: str = "") -> IndexMeta:
     """
     Insert a new index row and return the populated ``IndexMeta``.
 
@@ -70,6 +71,7 @@ async def create_index(name: str, description: str, embed_model: str = "") -> In
         created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         collection_name=f"isp_{idx_id}",
         embed_model=embed_model,
+        intent_label=intent_label,
     )
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -78,14 +80,15 @@ async def create_index(name: str, description: str, embed_model: str = "") -> In
                 (id, name, description, created_at, doc_count, status,
                  connectors, collection_name, is_external,
                  external_collection, external_filter, external_query_by,
-                 external_title_field, external_url_field, embed_model)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                 external_title_field, external_url_field, embed_model, intent_label)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
         """,
             meta.id, meta.name, meta.description, meta.created_at,
             meta.doc_count, meta.status,
             json.dumps(meta.connectors), meta.collection_name, meta.is_external,
             meta.external_collection, meta.external_filter, meta.external_query_by,
             meta.external_title_field, meta.external_url_field, meta.embed_model,
+            meta.intent_label,
         )
     return meta
 
@@ -144,7 +147,8 @@ async def update_index(meta: IndexMeta) -> None:
                 external_query_by    = $12,
                 external_title_field = $13,
                 external_url_field   = $14,
-                embed_model          = $15
+                embed_model          = $15,
+                intent_label         = $16
             WHERE id = $1
         """,
             meta.id, meta.name, meta.description,
@@ -152,6 +156,7 @@ async def update_index(meta: IndexMeta) -> None:
             json.dumps(meta.connectors), meta.collection_name, meta.is_external,
             meta.external_collection, meta.external_filter, meta.external_query_by,
             meta.external_title_field, meta.external_url_field, meta.embed_model,
+            meta.intent_label,
         )
 
 
@@ -162,6 +167,16 @@ async def set_version_boost(idx_id: str, enabled: bool) -> None:
         await conn.execute(
             "UPDATE indexes SET version_boost = $1 WHERE id = $2",
             enabled, idx_id,
+        )
+
+
+async def set_intent_label(idx_id: str, label: str) -> None:
+    """Set the intent_label for an index (e.g. 'device', 'accessory', 'smartwatch', 'tablet')."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET intent_label = $1 WHERE id = $2",
+            label, idx_id,
         )
 
 
@@ -277,14 +292,15 @@ async def discover_external_collections() -> list[IndexMeta]:
                         (id, name, description, created_at, doc_count, status,
                          connectors, collection_name, is_external,
                          external_collection, external_filter, external_query_by,
-                         external_title_field, external_url_field, embed_model)
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                         external_title_field, external_url_field, embed_model, intent_label)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
                 """,
                     meta.id, meta.name, meta.description, meta.created_at,
                     meta.doc_count, meta.status,
                     json.dumps(meta.connectors), meta.collection_name, meta.is_external,
                     meta.external_collection, meta.external_filter, meta.external_query_by,
                     meta.external_title_field, meta.external_url_field, meta.embed_model,
+                    meta.intent_label,
                 )
             created.append(meta)
 

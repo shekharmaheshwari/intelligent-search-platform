@@ -93,3 +93,18 @@ async def init_db() -> None:
             ALTER TABLE indexes
             ADD COLUMN IF NOT EXISTS version_boost BOOLEAN DEFAULT FALSE;
         """)
+        await conn.execute("""
+            ALTER TABLE indexes
+            ADD COLUMN IF NOT EXISTS intent_label TEXT DEFAULT '';
+        """)
+        # Seed intent labels for the four known ISP indexes (idempotent).
+        for col_name, label in [
+            ("isp_22ffabfef4d1", "device"),
+            ("isp_847bf1f24c72", "accessory"),
+            ("isp_8bf92948e950", "smartwatch"),
+            ("isp_9ed56100f220", "tablet"),
+        ]:
+            await conn.execute(
+                "UPDATE indexes SET intent_label = $1 WHERE collection_name = $2 AND intent_label = ''",
+                label, col_name,
+            )
