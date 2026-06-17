@@ -13,20 +13,28 @@ ISP already has the key hook: `popularity` and `is_featured` are top-level Types
 ## Architecture Overview
 
 ```
-User clicks result
+Search results displayed
         │
         ▼
-POST /v1/analytics/event
+POST /v1/analytics/impressions   ← one batch request per search page
+  items: [{doc_id, rank}, ...]
+        │
+User clicks a product card
+        │
+        ▼
+POST /v1/analytics/click         ← one request per click
+  {doc_id, rank, query, ...}
         │
         ▼
 search_events (PostgreSQL)
-  query | index_id | doc_id | rank | clicked | session_id | timestamp
+  query | index_id | doc_id | rank | clicked | session_id | created_at
         │
         ▼
-Aggregation job (background / cron)
-  — CTR per doc per index (rolling 30-day window)
-  — position-discounted click weight
-  — normalise to 0–1,000,000 popularity score
+Aggregation job (POST /v1/analytics/aggregate)
+  — position_weight(rank) = 1 / log2(rank + 2)
+  — click contributes weight × 1.0
+  — impression contributes weight × 0.1  (10× less than a click)
+  — normalise to 0–1,000,000 popularity score per index
         │
         ▼
 update_document_fields(col, doc_id, {popularity: N})
@@ -36,7 +44,7 @@ Typesense: popularity field updated (no re-embed)
         │
         ▼
 RRF score boosted on next search
-  final_score += min(popularity, 1_000_000) / 2_000_000
+  final_score += min(popularity, 1_000_000) / 2_000_000   → up to +0.5
 ```
 
 ---
@@ -66,29 +74,39 @@ CREATE INDEX ON search_events (index_id, doc_id, created_at);
 CREATE INDEX ON search_events (created_at);
 ```
 
-**New API endpoint:**
+**API endpoints:**
 
-```
-POST /v1/analytics/event
-Body: {
-  "index_id":   "abc123",
+```bash
+# Batch impressions — one request per search, all visible docs
+POST /v1/analytics/impressions
+{
+  "index_id":   "tablets",
   "session_id": "sess_xyz",
-  "query":      "iphone 15 pro",
-  "doc_id":     "d4f9a1...",
-  "rank":        2,
-  "clicked":    true,
+  "query":      "galaxy tab",
+  "source":     "plp",
+  "items": [{"doc_id": "abc123", "rank": 0}, {"doc_id": "def456", "rank": 1}]
+}
+
+# Single click — fired when user opens a product card
+POST /v1/analytics/click
+{
+  "index_id":   "tablets",
+  "session_id": "sess_xyz",
+  "query":      "galaxy tab",
+  "doc_id":     "abc123",
+  "rank":       0,
   "source":     "plp"
 }
 ```
 
-Returns `204 No Content`.
+Both return `204 No Content` and are fire-and-forget (errors never surface to the user).
 
 **Implemented in:**
-- `backend/src/isp/routers/analytics.py` — `POST /v1/analytics/event` (204, fire-and-forget)
-- `backend/src/isp/services/domain/analytics_service.py` — `log_event()`
+- `backend/src/isp/routers/analytics.py` — `POST /v1/analytics/impressions`, `POST /v1/analytics/click`
+- `backend/src/isp/services/domain/analytics_service.py` — `log_event()`, `log_events_batch()`
 - `backend/src/isp/services/infra/database.py` — `search_events` table DDL
-- `plp/src/lib/repository/catalogRepository.ts` — `logEvent()` (fetch, never throws)
-- `plp/src/lib/controller/catalogController.ts` — impression events after search, `notifyClick()` export
+- `plp/src/lib/repository/catalogRepository.ts` — `logImpressions()`, `logClick()`
+- `plp/src/lib/controller/catalogController.ts` — batch impressions after search, `notifyClick()` export
 - `plp/src/components/ProductCard.svelte` — calls `notifyClick()` on card click
 - `plp/src/components/ProductGrid.svelte` — passes `rank`, `tab`, `query` props
 
@@ -98,20 +116,29 @@ Returns `204 No Content`.
 
 **What:** A background job computes a `popularity` score per document from raw click events.
 
-**Scoring formula:**
+**Scoring formula — impressions and clicks both contribute:**
 
 ```
-position_weight(rank) = 1 / log2(rank + 2)   # higher rank = lower weight
+position_weight(rank)  = 1 / log2(rank + 2)      # rank 0 = 1.0, rank 9 ≈ 0.29
 
-raw_score(doc) = SUM of position_weight(rank)
-                 for each clicked event on doc
-                 in the last 30 days
+contribution(event)    = position_weight × 1.0    # click  (full signal)
+                       = position_weight × 0.1    # impression (1/10th of click)
+
+raw_score(doc)         = SUM(contribution) across all events in the last 30 days
 
 normalised_popularity(doc) =
     round( raw_score(doc) / max_raw_score_in_index * 1_000_000 )
 ```
 
-Position discounting ensures clicks on rank-1 results count more than clicks buried on page 3.
+Every document shown in search results builds popularity over time. Clicks count 10× more than bare impressions — a single click at rank 0 equals 10 impressions at the same position. Position discounting ensures high-rank signals are worth more than the same action buried on page 3.
+
+**Example scores with one search session (3 docs shown, 1 clicked):**
+
+| Document | Events | raw_score | popularity |
+|---|---|---|---|
+| Doc A (rank 0) | impression + click | `1.0×0.1 + 1.0×1.0 = 1.1` | 1,000,000 |
+| Doc B (rank 1) | impression only | `0.63×0.1 = 0.063` | 57,357 |
+| Doc C (rank 2) | impression only | `0.50×0.1 = 0.050` | 45,455 |
 
 **Trigger options (choose one):**
 
@@ -125,7 +152,7 @@ Implemented as **on-demand endpoint** (`POST /v1/analytics/aggregate`). Promote 
 
 **Implemented in:**
 - `backend/src/isp/routers/analytics.py` — `POST /v1/analytics/aggregate?index_id=<slug-or-id>&days=30`
-- `backend/src/isp/services/domain/analytics_service.py` — `aggregate_popularity()`
+- `backend/src/isp/services/domain/analytics_service.py` — `aggregate_popularity()`, `apply_popularity()`; weights controlled by `_CLICK_WEIGHT = 1.0` and `_IMPRESSION_WEIGHT = 0.1` constants at the top of the file
 
 ---
 
