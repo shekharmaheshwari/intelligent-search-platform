@@ -340,3 +340,4 @@ ISP is safe to run behind a load balancer. A Redis-backed distributed lock preve
 - [Backend Architecture](docs/backend_architecture.md)
 - [Score Boost Reference](docs/scoreBoost.md)
 - [Tab Intent Detection](docs/tabIntent.md)
+- [Analytics-Driven Learning](docs/analyticsDataLearning.md)
