@@ -7,6 +7,9 @@ For ISP-managed indexes, ``ts.search_with_vec`` handles the RRF merge.
 
 Query embeddings are served from the two-tier cache (LRU → Redis) in
 ``embedding_service`` so repeated identical queries do not incur API calls.
+
+Accepts both hex ids and human-readable slugs via ``_resolve_index`` from the
+indexes router — no URL changes required.
 """
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
@@ -14,14 +17,14 @@ from isp.models import SearchRequest
 from isp.services.domain import index_service
 from isp.services.infra import embedding_service
 from isp.services.infra import typesense_client as ts
-from isp.routers.indexes import _wrap_external_results
+from isp.routers.indexes import _wrap_external_results, _resolve_index
 
 router = APIRouter(prefix="/indexes", tags=["search"])
 
 
 async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False) -> dict:
     """Shared search logic used by both /search and /search/public."""
-    meta = await index_service.get_index(idx_id)
+    meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
 
@@ -48,12 +51,14 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
         vec = await embedding_service.embed_query(req.q, model=effective_model)
         if vec:
             return ts.search_with_vec(
-                idx_id, req.q, vec, req.page, req.per_page,
+                # Use meta.id (hex) — Typesense collection is keyed on hex id, not slug.
+                meta.id, req.q, vec, req.page, req.per_page,
                 version_boost=meta.version_boost,
                 exclude_vec=exclude_vec,
             )
 
-    return ts.search_documents(idx_id, req.q, "lexical", req.page, req.per_page,
+    # Lexical fallback also uses hex id.
+    return ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
                                exclude_vec=exclude_vec)
 
 

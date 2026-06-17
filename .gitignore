@@ -23,3 +23,7 @@ frontend/.astro/
 # OS
 .DS_Store
 Thumbs.db
+
+# Pending open-source release
+LICENSE
+docs/publishPaper.md
