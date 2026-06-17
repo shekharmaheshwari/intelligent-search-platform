@@ -144,8 +144,11 @@ async def lifespan(app: FastAPI):
     because seeding reads and writes PostgreSQL tables.
     """
     from isp.services.infra import job_lock
+    from isp.services.domain.index_service import seed_slugs
     await job_lock.release_stale_for_instance()  # clear any locks left by a prior crash of this container
     await init_db()
+    # Back-fill slug for any indexes that were created before the slug column was added.
+    await seed_slugs()
     await load_embed_model()          # restore operator-chosen model before serving requests
     _ensure_catalog_collection()
     ts.migrate_isp_fields()

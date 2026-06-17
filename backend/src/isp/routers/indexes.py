@@ -28,6 +28,19 @@ from isp.services.infra.extension_runner import apply_extensions
 router = APIRouter(prefix="/indexes", tags=["indexes"])
 
 
+async def _resolve_index(id_or_slug: str) -> IndexMeta | None:
+    """
+    Return the index identified by either a hex id or a human-readable slug.
+
+    Slug lookup runs first because slugs are the common consumer-facing form.
+    Hex id lookup is the fallback so existing integrations continue to work
+    without any URL changes.
+    """
+    # Try slug first (human-readable form used by consumer apps).
+    meta = await index_service.get_index_by_slug(id_or_slug)
+    return meta or await index_service.get_index(id_or_slug)
+
+
 def _version_score(title: str) -> float:
     """
     Extract a [0.0, 1.0] recency score from a product title.
@@ -377,7 +390,7 @@ async def create_index(body: IndexCreate):
     vector dimension; otherwise the global active dimension is used.
     The index starts empty; use a connector + ingest or rebuild to populate it.
     """
-    meta = await index_service.create_index(body.name, body.description, embed_model=body.embed_model, intent_label=body.intent_label)
+    meta = await index_service.create_index(body.name, body.description, embed_model=body.embed_model, intent_label=body.intent_label, slug=body.slug)
 
     # Resolve the vector dimension for this index's chosen model so the Typesense
     # collection schema matches the vectors that will be written during ingest.
@@ -395,7 +408,7 @@ async def create_index(body: IndexCreate):
 @router.get("/{idx_id}", response_model=IndexMeta, summary="Get index metadata")
 async def get_index(idx_id: str):
     """Return the full metadata record for a single index, including connector config and doc count."""
-    meta = await index_service.get_index(idx_id)
+    meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
     return meta
@@ -409,7 +422,7 @@ async def delete_index(idx_id: str):
     the documents belonging to that source via the stored filter; the shared
     `catalog` collection itself is not dropped.
     """
-    meta = await index_service.get_index(idx_id)
+    meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
     await index_service.delete_index(idx_id)
@@ -437,7 +450,7 @@ async def set_embed_model(idx_id: str, body: EmbedModelUpdate):
     dimension of the new model must match the Typesense collection schema, or
     the index must be fully rebuilt before semantic search will work correctly.
     """
-    meta = await index_service.get_index(idx_id)
+    meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
     meta.embed_model = body.model_id
@@ -463,7 +476,7 @@ async def set_version_boost(idx_id: str, body: VersionBoostUpdate):
     title and stored as a Typesense field.  Rebuild the index after enabling this
     flag if documents were ingested before the feature was added.
     """
-    meta = await index_service.get_index(idx_id)
+    meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
     await index_service.set_version_boost(idx_id, body.enabled)
@@ -488,7 +501,11 @@ async def add_rest_connector(idx_id: str, cfg: RestConnectorConfig):
     Persist a REST connector configuration for the index without triggering an ingest.
     Use this to pre-configure the source; call `/ingest/rest` or `/rebuild` to actually fetch data.
     """
-    meta = await index_service.add_connector(idx_id, {"type": "rest", **cfg.model_dump()})
+    # Resolve slug before passing to add_connector, which expects a hex id.
+    resolved = await _resolve_index(idx_id)
+    if not resolved:
+        raise HTTPException(404, "Index not found")
+    meta = await index_service.add_connector(resolved.id, {"type": "rest", **cfg.model_dump()})
     if not meta:
         raise HTTPException(404, "Index not found")
     return meta
@@ -500,7 +517,11 @@ async def add_sitemap_connector(idx_id: str, cfg: SitemapConnectorConfig):
     Persist a sitemap connector configuration for the index without triggering a crawl.
     Use this to pre-configure the source; call `/ingest/sitemap` to start crawling.
     """
-    meta = await index_service.add_connector(idx_id, {"type": "sitemap", **cfg.model_dump()})
+    # Resolve slug before passing to add_connector, which expects a hex id.
+    resolved = await _resolve_index(idx_id)
+    if not resolved:
+        raise HTTPException(404, "Index not found")
+    meta = await index_service.add_connector(resolved.id, {"type": "sitemap", **cfg.model_dump()})
     if not meta:
         raise HTTPException(404, "Index not found")
     return meta
@@ -610,17 +631,18 @@ async def ingest_rest(idx_id: str, cfg: RestConnectorConfig, bg: BackgroundTasks
     The connector config is persisted so the Rebuild panel can pre-populate it later.
     Returns immediately with `state=queued`; poll `/status` to track progress.
     """
-    meta = await index_service.get_index(idx_id)
+    meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
-    existing = await index_service.get_status(idx_id)
+    existing = await index_service.get_status(meta.id)
     if existing and existing.state in ("running", "queued"):
         raise HTTPException(status.HTTP_409_CONFLICT,
                             detail="Ingest already in progress for this index")
     # Persist connector immediately so Rebuild panel pre-populates even before ingest finishes
     meta.connectors = [{"type": "rest", **cfg.model_dump()}]
     await index_service.update_index(meta)
-    bg.add_task(_run_ingest, idx_id, {"type": "rest", **cfg.model_dump()})
+    # Pass meta.id (the resolved hex id) so the background task always operates on hex.
+    bg.add_task(_run_ingest, meta.id, {"type": "rest", **cfg.model_dump()})
     from isp.models import IngestStatus as IS
     s = IS(index_id=idx_id, state="queued")
     await index_service.set_status(s)
@@ -634,16 +656,17 @@ async def ingest_sitemap(idx_id: str, cfg: SitemapConnectorConfig, bg: Backgroun
     and **append** them to the index.
     Returns immediately with `state=queued`; poll `/status` to track progress.
     """
-    meta = await index_service.get_index(idx_id)
+    meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
-    existing = await index_service.get_status(idx_id)
+    existing = await index_service.get_status(meta.id)
     if existing and existing.state in ("running", "queued"):
         raise HTTPException(status.HTTP_409_CONFLICT,
                             detail="Ingest already in progress for this index")
     meta.connectors = [{"type": "sitemap", **cfg.model_dump()}]
     await index_service.update_index(meta)
-    bg.add_task(_run_ingest, idx_id, {"type": "sitemap", **cfg.model_dump()})
+    # Pass meta.id (the resolved hex id) so the background task always operates on hex.
+    bg.add_task(_run_ingest, meta.id, {"type": "sitemap", **cfg.model_dump()})
     from isp.models import IngestStatus as IS
     s = IS(index_id=idx_id, state="queued")
     await index_service.set_status(s)
@@ -816,15 +839,16 @@ async def rebuild(idx_id: str, cfg: RebuildRequest, bg: BackgroundTasks):
     `catalog` Typesense collection.
     Returns immediately with `state=queued`; poll `/status` to track progress.
     """
-    meta = await index_service.get_index(idx_id)
+    meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
-    existing = await index_service.get_status(idx_id)
+    existing = await index_service.get_status(meta.id)
     if existing and existing.state in ("running", "queued"):
         raise HTTPException(status.HTTP_409_CONFLICT,
                             detail="Rebuild already in progress for this index")
     cfg_dict = {"type": "rest", **cfg.model_dump()}
-    bg.add_task(_run_rebuild, idx_id, cfg_dict)
+    # Pass meta.id (the resolved hex id) so the background task always operates on hex.
+    bg.add_task(_run_rebuild, meta.id, cfg_dict)
     from isp.models import IngestStatus as IS
     s = IS(index_id=idx_id, state="queued")
     await index_service.set_status(s)
@@ -836,7 +860,7 @@ async def rebuild(idx_id: str, cfg: RebuildRequest, bg: BackgroundTasks):
 async def _list_docs(idx_id: str, page: int, per_page: int,
                     exclude_vec: bool = False) -> dict:
     """Shared listing logic used by both /documents and /documents/public."""
-    meta = await index_service.get_index(idx_id)
+    meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
 
@@ -850,7 +874,8 @@ async def _list_docs(idx_id: str, page: int, per_page: int,
         )
         return _wrap_external_results(raw, meta)
 
-    return ts.list_documents(idx_id, page, per_page, exclude_vec=exclude_vec)
+    # Use meta.id (hex) not idx_id — caller may have passed a slug.
+    return ts.list_documents(meta.id, page, per_page, exclude_vec=exclude_vec)
 
 
 @router.get("/{idx_id}/documents", summary="Browse indexed documents")
@@ -896,11 +921,12 @@ async def update_document(idx_id: str, doc_id: str, patch: DocPatchRequest):
 
     Returns ``{"ok": true}`` on success or raises 404 / 500 on failure.
     """
-    meta = await index_service.get_index(idx_id)
+    meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
 
-    col = ts.collection_name(idx_id)
+    # collection_name is keyed on the hex id, not the slug.
+    col = ts.collection_name(meta.id)
     doc = ts.retrieve_document(col, doc_id)
     if doc is None:
         raise HTTPException(404, "Document not found")

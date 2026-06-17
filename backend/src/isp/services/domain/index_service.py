@@ -7,9 +7,51 @@ tracked and registers them as external (read-only or write-back) ISP sources.
 when new external catalog collections are deployed.
 """
 from __future__ import annotations
-import json, time, uuid
+import json, re, time, uuid
 from isp.models import IndexMeta, IngestStatus
 from isp.services.infra.database import get_pool
+
+
+def _slugify(name: str) -> str:
+    """
+    Convert a display name to a URL-safe slug.
+
+    Rules (in order):
+    1. Lowercase.
+    2. Spaces and underscores become hyphens.
+    3. Strip any character that is not ``[a-z0-9-]``.
+    4. Collapse runs of multiple hyphens to one.
+    5. Strip leading/trailing hyphens.
+
+    Examples: ``"TABLETS"`` → ``"tablets"``, ``"My Products v2"`` → ``"my-products-v2"``.
+    """
+    s = name.lower()
+    s = re.sub(r"[ _]", "-", s)
+    s = re.sub(r"[^a-z0-9-]", "", s)
+    s = re.sub(r"-{2,}", "-", s)
+    return s.strip("-")
+
+
+async def _unique_slug(name: str, idx_id: str, conn) -> str:
+    """
+    Return a slug that is unique among all rows in the ``indexes`` table.
+
+    Tries the base slug first.  If another index already holds that slug, appends
+    the first 4 hex chars of ``idx_id`` as a disambiguator (e.g. ``tablets-9ed5``).
+    The disambiguated form is always accepted without further collision checking
+    because ``idx_id`` is itself globally unique.
+    """
+    base = _slugify(name)
+    if not base:
+        # Name produced an empty slug (e.g. all special chars); fall back to id prefix.
+        return idx_id[:8]
+    row = await conn.fetchrow(
+        "SELECT id FROM indexes WHERE slug = $1", base
+    )
+    if row is None:
+        return base
+    # Slug taken by a different index — append the first 4 chars of the new id.
+    return f"{base}-{idx_id[:4]}"
 
 
 def _row_to_meta(row: dict) -> IndexMeta:
@@ -30,10 +72,11 @@ def _row_to_meta(row: dict) -> IndexMeta:
         external_query_by=row["external_query_by"] or "display",
         external_title_field=row["external_title_field"] or "display",
         external_url_field=row["external_url_field"] or "",
-        # embed_model / version_boost / intent_label added via ALTER TABLE; older rows may be NULL
+        # embed_model / version_boost / intent_label / slug added via ALTER TABLE; older rows may be NULL
         embed_model=row.get("embed_model") or "",
         version_boost=bool(row.get("version_boost") or False),
         intent_label=row.get("intent_label") or "",
+        slug=row.get("slug") or "",
     )
 
 
@@ -53,7 +96,8 @@ async def get_index(idx_id: str) -> IndexMeta | None:
     return _row_to_meta(dict(row)) if row else None
 
 
-async def create_index(name: str, description: str, embed_model: str = "", intent_label: str = "") -> IndexMeta:
+async def create_index(name: str, description: str, embed_model: str = "",
+                       intent_label: str = "", slug: str = "") -> IndexMeta:
     """
     Insert a new index row and return the populated ``IndexMeta``.
 
@@ -62,33 +106,40 @@ async def create_index(name: str, description: str, embed_model: str = "", inten
 
     ``embed_model`` overrides the global setting for all ingest and search operations
     on this index.  Pass empty string to inherit the global default at runtime.
+
+    ``slug`` is auto-generated from ``name`` when omitted or empty; uniqueness is
+    enforced at the database level via ``indexes_slug_unique``.
     """
     idx_id = uuid.uuid4().hex[:12]
-    meta = IndexMeta(
-        id=idx_id,
-        name=name,
-        description=description,
-        created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        collection_name=f"isp_{idx_id}",
-        embed_model=embed_model,
-        intent_label=intent_label,
-    )
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Resolve slug inside the same connection so the uniqueness check and INSERT
+        # see a consistent snapshot of the slug column.
+        resolved_slug = slug.strip() or await _unique_slug(name, idx_id, conn)
+        meta = IndexMeta(
+            id=idx_id,
+            name=name,
+            description=description,
+            created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            collection_name=f"isp_{idx_id}",
+            embed_model=embed_model,
+            intent_label=intent_label,
+            slug=resolved_slug,
+        )
         await conn.execute("""
             INSERT INTO indexes
                 (id, name, description, created_at, doc_count, status,
                  connectors, collection_name, is_external,
                  external_collection, external_filter, external_query_by,
-                 external_title_field, external_url_field, embed_model, intent_label)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+                 external_title_field, external_url_field, embed_model, intent_label, slug)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
         """,
             meta.id, meta.name, meta.description, meta.created_at,
             meta.doc_count, meta.status,
             json.dumps(meta.connectors), meta.collection_name, meta.is_external,
             meta.external_collection, meta.external_filter, meta.external_query_by,
             meta.external_title_field, meta.external_url_field, meta.embed_model,
-            meta.intent_label,
+            meta.intent_label, meta.slug,
         )
     return meta
 
@@ -148,7 +199,8 @@ async def update_index(meta: IndexMeta) -> None:
                 external_title_field = $13,
                 external_url_field   = $14,
                 embed_model          = $15,
-                intent_label         = $16
+                intent_label         = $16,
+                slug                 = $17
             WHERE id = $1
         """,
             meta.id, meta.name, meta.description,
@@ -156,7 +208,7 @@ async def update_index(meta: IndexMeta) -> None:
             json.dumps(meta.connectors), meta.collection_name, meta.is_external,
             meta.external_collection, meta.external_filter, meta.external_query_by,
             meta.external_title_field, meta.external_url_field, meta.embed_model,
-            meta.intent_label,
+            meta.intent_label, meta.slug,
         )
 
 
@@ -178,6 +230,47 @@ async def set_intent_label(idx_id: str, label: str) -> None:
             "UPDATE indexes SET intent_label = $1 WHERE id = $2",
             label, idx_id,
         )
+
+
+async def get_index_by_slug(slug: str) -> IndexMeta | None:
+    """Return a single index by its slug, or None if not found."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM indexes WHERE slug = $1", slug)
+    return _row_to_meta(dict(row)) if row else None
+
+
+async def set_slug(idx_id: str, slug: str) -> None:
+    """Persist a new slug value for an index identified by its hex id."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET slug = $1 WHERE id = $2",
+            slug, idx_id,
+        )
+
+
+async def seed_slugs() -> None:
+    """
+    Back-fill slug for every index that currently has an empty slug.
+
+    Safe to call repeatedly — rows with an existing slug are skipped.
+    Called from the FastAPI lifespan handler after ``init_db()`` so existing
+    deployments automatically receive slugs on their next restart.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Fetch only rows that need a slug so we don't mutate already-configured ones.
+        rows = await conn.fetch(
+            "SELECT id, name FROM indexes WHERE slug = '' OR slug IS NULL"
+        )
+    for row in rows:
+        idx_id = row["id"]
+        name = row["name"]
+        pool2 = await get_pool()
+        async with pool2.acquire() as conn2:
+            new_slug = await _unique_slug(name, idx_id, conn2)
+        await set_slug(idx_id, new_slug)
 
 
 async def get_status(idx_id: str) -> IngestStatus:
@@ -270,37 +363,41 @@ async def discover_external_collections() -> list[IndexMeta]:
 
             doc_count = ts.count_external(col_name, filter_by)
             idx_id = uuid.uuid4().hex[:12]
-            meta = IndexMeta(
-                id=idx_id,
-                name=display_name,
-                description=description,
-                created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                collection_name="",
-                doc_count=doc_count,
-                is_external=True,
-                external_collection=col_name,
-                external_filter=filter_by,
-                external_query_by="display",
-                external_title_field="display",
-                external_url_field=url_prefix,
-                connectors=[{"type": "external", "url": url_prefix, "collection": col_name}],
-            )
             pool2 = await get_pool()
             async with pool2.acquire() as conn:
+                # Generate a unique slug within the same connection used for INSERT
+                # so the uniqueness check and the write are consistent.
+                new_slug = await _unique_slug(display_name, idx_id, conn)
+                meta = IndexMeta(
+                    id=idx_id,
+                    name=display_name,
+                    description=description,
+                    created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    collection_name="",
+                    doc_count=doc_count,
+                    is_external=True,
+                    external_collection=col_name,
+                    external_filter=filter_by,
+                    external_query_by="display",
+                    external_title_field="display",
+                    external_url_field=url_prefix,
+                    connectors=[{"type": "external", "url": url_prefix, "collection": col_name}],
+                    slug=new_slug,
+                )
                 await conn.execute("""
                     INSERT INTO indexes
                         (id, name, description, created_at, doc_count, status,
                          connectors, collection_name, is_external,
                          external_collection, external_filter, external_query_by,
-                         external_title_field, external_url_field, embed_model, intent_label)
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+                         external_title_field, external_url_field, embed_model, intent_label, slug)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
                 """,
                     meta.id, meta.name, meta.description, meta.created_at,
                     meta.doc_count, meta.status,
                     json.dumps(meta.connectors), meta.collection_name, meta.is_external,
                     meta.external_collection, meta.external_filter, meta.external_query_by,
                     meta.external_title_field, meta.external_url_field, meta.embed_model,
-                    meta.intent_label,
+                    meta.intent_label, meta.slug,
                 )
             created.append(meta)
 
