@@ -45,6 +45,8 @@ Browser (Admin UI / External App)
 | **Extension** | JavaScript `transform(doc)` function run in a V8 isolate before indexing. Chained by `run_order`. |
 | **External index** | ISP view over a pre-existing Typesense collection that ISP did not create. |
 | **Editorial boost** | Per-document ranking signals (`popularity`, `is_featured`, `boost_queries_equal`, `boost_queries_contains`) stored as top-level Typesense fields and applied after RRF fusion. |
+| **intent_label** | Free-text field on each index that maps it to a PLP tab (e.g. `device`, `accessory`, `smartwatch`, `tablet`). Drives self-configuring tab intent detection — no hardcoded keywords or collection IDs. |
+| **slug** | Human-readable URL alias for an index (e.g. `tablets`). Auto-generated from the index name on creation and back-filled for existing indexes on first startup after upgrade. All index routes accept either a slug or a hex ID — both always work. |
 
 ---
 
@@ -102,14 +104,70 @@ Each extension runs inside a **PyMiniRacer V8 isolate** — no filesystem, no ne
 
 External applications should use the `/public` endpoints which strip the `vec` embedding field (~4 KB per document) before responding. Ranking is identical.
 
+All `{id}` path segments accept either a **slug** (human-readable, e.g. `tablets`) or a **hex ID** (e.g. `9ed56100f220`). Both forms always work and resolve to the same index.
+
 ```bash
-# Search — no vec in response
-curl -X POST http://localhost:8001/v1/indexes/{id}/search/public \
+# Search by slug — consumer-friendly URL
+curl -X POST http://localhost:8001/v1/indexes/tablets/search/public \
   -H "Content-Type: application/json" \
-  -d '{"q": "your query", "mode": "hybrid", "page": 1, "per_page": 10}'
+  -d '{"q": "galaxy tab", "mode": "hybrid", "page": 1, "per_page": 10}'
+
+# Equivalent — hex ID form still works
+curl -X POST http://localhost:8001/v1/indexes/9ed56100f220/search/public \
+  -H "Content-Type: application/json" \
+  -d '{"q": "galaxy tab", "mode": "hybrid", "page": 1, "per_page": 10}'
 
 # List documents — no vec in response
-curl http://localhost:8001/v1/indexes/{id}/documents/public?page=1&per_page=20
+curl http://localhost:8001/v1/indexes/tablets/documents/public?page=1&per_page=20
+```
+
+---
+
+## Catalog / PLP API
+
+A set of higher-level endpoints designed for Product Listing Pages. These aggregate across all ISP-managed collections and do not require callers to know individual index IDs.
+
+### Tab Intent Detection
+
+Classifies a search query into the most semantically relevant tab using Voyage AI embeddings. Reads `intent_label` from the database at request time — no hardcoded keywords or collection IDs.
+
+```bash
+curl 'http://localhost:8001/v1/intent/tab?q=galaxy+watch'
+# {"tab":"smartwatch","confidence":0.29,"scores":{"device":0.71,"accessory":0.74,"smartwatch":0.75,"tablet":0.66}}
+```
+
+| Response field | Description |
+|---|---|
+| `tab` | Winning `intent_label`, or `null` when intent cannot be determined (empty query, no labels configured, embedding failure) |
+| `confidence` | Winning score / sum of all scores; `0.0` when `tab` is `null` |
+| `scores` | Per-label vector similarity scores |
+
+To add a new tab, create an index with `intent_label` set — the intent endpoint self-configures automatically. See [Tab Intent Detection](docs/tabIntent.md) for the full scoring algorithm.
+
+### Product Search
+
+Cross-collection hybrid search filtered by `source_type`:
+
+```bash
+curl -X POST http://localhost:8001/v1/catalog \
+  -H "Content-Type: application/json" \
+  -d '{"q": "samsung", "type": "device", "page": 1, "per_page": 24, "search_mode": "hybrid"}'
+```
+
+### Facets
+
+Aggregate manufacturer, category, and price-range facets across all collections for a given type:
+
+```bash
+curl 'http://localhost:8001/v1/catalog/facets?type=device'
+```
+
+### Autocomplete
+
+Typo-tolerant title suggestions across all collections:
+
+```bash
+curl 'http://localhost:8001/v1/suggest?q=sams&limit=8'
 ```
 
 ---
@@ -135,6 +193,12 @@ Full Swagger UI at **http://localhost:8001/docs**
 | GET/POST | `/v1/indexes/{id}/extensions` | Per-index extension assignment |
 | GET/PUT | `/v1/settings` | Embedding model config |
 | GET | `/v1/content/{slug}/search` | Public slug-based search |
+| GET | `/v1/intent/tab` | Classify query into a catalog tab via intent_label |
+| POST | `/v1/catalog` | Cross-collection product search |
+| GET | `/v1/catalog/facets` | Aggregate facets for a source type |
+| GET | `/v1/suggest` | Autocomplete suggestions |
+
+The `{id}` path segment in all routes accepts either a **slug** (e.g. `tablets`) or a **hex ID** (e.g. `9ed56100f220`). Slug lookup is tried first; hex ID is the fallback.
 
 Ingest and rebuild endpoints return **HTTP 409** if a job is already running for that index.
 
@@ -183,3 +247,4 @@ ISP is safe to run behind a load balancer. A Redis-backed distributed lock preve
 - [Component Integrations](docs/05-integrations.md)
 - [Backend Architecture](docs/backend_architecture.md)
 - [Score Boost Reference](docs/scoreBoost.md)
+- [Tab Intent Detection](docs/tabIntent.md)

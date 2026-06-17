@@ -185,23 +185,24 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
             "page": page, "per_page": per_page, **extra,
         })
 
-    if mode == "lexical":
-        return client.collections[name].documents.search({
-            "q": q, "query_by": "title,content",
-            "query_by_weights": "2,1",
-            "num_typos": 2,
-            "sort_by": "is_featured:desc,_text_match:desc",
-            "page": page, "per_page": per_page, **extra,
-        })
-
-    # hybrid — default
-    return client.collections[name].documents.search({
+    base_params: dict = {
         "q": q, "query_by": "title,content",
         "query_by_weights": "2,1",
         "num_typos": 2,
-        "sort_by": "is_featured:desc,_text_match:desc",
         "page": page, "per_page": per_page, **extra,
-    })
+    }
+
+    def _search_with_sort(sort_by: str) -> dict:
+        try:
+            return client.collections[name].documents.search({**base_params, "sort_by": sort_by})
+        except Exception:
+            return client.collections[name].documents.search({**base_params, "sort_by": "_text_match:desc"})
+
+    if mode == "lexical":
+        return _search_with_sort("is_featured:desc,_text_match:desc")
+
+    # hybrid — default
+    return _search_with_sort("is_featured:desc,_text_match:desc")
 
 
 def search_with_vec(

@@ -175,71 +175,111 @@ def _rrf_search(collections: list[str], q: str, vec, filter_by: str, page: int, 
 
 # ── GET /v1/intent/tab ────────────────────────────────────────────────────────
 
-_ACCESSORY_KEYWORDS = {
-    "case", "cover", "protector", "charger", "cable", "cord", "headphone",
-    "earphone", "earbud", "airpod", "speaker", "screen", "glass", "film",
-    "mount", "stand", "holder", "wallet", "clip", "band", "strap", "dock",
-    "hub", "adapter", "power", "battery", "pad", "car", "wireless",
-}
-
-
 @router.get("/intent/tab", summary="Detect which catalog tab a query belongs to")
 async def intent_tab(q: str = Query(..., description="Search query")):
     """
-    Classifies a search query as belonging to the **Phones** tab (``device``) or
-    **Accessories** tab (``accessory``).
+    Classifies a search query into the tab whose index best matches it semantically.
 
-    Detection strategy (in order):
-    1. **Keyword pre-filter** — accessory-specific terms (e.g. *case*, *charger*) → ``accessory``.
-    2. **Semantic vote** — embed the query, find the 10 nearest ISP docs; majority type wins.
-    3. **Default** — falls back to ``device`` (confidence 0.6).
+    Detection strategy:
+    1. Fetch all indexes from the database that have ``intent_label`` and a
+       ``collection_name`` set — no hardcoded collection IDs or keywords.
+    2. Embed the query with the configured embedding model.
+    3. Run a k-NN vector search against each labeled collection in parallel.
+    4. Group hit counts by ``intent_label``; the label with the most hits wins.
+    5. Fall back to ``device`` when embedding fails or no labels are configured.
     """
+    from isp.services.domain.index_service import list_indexes
+
     q_stripped = q.strip()
     if not q_stripped:
-        return {"tab": "device", "confidence": 1.0, "scores": {"device": 1.0, "accessory": 0.0}}
+        return {"tab": None, "confidence": 0.0, "scores": {}}
 
-    q_words = set(q_stripped.lower().split())
-    accessory_hits = len(q_words & _ACCESSORY_KEYWORDS)
-    if accessory_hits > 0:
-        confidence = min(1.0, 0.6 + accessory_hits * 0.15)
-        return {
-            "tab": "accessory",
-            "confidence": round(confidence, 4),
-            "scores": {"device": round(1.0 - confidence, 4), "accessory": round(confidence, 4)},
-        }
+    # Build collection → (intent_label, doc_count) map from DB — no hardcoded IDs.
+    all_indexes = await list_indexes()
+    col_meta: dict[str, tuple[str, int]] = {
+        m.collection_name: (m.intent_label, max(m.doc_count, 1))
+        for m in all_indexes
+        if m.collection_name and m.intent_label
+    }
+
+    if not col_meta:
+        return {"tab": None, "confidence": 0.0, "scores": {}}
+
+    cols = list(col_meta.keys())
+    global_model = embedding_service.get_current_model()
+    # Identify which collections share the global embedding model
+    # (embed_model="" means "use global").
+    col_embed: dict[str, str] = {m.collection_name: m.embed_model for m in all_indexes if m.collection_name and m.intent_label}
 
     try:
         vec = await embedding_service.embed_query(q_stripped)
-        if vec:
-            collections = _get_isp_collections()
-            vec_str = ",".join(str(v) for v in vec)
-            searches = [
-                {
+        vec_str = ",".join(str(v) for v in vec) if vec else None
+
+        # Run vector search (for same-model collections) + lexical (for all collections).
+        # Vector search gives semantic similarity; for collections ingested with a different
+        # model we fall back to coverage ratio (found / doc_count) — a reliable discriminator
+        # because small, focused collections score high coverage for on-topic queries.
+        searches = []
+        for col in cols:
+            if vec_str and not col_embed.get(col):  # empty embed_model means global model
+                searches.append({
                     "collection":   col,
                     "q":            "*",
                     "query_by":     "title",
                     "vector_query": f"vec:([{vec_str}], k:5)",
                     "per_page":     "5",
-                }
-                for col in collections
-            ]
-            if searches:
-                resp = ts.get_client().multi_search.perform({"searches": searches}, {})
-                type_counts: dict[str, int] = {}
-                for res in resp.get("results", []):
-                    for h in res.get("hits", []):
-                        t = h.get("document", {}).get("source_type", "device")
-                        type_counts[t] = type_counts.get(t, 0) + 1
-                total = sum(type_counts.values()) or 1
-                device_conf = round(type_counts.get("device", 0) / total, 4)
-                acc_conf    = round(type_counts.get("accessory", 0) / total, 4)
-                if acc_conf > device_conf:
-                    return {"tab": "accessory", "confidence": acc_conf, "scores": {"device": device_conf, "accessory": acc_conf}}
-                return {"tab": "device", "confidence": device_conf, "scores": {"device": device_conf, "accessory": acc_conf}}
+                })
+            # Always include a lexical search for coverage ratio
+            searches.append({
+                "collection":       col,
+                "q":                q_stripped,
+                "query_by":         "title,content",
+                "query_by_weights": "3,1",
+                "num_typos":        1,
+                "per_page":         "5",
+            })
+
+        resp = ts.get_client().multi_search.perform({"searches": searches}, {})
+        results = resp.get("results", [])
+
+        label_score: dict[str, float] = {}
+        result_idx = 0
+        for col in cols:
+            label, doc_count = col_meta[col]
+            uses_global = not col_embed.get(col)
+
+            vec_res: dict = {}
+            if vec_str and uses_global:
+                vec_res = results[result_idx] if result_idx < len(results) else {}
+                result_idx += 1
+            lex_res = results[result_idx] if result_idx < len(results) else {}
+            result_idx += 1
+
+            # Vector similarity takes priority when available (same-model collections only).
+            vec_hits = vec_res.get("hits", []) if not vec_res.get("error") else []
+            if vec_hits:
+                avg_dist = sum(h.get("vector_distance", 1.0) for h in vec_hits) / len(vec_hits)
+                score = 1.0 - avg_dist / 2.0  # [0, 1], higher is better
+            else:
+                # Coverage ratio: fraction of collection matching the query.
+                # Small, focused collections (e.g. 8/15 tablets) score high; large
+                # diverse collections (e.g. 15/560 accessories) score low.
+                # Multiply by 1.5 so that high coverage (>50%) beats typical vector
+                # similarity scores (0.65–0.75), which cluster around the same range.
+                found = lex_res.get("found", 0)
+                score = min(found / doc_count * 1.5, 1.0)
+
+            label_score[label] = max(label_score.get(label, 0.0), round(score, 6))
+
+        if any(v > 0 for v in label_score.values()):
+            best = max(label_score, key=lambda t: label_score[t])
+            total = sum(label_score.values()) or 1
+            confidence = round(label_score[best] / total, 4)
+            return {"tab": best, "confidence": confidence, "scores": {k: round(v, 4) for k, v in label_score.items()}}
     except Exception:
         pass
 
-    return {"tab": "device", "confidence": 0.6, "scores": {"device": 0.6, "accessory": 0.4}}
+    return {"tab": None, "confidence": 0.0, "scores": {}}
 
 
 # ── POST /v1/catalog ──────────────────────────────────────────────────────────
