@@ -37,30 +37,70 @@ async def log_event(
         )
 
 
+async def log_events_batch(
+    index_id: str,
+    events: list[dict],
+) -> None:
+    """
+    Insert multiple search events in a single round-trip using executemany.
+
+    Each dict in ``events`` must have keys: session_id, query, doc_id, rank,
+    clicked, source.  ``index_id`` is shared across all rows in the batch.
+    """
+    now_ms = int(time.time() * 1000)
+    rows = [
+        (
+            index_id,
+            e["session_id"],
+            e["query"],
+            e["doc_id"],
+            e["rank"],
+            e["clicked"],
+            e["source"],
+            now_ms,
+        )
+        for e in events
+    ]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.executemany(
+            """
+            INSERT INTO search_events
+                (index_id, session_id, query, doc_id, rank, clicked, source, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            """,
+            rows,
+        )
+
+
+_CLICK_WEIGHT      = 1.0   # full position-discounted weight for a click
+_IMPRESSION_WEIGHT = 0.1   # impressions contribute 1/10th — seen but not clicked
+
+
 async def aggregate_popularity(index_id: str, days: int = 30) -> dict[str, int]:
     """
-    Compute normalised popularity scores from click events in the last ``days`` days.
+    Compute normalised popularity scores from both impressions and clicks.
 
     Scoring formula:
         position_weight(rank) = 1 / log2(rank + 2)   — rank 0 = 1.0, rank 9 ≈ 0.29
-        raw_score(doc)        = SUM(position_weight) for every clicked event on that doc
-        popularity(doc)       = round(raw_score / max_raw_score_in_index * 1_000_000)
+        contribution(event)   = position_weight × (1.0 if clicked else 0.1)
+        raw_score(doc)        = SUM(contribution) across all events for that doc
+        popularity(doc)       = round(raw_score / max_raw_score × 1_000_000)
 
-    Only clicked events contribute to the score; impressions without a click are
-    excluded so that high-impression / low-click documents are not rewarded.
+    Clicks are worth 10× a bare impression so that documents users actively open
+    rank higher than documents that are merely displayed frequently.
 
     Returns a dict of doc_id → popularity int in [0, 1_000_000].
-    Returns an empty dict when there are no click events in the window.
+    Returns an empty dict when there are no events in the window.
     """
     cutoff_ms = int((time.time() - days * 86400) * 1000)
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT doc_id, rank
+            SELECT doc_id, rank, clicked
             FROM search_events
-            WHERE index_id = $1
-              AND clicked   = TRUE
+            WHERE index_id  = $1
               AND created_at >= $2
             """,
             index_id, cutoff_ms,
@@ -71,7 +111,8 @@ async def aggregate_popularity(index_id: str, days: int = 30) -> dict[str, int]:
 
     raw: dict[str, float] = {}
     for row in rows:
-        weight = 1.0 / math.log2(row["rank"] + 2)
+        position_w = 1.0 / math.log2(row["rank"] + 2)
+        weight = position_w * (_CLICK_WEIGHT if row["clicked"] else _IMPRESSION_WEIGHT)
         raw[row["doc_id"]] = raw.get(row["doc_id"], 0.0) + weight
 
     max_score = max(raw.values())

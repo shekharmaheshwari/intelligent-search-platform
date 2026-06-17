@@ -1,19 +1,19 @@
 """
 /v1/analytics — search event ingestion, aggregation, and query health metrics.
 
-Three endpoints:
+POST /v1/analytics/impressions
+    Batch-ingest all result impressions from one search in a single request.
+    Returns 204 — fire-and-forget from the PLP.
 
-POST /v1/analytics/event
-    Accepts one search impression or click event from the PLP or management UI.
-    Returns 204 No Content — fire-and-forget from the frontend.
+POST /v1/analytics/click
+    Log a single click event when the user opens a product card.
+    Returns 204 — fire-and-forget from the PLP.
 
 POST /v1/analytics/aggregate?index_id=<slug-or-id>
-    Reads the last 30 days of click events for an index, computes
-    position-discounted CTR, and writes the resulting popularity scores
-    back to Typesense.  No re-embedding, no rebuild.
+    Compute position-discounted CTR and write popularity scores to Typesense.
 
 GET  /v1/analytics/summary?index_id=<slug-or-id>&days=30
-    Returns query health metrics: zero-result rate, top queries, low-CTR queries.
+    Query health metrics: zero-result rate, top queries, low-CTR queries.
 """
 from __future__ import annotations
 from fastapi import APIRouter, Query
@@ -23,44 +23,92 @@ from starlette.responses import Response
 router = APIRouter(tags=["analytics"])
 
 
-class AnalyticsEventBody(BaseModel):
+class ImpressionItem(BaseModel):
+    doc_id: str
+    rank:   int
+
+
+class ImpressionsBody(BaseModel):
     index_id:   str
-    session_id: str  = ""
-    query:      str  = ""
+    session_id: str = ""
+    query:      str = ""
+    source:     str = "plp"
+    items:      list[ImpressionItem]
+
+
+class ClickBody(BaseModel):
+    index_id:   str
+    session_id: str = ""
+    query:      str = ""
     doc_id:     str
-    rank:       int  = 0
-    clicked:    bool = False
-    source:     str  = "plp"   # "plp" | "mgmt_ui"
+    rank:       int = 0
+    source:     str = "plp"
 
 
 @router.post(
-    "/analytics/event",
+    "/analytics/impressions",
     status_code=204,
-    summary="Log a search impression or click",
+    summary="Batch-log all impressions from one search result page",
 )
-async def log_event(event: AnalyticsEventBody):
+async def log_impressions(body: ImpressionsBody):
     """
-    Accepts one search event (impression or click) from any ISP consumer.
+    Accepts all result impressions from a single search in one request.
 
-    ``index_id`` accepts either a slug (e.g. ``tablets``) or a hex ID.
-    Unknown indexes are accepted silently — the event is dropped rather than
-    erroring so a misconfigured client never breaks the user's search flow.
+    The PLP calls this once per search with every visible doc_id and its
+    0-based rank — replacing N individual /event calls with one round-trip.
+    ``index_id`` accepts a slug or hex ID. Unknown indexes are dropped silently.
     """
     from isp.routers.indexes import _resolve_index
     from isp.services.domain import analytics_service
 
-    meta = await _resolve_index(event.index_id)
+    if not body.items:
+        return Response(status_code=204)
+
+    meta = await _resolve_index(body.index_id)
+    if not meta:
+        return Response(status_code=204)
+
+    events = [
+        {
+            "session_id": body.session_id,
+            "query":      body.query,
+            "doc_id":     item.doc_id,
+            "rank":       item.rank,
+            "clicked":    False,
+            "source":     body.source,
+        }
+        for item in body.items
+    ]
+    await analytics_service.log_events_batch(meta.id, events)
+    return Response(status_code=204)
+
+
+@router.post(
+    "/analytics/click",
+    status_code=204,
+    summary="Log a single product click event",
+)
+async def log_click(body: ClickBody):
+    """
+    Logs one click event when the user opens a product card.
+
+    ``index_id`` accepts a slug or hex ID. Unknown indexes are dropped silently.
+    """
+    from isp.routers.indexes import _resolve_index
+    from isp.services.domain import analytics_service
+
+    meta = await _resolve_index(body.index_id)
     if not meta:
         return Response(status_code=204)
 
     await analytics_service.log_event(
         index_id=meta.id,
-        session_id=event.session_id,
-        query=event.query,
-        doc_id=event.doc_id,
-        rank=event.rank,
-        clicked=event.clicked,
-        source=event.source,
+        session_id=body.session_id,
+        query=body.query,
+        doc_id=body.doc_id,
+        rank=body.rank,
+        clicked=True,
+        source=body.source,
     )
     return Response(status_code=204)
 
