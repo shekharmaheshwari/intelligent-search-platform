@@ -377,7 +377,7 @@ async def create_index(body: IndexCreate):
     vector dimension; otherwise the global active dimension is used.
     The index starts empty; use a connector + ingest or rebuild to populate it.
     """
-    meta = await index_service.create_index(body.name, body.description, embed_model=body.embed_model)
+    meta = await index_service.create_index(body.name, body.description, embed_model=body.embed_model, intent_label=body.intent_label)
 
     # Resolve the vector dimension for this index's chosen model so the Typesense
     # collection schema matches the vectors that will be written during ingest.
