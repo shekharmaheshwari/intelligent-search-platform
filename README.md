@@ -138,8 +138,8 @@ curl 'http://localhost:8001/v1/intent/tab?q=galaxy+watch'
 
 | Response field | Description |
 |---|---|
-| `tab` | Winning `intent_label` (e.g. `device`, `accessory`, `smartwatch`, `tablet`) |
-| `confidence` | Winning score / sum of all scores |
+| `tab` | Winning `intent_label`, or `null` when intent cannot be determined (empty query, no labels configured, embedding failure) |
+| `confidence` | Winning score / sum of all scores; `0.0` when `tab` is `null` |
 | `scores` | Per-label vector similarity scores |
 
 To add a new tab, create an index with `intent_label` set — the intent endpoint self-configures automatically. See [Tab Intent Detection](docs/tabIntent.md) for the full scoring algorithm.
