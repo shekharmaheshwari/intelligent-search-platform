@@ -162,6 +162,32 @@ CREATE TABLE index_extensions (
 
 ---
 
+### Table: `search_events`
+Stores one row per search impression or click. Powers the analytics-driven popularity feedback loop.
+
+```sql
+CREATE TABLE search_events (
+    id          BIGSERIAL    PRIMARY KEY,
+    index_id    VARCHAR(12)  REFERENCES indexes(id) ON DELETE CASCADE,
+    session_id  VARCHAR(64),             -- anonymous ephemeral token, no PII
+    query       TEXT,                    -- search query text
+    doc_id      VARCHAR(128),            -- Typesense document id
+    rank        INTEGER,                 -- 0-based position in result list
+    clicked     BOOLEAN      DEFAULT FALSE,
+    source      VARCHAR(32),             -- "plp" | "mgmt_ui"
+    created_at  BIGINT                   -- Unix timestamp ms
+);
+
+CREATE INDEX search_events_index_doc_created ON search_events (index_id, doc_id, created_at);
+CREATE INDEX search_events_created           ON search_events (created_at);
+```
+
+**Retention:** raw events are kept for 90 days. Call `DELETE FROM search_events WHERE created_at < (EXTRACT(EPOCH FROM NOW()) - 90*86400)*1000` to prune, or use `POST /v1/analytics/aggregate` to aggregate then let old rows age out.
+
+**Popularity write-back:** the aggregation job reads click events, computes position-discounted CTR per document, normalises to 0–1,000,000, and updates the `popularity` field in Typesense directly — no re-embedding, no rebuild required. The updated score takes effect on the next search.
+
+---
+
 ## Slug and Intent Label
 
 ### Slug
@@ -283,4 +309,29 @@ FROM index_extensions ie
 JOIN indexes i ON i.id = ie.index_id
 JOIN extensions e ON e.id = ie.extension_id
 ORDER BY i.name, ie.run_order;
+
+-- Count total events and clicks per index (last 30 days)
+SELECT i.name, i.slug,
+       COUNT(*)                             AS impressions,
+       COUNT(*) FILTER (WHERE e.clicked)   AS clicks,
+       ROUND(COUNT(*) FILTER (WHERE e.clicked)::numeric / NULLIF(COUNT(*),0) * 100, 1) AS ctr_pct
+FROM search_events e JOIN indexes i ON i.id = e.index_id
+WHERE e.created_at >= (EXTRACT(EPOCH FROM NOW()) - 30*86400) * 1000
+GROUP BY i.name, i.slug ORDER BY impressions DESC;
+
+-- Top clicked documents for a specific index
+SELECT doc_id, COUNT(*) AS clicks
+FROM search_events
+WHERE index_id = '9ed56100f220' AND clicked = TRUE
+GROUP BY doc_id ORDER BY clicks DESC LIMIT 10;
+
+-- Low-CTR queries (impressions but zero clicks) for an index
+SELECT query, COUNT(*) AS impressions
+FROM search_events
+WHERE index_id = '9ed56100f220' AND clicked = FALSE
+  AND query NOT IN (
+    SELECT DISTINCT query FROM search_events
+    WHERE index_id = '9ed56100f220' AND clicked = TRUE
+  )
+GROUP BY query ORDER BY impressions DESC LIMIT 10;
 ```
