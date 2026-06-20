@@ -1,7 +1,7 @@
 import { indexRepository, type IndexRepository } from '../../repository/IndexRepository';
 import { mapIndexMetaToIndex, mapIndexesToDomain } from './index.mapper';
 import type { Index, IngestStatus, SearchResult } from './index.model';
-import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig } from '../../types';
+import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig } from '../../types';
 
 /**
  * Service for all index-domain operations.
@@ -82,6 +82,14 @@ export class IndexService {
     return this.repo.ingestSitemap(id, cfg);
   }
 
+  /**
+   * Start a Google Sheets ingest job. Returns immediately with ``state=queued``.
+   * Poll ``getStatus`` to track progress.
+   */
+  ingestGSheet(id: string, cfg: GSheetConnectorConfig): Promise<IngestStatus> {
+    return this.repo.ingestGSheet(id, cfg);
+  }
+
   /** Return a paginated page of documents from the index. */
   listDocuments(id: string, page?: number, perPage?: number): Promise<SearchResult> {
     return this.repo.listDocuments(id, page, perPage);
@@ -119,13 +127,18 @@ export class IndexService {
    * Full rebuild: drop all existing documents and re-fetch from the connector.
    * Returns immediately with ``state=queued``; poll ``getStatus`` to track progress.
    */
-  rebuild(id: string, cfg: RestConnectorConfig | SitemapConnectorConfig): Promise<IngestStatus> {
+  rebuild(id: string, cfg: RestConnectorConfig | SitemapConnectorConfig | GSheetConnectorConfig): Promise<IngestStatus> {
     return this.repo.rebuild(id, cfg);
   }
 
   /** Persist sitemap connector config without triggering a crawl. */
   saveSitemapConnector(id: string, cfg: SitemapConnectorConfig): Promise<IndexMeta> {
     return this.repo.saveSitemapConnector(id, cfg);
+  }
+
+  /** Persist Google Sheets connector config without triggering an ingest. */
+  saveGsheetConnector(id: string, cfg: GSheetConnectorConfig): Promise<IndexMeta> {
+    return this.repo.saveGsheetConnector(id, cfg);
   }
 
   /**

@@ -63,6 +63,30 @@ services:
       timeout: 5s
       retries: 10
 
+  isp-vault:
+    image: hashicorp/vault:latest
+    container_name: isp-vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_ADDR: "http://127.0.0.1:8200"
+    volumes:
+      - isp-vault-data:/vault/data
+      - ./vault/config:/vault/config:ro
+      - ./vault/entrypoint.sh:/vault/entrypoint.sh:ro
+    entrypoint: ["sh", "/vault/entrypoint.sh"]
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - isp-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
+
   isp-api:
     build:
       context: ./backend
@@ -100,3 +124,4 @@ volumes:
   isp-db-data:
   isp-typesense-data:
   isp-redis-data:
+  isp-vault-data:

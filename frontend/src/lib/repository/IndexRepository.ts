@@ -1,6 +1,6 @@
 import type {
   IndexMeta, IngestStatus, SearchResult,
-  RestConnectorConfig, SitemapConnectorConfig,
+  RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig,
 } from '../types';
 import { api } from '../api';
 
@@ -77,6 +77,14 @@ export class IndexRepository {
     return api.ingestSitemap(id, cfg);
   }
 
+  /**
+   * Start a Google Sheets ingest job that reads rows from the specified spreadsheet.
+   * Returns immediately with ``state=queued``; callers must poll ``getStatus``.
+   */
+  ingestGSheet(id: string, cfg: GSheetConnectorConfig): Promise<IngestStatus> {
+    return api.ingestGSheet(id, cfg);
+  }
+
   /** Paginated listing of all documents in an index, sorted newest first. */
   listDocuments(id: string, page?: number, perPage?: number): Promise<SearchResult> {
     return api.listDocuments(id, page, perPage);
@@ -114,13 +122,17 @@ export class IndexRepository {
    * Full rebuild: drop all existing documents and re-fetch from the connector.
    * Callers must poll ``getStatus`` to track progress.
    */
-  rebuild(id: string, cfg: RestConnectorConfig | SitemapConnectorConfig): Promise<IngestStatus> {
+  rebuild(id: string, cfg: RestConnectorConfig | SitemapConnectorConfig | GSheetConnectorConfig): Promise<IngestStatus> {
     return api.rebuild(id, cfg);
   }
 
   /** Persist sitemap connector config without triggering a crawl. */
   saveSitemapConnector(id: string, cfg: SitemapConnectorConfig): Promise<IndexMeta> {
     return api.saveSitemapConnector(id, cfg);
+  }
+
+  saveGsheetConnector(id: string, cfg: GSheetConnectorConfig): Promise<IndexMeta> {
+    return api.saveGsheetConnector(id, cfg);
   }
 
   /**

@@ -30,6 +30,7 @@ Browser (Admin UI / External App)
               ├─► isp-db :5432      (PostgreSQL — metadata, connectors, extensions)
               ├─► typesense :8108   (documents + 1024-dim vectors)
               ├─► isp-redis :6379   (L2 embedding cache + distributed job lock)
+              ├─► isp-vault :8200   (HashiCorp Vault — local secrets store)
               └─► Voyage AI (cloud — embeddings)
 ```
 
@@ -47,6 +48,69 @@ Browser (Admin UI / External App)
 | **Editorial boost** | Per-document ranking signals (`popularity`, `is_featured`, `boost_queries_equal`, `boost_queries_contains`) stored as top-level Typesense fields and applied after RRF fusion. |
 | **intent_label** | Free-text field on each index that maps it to a PLP tab (e.g. `device`, `accessory`, `smartwatch`, `tablet`). Drives self-configuring tab intent detection — no hardcoded keywords or collection IDs. |
 | **slug** | Human-readable URL alias for an index (e.g. `tablets`). Auto-generated from the index name on creation and back-filled for existing indexes on first startup after upgrade. All index routes accept either a slug or a hex ID — both always work. |
+| **Google Sheets connector** | Connector type `gsheet` — fetches rows from a Google Spreadsheet using a service account. Column mapping, field renames, and row-id generation are all configured at ingest time; no schema changes required. |
+
+---
+
+## Workspace Setup
+
+### First-time setup
+
+```bash
+# 1. Copy env template
+cp backend/.env.example backend/.env
+
+# 2. Start all containers (includes Vault on first run — auto-inits itself)
+docker-compose up -d
+
+# 3. Populate secrets into Vault (run once; reads root token automatically)
+./vault/setup-secrets.sh
+
+# 4. Copy the printed VAULT_TOKEN into backend/.env and set SECRET_PROVIDER=vault
+#    (or leave SECRET_PROVIDER=env and set secrets directly in backend/.env)
+
+# 5. Start the application
+./deploy-all.sh
+```
+
+### Google Sheets connector setup
+
+A service account JSON key is required to index content from Google Sheets.
+
+```bash
+# Store the key file in a standard location
+mkdir -p ~/.config/isp
+cp /path/to/your-service-account-key.json ~/.config/isp/gsheet-service-account.json
+
+# vault/setup-secrets.sh reads from that path automatically and writes it to Vault.
+# If using SECRET_PROVIDER=env instead, paste the raw JSON into backend/.env:
+# GOOGLE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
+```
+
+See [Google Sheets Connector](docs/gsheet-connector.md) for sharing the spreadsheet with the service account email.
+
+### Vault (local secrets store)
+
+`isp-vault` runs as a Docker container with file-backed persistent storage. Secrets survive restarts and recompose cycles via the `isp-vault-data` Docker volume.
+
+| File | Purpose |
+|---|---|
+| `vault/config/vault.hcl` | Vault server config — file storage, TCP listener, UI enabled |
+| `vault/entrypoint.sh` | Auto-init on first run; auto-unseal on every restart |
+| `vault/setup-secrets.sh` | One-time script to populate all ISP secrets |
+
+```bash
+# Check Vault status
+vault status -address=http://localhost:8200
+
+# Read root token (needed if you lose backend/.env)
+docker exec isp-vault cat /vault/data/.root_token
+
+# Re-run setup to rotate a secret
+./vault/setup-secrets.sh
+```
+
+See [Secrets Strategy](docs/secrets-strategy.md) for Vault ↔ AWS Secrets Manager migration details.
 
 ---
 
@@ -270,6 +334,8 @@ Full Swagger UI at **http://localhost:8001/docs**
 | GET/DELETE | `/v1/indexes/{id}` | Get / delete a source |
 | POST | `/v1/indexes/{id}/ingest/rest` | Append from REST API |
 | POST | `/v1/indexes/{id}/ingest/sitemap` | Append from sitemap |
+| POST | `/v1/indexes/{id}/connectors/gsheet` | Save Google Sheets connector config |
+| POST | `/v1/indexes/{id}/ingest/gsheet` | Append from Google Sheets |
 | POST | `/v1/indexes/{id}/rebuild` | Full rebuild (drop + re-index) |
 | GET | `/v1/indexes/{id}/status` | Poll job state |
 | GET | `/v1/indexes/{id}/documents` | List documents (includes `vec`) |
@@ -300,6 +366,8 @@ Ingest and rebuild endpoints return **HTTP 409** if a job is already running for
 
 ```env
 # backend/.env
+
+# ── Core services ─────────────────────────────────────────────────────────────
 TYPESENSE_HOST=typesense
 TYPESENSE_PORT=8108
 TYPESENSE_API_KEY=local-dev-key-change-me
@@ -309,7 +377,26 @@ REDIS_URL=redis://isp-redis:6379/0
 EXTENSIONS_DIR=/app/extensions
 HOST=0.0.0.0
 PORT=8001
+
+# ── Secrets provider ──────────────────────────────────────────────────────────
+# "env"   → read secrets directly from this file (default, no extra setup)
+# "vault" → read from local HashiCorp Vault (run ./vault/setup-secrets.sh first)
+# "aws"   → read from AWS Secrets Manager (set AWS_REGION; uses IAM Role in prod)
+SECRET_PROVIDER=env
+
+# Required when SECRET_PROVIDER=vault
+# VAULT_ADDR=http://isp-vault:8200
+# VAULT_TOKEN=<printed by vault/setup-secrets.sh>
+
+# Required when SECRET_PROVIDER=aws
+# AWS_REGION=us-east-1
+
+# ── Google Sheets connector ───────────────────────────────────────────────────
+# Inline JSON of the service account key (only needed when SECRET_PROVIDER=env)
+# GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 ```
+
+See [Secrets Strategy](docs/secrets-strategy.md) for full details on Vault and AWS Secrets Manager setup.
 
 ---
 
@@ -332,12 +419,24 @@ ISP is safe to run behind a load balancer. A Redis-backed distributed lock preve
 
 ## Docs
 
+### Architecture & codebase
 - [Application Overview](docs/01-application-overview.md)
 - [Typesense Integration](docs/02-typesense-integration.md)
 - [Database Schema](docs/03-database.md)
 - [Codebase Structure](docs/04-codebase.md)
 - [Component Integrations](docs/05-integrations.md)
 - [Backend Architecture](docs/backend_architecture.md)
+- [Frontend Data Layer Architecture](docs/data-layer-architecture2.md)
+
+### Features
 - [Score Boost Reference](docs/scoreBoost.md)
 - [Tab Intent Detection](docs/tabIntent.md)
 - [Analytics-Driven Learning](docs/analyticsDataLearning.md)
+- [Sitemap Indexing](docs/sitemapIndexingDetails.md)
+- [Google Sheets Connector](docs/gsheet-connector.md)
+
+### Operations & security
+- [Secrets Strategy](docs/secrets-strategy.md) — `SECRET_PROVIDER=env|vault|aws`, Vault ↔ AWS migration
+- [Auth Approaches](docs/auth-approaches.md) — OAuth2, API Key, SSO options
+- [Deploy to AWS EC2](docs/deploy-aws-ec2.md)
+- [AWS EC2 + Docker Compose](docs/aws-EC2-Docker-Compose.md)
