@@ -12,8 +12,8 @@
    */
   import { createEventDispatcher } from 'svelte';
   import { indexService } from '../../lib/services/indexes/IndexService';
-  import type { IndexMeta, IngestStatus, RestConnectorConfig, SitemapConnectorConfig } from '../../lib/types';
-  import { getExistingRest, getExistingSitemap, parseCurl as parseCurlHelper, buildCurl } from './RebuildPanel.helpers';
+  import type { IndexMeta, IngestStatus, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig } from '../../lib/types';
+  import { getExistingRest, getExistingSitemap, getExistingGsheet, parseCurl as parseCurlHelper, buildCurl } from './RebuildPanel.helpers';
 
   export let index: IndexMeta;
 
@@ -27,6 +27,21 @@
   let method       = pre.method ?? 'GET';
   let headersRaw   = pre.headers ? JSON.stringify(pre.headers, null, 2) : '{}';
   let body         = pre.body ?? '';
+
+  // ── GSheet fields ─────────────────────────────────────────────────────────────
+  const preGsheet = getExistingGsheet(index);
+  let gsheetSpreadsheetId = preGsheet.spreadsheet_id ?? '';
+  let gsheetSheetName     = preGsheet.sheet_name ?? 'Sheet1';
+  let gsheetHeaderRow     = preGsheet.header_row ?? 1;
+  let gsheetIdCol         = preGsheet.id_column ?? '';
+  let gsheetTitleCol      = preGsheet.title_column ?? '';
+  let gsheetContentCol    = preGsheet.content_column ?? '';
+  let gsheetUrlCol        = preGsheet.url_column ?? '';
+  let gsheetSkipEmpty     = preGsheet.skip_empty_rows ?? true;
+  let gsheetMappings      = Object.entries(preGsheet.field_map ?? {}).map(([key, value]) => ({ key, value }));
+
+  function addGsheetMapping()           { gsheetMappings = [...gsheetMappings, { key: '', value: '' }]; }
+  function removeGsheetMapping(i: number) { gsheetMappings = gsheetMappings.filter((_, idx) => idx !== i); }
 
   // ── Sitemap fields ────────────────────────────────────────────────────────────
   const preSitemap = getExistingSitemap(index);
@@ -98,7 +113,23 @@
     statusIndexed = 0; statusTotal = 0;
 
     try {
-      if (connectorType === 'sitemap') {
+      if (connectorType === 'gsheet') {
+        if (!gsheetSpreadsheetId.trim()) { errMsg = 'Spreadsheet ID is required'; runState = 'idle'; return; }
+        if (!gsheetTitleCol.trim()) { errMsg = 'Title column is required — documents with no title are dropped'; runState = 'idle'; return; }
+        const cfg: GSheetConnectorConfig = {
+          type: 'gsheet',
+          spreadsheet_id: gsheetSpreadsheetId.trim(),
+          sheet_name:     gsheetSheetName.trim() || 'Sheet1',
+          header_row:     gsheetHeaderRow,
+          id_column:      gsheetIdCol.trim(),
+          title_column:   gsheetTitleCol.trim(),
+          content_column: gsheetContentCol.trim(),
+          url_column:     gsheetUrlCol.trim(),
+          skip_empty_rows: gsheetSkipEmpty,
+          field_map: Object.fromEntries(gsheetMappings.filter(r => r.key.trim() && r.value.trim()).map(r => [r.key.trim(), r.value.trim()])),
+        };
+        await indexService.rebuild(index.id, cfg);
+      } else if (connectorType === 'sitemap') {
         if (!sitemapUrl.trim()) { errMsg = 'Sitemap URL is required'; runState = 'idle'; return; }
         const cfg: SitemapConnectorConfig = {
           url: sitemapUrl.trim(),
@@ -187,7 +218,51 @@
   </div>
 
   <div class="body">
-    {#if connectorType !== 'sitemap'}
+    {#if connectorType === 'gsheet'}
+      <!-- GSheet form -->
+      <fieldset class="form" disabled={runState === 'running'}>
+        <label class="field">
+          Spreadsheet ID <span class="req">*</span>
+          <input bind:value={gsheetSpreadsheetId} placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
+        </label>
+        <div class="field-row">
+          <label class="field" style="flex:2">
+            Sheet name <span class="hint-inline">(tab name, default Sheet1)</span>
+            <input bind:value={gsheetSheetName} placeholder="Sheet1" />
+          </label>
+          <label class="field" style="flex:1">
+            Header row
+            <input type="number" bind:value={gsheetHeaderRow} min="1" />
+          </label>
+        </div>
+        <div class="section-label">Column mapping</div>
+        <div class="grid2">
+          <label class="field">Title column <span class="req">*</span><input bind:value={gsheetTitleCol} placeholder="Title" /></label>
+          <label class="field">URL column<input bind:value={gsheetUrlCol} placeholder="url" /></label>
+          <label class="field">Content column<input bind:value={gsheetContentCol} placeholder="description" /></label>
+          <label class="field">ID column <span class="hint-inline">(auto if blank)</span><input bind:value={gsheetIdCol} placeholder="" /></label>
+        </div>
+
+        <div class="field">
+          <span class="field-label-text">Extra field renames <span class="hint-inline">(sheet column → ISP field)</span></span>
+          {#each gsheetMappings as row, i}
+            <div class="extra-row">
+              <input bind:value={row.key} placeholder="Sheet column" class="field-input" />
+              <span style="color:#555">→</span>
+              <input bind:value={row.value} placeholder="ISP field" class="field-input" />
+              <button class="rm-btn" type="button" on:click={() => removeGsheetMapping(i)}>✕</button>
+            </div>
+          {/each}
+          <button type="button" class="add-mapping-btn" on:click={addGsheetMapping}>+ Add rename</button>
+        </div>
+
+        <label class="field" style="flex-direction:row;align-items:center;gap:8px">
+          <input type="checkbox" bind:checked={gsheetSkipEmpty} style="accent-color:#7c6cf4" />
+          <span>Skip empty rows</span>
+        </label>
+      </fieldset>
+
+    {:else if connectorType !== 'sitemap'}
       <!-- Paste curl shortcut — REST only -->
       <div class="paste-curl-wrap">
         <div class="paste-curl-label">
@@ -304,6 +379,7 @@
       </fieldset>
     {/if}
 
+
     {#if errMsg && runState !== 'running'}
       <p class="err">{errMsg}</p>
     {/if}
@@ -313,13 +389,13 @@
       {#if runState === 'idle' || runState === 'error'}
         <div class="actions">
           <button class="btn-cancel" on:click={() => dispatch('close')}>Cancel</button>
-          {#if connectorType !== 'sitemap'}
+          {#if connectorType !== 'sitemap' && connectorType !== 'gsheet'}
             <button class="btn-copy-curl" on:click={copyCurl} disabled={!url.trim()} title="Copy full curl command">
               {copied ? '✓ Copied' : '⎘ Copy curl'}
             </button>
           {/if}
           <button class="btn-rebuild" on:click={runRebuild}
-            disabled={connectorType === 'sitemap' ? !sitemapUrl.trim() : !url.trim()}>
+            disabled={connectorType === 'sitemap' ? !sitemapUrl.trim() : connectorType === 'gsheet' ? !gsheetSpreadsheetId.trim() : !url.trim()}>
             ↺ Run Rebuild
           </button>
         </div>

@@ -8,7 +8,7 @@
  */
 import type {
   IndexMeta, IngestStatus, SearchResult,
-  RestConnectorConfig, SitemapConnectorConfig,
+  RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig,
   ExtensionMeta, IndexExtension, AppSettings,
 } from './types';
 
@@ -97,6 +97,16 @@ export const api = {
       body: JSON.stringify(cfg),
     }),
 
+  /**
+   * Start a Google Sheets ingest job that reads rows from the specified spreadsheet.
+   * Returns immediately with ``state=queued``; poll ``getStatus`` to track progress.
+   */
+  ingestGSheet: (id: string, cfg: GSheetConnectorConfig) =>
+    req<IngestStatus>(`/indexes/${id}/ingest/gsheet`, {
+      method: 'POST',
+      body: JSON.stringify(cfg),
+    }),
+
   /** Paginated listing of all documents in an index, sorted newest first. */
   listDocuments: (id: string, page = 1, perPage = 20) =>
     req<SearchResult>(`/indexes/${id}/documents?page=${page}&per_page=${perPage}`),
@@ -142,7 +152,7 @@ export const api = {
    * Full rebuild: drop all existing documents and re-fetch from the connector.
    * For catalog write-back sources this runs the full extension pipeline.
    */
-  rebuild: (id: string, cfg: RestConnectorConfig | SitemapConnectorConfig) =>
+  rebuild: (id: string, cfg: RestConnectorConfig | SitemapConnectorConfig | GSheetConnectorConfig) =>
     req<IngestStatus>(`/indexes/${id}/rebuild`, {
       method: 'POST',
       body: JSON.stringify(cfg),
@@ -151,6 +161,13 @@ export const api = {
   /** Persist sitemap connector config without triggering a crawl. */
   saveSitemapConnector: (id: string, cfg: SitemapConnectorConfig) =>
     req<IndexMeta>(`/indexes/${id}/connectors/sitemap`, {
+      method: 'POST',
+      body: JSON.stringify(cfg),
+    }),
+
+  /** Persist Google Sheets connector config without triggering an ingest. */
+  saveGsheetConnector: (id: string, cfg: GSheetConnectorConfig) =>
+    req<IndexMeta>(`/indexes/${id}/connectors/gsheet`, {
       method: 'POST',
       body: JSON.stringify(cfg),
     }),

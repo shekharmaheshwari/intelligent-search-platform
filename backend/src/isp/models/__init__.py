@@ -8,6 +8,7 @@ model lives in:
 from isp.models.index import (  # noqa: F401
     RestConnectorConfig,
     SitemapConnectorConfig,
+    GSheetConnectorConfig,
     ConnectorConfig,
     IndexCreate,
     ConnectorAdd,
