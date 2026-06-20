@@ -12,6 +12,7 @@
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../../lib/types';
   import { connectorUrl, connectorType, shortUrl, filterIndexes } from './SourcesSidebar.helpers';
+  import FilterBar from '../common/FilterBar.svelte';
 
   export let indexes: IndexMeta[] = [];
   export let selectedId: string | null = null;
@@ -27,18 +28,8 @@
 <aside class="sidebar">
 
   <!-- Search bar -->
-  <div class="search-wrap">
-    <span class="search-icon">⌕</span>
-    <input
-      class="search-input"
-      type="text"
-      placeholder="Filter…"
-      bind:value={searchQuery}
-      aria-label="Filter sources"
-    />
-    {#if searchQuery}
-      <button class="search-clear" on:click={() => searchQuery = ''} aria-label="Clear filter">✕</button>
-    {/if}
+  <div class="filter-wrap">
+    <FilterBar bind:value={searchQuery} ariaLabel="Filter sources" />
   </div>
 
   <!-- Sources group -->
@@ -159,47 +150,9 @@
   .footer-icon { font-size: 13px; }
 
   /* ── Search bar ── */
-  .search-wrap {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .filter-wrap {
     margin: 10px 10px 4px;
-    background: #111;
-    border: 1px solid #222;
-    border-radius: 6px;
-    padding: 0 8px;
-    height: 30px;
   }
-  .search-wrap:focus-within {
-    border-color: #3a3370;
-  }
-  .search-icon {
-    font-size: 14px;
-    color: #444;
-    flex-shrink: 0;
-    line-height: 1;
-  }
-  .search-input {
-    flex: 1;
-    background: none;
-    border: none;
-    outline: none;
-    color: #ccc;
-    font-size: 12px;
-    min-width: 0;
-  }
-  .search-input::placeholder { color: #3a3a3a; }
-  .search-clear {
-    background: none;
-    border: none;
-    color: #444;
-    font-size: 10px;
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-  .search-clear:hover { color: #888; }
 
   @media (max-width: 767px) {
     .sidebar {
