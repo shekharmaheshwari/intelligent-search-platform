@@ -1,30 +1,40 @@
 # Analytics-Driven Learning — ISP Ranking Feedback Loop
 
+> **Status: Implemented** (Phases 1–3 complete; Phase 4 query-level metrics available via `GET /v1/analytics/summary`)
+
 ## Goal
 
-Update ISP to learn from user behaviour (search clicks, result engagement) and feed those signals back into the ranking model — without re-embedding or rebuilding indexes.
+ISP learns from user behaviour (search clicks, result engagement) and feeds those signals back into the ranking model — without re-embedding or rebuilding indexes.
 
-ISP already has the key hook: `popularity` and `is_featured` are top-level Typesense fields updated via `PATCH /v1/indexes/{id}/documents/{doc_id}` without touching embeddings. The plan wires real usage signals into those fields automatically.
+ISP already has the key hook: `popularity` and `is_featured` are top-level Typesense fields updated via `PATCH /v1/indexes/{id}/documents/{doc_id}` without touching embeddings. The analytics system wires real usage signals into those fields automatically.
 
 ---
 
 ## Architecture Overview
 
 ```
-User clicks result
+Search results displayed
         │
         ▼
-POST /v1/analytics/event
+POST /v1/analytics/impressions   ← one batch request per search page
+  items: [{doc_id, rank}, ...]
+        │
+User clicks a product card
+        │
+        ▼
+POST /v1/analytics/click         ← one request per click
+  {doc_id, rank, query, ...}
         │
         ▼
 search_events (PostgreSQL)
-  query | index_id | doc_id | rank | clicked | session_id | timestamp
+  query | index_id | doc_id | rank | clicked | session_id | created_at
         │
         ▼
-Aggregation job (background / cron)
-  — CTR per doc per index (rolling 30-day window)
-  — position-discounted click weight
-  — normalise to 0–1,000,000 popularity score
+Aggregation job (POST /v1/analytics/aggregate)
+  — position_weight(rank) = 1 / log2(rank + 2)
+  — click contributes weight × 1.0
+  — impression contributes weight × 0.1  (10× less than a click)
+  — normalise to 0–1,000,000 popularity score per index
         │
         ▼
 update_document_fields(col, doc_id, {popularity: N})
@@ -34,16 +44,16 @@ Typesense: popularity field updated (no re-embed)
         │
         ▼
 RRF score boosted on next search
-  final_score += min(popularity, 1_000_000) / 2_000_000
+  final_score += min(popularity, 1_000_000) / 2_000_000   → up to +0.5
 ```
 
 ---
 
-## Phased Implementation Plan
+## Implementation
 
-### Phase 1 — Capture Events
+### Phase 1 — Capture Events ✅
 
-**What:** Log every search impression and click from both the Management UI and the T-Mobile PLP.
+**What:** Log every search impression and click from both the Management UI and the PLP.
 
 **New database table:**
 
@@ -64,47 +74,71 @@ CREATE INDEX ON search_events (index_id, doc_id, created_at);
 CREATE INDEX ON search_events (created_at);
 ```
 
-**New API endpoint:**
+**API endpoints:**
 
-```
-POST /v1/analytics/event
-Body: {
-  "index_id":   "abc123",
+```bash
+# Batch impressions — one request per search, all visible docs
+POST /v1/analytics/impressions
+{
+  "index_id":   "tablets",
   "session_id": "sess_xyz",
-  "query":      "iphone 15 pro",
-  "doc_id":     "d4f9a1...",
-  "rank":        2,
-  "clicked":    true,
+  "query":      "galaxy tab",
+  "source":     "plp",
+  "items": [{"doc_id": "abc123", "rank": 0}, {"doc_id": "def456", "rank": 1}]
+}
+
+# Single click — fired when user opens a product card
+POST /v1/analytics/click
+{
+  "index_id":   "tablets",
+  "session_id": "sess_xyz",
+  "query":      "galaxy tab",
+  "doc_id":     "abc123",
+  "rank":       0,
   "source":     "plp"
 }
 ```
 
-Returns `204 No Content`.
+Both return `204 No Content` and are fire-and-forget (errors never surface to the user).
 
-**Frontend changes:**
-- `SourceContent.svelte` — fire event on document click/expand.
-- T-Mobile PLP (`tmo-plp`) — fire event on product card click.
+**Implemented in:**
+- `backend/src/isp/routers/analytics.py` — `POST /v1/analytics/impressions`, `POST /v1/analytics/click`
+- `backend/src/isp/services/domain/analytics_service.py` — `log_event()`, `log_events_batch()`
+- `backend/src/isp/services/infra/database.py` — `search_events` table DDL
+- `plp/src/lib/repository/catalogRepository.ts` — `logImpressions()`, `logClick()`
+- `plp/src/lib/controller/catalogController.ts` — batch impressions after search, `notifyClick()` export
+- `plp/src/components/ProductCard.svelte` — calls `notifyClick()` on card click
+- `plp/src/components/ProductGrid.svelte` — passes `rank`, `tab`, `query` props
 
 ---
 
-### Phase 2 — Aggregate Signals
+### Phase 2 — Aggregate Signals ✅
 
 **What:** A background job computes a `popularity` score per document from raw click events.
 
-**Scoring formula:**
+**Scoring formula — impressions and clicks both contribute:**
 
 ```
-position_weight(rank) = 1 / log2(rank + 2)   # higher rank = lower weight
+position_weight(rank)  = 1 / log2(rank + 2)      # rank 0 = 1.0, rank 9 ≈ 0.29
 
-raw_score(doc) = SUM of position_weight(rank)
-                 for each clicked event on doc
-                 in the last 30 days
+contribution(event)    = position_weight × 1.0    # click  (full signal)
+                       = position_weight × 0.1    # impression (1/10th of click)
+
+raw_score(doc)         = SUM(contribution) across all events in the last 30 days
 
 normalised_popularity(doc) =
     round( raw_score(doc) / max_raw_score_in_index * 1_000_000 )
 ```
 
-Position discounting ensures clicks on rank-1 results count more than clicks buried on page 3.
+Every document shown in search results builds popularity over time. Clicks count 10× more than bare impressions — a single click at rank 0 equals 10 impressions at the same position. Position discounting ensures high-rank signals are worth more than the same action buried on page 3.
+
+**Example scores with one search session (3 docs shown, 1 clicked):**
+
+| Document | Events | raw_score | popularity |
+|---|---|---|---|
+| Doc A (rank 0) | impression + click | `1.0×0.1 + 1.0×1.0 = 1.1` | 1,000,000 |
+| Doc B (rank 1) | impression only | `0.63×0.1 = 0.063` | 57,357 |
+| Doc C (rank 2) | impression only | `0.50×0.1 = 0.050` | 45,455 |
 
 **Trigger options (choose one):**
 
@@ -114,11 +148,15 @@ Position discounting ensures clicks on rank-1 results count more than clicks bur
 | FastAPI `BackgroundTasks` after N new events | Near real-time | Adds overhead per request |
 | APScheduler cron inside isp-api | Hourly, automatic | Self-contained, no external scheduler |
 
-Recommended starting point: **on-demand endpoint**, promoted to cron once traffic warrants it.
+Implemented as **on-demand endpoint** (`POST /v1/analytics/aggregate`). Promote to a cron job once traffic warrants it.
+
+**Implemented in:**
+- `backend/src/isp/routers/analytics.py` — `POST /v1/analytics/aggregate?index_id=<slug-or-id>&days=30`
+- `backend/src/isp/services/domain/analytics_service.py` — `aggregate_popularity()`, `apply_popularity()`; weights controlled by `_CLICK_WEIGHT = 1.0` and `_IMPRESSION_WEIGHT = 0.1` constants at the top of the file
 
 ---
 
-### Phase 3 — Apply Scores to Typesense
+### Phase 3 — Apply Scores to Typesense ✅
 
 **What:** Write aggregated scores back to Typesense using the existing partial-update path.
 
@@ -137,11 +175,14 @@ for doc_id, new_popularity in aggregated_scores.items():
 - Takes effect on the next search request.
 - Existing hand-set `is_featured` values are untouched (different field).
 
+**Implemented in:**
+- `backend/src/isp/services/domain/analytics_service.py` — `apply_popularity()`, calls `ts.update_document_fields()`
+
 ---
 
-### Phase 4 — Query-Level Analytics
+### Phase 4 — Query-Level Analytics ✅
 
-**What:** Surface query health metrics in the Management UI.
+**What:** Surface query health metrics via API.
 
 **Metrics to track:**
 
@@ -152,17 +193,21 @@ for doc_id, new_popularity in aggregated_scores.items():
 | Top queries | Most frequent queries per index | Inform extension field priorities |
 | Query reformulation rate | Same session: query → new query within 30 s | Signals poor first-result quality |
 
-**New endpoint:**
+**Endpoint:**
 
+```bash
+curl "http://localhost:8001/v1/analytics/summary?index_id=tablets&days=30"
+# {
+#   "total_searches": 1420,
+#   "zero_result_rate": 0.04,
+#   "top_queries": [{"q": "galaxy tab", "count": 312}, ...],
+#   "low_ctr_queries": [{"q": "android tablet"}]
+# }
 ```
-GET /v1/analytics/summary?index_id=abc123&days=30
-Response: {
-  "total_searches": 1420,
-  "zero_result_rate": 0.04,
-  "top_queries": [{"q": "iphone 15", "count": 312}, ...],
-  "low_ctr_queries": [{"q": "blue phone case", "ctr": 0.02}, ...]
-}
-```
+
+**Implemented in:**
+- `backend/src/isp/routers/analytics.py` — `GET /v1/analytics/summary`
+- `backend/src/isp/services/domain/analytics_service.py` — `get_summary()`
 
 ---
 
@@ -189,16 +234,19 @@ DELETE FROM search_events WHERE created_at < (EXTRACT(EPOCH FROM NOW()) - 90*864
 
 ---
 
-## Files to Create / Modify
+## Files Changed
 
 | File | Change |
 |------|--------|
-| `backend/src/isp/routers/analytics.py` | New router: event ingest + aggregate + summary endpoints |
-| `backend/src/isp/services/analytics_service.py` | PostgreSQL CRUD for `search_events`; aggregation logic |
-| `backend/src/isp/main.py` | Register analytics router; add `search_events` table to `init_db()` |
-| `frontend/src/lib/api.ts` | Add `logEvent()` method |
-| `frontend/src/components/SourceContent.svelte` | Fire click events |
-| `tmo-plp` (separate repo) | Fire click events on product card interaction |
+| `backend/src/isp/routers/analytics.py` | New router: `POST /v1/analytics/event`, `POST /v1/analytics/aggregate`, `GET /v1/analytics/summary` |
+| `backend/src/isp/services/domain/analytics_service.py` | `log_event`, `aggregate_popularity`, `apply_popularity`, `get_summary`, `cleanup_old_events` |
+| `backend/src/isp/services/infra/database.py` | `search_events` table + 2 indexes added to `init_db()` |
+| `backend/src/isp/main.py` | Register analytics router |
+| `plp/src/lib/repository/catalogRepository.ts` | `logEvent()` — fire-and-forget fetch |
+| `plp/src/lib/controller/catalogController.ts` | `SESSION_ID`, impression events in `loadProducts`, `notifyClick()` export |
+| `plp/src/components/ProductCard.svelte` | Accepts `rank`/`tab`/`query` props; calls `notifyClick()` on click |
+| `plp/src/components/ProductGrid.svelte` | Passes `rank`, `tab`, `query` to each `ProductCard` |
+| `plp/src/lib/types.ts` | `AnalyticsEvent` interface |
 
 ---
 

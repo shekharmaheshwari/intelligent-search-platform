@@ -20,7 +20,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router
+from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router, analytics
 from isp.services.infra.database import init_db
 from isp.services.domain.settings_service import load_embed_model
 from isp.services.infra import typesense_client as ts
@@ -188,6 +188,7 @@ app.include_router(content.router, prefix="/v1")
 app.include_router(catalog.router, prefix="/v1")
 app.include_router(extensions.router, prefix="/v1")
 app.include_router(settings_router.router, prefix="/v1")
+app.include_router(analytics.router, prefix="/v1")
 
 
 @app.get("/health")
