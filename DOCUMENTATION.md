@@ -75,7 +75,7 @@
 - Serves **hybrid search** (lexical BM25 + semantic cosine similarity, merged with Reciprocal Rank Fusion).
 - Exposes a **management UI** built with Astro + Svelte for adding sources, triggering rebuilds, and browsing indexed content.
 - Runs a **JavaScript V8 extension pipeline** (via PyMiniRacer) that transforms raw documents before indexing — enabling field normalisation, URL construction, price extraction, and other enrichment without modifying the ingestion core.
-- Powers the **T-Mobile Product Listing Page (PLP)** product search via a dedicated `/v1/catalog` API that dynamically searches all `isp_*` collections (rather than a single shared `catalog` collection), merging results with Reciprocal Rank Fusion and applying editorial score boosts for featured / high-popularity items.
+- Powers the **Product Listing Page (PLP)** product search via a dedicated `/v1/catalog` API that dynamically searches all `isp_*` collections (rather than a single shared `catalog` collection), merging results with Reciprocal Rank Fusion and applying editorial score boosts for featured / high-popularity items.
 
 ---
 
@@ -85,7 +85,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │  Browser / PLP Frontend                                         │
 │  ┌──────────────┐   ┌──────────────────────────────────────┐   │
-│  │  ISP Mgmt UI │   │  T-Mobile PLP (React, tmo-plp)       │   │
+│  │  ISP Mgmt UI │   │  PLP (React, tmo-plp)                │   │
 │  │  port 3001   │   │  port 3000                           │   │
 │  └──────┬───────┘   └──────────────────┬─────────────────-─┘   │
 └─────────┼──────────────────────────────┼───────────────────────┘
@@ -154,7 +154,7 @@ intelligent-search-platform/
 │   │       ├── sitemap_connector.py  # Sitemap crawl + HTML extraction
 │   │       └── typesense_client.py   # Typesense SDK wrapper
 │   ├── extensions/
-│   │   └── tmobile_catalog.js     # T-Mobile field normalisation transform
+│   │   └── catalog_mapper.js      # field normalisation transform
 │   ├── .env                       # Local dev env vars (not committed)
 │   ├── Dockerfile
 │   └── pyproject.toml
@@ -436,7 +436,7 @@ The primary CRUD and ingest surface.  All background jobs (ingest, rebuild) are 
 
 **File:** `backend/src/isp/routers/catalog.py`
 
-Powers the T-Mobile PLP product search.  Dynamically discovers all active `isp_*` collections and searches them in a single `multi_search` call, merging results with Reciprocal Rank Fusion.  Editorial boosts (`is_featured`, `popularity`) are applied after RRF so curated items surface above pure relevance.
+Powers the PLP product search.  Dynamically discovers all active `isp_*` collections and searches them in a single `multi_search` call, merging results with Reciprocal Rank Fusion.  Editorial boosts (`is_featured`, `popularity`) are applied after RRF so curated items surface above pure relevance.
 
 > **Architecture note:** This router no longer reads from a single hardcoded `catalog` collection.  It calls `_get_isp_collections()` on every request to discover all `isp_*` collections and queries them all in parallel.
 
@@ -803,9 +803,9 @@ JS files are scanned at startup, seeded into the `extensions` DB table, and auto
 // @description One-line description visible in the UI
 ```
 
-### `tmobile_catalog.js` — T-Mobile Catalog Mapper
+### `catalog_mapper.js` — Catalog Mapper
 
-Normalises raw T-Mobile REST API product objects into the ISP catalog schema.  Assign to the Phones, Accessories, Smartwatches, and Tablets indexes.
+Normalises raw REST API product objects into the ISP catalog schema.  Assign to the Phones, Accessories, Smartwatches, and Tablets indexes.
 
 #### `transform(doc)` — field extraction priority
 
@@ -815,7 +815,7 @@ Normalises raw T-Mobile REST API product objects into the ISP catalog schema.  A
 | `images` | `sku.images` where `imgtype ∈ {FrontImage, LeftImage, ThumbNail}`, first 3 SKUs, deduplicated |
 | `category` | `doc.category` → `doc.productCategory` → `doc.familyCategory` → `doc.subcategory` |
 | `in_stock` | boolean, status object (`status.indexOf("OUT")`), or string |
-| `url` | `base + "/" + urlEncodedFamilyName` — base is `t-mobile.com/cell-phone` for devices, `t-mobile.com/accessory` for accessories |
+| `url` | `base + "/" + urlEncodedFamilyName` — base URL is configured per device/accessory type in the extension |
 | `type` | `doc._isp_type` (injected by ingest pipeline before extensions run) |
 | `tags` | manufacturer + OS + "phone"/"smartphone" (devices) or manufacturer + category (accessories) |
 | `popularity` | `max(0, 1000 - rank * 10)` where rank comes from `doc.deviceRank` |

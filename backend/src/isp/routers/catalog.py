@@ -1,7 +1,7 @@
 """
 /v1/catalog — PLP product search, facets, typeahead, and intent detection.
 
-This router is the backend for the T-Mobile Product Listing Page (PLP).  It reads
+This router is the backend for the Product Listing Page (PLP).  It reads
 from ISP-managed Typesense collections (``isp_*``) rather than a shared ``catalog``
 collection.  Product type discrimination uses the ``source_type`` field, which is
 set to ``"device"`` or ``"accessory"`` during rebuild via ``_infer_isp_type``.

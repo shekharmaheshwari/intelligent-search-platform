@@ -304,8 +304,8 @@ async def set_status(status: IngestStatus) -> None:
 
 _KNOWN_SPLITS: dict[str, list[tuple[str, str, str, str]]] = {
     "catalog": [
-        ("Phones", "T-Mobile cellphone catalog", "type:=device", "https://www.t-mobile.com/cell-phone/"),
-        ("Accessories", "T-Mobile accessories catalog", "type:=accessory", "https://www.t-mobile.com/accessory/"),
+        ("Phones", "Cellphone catalog", "type:=device", "https://www.example.com/cell-phone/"),
+        ("Accessories", "Accessories catalog", "type:=accessory", "https://www.example.com/accessory/"),
     ],
 }
 
