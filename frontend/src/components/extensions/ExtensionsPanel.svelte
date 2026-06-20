@@ -12,7 +12,7 @@
   import { onMount } from 'svelte';
   import { extensionsStore } from '../../lib/store';
   import type { ExtensionMeta } from '../../lib/types';
-  import { fmtDate } from './ExtensionsPanel.helpers';
+  import { fmtDate, filterExtensions } from './ExtensionsPanel.helpers';
 
   $: extensions = $extensionsStore.library;
   $: loading = $extensionsStore.loading;
@@ -78,15 +78,7 @@
   }
 
   let filterQuery = '';
-  $: filteredExtensions = filterQuery.trim()
-    ? extensions.filter(ext => {
-        const q = filterQuery.toLowerCase();
-        return (
-          ext.name.toLowerCase().includes(q) ||
-          (ext.description ?? '').toLowerCase().includes(q)
-        );
-      })
-    : extensions;
+  $: filteredExtensions = filterExtensions(extensions, filterQuery);
 
   let deletingId = '';
 

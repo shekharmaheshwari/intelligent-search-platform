@@ -11,7 +11,7 @@
    */
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../../lib/types';
-  import { connectorUrl, connectorType, shortUrl } from './SourcesSidebar.helpers';
+  import { connectorUrl, connectorType, shortUrl, filterIndexes } from './SourcesSidebar.helpers';
 
   export let indexes: IndexMeta[] = [];
   export let selectedId: string | null = null;
@@ -21,16 +21,7 @@
   let sourcesOpen = true;
   let searchQuery = '';
 
-  $: filteredIndexes = searchQuery.trim()
-    ? indexes.filter(idx => {
-        const q = searchQuery.toLowerCase();
-        return (
-          idx.name.toLowerCase().includes(q) ||
-          (idx.description ?? '').toLowerCase().includes(q) ||
-          (connectorUrl(idx) ?? '').toLowerCase().includes(q)
-        );
-      })
-    : indexes;
+  $: filteredIndexes = filterIndexes(indexes, searchQuery);
 </script>
 
 <aside class="sidebar">

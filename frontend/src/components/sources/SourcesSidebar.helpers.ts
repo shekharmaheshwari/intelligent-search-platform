@@ -23,6 +23,20 @@ export function connectorType(idx: IndexMeta): string {
 }
 
 /**
+ * Filter indexes by a search query, matching against name, description, and connector URL.
+ * Returns the original array unchanged when query is empty.
+ */
+export function filterIndexes(indexes: IndexMeta[], query: string): IndexMeta[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return indexes;
+  return indexes.filter(idx =>
+    idx.name.toLowerCase().includes(q) ||
+    (idx.description ?? '').toLowerCase().includes(q) ||
+    connectorUrl(idx).toLowerCase().includes(q)
+  );
+}
+
+/**
  * Shorten ``url`` to ``hostname + truncated path`` for compact sidebar display.
  * Falls back to the raw first 36 characters when the value is not a valid URL.
  */
