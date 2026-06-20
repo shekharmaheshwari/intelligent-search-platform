@@ -1,8 +1,9 @@
 """
 Pydantic models for the index/source domain.
 
-``RestConnectorConfig`` and ``SitemapConnectorConfig`` are persisted as JSON in
-the ``connectors`` JSONB column — new fields must be optional or have defaults.
+``RestConnectorConfig``, ``SitemapConnectorConfig``, and ``GSheetConnectorConfig``
+are persisted as JSON in the ``connectors`` JSONB column — new fields must be
+optional or have defaults.
 ``IndexMeta`` mirrors the ``indexes`` table 1-to-1; keep them in sync when
 altering the schema.
 """
@@ -59,7 +60,35 @@ class SitemapConnectorConfig(BaseModel):
     user_agent: Optional[str] = Field(default="", description="Override the default 'ISP-Crawler/1.0' User-Agent header sent with every crawl request. Use a browser UA string for sites that block automated crawlers.")
 
 
-ConnectorConfig = Union[RestConnectorConfig, SitemapConnectorConfig]
+class GSheetConnectorConfig(BaseModel):
+    """
+    Configuration for a Google Sheets data source connector.
+
+    Credentials are loaded at ingest time from the ``GOOGLE_SERVICE_ACCOUNT_JSON``
+    environment variable (JSON string) — they are never stored in the database.
+    All fields other than ``spreadsheet_id`` have defaults so existing connector
+    records stored in the JSONB column remain valid after future field additions.
+    """
+    type: Literal["gsheet"] = "gsheet"
+    spreadsheet_id: str
+    sheet_name: str = "Sheet1"
+    id_column: str = ""
+    title_column: str = ""
+    content_column: str = ""
+    url_column: str = ""
+    field_map: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Optional column header → ISP field renames applied before indexing. "
+            "Key = column header as it appears in the sheet, value = ISP field name to use. "
+            "Set value to '' to drop a column entirely."
+        ),
+    )
+    skip_empty_rows: bool = True
+    header_row: int = Field(default=1, ge=1, description="1-based row index containing column headers.")
+
+
+ConnectorConfig = Union[RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig]
 
 
 class IndexCreate(BaseModel):
@@ -73,7 +102,7 @@ class IndexCreate(BaseModel):
 
 class ConnectorAdd(BaseModel):
     """Wraps a connector config for the add-connector endpoint."""
-    config: Union[RestConnectorConfig, SitemapConnectorConfig] = Field(discriminator="type")
+    config: Union[RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig] = Field(discriminator="type")
 
 
 class IndexMeta(BaseModel):

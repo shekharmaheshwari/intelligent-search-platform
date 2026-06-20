@@ -1,4 +1,4 @@
-import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig } from '../../lib/types';
+import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig } from '../../lib/types';
 
 /**
  * Pre-populate form fields from the first saved REST connector on an index.
@@ -32,6 +32,26 @@ export function getExistingSitemap(index: IndexMeta): Partial<SitemapConnectorCo
     include_patterns: (c.include_patterns ?? []) as string[],
     exclude_patterns: (c.exclude_patterns ?? []) as string[],
     meta_fields:      (c.meta_fields ?? {}) as Record<string, string>,
+  };
+}
+
+/**
+ * Pre-populate Google Sheets form fields from the first saved gsheet connector on an index.
+ * Returns an empty object when no gsheet connector is found.
+ */
+export function getExistingGsheet(index: IndexMeta): Partial<GSheetConnectorConfig> {
+  const c = index.connectors.find(c => c.type === 'gsheet');
+  if (!c) return {};
+  return {
+    spreadsheet_id: String(c.spreadsheet_id ?? ''),
+    sheet_name:     String(c.sheet_name ?? 'Sheet1'),
+    id_column:      String(c.id_column ?? ''),
+    title_column:   String(c.title_column ?? ''),
+    content_column: String(c.content_column ?? ''),
+    url_column:     String(c.url_column ?? ''),
+    field_map:      (c.field_map ?? {}) as Record<string, string>,
+    skip_empty_rows: Boolean(c.skip_empty_rows ?? true),
+    header_row:     Number(c.header_row ?? 1),
   };
 }
 

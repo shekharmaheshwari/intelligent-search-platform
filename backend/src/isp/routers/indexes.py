@@ -17,12 +17,12 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel
 from isp.models import (
     IndexCreate, IndexMeta, IngestStatus,
-    RestConnectorConfig, SitemapConnectorConfig, ConnectorConfig,
+    RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, ConnectorConfig,
 )
 from isp.services.domain import index_service, extension_service
 from isp.services.domain.settings_service import DIM_BY_MODEL, get_custom_config
 from isp.services.infra import embedding_service, typesense_client as ts
-from isp.services.infra import rest_connector, sitemap_connector
+from isp.services.infra import rest_connector, sitemap_connector, gsheet_connector
 from isp.services.infra.extension_runner import apply_extensions
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
@@ -535,6 +535,28 @@ async def add_sitemap_connector(idx_id: str, cfg: SitemapConnectorConfig):
     return meta
 
 
+@router.post("/{idx_id}/connectors/gsheet", response_model=IndexMeta, summary="Save a Google Sheets connector config")
+async def add_gsheet_connector(idx_id: str, cfg: GSheetConnectorConfig):
+    """
+    Persist a Google Sheets connector configuration for the index without triggering an import.
+
+    Only one ``gsheet`` connector is stored per index — adding a new config replaces
+    the previous one.  Call ``/ingest/gsheet`` to start the actual data import.
+    """
+    resolved = await _resolve_index(idx_id)
+    if not resolved:
+        raise HTTPException(404, "Index not found")
+    meta = await index_service.get_index(resolved.id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    new_cfg = {"type": "gsheet", **cfg.model_dump()}
+    # Replace any existing gsheet connector while keeping connectors of other types.
+    meta.connectors = [c for c in meta.connectors if c.get("type") != "gsheet"]
+    meta.connectors.append(new_cfg)
+    await index_service.update_index(meta)
+    return meta
+
+
 # ── Ingest ────────────────────────────────────────────────────────────────────
 
 async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
@@ -585,6 +607,13 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
         elif ctype == "sitemap":
             cfg = SitemapConnectorConfig(**cfg_data)
             docs = await sitemap_connector.crawl(cfg, on_progress=None, ext_records=ext_records)
+            s.total = len(docs)
+            await index_service.set_status(s)
+            docs = await apply_extensions(docs, ext_records)
+            docs = _ensure_isp_schema(docs)
+        elif ctype == "gsheet":
+            cfg = GSheetConnectorConfig(**cfg_data)
+            docs = await gsheet_connector.fetch_and_parse(cfg)
             s.total = len(docs)
             await index_service.set_status(s)
             docs = await apply_extensions(docs, ext_records)
@@ -681,6 +710,33 @@ async def ingest_sitemap(idx_id: str, cfg: SitemapConnectorConfig, bg: Backgroun
     return s
 
 
+@router.post("/{idx_id}/ingest/gsheet", response_model=IngestStatus, summary="Ingest from a Google Sheet")
+async def ingest_gsheet(idx_id: str, cfg: GSheetConnectorConfig, bg: BackgroundTasks):
+    """
+    Read rows from a Google Spreadsheet, generate embeddings, and **append** them to the index.
+
+    Credentials are loaded server-side from ``GOOGLE_SERVICE_ACCOUNT_JSON`` — the
+    service account must have read access to the spreadsheet.
+    Returns immediately with ``state=queued``; poll ``/status`` to track progress.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    existing = await index_service.get_status(meta.id)
+    if existing and existing.state in ("running", "queued"):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            detail="Ingest already in progress for this index")
+    # Persist the connector so the UI can pre-populate the form on next visit.
+    meta.connectors = [{"type": "gsheet", **cfg.model_dump()}]
+    await index_service.update_index(meta)
+    # Pass meta.id (the resolved hex id) so the background task always operates on hex.
+    bg.add_task(_run_ingest, meta.id, {"type": "gsheet", **cfg.model_dump()})
+    from isp.models import IngestStatus as IS
+    s = IS(index_id=idx_id, state="queued")
+    await index_service.set_status(s)
+    return s
+
+
 # ── Rebuild ──────────────────────────────────────────────────────────────────
 
 async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
@@ -768,6 +824,51 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             docs = await sitemap_connector.crawl(sitemap_cfg, on_progress=None, ext_records=ext_records)
             if not docs:
                 raise ValueError("0 pages crawled — check the sitemap URL and filters.")
+
+            s.total = len(docs)
+            await index_service.set_status(s)
+
+            docs = await apply_extensions(docs, ext_records)
+            docs = _ensure_isp_schema(docs)
+
+            effective_model = meta.embed_model or embedding_service.get_current_model()
+
+            raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
+            embed_idxs = [i for i, t in enumerate(raw_texts) if t]
+            if embed_idxs:
+                vecs = await embedding_service.embed_texts(
+                    [raw_texts[i] for i in embed_idxs],
+                    model=effective_model,
+                )
+                for list_pos, doc_idx in enumerate(embed_idxs):
+                    if vecs[list_pos]:
+                        docs[doc_idx]["vec"] = vecs[list_pos]
+
+            ts.drop_collection(idx_id)
+            if effective_model == "custom":
+                cfg_c = await get_custom_config()
+                rebuild_dim = cfg_c["num_dim"] or ts.get_vec_dim()
+            else:
+                rebuild_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
+            ts.create_collection(idx_id, vec_dim=rebuild_dim)
+
+            ok = ts.upsert_documents(idx_id, docs)
+            s.indexed = ok
+            s.state = "done"
+
+            meta.doc_count = ok
+            meta.is_external = False
+            meta.collection_name = f"isp_{idx_id}"
+            meta.connectors = [cfg_dict]
+            await index_service.update_index(meta)
+
+        elif ctype == "gsheet":
+            # ── ISP-managed Google Sheets path ──
+            gsheet_cfg = GSheetConnectorConfig(**cfg_data)
+            ext_records = await extension_service.list_index_extensions(idx_id)
+            docs = await gsheet_connector.fetch_and_parse(gsheet_cfg)
+            if not docs:
+                raise ValueError("0 rows fetched — check the spreadsheet ID and sheet name.")
 
             s.total = len(docs)
             await index_service.set_status(s)
