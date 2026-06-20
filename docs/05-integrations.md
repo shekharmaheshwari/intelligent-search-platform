@@ -205,7 +205,7 @@ Thread executor (asyncio)
 
 | File | run_order | What it does |
 |---|---|---|
-| `tmobile_catalog.js` | 0 | Maps T-Mobile API response → catalog schema (title, url, skus, badges, images, price, popularity) |
+| `catalog_mapper.js` | 0 | Maps REST API response → catalog schema (title, url, skus, badges, images, price, popularity) |
 | `version_score.js` | 1 | Adds a small version/badge popularity signal to `popularity` field (NEW badge +0.5) |
 | `merchandising_rules.js` | 2 | Stamps `boost_queries_equal` / `boost_queries_contains` arrays by matching `doc.skus` against rule tables |
 
@@ -217,7 +217,7 @@ Thread executor (asyncio)
 2. item.setdefault("_isp_type", type_label)
                                   — inject device/accessory hint for JS
 3. apply_extensions(docs, ext_records)  — run_order: 0 → 1 → 2
-   ├─ tmobile_catalog.js         — map fields, set skus, badges, popularity
+   ├─ catalog_mapper.js          — map fields, set skus, badges, popularity
    ├─ version_score.js           — adjust popularity for NEW badge items
    └─ merchandising_rules.js     — stamp boost_queries_equal / _contains
 4. _generic_catalog_mapper(item, idx)
@@ -245,16 +245,16 @@ assign_extension_if_new() for every external index
 
 ---
 
-## Integration 6: ISP ↔ T-Mobile PLP
+## Integration 6: ISP ↔ PLP
 
-ISP indexes Phones and Accessories into ISP-managed `isp_*` collections.  The T-Mobile PLP reads product data via `/v1/catalog` which dynamically searches all `isp_*` collections.
+ISP indexes Phones and Accessories into ISP-managed `isp_*` collections.  The PLP reads product data via `/v1/catalog` which dynamically searches all `isp_*` collections.
 
 ```
 ISP Rebuild (Phones / Accessories — ISP managed)
-  → fetch from T-Mobile product API
+  → fetch from product API
   → _infer_isp_type() → inject _isp_type = "device" | "accessory"
   → apply extensions in run_order (JS)
-      — tmobile_catalog.js: maps familyName → title, builds URL, extracts price/images/SKUs, sets popularity
+      — catalog_mapper.js: maps familyName → title, builds URL, extracts price/images/SKUs, sets popularity
       — version_score.js:   adjusts popularity for NEW badge items
       — merchandising_rules.js: stamps boost_queries_equal / boost_queries_contains
   → _ensure_isp_schema() → ISP collection schema
@@ -262,7 +262,7 @@ ISP Rebuild (Phones / Accessories — ISP managed)
       — promotes popularity, is_featured, boost_queries_* to top-level fields
   → embed → drop + recreate isp_{id} → upsert all docs
 
-T-Mobile PLP (localhost:3000)
+PLP (localhost:3000)
   → POST /v1/catalog {q:"iphone", type:"device", search_mode:"hybrid"}
   → _get_isp_collections() → discovers isp_Phones + isp_Accessories
   → multi_search: 2 lex + 2 sem passes in one request
@@ -270,7 +270,7 @@ T-Mobile PLP (localhost:3000)
   → paginated CatalogItem list (with images, price, manufacturer from metadata)
 ```
 
-URL ownership: the JS extension computes and returns `url` in its output.  Python never constructs T-Mobile URLs — any URL format change only requires updating the extension JS.
+URL ownership: the JS extension computes and returns `url` in its output.  Python never constructs product URLs — any URL format change only requires updating the extension JS.
 
 ---
 

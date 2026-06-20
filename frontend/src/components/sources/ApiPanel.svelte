@@ -92,7 +92,7 @@
         "id":          "abc123",
         "title":       "iPhone 17e",
         "content":     "iPhone 17e by Apple. iOS smartphone.",
-        "url":         "https://www.t-mobile.com/cell-phone/apple-iphone-17e",
+        "url":         "https://www.example.com/cell-phone/apple-iphone-17e",
         "source_type": "device",
         "indexed_at":  1749859200,
         "popularity":  660,
