@@ -11,7 +11,8 @@
    */
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../../lib/types';
-  import { connectorUrl, connectorType, shortUrl } from './SourcesSidebar.helpers';
+  import { connectorUrl, connectorType, shortUrl, filterIndexes } from './SourcesSidebar.helpers';
+  import FilterBar from '../common/FilterBar.svelte';
 
   export let indexes: IndexMeta[] = [];
   export let selectedId: string | null = null;
@@ -19,9 +20,17 @@
   const dispatch = createEventDispatcher<{ select: string; create: void; delete: string; extensions: void; settings: void }>();
 
   let sourcesOpen = true;
+  let searchQuery = '';
+
+  $: filteredIndexes = filterIndexes(indexes, searchQuery);
 </script>
 
 <aside class="sidebar">
+
+  <!-- Search bar -->
+  <div class="filter-wrap">
+    <FilterBar bind:value={searchQuery} ariaLabel="Filter sources" />
+  </div>
 
   <!-- Sources group -->
   <div class="group">
@@ -49,9 +58,13 @@
           <p>No sources yet.</p>
           <button class="add-link" on:click={() => dispatch('create')}>Add your first source →</button>
         </div>
+      {:else if filteredIndexes.length === 0}
+        <div class="empty">
+          <p>No matches for "{searchQuery}".</p>
+        </div>
       {:else}
         <ul class="source-list">
-          {#each indexes as idx}
+          {#each filteredIndexes as idx}
             <li
               class="source-item"
               class:active={selectedId === idx.id}
@@ -135,6 +148,11 @@
   }
   .footer-link:hover { background: #131313; color: #888; }
   .footer-icon { font-size: 13px; }
+
+  /* ── Search bar ── */
+  .filter-wrap {
+    margin: 10px 10px 4px;
+  }
 
   @media (max-width: 767px) {
     .sidebar {

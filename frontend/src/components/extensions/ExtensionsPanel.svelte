@@ -12,7 +12,8 @@
   import { onMount } from 'svelte';
   import { extensionsStore } from '../../lib/store';
   import type { ExtensionMeta } from '../../lib/types';
-  import { fmtDate } from './ExtensionsPanel.helpers';
+  import { fmtDate, filterExtensions } from './ExtensionsPanel.helpers';
+  import FilterBar from '../common/FilterBar.svelte';
 
   $: extensions = $extensionsStore.library;
   $: loading = $extensionsStore.loading;
@@ -77,6 +78,9 @@
     }
   }
 
+  let filterQuery = '';
+  $: filteredExtensions = filterExtensions(extensions, filterQuery);
+
   let deletingId = '';
 
   async function deleteExt(id: string) {
@@ -112,8 +116,17 @@
       <button class="btn-primary" on:click={openCreate}>Create your first extension</button>
     </div>
   {:else}
+    <div class="filter-wrap">
+      <FilterBar bind:value={filterQuery} ariaLabel="Filter extensions" />
+    </div>
+
+    {#if filteredExtensions.length === 0}
+      <div class="empty">
+        <p>No matches for "{filterQuery}".</p>
+      </div>
+    {:else}
     <div class="ext-list">
-      {#each extensions as ext}
+      {#each filteredExtensions as ext}
         <div class="ext-card">
           <div class="ext-card-head">
             <div class="ext-info">
@@ -132,6 +145,7 @@
         </div>
       {/each}
     </div>
+    {/if}
   {/if}
 </div>
 
@@ -206,6 +220,12 @@
   .empty-icon { font-size: 36px; color: #2a2a2a; margin-bottom: 4px; }
   .empty p { margin: 0; font-size: 14px; color: #666; }
   .empty-sub { font-size: 12px; color: #444 !important; max-width: 380px; }
+
+  /* ── Filter bar ── */
+  .filter-wrap {
+    margin-bottom: 16px;
+    max-width: 320px;
+  }
 
   .ext-list { display: flex; flex-direction: column; gap: 12px; }
 
