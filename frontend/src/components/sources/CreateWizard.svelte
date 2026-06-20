@@ -421,7 +421,7 @@
         </label>
         <label>
           URL prefix <span class="hint">(prepended to url_name slug)</span>
-          <input bind:value={externalUrlField} placeholder="https://www.t-mobile.com/cell-phone/" />
+          <input bind:value={externalUrlField} placeholder="https://www.example.com/cell-phone/" />
         </label>
       {:else}
         <div class="ext-info-box">

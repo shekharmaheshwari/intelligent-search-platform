@@ -9,7 +9,7 @@ Startup sequence (lifespan):
    files, upsert each into the DB by name, and auto-assign to all existing external
    indexes using ``ON CONFLICT DO NOTHING`` (preserves user-configured state).
 
-The ``_TMOBILE_EXT_NAME`` constant is used by the ``discover_indexes`` endpoint to
+The ``_CATALOG_EXT_NAME`` constant is used by the ``discover_indexes`` endpoint to
 look up the seeded extension by name so it can be assigned to newly discovered
 external indexes at runtime.
 """
@@ -28,7 +28,7 @@ from isp.config import settings
 
 log = logging.getLogger(__name__)
 
-_TMOBILE_EXT_NAME = "T-Mobile Catalog Mapper"   # used by discover endpoint for auto-assign
+_CATALOG_EXT_NAME = "Catalog Mapper"   # used by discover endpoint for auto-assign
 
 _CATALOG_VEC_DIM = 1024
 
@@ -38,7 +38,7 @@ def _ensure_catalog_collection() -> None:
     Create the ``catalog`` Typesense collection if it does not already exist.
 
     Called once on startup.  The catalog collection is shared by all external
-    sources (Phones, Accessories, etc.) and by the T-Mobile PLP frontend.
+    sources (Phones, Accessories, etc.) and by the PLP frontend.
     ISP does not drop or recreate it on restart — only schema-compatible fields are defined.
     """
     try:
@@ -168,7 +168,7 @@ app = FastAPI(
         "Each index maps to a Typesense collection.\n"
         "- **Connector** — configuration that tells ISP where to fetch data (REST endpoint or sitemap).\n"
         "- **Ingest / Rebuild** — background job that fetches, embeds, and upserts documents.\n"
-        "- **Catalog** — unified product collection shared by all T-Mobile catalog sources; "
+        "- **Catalog** — unified product collection shared by all catalog sources; "
         "powers the PLP search UI.\n\n"
         "**Auth** — no auth required in local-dev mode. Add `X-API-Key` header in production."
     ),

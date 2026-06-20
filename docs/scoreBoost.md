@@ -45,7 +45,7 @@ if doc.get("is_featured"):
 **What:** Linear scale based on the document's `popularity` integer score.  
 **Magnitude:** `min(popularity, 1_000_000) / 2_000_000` — popularity 1 000 000 → +0.5, popularity 890 → +0.000445.  
 **Set by:** Edit modal (Score field) → PATCH `/indexes/{id}/documents/{doc_id}`.  
-**Also set by:** `tmobile_catalog.js` extension at index time: `popularity = max(0, 1000 - deviceRank × 10)`.  
+**Also set by:** `catalog_mapper.js` extension at index time: `popularity = max(0, 1000 - deviceRank × 10)`.  
 **Stored in:** Top-level Typesense field `popularity: int32`.  
 **Code:**
 ```python
@@ -119,7 +119,7 @@ final_score(doc, query) =
 | Signal | Index-time (extension) | Editorial (UI / API) |
 |---|---|---|
 | `is_featured` | — | Edit modal → Featured toggle |
-| `popularity` | `tmobile_catalog.js` (deviceRank) | Edit modal → Score field |
+| `popularity` | `catalog_mapper.js` (deviceRank) | Edit modal → Score field |
 | `boost_queries_equal` | `merchandising_rules.js` BOOST_EQUAL | Edit modal → "Boost if query equals" |
 | `boost_queries_contains` | `merchandising_rules.js` BOOST_CONTAINS | Edit modal → "Boost if query contains" |
 
@@ -143,7 +143,7 @@ var BOOST_CONTAINS = [
 ```
 
 - `query` — matched case-insensitively against the search string at query time
-- `skus` — `skuCode` values from the T-Mobile API (`skus[].skuCode` in the raw JSON), stored as `doc.skus` by `tmobile_catalog.js`
+- `skus` — `skuCode` values from the product API (`skus[].skuCode` in the raw JSON), stored as `doc.skus` by `catalog_mapper.js`
 
 **To activate:** assign the extension to the target index in the Extensions panel, populate the rule tables, then rebuild.
 
