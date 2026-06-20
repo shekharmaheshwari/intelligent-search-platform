@@ -142,8 +142,15 @@ export const api = {
    * Full rebuild: drop all existing documents and re-fetch from the connector.
    * For catalog write-back sources this runs the full extension pipeline.
    */
-  rebuild: (id: string, cfg: RestConnectorConfig) =>
+  rebuild: (id: string, cfg: RestConnectorConfig | SitemapConnectorConfig) =>
     req<IngestStatus>(`/indexes/${id}/rebuild`, {
+      method: 'POST',
+      body: JSON.stringify(cfg),
+    }),
+
+  /** Persist sitemap connector config without triggering a crawl. */
+  saveSitemapConnector: (id: string, cfg: SitemapConnectorConfig) =>
+    req<IndexMeta>(`/indexes/${id}/connectors/sitemap`, {
       method: 'POST',
       body: JSON.stringify(cfg),
     }),

@@ -16,16 +16,16 @@
   import { indexService } from '../../lib/services/indexes/IndexService';
   import { settingsService } from '../../lib/services/settings/SettingsService';
   import type { Index, IngestStatus } from '../../lib/services/indexes/index.model';
-  import type { EmbedModelOption } from '../../lib/types';
+  import type { EmbedModelOption, SitemapConnectorConfig } from '../../lib/types';
   import DocumentTable from './DocumentTable.svelte';
   import SearchPanel from './SearchPanel.svelte';
   import ApiPanel from './ApiPanel.svelte';
   import { fmtDate } from './IndexDetail.helpers';
 
   export let indexId: string;
-  export let tab: 'overview' | 'documents' | 'search' | 'api' = 'overview';
+  export let tab: 'overview' | 'connector' | 'documents' | 'search' | 'api' = 'overview';
 
-  const tabs: Array<'overview' | 'documents' | 'search' | 'api'> = ['overview', 'documents', 'search', 'api'];
+  const tabs: Array<'overview' | 'connector' | 'documents' | 'search' | 'api'> = ['overview', 'connector', 'documents', 'search', 'api'];
 
   const dispatch = createEventDispatcher<{ back: void }>();
 
@@ -68,6 +68,17 @@
     status = fetchedStatus;
     availableModels = settings.available_models ?? [];
     selectedEmbedModel = meta.embedModel ?? '';
+
+    // Initialise connector form state once from the fetched meta.
+    const c = fetchedMeta.connectors[0] ?? {};
+    connectorType    = (c.type ?? '') as 'rest' | 'sitemap' | '';
+    sitemapUrl       = String(c.url ?? '');
+    sitemapMaxPages  = Number(c.max_pages ?? 50);
+    sitemapSelector  = String(c.content_selector ?? '');
+    sitemapUserAgent = String(c.user_agent ?? '');
+    includePatterns  = ((c.include_patterns ?? []) as string[]).map(v => ({ value: v }));
+    excludePatterns  = ((c.exclude_patterns ?? []) as string[]).map(v => ({ value: v }));
+    metaFields       = Object.entries((c.meta_fields ?? {}) as Record<string,string>).map(([key, value]) => ({ key, value }));
   });
 
   /** Save the selected embedding model to the index. */
@@ -108,6 +119,54 @@
       versionBoostErr = String(e);
     } finally {
       versionBoostSaving = false;
+    }
+  }
+
+  // ── Connector editor ──────────────────────────────────────────────────────────
+  // Plain `let` — initialized once in onMount. Must NOT be $: reactive or
+  // Svelte will re-derive from meta on every reactivity cycle, wiping user edits.
+
+  let connectorType: 'rest' | 'sitemap' | '' = '';
+  let sitemapUrl = '';
+  let sitemapMaxPages = 50;
+  let sitemapSelector = '';
+  let sitemapUserAgent = '';
+  let includePatterns: { value: string }[] = [];
+  let excludePatterns: { value: string }[] = [];
+  let metaFields: { key: string; value: string }[] = [];
+
+  let connectorSaving = false;
+  let connectorErr = '';
+  let connectorSaved = false;
+
+  function addIncludePattern() { includePatterns = [...includePatterns, { value: '' }]; }
+  function removeIncludePattern(i: number) { includePatterns = includePatterns.filter((_, idx) => idx !== i); }
+  function addExcludePattern() { excludePatterns = [...excludePatterns, { value: '' }]; }
+  function removeExcludePattern(i: number) { excludePatterns = excludePatterns.filter((_, idx) => idx !== i); }
+  function addMetaField() { metaFields = [...metaFields, { key: '', value: '' }]; }
+  function removeMetaField(i: number) { metaFields = metaFields.filter((_, idx) => idx !== i); }
+
+  async function saveConnector() {
+    connectorSaving = true; connectorErr = ''; connectorSaved = false;
+    try {
+      if (connectorType === 'sitemap') {
+        const cfg: SitemapConnectorConfig = {
+          url: sitemapUrl.trim(),
+          max_pages: sitemapMaxPages,
+          content_selector: sitemapSelector.trim(),
+          user_agent: sitemapUserAgent.trim(),
+          include_patterns: includePatterns.map(r => r.value.trim()).filter(Boolean),
+          exclude_patterns: excludePatterns.map(r => r.value.trim()).filter(Boolean),
+          meta_fields: Object.fromEntries(metaFields.filter(r => r.key.trim() && r.value.trim()).map(r => [r.key.trim(), r.value.trim()])),
+        };
+        await indexService.saveSitemapConnector(indexId, cfg);
+      }
+      connectorSaved = true;
+      setTimeout(() => { connectorSaved = false; }, 2000);
+    } catch (e) {
+      connectorErr = String(e);
+    } finally {
+      connectorSaving = false;
     }
   }
 </script>
@@ -325,6 +384,76 @@
 
         </div>
 
+      {:else if tab === 'connector'}
+        <div class="overview">
+          {#if connectorType === 'sitemap'}
+            <div class="setting-card connector-form">
+              <label class="field">
+                Sitemap URL
+                <input bind:value={sitemapUrl} placeholder="https://example.com/sitemap.xml" />
+              </label>
+              <div class="field-row-2col">
+                <label class="field">
+                  Max pages <span class="hint-inline">(optional, default 50)</span>
+                  <input type="number" bind:value={sitemapMaxPages} min="1" max="10000" />
+                </label>
+                <label class="field">
+                  Content selector <span class="hint-inline">(optional)</span>
+                  <input bind:value={sitemapSelector} placeholder="article, .post-content" />
+                </label>
+              </div>
+              <label class="field">
+                User Agent <span class="hint-inline">(optional)</span>
+                <input bind:value={sitemapUserAgent} placeholder="Mozilla/5.0 ..." />
+              </label>
+
+              <div class="field">
+                <span class="field-label-text">Include patterns <span class="hint-inline">(optional)</span></span>
+                {#each includePatterns as row, i}
+                  <div class="extra-row">
+                    <input bind:value={row.value} placeholder="/support/" class="field-input" />
+                    <button class="rm-btn" type="button" on:click={() => removeIncludePattern(i)}>✕</button>
+                  </div>
+                {/each}
+                <button type="button" class="add-mapping-btn" on:click={addIncludePattern}>+ Add include pattern</button>
+              </div>
+
+              <div class="field">
+                <span class="field-label-text">Exclude patterns <span class="hint-inline">(optional)</span></span>
+                {#each excludePatterns as row, i}
+                  <div class="extra-row">
+                    <input bind:value={row.value} placeholder="/tag/" class="field-input" />
+                    <button class="rm-btn" type="button" on:click={() => removeExcludePattern(i)}>✕</button>
+                  </div>
+                {/each}
+                <button type="button" class="add-mapping-btn" on:click={addExcludePattern}>+ Add exclude pattern</button>
+              </div>
+
+              <div class="field">
+                <span class="field-label-text">Meta field mappings <span class="hint-inline">(optional)</span></span>
+                {#each metaFields as row, i}
+                  <div class="extra-row">
+                    <input bind:value={row.key} placeholder="og:site_name" class="field-input" />
+                    <span style="color:#555">→</span>
+                    <input bind:value={row.value} placeholder="site_name" class="field-input" />
+                    <button class="rm-btn" type="button" on:click={() => removeMetaField(i)}>✕</button>
+                  </div>
+                {/each}
+                <button type="button" class="add-mapping-btn" on:click={addMetaField}>+ Add field</button>
+              </div>
+
+              {#if connectorErr}<p class="err">{connectorErr}</p>{/if}
+              <div class="connector-actions">
+                <button class="btn-save-model" on:click={saveConnector} disabled={connectorSaving}>
+                  {connectorSaving ? 'Saving…' : connectorSaved ? '✓ Saved' : 'Save connector'}
+                </button>
+              </div>
+            </div>
+          {:else}
+            <p class="no-connector">No editable connector settings for this index type.</p>
+          {/if}
+        </div>
+
       {:else if tab === 'documents'}
         <DocumentTable {indexId} />
 
@@ -370,6 +499,7 @@
   .tab-body { min-height: 200px; }
 
   .overview { display: flex; flex-direction: column; gap: 20px; }
+  .no-connector { color: #555; font-size: 13px; margin: 0; }
   h2 { font-size: 13px; color: #666; font-weight: 600; margin: 0;
        text-transform: uppercase; letter-spacing: 0.06em; }
 
@@ -483,6 +613,38 @@
   .btn-save-model:disabled, .btn-cancel:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .model-saved { font-size: 12px; color: #5cdb85; margin: 0; }
+
+  /* Connector editor form */
+  .connector-form { display: flex; flex-direction: column; gap: 11px; }
+  .field-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field {
+    display: flex; flex-direction: column; gap: 5px;
+    font-size: 12px; color: #777;
+  }
+  .field input {
+    background: #111; border: 1px solid #252525; border-radius: 6px;
+    padding: 7px 10px; color: #ddd; font-size: 12px; font-family: inherit;
+  }
+  .field input:focus { outline: none; border-color: #7c6cf4; }
+  .hint-inline { font-size: 10px; color: #555; font-weight: 400; }
+  .field-label-text { display: block; font-size: 12px; color: #777; margin-bottom: 4px; }
+  .extra-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .field-input {
+    flex: 1; background: #111; border: 1px solid #252525; border-radius: 6px;
+    padding: 6px 9px; color: #ddd; font-size: 12px; font-family: inherit;
+  }
+  .field-input:focus { outline: none; border-color: #7c6cf4; }
+  .rm-btn {
+    background: none; border: 1px solid #2a2a2a; border-radius: 5px;
+    color: #555; font-size: 11px; padding: 4px 7px; cursor: pointer; flex-shrink: 0;
+  }
+  .rm-btn:hover { border-color: #e55; color: #e55; }
+  .add-mapping-btn {
+    background: none; border: 1px dashed #2a2a2a; border-radius: 5px;
+    color: #555; font-size: 11px; padding: 5px 12px; cursor: pointer; margin-top: 2px;
+  }
+  .add-mapping-btn:hover { border-color: #7c6cf4; color: #9d91f5; }
+  .connector-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
 
   /* Version boost toggle */
   .toggle-switch {
