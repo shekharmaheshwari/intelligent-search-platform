@@ -25,7 +25,7 @@ export interface IndexMeta {
 
 /** Connector configuration stored in the ``connectors`` JSONB column on an index. */
 export interface ConnectorConfig {
-  type: 'rest' | 'sitemap' | 'external';
+  type: 'rest' | 'sitemap' | 'gsheet' | 'external';
   url?: string;
   [key: string]: unknown;
 }
@@ -41,6 +41,23 @@ export interface RestConnectorConfig {
   title_field?: string;
   content_field?: string;
   url_field?: string;
+}
+
+/** Form values for a Google Sheets connector. */
+export interface GSheetConnectorConfig {
+  type: 'gsheet';
+  spreadsheet_id: string;
+  sheet_name: string;
+  id_column: string;
+  title_column: string;
+  content_column: string;
+  url_column: string;
+  /** Maps column headers to top-level ISP document field names for additional fields beyond the four core fields. */
+  field_map: Record<string, string>;
+  /** When true, rows where every column is empty are silently skipped. */
+  skip_empty_rows: boolean;
+  /** 1-based row number that contains column headers. */
+  header_row: number;
 }
 
 /** Form values for a sitemap crawler connector. */
