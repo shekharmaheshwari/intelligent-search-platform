@@ -57,8 +57,38 @@
   let sitemapUrl = '';
   let sitemapMaxPages = 100;
   let sitemapSelector = '';
-  let sitemapInclude = '';
-  let sitemapExclude = '';
+  let sitemapUserAgent = '';
+  let includePatterns: Array<{ value: string }> = [];
+  let excludePatterns: Array<{ value: string }> = [];
+  let metaFields: Array<{ key: string; value: string }> = [];
+
+  function addMetaField() {
+    metaFields = [...metaFields, { key: '', value: '' }];
+  }
+
+  function removeMetaField(i: number) {
+    metaFields = metaFields.filter((_, idx) => idx !== i);
+  }
+
+  /** Append a blank entry to the include-pattern list. */
+  function addIncludePattern() {
+    includePatterns = [...includePatterns, { value: '' }];
+  }
+
+  /** Remove the include-pattern row at index ``i``. */
+  function removeIncludePattern(i: number) {
+    includePatterns = includePatterns.filter((_, idx) => idx !== i);
+  }
+
+  /** Append a blank entry to the exclude-pattern list. */
+  function addExcludePattern() {
+    excludePatterns = [...excludePatterns, { value: '' }];
+  }
+
+  /** Remove the exclude-pattern row at index ``i``. */
+  function removeExcludePattern(i: number) {
+    excludePatterns = excludePatterns.filter((_, idx) => idx !== i);
+  }
 
   // ── Step 3: Field mapping ────────────────────────────────────────────────────
   let resultPath = '';
@@ -290,8 +320,14 @@
           url: sitemapUrl.trim(),
           max_pages: sitemapMaxPages,
           content_selector: sitemapSelector.trim(),
-          include_pattern: sitemapInclude.trim(),
-          exclude_pattern: sitemapExclude.trim(),
+          include_patterns: includePatterns.map(r => r.value.trim()).filter(Boolean),
+          exclude_patterns: excludePatterns.map(r => r.value.trim()).filter(Boolean),
+          meta_fields: Object.fromEntries(
+            metaFields
+              .filter(r => r.key.trim() && r.value.trim())
+              .map(r => [r.key.trim(), r.value.trim()])
+          ),
+          user_agent: sitemapUserAgent.trim(),
         };
         await indexService.ingestSitemap(indexId, cfg);
       }
@@ -431,18 +467,48 @@
         <label>Sitemap URL
           <input bind:value={sitemapUrl} placeholder="https://example.com/sitemap.xml" />
         </label>
-        <label>Max pages
+        <label>Max pages <span class="hint">(optional, default 50)</span>
           <input type="number" bind:value={sitemapMaxPages} min="1" max="10000" />
         </label>
         <label>Content CSS selector <span class="hint">(optional)</span>
           <input bind:value={sitemapSelector} placeholder="article, .post-content" />
         </label>
-        <label>Include pattern <span class="hint">(URL must contain)</span>
-          <input bind:value={sitemapInclude} placeholder="/blog/" />
+        <label>User Agent <span class="hint">(optional — override for sites blocking crawlers)</span>
+          <input bind:value={sitemapUserAgent} placeholder="Mozilla/5.0 (compatible; MyBot/1.0)" />
         </label>
-        <label>Exclude pattern <span class="hint">(URL must not contain)</span>
-          <input bind:value={sitemapExclude} placeholder="/tag/" />
+        <label>Include patterns <span class="hint">(optional — URL must contain at least one)</span></label>
+        {#each includePatterns as row, i}
+          <div class="extra-row">
+            <input bind:value={row.value} placeholder="/blog/" class="field-input" />
+            <button class="rm-btn" type="button" on:click={() => removeIncludePattern(i)} aria-label="Remove">✕</button>
+          </div>
+        {/each}
+        <button type="button" class="add-mapping-btn" on:click={addIncludePattern}>+ Add include pattern</button>
+
+        <label>Exclude patterns <span class="hint">(optional — URL must not contain any)</span></label>
+        {#each excludePatterns as row, i}
+          <div class="extra-row">
+            <input bind:value={row.value} placeholder="/tag/" class="field-input" />
+            <button class="rm-btn" type="button" on:click={() => removeExcludePattern(i)} aria-label="Remove">✕</button>
+          </div>
+        {/each}
+        <button type="button" class="add-mapping-btn" on:click={addExcludePattern}>+ Add exclude pattern</button>
+        <label>
+          Meta field mappings
+          <span class="hint">(optional — map meta tags to filterable fields)</span>
         </label>
+        {#if metaFields.length > 0}
+          <div class="extra-label">Meta tag → ISP field</div>
+          {#each metaFields as row, i}
+            <div class="extra-row">
+              <input bind:value={row.key}   placeholder="e.g. article-author" class="field-input" />
+              <span class="arrow">→</span>
+              <input bind:value={row.value} placeholder="e.g. author" class="field-input" />
+              <button class="rm-btn" type="button" on:click={() => removeMetaField(i)} aria-label="Remove">✕</button>
+            </div>
+          {/each}
+        {/if}
+        <button type="button" class="add-mapping-btn" on:click={addMetaField}>+ Add field</button>
       {/if}
 
       {#if errMsg}<p class="err">{errMsg}</p>{/if}

@@ -81,3 +81,64 @@ async def apply_extensions(docs: list[dict], extension_records: list[dict]) -> l
         return docs
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _run_sync, docs, extension_records)
+
+
+def _filter_urls_sync(urls: list[str], extension_records: list[dict]) -> list[str]:
+    """
+    Apply ``filterUrl(url)`` from each extension that defines it, in run_order.
+
+    Extensions that do not define ``filterUrl`` are silently skipped — only
+    ``transform`` is mandatory.  A falsy return value drops the URL; errors
+    on individual URLs keep the URL (same tolerant contract as ``_run_sync``).
+    """
+    enabled = [e for e in extension_records if e.get("enabled", True)]
+    if not enabled or not urls:
+        return urls
+
+    if not _MR_AVAILABLE:
+        log.warning("py-mini-racer unavailable — skipping filterUrl for %d extension(s)", len(enabled))
+        return urls
+
+    # Compile each extension once; record whether it exports filterUrl.
+    contexts: list[tuple[str, object, bool]] = []
+    for ext in enabled:
+        name = ext.get("name", ext.get("id", "?"))
+        code = ext.get("code", "")
+        try:
+            ctx = MiniRacer()
+            ctx.eval(code)
+            has_filter = ctx.eval("typeof filterUrl") == "function"
+            contexts.append((name, ctx, has_filter))
+        except Exception as exc:
+            log.error("Extension '%s' failed to compile (filterUrl pass): %s", name, exc)
+            contexts.append((name, None, False))
+
+    result: list[str] = []
+    for url in urls:
+        keep = True
+        for name, ctx, has_filter in contexts:
+            if ctx is None or not has_filter:
+                continue
+            try:
+                if not ctx.call("filterUrl", url):  # type: ignore[union-attr]
+                    keep = False
+                    break
+            except Exception as exc:
+                # A runtime error on one URL must not drop it — prefer false-positive crawl.
+                log.error("Extension '%s' filterUrl error on '%s': %s", name, url, exc)
+        if keep:
+            result.append(url)
+    return result
+
+
+async def filter_urls(urls: list[str], extension_records: list[dict]) -> list[str]:
+    """
+    Async entry point — runs ``filterUrl`` hooks in a thread executor.
+
+    Called before the crawl cap so cheap JS filtering reduces the pages
+    actually fetched, not just the pages indexed.
+    """
+    if not urls or not extension_records:
+        return urls
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _filter_urls_sync, urls, extension_records)

@@ -17,7 +17,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel
 from isp.models import (
     IndexCreate, IndexMeta, IngestStatus,
-    RestConnectorConfig, SitemapConnectorConfig,
+    RestConnectorConfig, SitemapConnectorConfig, ConnectorConfig,
 )
 from isp.services.domain import index_service, extension_service
 from isp.services.domain.settings_service import DIM_BY_MODEL, get_custom_config
@@ -207,6 +207,11 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
         # Carry over a pre-computed vector if the doc already has one
         if "vec" in doc:
             out["vec"] = doc["vec"]
+        # Promote scalar extra fields (e.g. from SitemapConnectorConfig.meta_fields)
+        # to top-level so the Typesense wildcard field (.*) indexes them as filterable.
+        for k, v in extra.items():
+            if isinstance(v, (str, int, float, bool)) and k not in out:
+                out[k] = v
 
         result.append(out)
     return result
@@ -517,13 +522,16 @@ async def add_sitemap_connector(idx_id: str, cfg: SitemapConnectorConfig):
     Persist a sitemap connector configuration for the index without triggering a crawl.
     Use this to pre-configure the source; call `/ingest/sitemap` to start crawling.
     """
-    # Resolve slug before passing to add_connector, which expects a hex id.
     resolved = await _resolve_index(idx_id)
     if not resolved:
         raise HTTPException(404, "Index not found")
-    meta = await index_service.add_connector(resolved.id, {"type": "sitemap", **cfg.model_dump()})
+    meta = await index_service.get_index(resolved.id)
     if not meta:
         raise HTTPException(404, "Index not found")
+    new_cfg = {"type": "sitemap", **cfg.model_dump()}
+    meta.connectors = [c for c in meta.connectors if c.get("type") != "sitemap"]
+    meta.connectors.append(new_cfg)
+    await index_service.update_index(meta)
     return meta
 
 
@@ -576,7 +584,7 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
                 docs = _ensure_isp_schema(docs)
         elif ctype == "sitemap":
             cfg = SitemapConnectorConfig(**cfg_data)
-            docs = await sitemap_connector.crawl(cfg, on_progress=None)
+            docs = await sitemap_connector.crawl(cfg, on_progress=None, ext_records=ext_records)
             s.total = len(docs)
             await index_service.set_status(s)
             docs = await apply_extensions(docs, ext_records)
@@ -675,11 +683,6 @@ async def ingest_sitemap(idx_id: str, cfg: SitemapConnectorConfig, bg: Backgroun
 
 # ── Rebuild ──────────────────────────────────────────────────────────────────
 
-class RebuildRequest(RestConnectorConfig):
-    """REST config for re-indexing. Overwrites all docs in this source."""
-    pass
-
-
 async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
     """
     Background task for full rebuild.
@@ -716,21 +719,20 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         if not meta:
             raise ValueError("Index not found")
 
-        cfg = RestConnectorConfig(**{k: v for k, v in cfg_dict.items() if k != "type"})
-
-        # Fetch raw items (pre-mapping) so we can map to either ISP or catalog schema
-        raw_items = await rest_connector.fetch_raw_items(cfg)
-        if not raw_items:
-            raise ValueError("0 items fetched — API returned no usable data.")
-
-        s.total = len(raw_items)
-        await index_service.set_status(s)
+        ctype = cfg_dict.get("type", "rest")
+        cfg_data = {k: v for k, v in cfg_dict.items() if k != "type"}
 
         if meta.external_collection:
-            # ── Write-back mode: extensions transform raw items → generic mapper packages them ──
-            type_label = meta.external_filter.split(":=")[-1] if ":=" in meta.external_filter else "item"
+            # ── Write-back mode: catalog sources are always REST ──
+            rest_cfg = RestConnectorConfig(**cfg_data)
+            raw_items = await rest_connector.fetch_raw_items(rest_cfg)
+            if not raw_items:
+                raise ValueError("0 items fetched — API returned no usable data.")
 
-            # Inject catalog type hint so extensions know which collection they're populating
+            s.total = len(raw_items)
+            await index_service.set_status(s)
+
+            type_label = meta.external_filter.split(":=")[-1] if ":=" in meta.external_filter else "item"
             for item in raw_items:
                 item.setdefault("_isp_type", type_label)
 
@@ -740,10 +742,8 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             catalog_docs = [_generic_catalog_mapper(item, i) for i, item in enumerate(raw_items)]
             catalog_docs = [d for d in catalog_docs if d]
 
-            # Use this index's dedicated model, or fall back to the global active model.
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
-            # Embed on display + description for semantic search
             texts = [
                 d["display"] + " " + json.loads(d.get("metadata", "{}")).get("description", "")
                 for d in catalog_docs
@@ -758,37 +758,25 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             s.state = "done"
 
             meta.doc_count = ok
-            meta.connectors = [{"type": "rest", **cfg_dict}]
+            meta.connectors = [cfg_dict]
             await index_service.update_index(meta)
 
-        else:
-            # ── Standard mode: write to ISP-managed collection ──
-            # Infer _isp_type from the connector body's familyCategory so the
-            # T-Mobile extension knows whether to produce "device" or "accessory".
-            # Falls back to "item" for non-T-Mobile sources.
-            isp_type_label = _infer_isp_type(cfg_dict)
-            for item in raw_items:
-                item.setdefault("_isp_type", isp_type_label)
-
-            # Run extensions on raw_items (already fetched above) so they have
-            # access to all original API fields before field-name normalisation.
+        elif ctype == "sitemap":
+            # ── ISP-managed sitemap path ──
+            sitemap_cfg = SitemapConnectorConfig(**cfg_data)
             ext_records = await extension_service.list_index_extensions(idx_id)
-            if ext_records:
-                items_for_ext = await apply_extensions(list(raw_items), ext_records)
-                docs = _ensure_isp_schema(items_for_ext)
-            else:
-                docs = await rest_connector.fetch_and_parse(cfg)
-                docs = _ensure_isp_schema(docs)
-
+            docs = await sitemap_connector.crawl(sitemap_cfg, on_progress=None, ext_records=ext_records)
             if not docs:
-                raise ValueError("0 documents parsed — check field mapping.")
+                raise ValueError("0 pages crawled — check the sitemap URL and filters.")
 
-            # effective_model was resolved in the write-back branch above; resolve
-            # it here too for the ISP-managed path.
+            s.total = len(docs)
+            await index_service.set_status(s)
+
+            docs = await apply_extensions(docs, ext_records)
+            docs = _ensure_isp_schema(docs)
+
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
-            # Only embed docs that have non-empty text; skip the rest to avoid
-            # empty-string rejections from the embedding provider.
             raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
@@ -801,7 +789,6 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                         docs[doc_idx]["vec"] = vecs[list_pos]
 
             ts.drop_collection(idx_id)
-            # Recreate with the correct dimension for this index's model.
             if effective_model == "custom":
                 cfg_c = await get_custom_config()
                 rebuild_dim = cfg_c["num_dim"] or ts.get_vec_dim()
@@ -816,7 +803,63 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             meta.doc_count = ok
             meta.is_external = False
             meta.collection_name = f"isp_{idx_id}"
-            meta.connectors = [{"type": "rest", **cfg_dict}]
+            meta.connectors = [cfg_dict]
+            await index_service.update_index(meta)
+
+        else:
+            # ── ISP-managed REST path ──
+            rest_cfg = RestConnectorConfig(**cfg_data)
+            raw_items = await rest_connector.fetch_raw_items(rest_cfg)
+            if not raw_items:
+                raise ValueError("0 items fetched — API returned no usable data.")
+
+            s.total = len(raw_items)
+            await index_service.set_status(s)
+
+            isp_type_label = _infer_isp_type(cfg_dict)
+            for item in raw_items:
+                item.setdefault("_isp_type", isp_type_label)
+
+            ext_records = await extension_service.list_index_extensions(idx_id)
+            if ext_records:
+                items_for_ext = await apply_extensions(list(raw_items), ext_records)
+                docs = _ensure_isp_schema(items_for_ext)
+            else:
+                docs = await rest_connector.fetch_and_parse(rest_cfg)
+                docs = _ensure_isp_schema(docs)
+
+            if not docs:
+                raise ValueError("0 documents parsed — check field mapping.")
+
+            effective_model = meta.embed_model or embedding_service.get_current_model()
+
+            raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
+            embed_idxs = [i for i, t in enumerate(raw_texts) if t]
+            if embed_idxs:
+                vecs = await embedding_service.embed_texts(
+                    [raw_texts[i] for i in embed_idxs],
+                    model=effective_model,
+                )
+                for list_pos, doc_idx in enumerate(embed_idxs):
+                    if vecs[list_pos]:
+                        docs[doc_idx]["vec"] = vecs[list_pos]
+
+            ts.drop_collection(idx_id)
+            if effective_model == "custom":
+                cfg_c = await get_custom_config()
+                rebuild_dim = cfg_c["num_dim"] or ts.get_vec_dim()
+            else:
+                rebuild_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
+            ts.create_collection(idx_id, vec_dim=rebuild_dim)
+
+            ok = ts.upsert_documents(idx_id, docs)
+            s.indexed = ok
+            s.state = "done"
+
+            meta.doc_count = ok
+            meta.is_external = False
+            meta.collection_name = f"isp_{idx_id}"
+            meta.connectors = [cfg_dict]
             await index_service.update_index(meta)
 
     except Exception as exc:
@@ -831,9 +874,11 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
 
 @router.post("/{idx_id}/rebuild", response_model=IngestStatus, summary="Full rebuild (drop & re-index)")
-async def rebuild(idx_id: str, cfg: RebuildRequest, bg: BackgroundTasks):
+async def rebuild(idx_id: str, cfg: ConnectorConfig, bg: BackgroundTasks):
     """
     **Drop** all existing documents for this source and re-fetch everything from scratch.
+    Accepts either a REST or sitemap connector config — the ``type`` discriminator field
+    determines which connector is used.
     For catalog write-back sources (Phones, Accessories, Smartwatches, Tablets) this maps
     raw T-Mobile API items to the unified catalog schema and upserts into the shared
     `catalog` Typesense collection.
@@ -846,7 +891,8 @@ async def rebuild(idx_id: str, cfg: RebuildRequest, bg: BackgroundTasks):
     if existing and existing.state in ("running", "queued"):
         raise HTTPException(status.HTTP_409_CONFLICT,
                             detail="Rebuild already in progress for this index")
-    cfg_dict = {"type": "rest", **cfg.model_dump()}
+    # type field is already on the model (Literal["rest"] or Literal["sitemap"])
+    cfg_dict = cfg.model_dump()
     # Pass meta.id (the resolved hex id) so the background task always operates on hex.
     bg.add_task(_run_rebuild, meta.id, cfg_dict)
     from isp.models import IngestStatus as IS
