@@ -20,7 +20,7 @@
   import { indexService } from '../../lib/services/indexes/IndexService';
   import { extensionService } from '../../lib/services/extensions/ExtensionService';
   import { settingsService } from '../../lib/services/settings/SettingsService';
-  import type { RestConnectorConfig, SitemapConnectorConfig, ExtensionMeta, EmbedModelOption, AppSettings } from '../../lib/types';
+  import type { RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, ExtensionMeta, EmbedModelOption, AppSettings } from '../../lib/types';
   import { embedModelOption, embedDimWillChange } from './CreateWizard.helpers';
 
   const dispatch = createEventDispatcher<{ done: string; cancel: void }>();
@@ -43,7 +43,7 @@
   let externalUrlField = '';
 
   // ── Step 2: Connector ────────────────────────────────────────────────────────
-  let connectorType: 'rest' | 'sitemap' = 'rest';
+  let connectorType: 'rest' | 'sitemap' | 'gsheet' = 'rest';
 
   // REST fields
   let restUrl = '';
@@ -88,6 +88,28 @@
   /** Remove the exclude-pattern row at index ``i``. */
   function removeExcludePattern(i: number) {
     excludePatterns = excludePatterns.filter((_, idx) => idx !== i);
+  }
+
+  // ── Google Sheets fields ─────────────────────────────────────────────────────
+  let gsheetSpreadsheetId = '';
+  let gsheetSheetName = 'Sheet1';
+  let gsheetIdColumn = '';
+  let gsheetTitleColumn = '';
+  let gsheetContentColumn = '';
+  let gsheetUrlColumn = '';
+  let gsheetHeaderRow = 1;
+  let gsheetSkipEmptyRows = true;
+  /** Extra column→field rename rows the user can add for fields beyond the four core fields. */
+  let gsheetFieldMappings: Array<{ src: string; tgt: string }> = [];
+
+  /** Append a blank column→field rename row to the Google Sheets extra mappings list. */
+  function addGsheetMapping() {
+    gsheetFieldMappings = [...gsheetFieldMappings, { src: '', tgt: '' }];
+  }
+
+  /** Remove the Google Sheets extra mapping row at index ``i``. */
+  function removeGsheetMapping(i: number) {
+    gsheetFieldMappings = gsheetFieldMappings.filter((_, idx) => idx !== i);
   }
 
   // ── Step 3: Field mapping ────────────────────────────────────────────────────
@@ -226,12 +248,22 @@
   }
 
   /**
-   * Validate that the connector URL is filled, then advance to step 3 (field mapping).
+   * Validate the connector config, then advance to the appropriate next step.
+   * gsheet skips step 3 (REST/sitemap field mapping) because column mapping
+   * is already collected in step 2 via the dedicated gsheet fields.
    */
   function stepTwo() {
     errMsg = '';
     if (connectorType === 'rest' && !restUrl.trim()) { errMsg = 'URL is required'; return; }
     if (connectorType === 'sitemap' && !sitemapUrl.trim()) { errMsg = 'Sitemap URL is required'; return; }
+    if (connectorType === 'gsheet' && !gsheetSpreadsheetId.trim()) { errMsg = 'Spreadsheet ID is required'; return; }
+    if (connectorType === 'gsheet' && !gsheetTitleColumn.trim()) { errMsg = 'Title column is required — documents with no title are dropped'; return; }
+    // gsheet column mapping is done in step 2, so jump straight to extensions (step 4)
+    if (connectorType === 'gsheet') {
+      step = 4;
+      if (extensionsList.length === 0 && !extensionsErr) loadExtensions();
+      return;
+    }
     step = 3;
   }
 
@@ -315,7 +347,7 @@
           ...(Object.keys(field_map).length && { field_map }),
         };
         await indexService.ingestRest(indexId, cfg);
-      } else {
+      } else if (connectorType === 'sitemap') {
         const cfg: SitemapConnectorConfig = {
           url: sitemapUrl.trim(),
           max_pages: sitemapMaxPages,
@@ -330,6 +362,25 @@
           user_agent: sitemapUserAgent.trim(),
         };
         await indexService.ingestSitemap(indexId, cfg);
+      } else if (connectorType === 'gsheet') {
+        // Build field_map from extra rename rows, skipping any row with an empty source column
+        const gsheetFieldMap: Record<string, string> = {};
+        for (const row of gsheetFieldMappings) {
+          if (row.src.trim()) gsheetFieldMap[row.src.trim()] = row.tgt.trim();
+        }
+        const cfg: GSheetConnectorConfig = {
+          type: 'gsheet',
+          spreadsheet_id: gsheetSpreadsheetId.trim(),
+          sheet_name: gsheetSheetName.trim() || 'Sheet1',
+          id_column: gsheetIdColumn.trim(),
+          title_column: gsheetTitleColumn.trim(),
+          content_column: gsheetContentColumn.trim(),
+          url_column: gsheetUrlColumn.trim(),
+          field_map: gsheetFieldMap,
+          skip_empty_rows: gsheetSkipEmptyRows,
+          header_row: gsheetHeaderRow,
+        };
+        await indexService.ingestGSheet(indexId, cfg);
       }
 
       step = 6;
@@ -446,6 +497,7 @@
       <div class="type-toggle">
         <button class:sel={connectorType==='rest'} on:click={() => connectorType='rest'}>REST API</button>
         <button class:sel={connectorType==='sitemap'} on:click={() => connectorType='sitemap'}>Sitemap</button>
+        <button class:sel={connectorType==='gsheet'} on:click={() => connectorType='gsheet'}>Google Sheets</button>
       </div>
 
       {#if connectorType === 'rest'}
@@ -463,7 +515,7 @@
         <label>Request body <span class="hint">(JSON, for POST)</span>
           <textarea bind:value={restBody} rows="3" placeholder={bodyPlaceholder}></textarea>
         </label>
-      {:else}
+      {:else if connectorType === 'sitemap'}
         <label>Sitemap URL
           <input bind:value={sitemapUrl} placeholder="https://example.com/sitemap.xml" />
         </label>
@@ -509,12 +561,56 @@
           {/each}
         {/if}
         <button type="button" class="add-mapping-btn" on:click={addMetaField}>+ Add field</button>
+      {:else if connectorType === 'gsheet'}
+        <div class="callout">
+          <p>Share your spreadsheet with your service account email before indexing. The Spreadsheet ID is the long string in the sheet URL.</p>
+        </div>
+        <label>Spreadsheet ID <span class="hint">(from the sheet URL)</span>
+          <input bind:value={gsheetSpreadsheetId} placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
+        </label>
+        <label>Sheet name <span class="hint">(tab name, default: Sheet1)</span>
+          <input bind:value={gsheetSheetName} placeholder="Sheet1" />
+        </label>
+        <label>Header row <span class="hint">(1-based row number containing column headers)</span>
+          <input type="number" bind:value={gsheetHeaderRow} min="1" />
+        </label>
+        <label>ID column <span class="hint">(column header to use as document ID, optional)</span>
+          <input bind:value={gsheetIdColumn} placeholder="auto-generated" />
+        </label>
+        <label>Title column <span class="req">*</span>
+          <input bind:value={gsheetTitleColumn} placeholder="e.g. Title" />
+        </label>
+        <label>Content column <span class="hint">(optional)</span>
+          <input bind:value={gsheetContentColumn} placeholder="auto" />
+        </label>
+        <label>URL column <span class="hint">(optional)</span>
+          <input bind:value={gsheetUrlColumn} placeholder="auto" />
+        </label>
+        {#if gsheetFieldMappings.length > 0}
+          <div class="extra-label">Extra field renames</div>
+          {#each gsheetFieldMappings as row, i}
+            <div class="extra-row">
+              <input bind:value={row.src} placeholder="column header" class="field-input" />
+              <span class="arrow">→</span>
+              <input bind:value={row.tgt} placeholder="ISP field" class="field-input" />
+              <button class="rm-btn" type="button" on:click={() => removeGsheetMapping(i)} aria-label="Remove">✕</button>
+            </div>
+          {/each}
+        {/if}
+        <button type="button" class="add-mapping-btn" on:click={addGsheetMapping}>+ Add field rename</button>
+        <label class="checkbox-label">
+          <input type="checkbox" bind:checked={gsheetSkipEmptyRows} />
+          <span>Skip empty rows</span>
+        </label>
       {/if}
 
       {#if errMsg}<p class="err">{errMsg}</p>{/if}
       <div class="actions">
         <button class="btn-secondary" on:click={() => step = 1}>← Back</button>
-        <button class="btn-primary" on:click={stepTwo}>Next: Field Mapping →</button>
+        <!-- gsheet has its own column mapping in step 2, so it jumps to extensions next -->
+        <button class="btn-primary" on:click={stepTwo}>
+          {connectorType === 'gsheet' ? 'Next: Extensions →' : 'Next: Field Mapping →'}
+        </button>
       </div>
     </div>
 
@@ -660,7 +756,8 @@
 
       {#if errMsg}<p class="err">{errMsg}</p>{/if}
       <div class="actions">
-        <button class="btn-secondary" on:click={() => step = 3}>← Back</button>
+        <!-- gsheet skips step 3, so go back to step 2 instead -->
+        <button class="btn-secondary" on:click={() => step = connectorType === 'gsheet' ? 2 : 3}>← Back</button>
         <button class="btn-primary" on:click={stepFour} disabled={busy}>
           Next: Embedding Model →
         </button>
@@ -1071,6 +1168,38 @@
     padding: 1px 4px;
     border-radius: 3px;
     color: #9d91f5;
+  }
+
+  /* ── Google Sheets callout ──────────────────────────────────────────────────── */
+
+  .callout {
+    background: #0f1a10;
+    border: 1px solid #1e3d22;
+    border-radius: 7px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #5cdb85;
+    line-height: 1.5;
+  }
+  .callout p { margin: 0; }
+
+  /* Checkbox row that must not inherit the column flex-direction of a standard label */
+  .checkbox-label {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #999;
+    cursor: pointer;
+  }
+  .checkbox-label input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #7c6cf4;
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 0;
   }
 
   /* ── Shared ────────────────────────────────────────────────────────────────── */
