@@ -27,6 +27,9 @@ Thumbs.db
 # Pending open-source release
 LICENSE
 docs/publishPaper.md
+docs/auth-approaches.md
+docs/gsheet-connector.md
+docs/secrets-strategy.md
 
 # Claude Code local config — keep off remote
 .claude/
