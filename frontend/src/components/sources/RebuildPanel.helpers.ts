@@ -1,4 +1,4 @@
-import type { IndexMeta, RestConnectorConfig } from '../../lib/types';
+import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig } from '../../lib/types';
 
 /**
  * Pre-populate form fields from the first saved REST connector on an index.
@@ -14,6 +14,24 @@ export function getExistingRest(index: IndexMeta): Partial<RestConnectorConfig> 
     method:  String(c.method ?? 'GET'),
     headers: (c.headers as Record<string, string>) ?? {},
     body:    String(c.body ?? ''),
+  };
+}
+
+/**
+ * Pre-populate sitemap form fields from the first saved sitemap connector on an index.
+ * Returns an empty object when no sitemap connector is found.
+ */
+export function getExistingSitemap(index: IndexMeta): Partial<SitemapConnectorConfig> {
+  const c = index.connectors.find(c => c.type === 'sitemap');
+  if (!c) return {};
+  return {
+    url:              String(c.url ?? ''),
+    max_pages:        Number(c.max_pages ?? 50),
+    content_selector: String(c.content_selector ?? ''),
+    user_agent:       String(c.user_agent ?? ''),
+    include_patterns: (c.include_patterns ?? []) as string[],
+    exclude_patterns: (c.exclude_patterns ?? []) as string[],
+    meta_fields:      (c.meta_fields ?? {}) as Record<string, string>,
   };
 }
 

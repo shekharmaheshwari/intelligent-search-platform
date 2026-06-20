@@ -114,8 +114,13 @@ export class IndexRepository {
    * Full rebuild: drop all existing documents and re-fetch from the connector.
    * Callers must poll ``getStatus`` to track progress.
    */
-  rebuild(id: string, cfg: RestConnectorConfig): Promise<IngestStatus> {
+  rebuild(id: string, cfg: RestConnectorConfig | SitemapConnectorConfig): Promise<IngestStatus> {
     return api.rebuild(id, cfg);
+  }
+
+  /** Persist sitemap connector config without triggering a crawl. */
+  saveSitemapConnector(id: string, cfg: SitemapConnectorConfig): Promise<IndexMeta> {
+    return api.saveSitemapConnector(id, cfg);
   }
 
   /**

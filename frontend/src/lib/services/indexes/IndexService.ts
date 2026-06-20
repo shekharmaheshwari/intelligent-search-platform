@@ -1,7 +1,7 @@
 import { indexRepository, type IndexRepository } from '../../repository/IndexRepository';
 import { mapIndexMetaToIndex, mapIndexesToDomain } from './index.mapper';
 import type { Index, IngestStatus, SearchResult } from './index.model';
-import type { RestConnectorConfig, SitemapConnectorConfig } from '../../types';
+import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig } from '../../types';
 
 /**
  * Service for all index-domain operations.
@@ -119,8 +119,13 @@ export class IndexService {
    * Full rebuild: drop all existing documents and re-fetch from the connector.
    * Returns immediately with ``state=queued``; poll ``getStatus`` to track progress.
    */
-  rebuild(id: string, cfg: RestConnectorConfig): Promise<IngestStatus> {
+  rebuild(id: string, cfg: RestConnectorConfig | SitemapConnectorConfig): Promise<IngestStatus> {
     return this.repo.rebuild(id, cfg);
+  }
+
+  /** Persist sitemap connector config without triggering a crawl. */
+  saveSitemapConnector(id: string, cfg: SitemapConnectorConfig): Promise<IndexMeta> {
+    return this.repo.saveSitemapConnector(id, cfg);
   }
 
   /**
