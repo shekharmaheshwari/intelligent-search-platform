@@ -92,6 +92,9 @@ def create_collection(index_id: str, vec_dim: int | None = None) -> None:
             {"name": "boost_queries_equal",   "type": "string[]", "optional": True},
             {"name": "boost_queries_contains","type": "string[]", "optional": True},
             {"name": "vec",                   "type": "float[]",  "num_dim": dim, "optional": True},
+            # Wildcard — accepts any extra top-level string field promoted via
+            # SitemapConnectorConfig.meta_fields without requiring schema changes.
+            {"name": ".*", "type": "auto"},
         ],
     })
 
