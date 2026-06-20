@@ -1,8 +1,8 @@
-// @name T-Mobile Catalog Mapper
-// @description Maps T-Mobile REST API response fields to the ISP catalog schema. Assign to Phones, Accessories, Smartwatches, and Tablets indexes.
+// @name Catalog Mapper
+// @description Maps REST API product response fields to the ISP catalog schema. Assign to Phones, Accessories, Smartwatches, and Tablets indexes.
 
 /**
- * Transform a raw T-Mobile catalog item into the ISP catalog schema.
+ * Transform a raw product catalog item into the ISP catalog schema.
  *
  * Field extraction strategy (in priority order):
  * - Price: top-level price fields → first SKU price fields → first SKU frpPrice object.
@@ -11,7 +11,7 @@
  * - Availability: boolean, status-object, or string — parsed to a single boolean.
  * - URL: constructed from the correct base path (cell-phone vs accessory) + urlEncodedFamilyName.
  *
- * @param {Object} doc - Raw item object from the T-Mobile REST API response.
+ * @param {Object} doc - Raw item object from the product REST API response.
  *   The ``_isp_type`` field is injected by the ingest pipeline before this function runs;
  *   it is ``"device"`` for phones/tablets and ``"accessory"`` for accessories.
  * @returns {Object} Document shaped to the ISP catalog schema expected by
@@ -81,8 +81,8 @@ function transform(doc) {
   var rawId        = doc.familyCode || doc.sku || doc.id || '';
   var urlSlug      = doc.urlEncodedFamilyName || doc.urlName || doc.url_name || '';
   var base         = type === 'device'
-    ? 'https://www.t-mobile.com/cell-phone'
-    : 'https://www.t-mobile.com/accessory';
+    ? 'https://www.example.com/cell-phone'
+    : 'https://www.example.com/accessory';
 
   // Tags & aliases
   var aliases = manufacturer && display
@@ -99,7 +99,7 @@ function transform(doc) {
   var skuCodes   = skus.slice(0, 5).map(function(s) { return s.skuCode || ''; }).filter(Boolean);
   var colorNames = (doc.colorOptions || []).map(function(c) { return c && c.name ? c.name : ''; }).filter(Boolean);
 
-  // Badges live per-SKU in the T-Mobile API, not at product level — collect and deduplicate.
+  // Badges live per-SKU in the product API, not at product level — collect and deduplicate.
   var badgeSet = {}, badges = [];
   skus.forEach(function(sku) {
     (sku.badges || []).forEach(function(b) {

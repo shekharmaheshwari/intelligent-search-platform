@@ -247,7 +247,7 @@ backend/
         job_lock.py           ← Redis distributed lock for ingest/rebuild (acquire/release/heartbeat)
 
   extensions/
-    tmobile_catalog.js        ← seeded JS extension: T-Mobile API → catalog schema (run_order 0)
+    catalog_mapper.js         ← seeded JS extension: REST API → catalog schema (run_order 0)
     version_score.js          ← seeded JS extension: version/badge popularity boost (run_order 1)
     merchandising_rules.js    ← seeded JS extension: boost_queries_equal/contains stamping (run_order 2)
 

@@ -77,11 +77,11 @@ def _infer_isp_type(cfg_dict: dict) -> str:
     """
     Derive a catalog type label from the connector body's ``familyCategory`` field.
 
-    T-Mobile connectors carry a JSON body with ``familyCategory`` set to
+    REST connectors may carry a JSON body with ``familyCategory`` set to
     ``ACCESSORIES``, ``CELLPHONES``, ``TABLETS``, ``SMARTWATCHES``, etc.
-    This label is injected as ``_isp_type`` on each raw item so the T-Mobile
+    This label is injected as ``_isp_type`` on each raw item so the
     Catalog Mapper extension knows whether to produce ``"accessory"`` or
-    ``"device"`` documents.  Non-T-Mobile sources fall back to ``"item"``.
+    ``"device"`` documents.  Other sources fall back to ``"item"``.
     """
     body_str = cfg_dict.get("body", "") or ""
     if body_str:
@@ -303,7 +303,7 @@ def _map_external_doc(raw: dict, meta: IndexMeta) -> dict:
         if val and isinstance(val, str):
             content = val
             break
-    # 2. Try to parse metadata JSON (used in T-Mobile catalog)
+    # 2. Try to parse metadata JSON (used in catalog write-back path)
     if not content:
         meta_raw = raw.get("metadata")
         if meta_raw:
@@ -372,13 +372,13 @@ async def discover_indexes():
     collections are skipped.
 
     Newly discovered catalog indexes are automatically assigned the seeded
-    extension (e.g. T-Mobile Catalog Mapper) if one exists in the library.
+    extension (e.g. Catalog Mapper) if one exists in the library.
     """
-    from isp.main import _TMOBILE_EXT_NAME
+    from isp.main import _CATALOG_EXT_NAME
     new_indexes = await index_service.discover_external_collections()
     if new_indexes:
         exts = await extension_service.list_extensions()
-        tmo = next((e for e in exts if e["name"] == _TMOBILE_EXT_NAME), None)
+        tmo = next((e for e in exts if e["name"] == _CATALOG_EXT_NAME), None)
         if tmo:
             for idx in new_indexes:
                 if idx.is_external:
@@ -880,7 +880,7 @@ async def rebuild(idx_id: str, cfg: ConnectorConfig, bg: BackgroundTasks):
     Accepts either a REST or sitemap connector config — the ``type`` discriminator field
     determines which connector is used.
     For catalog write-back sources (Phones, Accessories, Smartwatches, Tablets) this maps
-    raw T-Mobile API items to the unified catalog schema and upserts into the shared
+    raw API items to the unified catalog schema and upserts into the shared
     `catalog` Typesense collection.
     Returns immediately with `state=queued`; poll `/status` to track progress.
     """

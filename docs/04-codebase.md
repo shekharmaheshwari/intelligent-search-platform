@@ -6,7 +6,7 @@
 intelligent-search-platform/
 ├── backend/
 │   ├── extensions/                     # JS transform extensions (source of truth)
-│   │   ├── tmobile_catalog.js          # T-Mobile API → catalog schema mapper (run_order 0)
+│   │   ├── catalog_mapper.js           # REST API → catalog schema mapper (run_order 0)
 │   │   ├── version_score.js            # version/badge popularity boost (run_order 1)
 │   │   └── merchandising_rules.js      # query-aware boost_queries stamping (run_order 2)
 │   ├── src/isp/
