@@ -18,6 +18,11 @@ import logging
 import re
 from pathlib import Path
 from contextlib import asynccontextmanager
+
+# Bootstrap secrets before any ISP module loads config.py
+from isp.services.infra.secrets import bootstrap_secrets
+bootstrap_secrets()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router, analytics
