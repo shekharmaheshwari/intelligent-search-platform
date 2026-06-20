@@ -12,12 +12,14 @@
    */
   import { createEventDispatcher } from 'svelte';
   import { indexService } from '../../lib/services/indexes/IndexService';
-  import type { IndexMeta, IngestStatus, RestConnectorConfig } from '../../lib/types';
-  import { getExistingRest, parseCurl as parseCurlHelper, buildCurl } from './RebuildPanel.helpers';
+  import type { IndexMeta, IngestStatus, RestConnectorConfig, SitemapConnectorConfig } from '../../lib/types';
+  import { getExistingRest, getExistingSitemap, parseCurl as parseCurlHelper, buildCurl } from './RebuildPanel.helpers';
 
   export let index: IndexMeta;
 
   const dispatch = createEventDispatcher<{ done: void; close: void }>();
+
+  const connectorType = index.connectors[0]?.type ?? 'rest';
 
   const pre = getExistingRest(index);
 
@@ -25,6 +27,23 @@
   let method       = pre.method ?? 'GET';
   let headersRaw   = pre.headers ? JSON.stringify(pre.headers, null, 2) : '{}';
   let body         = pre.body ?? '';
+
+  // ── Sitemap fields ────────────────────────────────────────────────────────────
+  const preSitemap = getExistingSitemap(index);
+  let sitemapUrl       = preSitemap.url ?? '';
+  let sitemapMaxPages  = preSitemap.max_pages ?? 50;
+  let sitemapSelector  = preSitemap.content_selector ?? '';
+  let sitemapUserAgent = preSitemap.user_agent ?? '';
+  let includePatterns  = (preSitemap.include_patterns ?? []).map(v => ({ value: v }));
+  let excludePatterns  = (preSitemap.exclude_patterns ?? []).map(v => ({ value: v }));
+  let metaFields       = Object.entries(preSitemap.meta_fields ?? {}).map(([key, value]) => ({ key, value }));
+
+  function addIncludePattern() { includePatterns = [...includePatterns, { value: '' }]; }
+  function removeIncludePattern(i: number) { includePatterns = includePatterns.filter((_, idx) => idx !== i); }
+  function addExcludePattern() { excludePatterns = [...excludePatterns, { value: '' }]; }
+  function removeExcludePattern(i: number) { excludePatterns = excludePatterns.filter((_, idx) => idx !== i); }
+  function addMetaField() { metaFields = [...metaFields, { key: '', value: '' }]; }
+  function removeMetaField(i: number) { metaFields = metaFields.filter((_, idx) => idx !== i); }
 
   // ── Curl paste parser ─────────────────────────────────────────────────────
   const curlPlaceholder = `curl -X POST 'https://api.example.com/items' -H 'Authorization: Bearer TOKEN' -d '{"key": "value"}'`;
@@ -71,32 +90,40 @@
     setTimeout(() => { copied = false; }, 1500);
   }
 
-  /** Validate the form, call the rebuild API, then start the status-poll loop. */
+  /** Validate the form, build the correct connector config, call rebuild, then start polling. */
   async function runRebuild() {
-    if (!url.trim()) { errMsg = 'URL is required'; return; }
-    let headers: Record<string, string> = {};
-    try { headers = JSON.parse(headersRaw || '{}'); } catch { errMsg = 'Invalid JSON in headers'; return; }
-
     errMsg = '';
     runState = 'running';
     stage = 'Fetching content…';
-    statusIndexed = 0;
-    statusTotal = 0;
-
-    const cfg: RestConnectorConfig = {
-      url: url.trim(), method, headers,
-      body: body.trim(),
-    };
+    statusIndexed = 0; statusTotal = 0;
 
     try {
-      await indexService.rebuild(index.id, cfg);
+      if (connectorType === 'sitemap') {
+        if (!sitemapUrl.trim()) { errMsg = 'Sitemap URL is required'; runState = 'idle'; return; }
+        const cfg: SitemapConnectorConfig = {
+          url: sitemapUrl.trim(),
+          max_pages: sitemapMaxPages,
+          content_selector: sitemapSelector.trim(),
+          user_agent: sitemapUserAgent.trim(),
+          include_patterns: includePatterns.map(r => r.value.trim()).filter(Boolean),
+          exclude_patterns: excludePatterns.map(r => r.value.trim()).filter(Boolean),
+          meta_fields: Object.fromEntries(metaFields.filter(r => r.key.trim() && r.value.trim()).map(r => [r.key.trim(), r.value.trim()])),
+        };
+        await indexService.rebuild(index.id, cfg);
+      } else {
+        if (!url.trim()) { errMsg = 'URL is required'; runState = 'idle'; return; }
+        let headers: Record<string, string> = {};
+        try { headers = JSON.parse(headersRaw || '{}'); } catch { errMsg = 'Invalid JSON in headers'; runState = 'idle'; return; }
+        const cfg: RestConnectorConfig = { url: url.trim(), method, headers, body: body.trim() };
+        await indexService.rebuild(index.id, cfg);
+      }
       poll();
     } catch (e) {
       runState = 'error';
       const msg = String(e);
       // 409 means a job is already active (same-instance fast-path check)
       errMsg = msg.includes('409')
-        ? 'A rebuild is already in progress for this index. Wait for it to finish before starting another.'
+        ? 'A rebuild is already in progress. Wait for it to finish.'
         : msg;
     }
   }
@@ -160,64 +187,122 @@
   </div>
 
   <div class="body">
-    <!-- Paste curl shortcut —— pastes the whole curl and fills all fields -->
-    <div class="paste-curl-wrap">
-      <div class="paste-curl-label">
-        <span class="paste-icon">⎘</span>
-        Paste a curl command to auto-fill all fields
+    {#if connectorType !== 'sitemap'}
+      <!-- Paste curl shortcut — REST only -->
+      <div class="paste-curl-wrap">
+        <div class="paste-curl-label">
+          <span class="paste-icon">⎘</span>
+          Paste a curl command to auto-fill all fields
+        </div>
+        <textarea
+          class="paste-curl-input"
+          bind:value={curlInput}
+          on:paste={onCurlPaste}
+          on:input={() => { if (curlInput.trim()) parseCurl(curlInput); }}
+          placeholder={curlPlaceholder}
+          rows="2"
+          spellcheck="false"
+          disabled={runState === 'running'}
+        ></textarea>
+        {#if parseError}<p class="parse-err">{parseError}</p>{/if}
       </div>
-      <textarea
-        class="paste-curl-input"
-        bind:value={curlInput}
-        on:paste={onCurlPaste}
-        on:input={() => { if (curlInput.trim()) parseCurl(curlInput); }}
-        placeholder={curlPlaceholder}
-        rows="2"
-        spellcheck="false"
-        disabled={runState === 'running'}
-      ></textarea>
-      {#if parseError}<p class="parse-err">{parseError}</p>{/if}
-    </div>
 
-    <div class="divider"><span>or fill manually</span></div>
+      <div class="divider"><span>or fill manually</span></div>
 
-    <!-- Form — disabled while running -->
-    <fieldset class="form" disabled={runState === 'running'}>
-      <div class="field-row">
-        <label class="field" style="flex:0 0 90px">
-          Method
-          <select bind:value={method}>
-            <option>GET</option><option>POST</option><option>PUT</option>
-          </select>
+      <!-- REST form — disabled while running -->
+      <fieldset class="form" disabled={runState === 'running'}>
+        <div class="field-row">
+          <label class="field" style="flex:0 0 90px">
+            Method
+            <select bind:value={method}>
+              <option>GET</option><option>POST</option><option>PUT</option>
+            </select>
+          </label>
+          <label class="field" style="flex:1">
+            Endpoint URL <span class="req">*</span>
+            <input bind:value={url} placeholder="https://api.example.com/data" />
+          </label>
+        </div>
+
+        <label class="field">
+          Headers <span class="hint-inline">(JSON)</span>
+          <textarea bind:value={headersRaw} rows="3" spellcheck="false"
+            placeholder={'{\n  "Authorization": "Bearer TOKEN"\n}'} />
         </label>
-        <label class="field" style="flex:1">
-          Endpoint URL <span class="req">*</span>
-          <input bind:value={url} placeholder="https://api.example.com/data" />
+
+        <label class="field">
+          Request body <span class="hint-inline">(JSON — sent for POST/PUT)</span>
+          <textarea bind:value={body} rows="3" spellcheck="false"
+            placeholder={'{\n  "familyCategory": "CELLPHONES",\n  "pageNumber": "1"\n}'} />
         </label>
+      </fieldset>
+
+      <!-- Curl preview -->
+      <div class="curl-block">
+        <div class="curl-head">
+          <span>curl preview</span>
+          <button class="copy-btn" on:click={copyCurl}>{copied ? '✓ Copied' : 'Copy'}</button>
+        </div>
+        <pre class="curl-pre"><code>{curlCmd}</code></pre>
       </div>
+    {:else}
+      <!-- Sitemap form -->
+      <fieldset class="form" disabled={runState === 'running'}>
+        <label class="field">
+          Sitemap URL <span class="req">*</span>
+          <input bind:value={sitemapUrl} placeholder="https://example.com/sitemap.xml" />
+        </label>
+        <div class="field-row">
+          <label class="field" style="flex:1">
+            Max pages <span class="hint-inline">(optional, default 50)</span>
+            <input type="number" bind:value={sitemapMaxPages} min="1" max="10000" />
+          </label>
+          <label class="field" style="flex:1">
+            Content selector <span class="hint-inline">(optional)</span>
+            <input bind:value={sitemapSelector} placeholder="article, .post-content" />
+          </label>
+        </div>
+        <label class="field">
+          User Agent <span class="hint-inline">(optional)</span>
+          <input bind:value={sitemapUserAgent} placeholder="Mozilla/5.0 ..." />
+        </label>
 
-      <label class="field">
-        Headers <span class="hint-inline">(JSON)</span>
-        <textarea bind:value={headersRaw} rows="3" spellcheck="false"
-          placeholder={'{\n  "Authorization": "Bearer TOKEN"\n}'} />
-      </label>
+        <div class="field">
+          <span class="field-label-text">Include patterns <span class="hint-inline">(optional)</span></span>
+          {#each includePatterns as row, i}
+            <div class="extra-row">
+              <input bind:value={row.value} placeholder="/support/" class="field-input" />
+              <button class="rm-btn" type="button" on:click={() => removeIncludePattern(i)}>✕</button>
+            </div>
+          {/each}
+          <button type="button" class="add-mapping-btn" on:click={addIncludePattern}>+ Add include pattern</button>
+        </div>
 
-      <label class="field">
-        Request body <span class="hint-inline">(JSON — sent for POST/PUT)</span>
-        <textarea bind:value={body} rows="3" spellcheck="false"
-          placeholder={'{\n  "familyCategory": "CELLPHONES",\n  "pageNumber": "1"\n}'} />
-      </label>
+        <div class="field">
+          <span class="field-label-text">Exclude patterns <span class="hint-inline">(optional)</span></span>
+          {#each excludePatterns as row, i}
+            <div class="extra-row">
+              <input bind:value={row.value} placeholder="/tag/" class="field-input" />
+              <button class="rm-btn" type="button" on:click={() => removeExcludePattern(i)}>✕</button>
+            </div>
+          {/each}
+          <button type="button" class="add-mapping-btn" on:click={addExcludePattern}>+ Add exclude pattern</button>
+        </div>
 
-    </fieldset>
-
-    <!-- Curl preview -->
-    <div class="curl-block">
-      <div class="curl-head">
-        <span>curl preview</span>
-        <button class="copy-btn" on:click={copyCurl}>{copied ? '✓ Copied' : 'Copy'}</button>
-      </div>
-      <pre class="curl-pre"><code>{curlCmd}</code></pre>
-    </div>
+        <div class="field">
+          <span class="field-label-text">Meta field mappings <span class="hint-inline">(optional)</span></span>
+          {#each metaFields as row, i}
+            <div class="extra-row">
+              <input bind:value={row.key} placeholder="og:site_name" class="field-input" />
+              <span style="color:#555">→</span>
+              <input bind:value={row.value} placeholder="site_name" class="field-input" />
+              <button class="rm-btn" type="button" on:click={() => removeMetaField(i)}>✕</button>
+            </div>
+          {/each}
+          <button type="button" class="add-mapping-btn" on:click={addMetaField}>+ Add field</button>
+        </div>
+      </fieldset>
+    {/if}
 
     {#if errMsg && runState !== 'running'}
       <p class="err">{errMsg}</p>
@@ -228,10 +313,13 @@
       {#if runState === 'idle' || runState === 'error'}
         <div class="actions">
           <button class="btn-cancel" on:click={() => dispatch('close')}>Cancel</button>
-          <button class="btn-copy-curl" on:click={copyCurl} disabled={!url.trim()} title="Copy full curl command">
-            {copied ? '✓ Copied' : '⎘ Copy curl'}
-          </button>
-          <button class="btn-rebuild" on:click={runRebuild} disabled={!url.trim()}>
+          {#if connectorType !== 'sitemap'}
+            <button class="btn-copy-curl" on:click={copyCurl} disabled={!url.trim()} title="Copy full curl command">
+              {copied ? '✓ Copied' : '⎘ Copy curl'}
+            </button>
+          {/if}
+          <button class="btn-rebuild" on:click={runRebuild}
+            disabled={connectorType === 'sitemap' ? !sitemapUrl.trim() : !url.trim()}>
             ↺ Run Rebuild
           </button>
         </div>
@@ -432,6 +520,25 @@
   }
 
   .err { color: #e55; font-size: 12px; margin: 0; }
+
+  /* Multi-row pattern fields (include/exclude patterns, meta field mappings) */
+  .field-label-text { font-size: 12px; color: #777; margin-bottom: 4px; display: block; }
+  .extra-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .field-input {
+    flex: 1; background: #0d0d0d; border: 1px solid #252525; border-radius: 6px;
+    padding: 6px 9px; color: #ddd; font-size: 12px; font-family: inherit;
+  }
+  .field-input:focus { outline: none; border-color: #7c6cf4; }
+  .rm-btn {
+    background: none; border: 1px solid #2a2a2a; border-radius: 5px;
+    color: #555; font-size: 11px; padding: 4px 7px; cursor: pointer; flex-shrink: 0;
+  }
+  .rm-btn:hover { border-color: #e55; color: #e55; }
+  .add-mapping-btn {
+    background: none; border: 1px dashed #2a2a2a; border-radius: 5px;
+    color: #555; font-size: 11px; padding: 5px 12px; cursor: pointer; margin-top: 2px;
+  }
+  .add-mapping-btn:hover { border-color: #7c6cf4; color: #9d91f5; }
 
   /* Footer */
   .footer {

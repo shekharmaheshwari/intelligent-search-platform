@@ -44,10 +44,19 @@ class SitemapConnectorConfig(BaseModel):
     """Configuration for a sitemap-based crawler data source."""
     type: Literal["sitemap"] = "sitemap"
     url: str
-    max_pages: int = Field(default=50, ge=1, le=500)
-    content_selector: str = ""
-    include_pattern: str = ""
-    exclude_pattern: str = ""
+    max_pages: int = Field(default=50, ge=1, le=10000)
+    content_selector: Optional[str] = ""
+    include_patterns: list[str] = Field(default_factory=list, description="URL must contain at least one of these substrings. Empty list = no filter.")
+    exclude_patterns: list[str] = Field(default_factory=list, description="URL must not contain any of these substrings. Empty list = no filter.")
+    meta_fields: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Maps HTML meta tag names (e.g. 'article-author') to top-level ISP "
+            "document field names (e.g. 'author').  Promoted fields are stored "
+            "alongside title/content/url and become filterable in Typesense."
+        ),
+    )
+    user_agent: Optional[str] = Field(default="", description="Override the default 'ISP-Crawler/1.0' User-Agent header sent with every crawl request. Use a browser UA string for sites that block automated crawlers.")
 
 
 ConnectorConfig = Union[RestConnectorConfig, SitemapConnectorConfig]
