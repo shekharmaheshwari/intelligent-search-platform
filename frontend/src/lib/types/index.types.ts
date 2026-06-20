@@ -48,8 +48,14 @@ export interface SitemapConnectorConfig {
   url: string;
   max_pages: number;
   content_selector: string;
-  include_pattern: string;
-  exclude_pattern: string;
+  /** URL must contain at least one of these substrings. Empty array = no filter. */
+  include_patterns: string[];
+  /** URL must not contain any of these substrings. Empty array = no filter. */
+  exclude_patterns: string[];
+  /** Maps HTML meta tag names (e.g. "article-author") to top-level ISP document field names (e.g. "author"). Promoted fields become filterable in Typesense. */
+  meta_fields: Record<string, string>;
+  /** Override the default 'ISP-Crawler/1.0' User-Agent. Use a browser UA for sites that block automated crawlers. */
+  user_agent: string;
 }
 
 /**
