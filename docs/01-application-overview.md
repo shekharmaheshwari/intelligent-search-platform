@@ -2,7 +2,7 @@
 
 ## Purpose
 
-ISP is an internal search platform that lets users connect external data sources (REST APIs, sitemaps, existing Typesense collections) and make them full-text + semantically searchable through a single UI. It also writes back to the shared `catalog` Typesense collection consumed by the T-Mobile PLP.
+ISP is an internal search platform that lets users connect external data sources (REST APIs, sitemaps, existing Typesense collections) and make them full-text + semantically searchable through a single UI. It also writes back to the shared `catalog` Typesense collection consumed by the PLP (Product Listing Page).
 
 ---
 
@@ -30,7 +30,7 @@ ISP is an internal search platform that lets users connect external data sources
 | isp-db     | 5432 | PostgreSQL metadata store      |
 | isp-redis  | 6379 | Embedding cache (Redis)        |
 | Typesense  | 8108 | Search engine                  |
-| tmo-plp    | 3000 | T-Mobile PLP (external)        |
+| tmo-plp    | 3000 | PLP (external)                 |
 
 ---
 
@@ -164,7 +164,7 @@ User types query → press Enter / click Search
 
 ### 3b. PLP Catalog Search
 ```
-T-Mobile PLP → POST /v1/catalog
+PLP → POST /v1/catalog
   → _get_isp_collections() — discover all isp_* collections
   → _rrf_search(collections, q, vec, filter_by="source_type:=device")
       → multi_search: one lex + one sem pass per collection
@@ -195,7 +195,7 @@ App loads → POST /v1/indexes/discover
   → skip deleted_splits entries
   → match against _KNOWN_SPLITS (catalog → Phones, Accessories)
   → create IndexMeta in PostgreSQL for new external collections
-  → auto-assign seeded extension (e.g. T-Mobile Catalog Mapper) to each
+  → auto-assign seeded extension (e.g. Catalog Mapper) to each
     new external index using ON CONFLICT DO NOTHING (won't override
     existing user-configured assignments)
 ```
@@ -216,7 +216,7 @@ User opens "⚙ Extensions" in SourceContent header
 
 ## Docker Network
 
-All services run on the external Docker network `search_tmo-net`, allowing ISP to access Typesense and the T-Mobile services directly by container name.
+All services run on the external Docker network `search_tmo-net`, allowing ISP to access Typesense and external services directly by container name.
 
 ```
 search_tmo-net

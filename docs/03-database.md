@@ -79,7 +79,7 @@ External connector (auto-created by discover):
 ```json
 [{
   "type": "external",
-  "url": "https://www.t-mobile.com/cell-phone/",
+  "url": "https://www.example.com/cell-phone/",
   "collection": "catalog"
 }]
 ```
