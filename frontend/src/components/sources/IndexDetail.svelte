@@ -16,7 +16,7 @@
   import { indexService } from '../../lib/services/indexes/IndexService';
   import { settingsService } from '../../lib/services/settings/SettingsService';
   import type { Index, IngestStatus } from '../../lib/services/indexes/index.model';
-  import type { EmbedModelOption, SitemapConnectorConfig } from '../../lib/types';
+  import type { EmbedModelOption, SitemapConnectorConfig, GSheetConnectorConfig } from '../../lib/types';
   import DocumentTable from './DocumentTable.svelte';
   import SearchPanel from './SearchPanel.svelte';
   import ApiPanel from './ApiPanel.svelte';
@@ -71,7 +71,7 @@
 
     // Initialise connector form state once from the fetched meta.
     const c = fetchedMeta.connectors[0] ?? {};
-    connectorType    = (c.type ?? '') as 'rest' | 'sitemap' | '';
+    connectorType    = (c.type ?? '') as 'rest' | 'sitemap' | 'gsheet' | '';
     sitemapUrl       = String(c.url ?? '');
     sitemapMaxPages  = Number(c.max_pages ?? 50);
     sitemapSelector  = String(c.content_selector ?? '');
@@ -79,6 +79,15 @@
     includePatterns  = ((c.include_patterns ?? []) as string[]).map(v => ({ value: v }));
     excludePatterns  = ((c.exclude_patterns ?? []) as string[]).map(v => ({ value: v }));
     metaFields       = Object.entries((c.meta_fields ?? {}) as Record<string,string>).map(([key, value]) => ({ key, value }));
+    gsheetSpreadsheetId = String(c.spreadsheet_id ?? '');
+    gsheetSheetName     = String(c.sheet_name ?? 'Sheet1');
+    gsheetHeaderRow     = Number(c.header_row ?? 1);
+    gsheetIdCol         = String(c.id_column ?? '');
+    gsheetTitleCol      = String(c.title_column ?? '');
+    gsheetContentCol    = String(c.content_column ?? '');
+    gsheetUrlCol        = String(c.url_column ?? '');
+    gsheetSkipEmpty     = Boolean(c.skip_empty_rows ?? true);
+    gsheetMappings      = Object.entries((c.field_map ?? {}) as Record<string,string>).map(([key, value]) => ({ key, value }));
   });
 
   /** Save the selected embedding model to the index. */
@@ -126,7 +135,7 @@
   // Plain `let` — initialized once in onMount. Must NOT be $: reactive or
   // Svelte will re-derive from meta on every reactivity cycle, wiping user edits.
 
-  let connectorType: 'rest' | 'sitemap' | '' = '';
+  let connectorType: 'rest' | 'sitemap' | 'gsheet' | '' = '';
   let sitemapUrl = '';
   let sitemapMaxPages = 50;
   let sitemapSelector = '';
@@ -134,6 +143,20 @@
   let includePatterns: { value: string }[] = [];
   let excludePatterns: { value: string }[] = [];
   let metaFields: { key: string; value: string }[] = [];
+
+  // ── GSheet connector state ────────────────────────────────────────────────────
+  let gsheetSpreadsheetId = '';
+  let gsheetSheetName     = 'Sheet1';
+  let gsheetHeaderRow     = 1;
+  let gsheetIdCol         = '';
+  let gsheetTitleCol      = '';
+  let gsheetContentCol    = '';
+  let gsheetUrlCol        = '';
+  let gsheetSkipEmpty     = true;
+  let gsheetMappings: { key: string; value: string }[] = [];
+
+  function addGsheetMapping()             { gsheetMappings = [...gsheetMappings, { key: '', value: '' }]; }
+  function removeGsheetMapping(i: number) { gsheetMappings = gsheetMappings.filter((_, idx) => idx !== i); }
 
   let connectorSaving = false;
   let connectorErr = '';
@@ -160,6 +183,20 @@
           meta_fields: Object.fromEntries(metaFields.filter(r => r.key.trim() && r.value.trim()).map(r => [r.key.trim(), r.value.trim()])),
         };
         await indexService.saveSitemapConnector(indexId, cfg);
+      } else if (connectorType === 'gsheet') {
+        const cfg: GSheetConnectorConfig = {
+          type: 'gsheet',
+          spreadsheet_id: gsheetSpreadsheetId.trim(),
+          sheet_name:     gsheetSheetName.trim() || 'Sheet1',
+          header_row:     gsheetHeaderRow,
+          id_column:      gsheetIdCol.trim(),
+          title_column:   gsheetTitleCol.trim(),
+          content_column: gsheetContentCol.trim(),
+          url_column:     gsheetUrlCol.trim(),
+          skip_empty_rows: gsheetSkipEmpty,
+          field_map: Object.fromEntries(gsheetMappings.filter(r => r.key.trim() && r.value.trim()).map(r => [r.key.trim(), r.value.trim()])),
+        };
+        await indexService.saveGsheetConnector(indexId, cfg);
       }
       connectorSaved = true;
       setTimeout(() => { connectorSaved = false; }, 2000);
@@ -236,7 +273,13 @@
             {#each meta.connectors as conn}
               <div class="connector-card">
                 <div class="conn-type">{conn.type}</div>
-                <div class="conn-url">{String(conn.url ?? '')}</div>
+                <div class="conn-url">
+                  {#if conn.type === 'gsheet'}
+                    {String(conn.spreadsheet_id ?? '')} / {String(conn.sheet_name ?? '')}
+                  {:else}
+                    {String(conn.url ?? '')}
+                  {/if}
+                </div>
               </div>
             {/each}
           {:else}
@@ -386,7 +429,55 @@
 
       {:else if tab === 'connector'}
         <div class="overview">
-          {#if connectorType === 'sitemap'}
+          {#if connectorType === 'gsheet'}
+            <div class="setting-card connector-form">
+              <label class="field">
+                Spreadsheet ID
+                <input bind:value={gsheetSpreadsheetId} placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
+              </label>
+              <div class="field-row-2col">
+                <label class="field">
+                  Sheet name <span class="hint-inline">(tab name)</span>
+                  <input bind:value={gsheetSheetName} placeholder="Sheet1" />
+                </label>
+                <label class="field">
+                  Header row
+                  <input type="number" bind:value={gsheetHeaderRow} min="1" />
+                </label>
+              </div>
+              <div class="field-row-2col">
+                <label class="field">Title column <span class="hint-inline req-inline">*</span><input bind:value={gsheetTitleCol} placeholder="e.g. Title" /></label>
+                <label class="field">URL column<input bind:value={gsheetUrlCol} placeholder="url" /></label>
+                <label class="field">Content column<input bind:value={gsheetContentCol} placeholder="description" /></label>
+                <label class="field">ID column <span class="hint-inline">(auto if blank)</span><input bind:value={gsheetIdCol} /></label>
+              </div>
+
+              <div class="field">
+                <span class="field-label-text">Extra field renames <span class="hint-inline">(sheet column → ISP field)</span></span>
+                {#each gsheetMappings as row, i}
+                  <div class="extra-row">
+                    <input bind:value={row.key} placeholder="Sheet column" class="field-input" />
+                    <span style="color:#555">→</span>
+                    <input bind:value={row.value} placeholder="ISP field" class="field-input" />
+                    <button class="rm-btn" type="button" on:click={() => removeGsheetMapping(i)}>✕</button>
+                  </div>
+                {/each}
+                <button type="button" class="add-mapping-btn" on:click={addGsheetMapping}>+ Add rename</button>
+              </div>
+
+              <label class="field" style="flex-direction:row;align-items:center;gap:8px">
+                <input type="checkbox" bind:checked={gsheetSkipEmpty} style="accent-color:#7c6cf4" />
+                <span>Skip empty rows</span>
+              </label>
+
+              {#if connectorErr}<p class="err">{connectorErr}</p>{/if}
+              <div class="connector-actions">
+                <button class="btn-save-model" on:click={saveConnector} disabled={connectorSaving}>
+                  {connectorSaving ? 'Saving…' : connectorSaved ? '✓ Saved' : 'Save connector'}
+                </button>
+              </div>
+            </div>
+          {:else if connectorType === 'sitemap'}
             <div class="setting-card connector-form">
               <label class="field">
                 Sitemap URL
