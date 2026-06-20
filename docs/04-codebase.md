@@ -44,9 +44,9 @@ intelligent-search-platform/
 │           ├── Header.svelte           # Top nav bar
 │           ├── SourcesSidebar.svelte   # Left sidebar: source list + "⚙ Extensions" footer
 │           ├── SourceContent.svelte    # Main panel: docs list + search + "⚙ Extensions" button
-│           ├── RebuildPanel.svelte     # Rebuild modal: curl paste + form + progress
+│           ├── RebuildPanel.svelte     # Rebuild modal: sitemap form OR curl paste + REST form + progress
 │           ├── CreateWizard.svelte     # 4-step wizard to add a new source
-│           ├── IndexDetail.svelte      # Configure tab (connector settings)
+│           ├── IndexDetail.svelte      # Tabbed detail view: Overview / Connector / Documents / Search / Api
 │           ├── ExtensionsPanel.svelte  # Global extension library (list/create/edit/delete)
 │           └── IndexExtensionsPanel.svelte  # Per-index extension assignment overlay
 │
@@ -127,10 +127,10 @@ All configuration is read from environment variables or `.env`:
 | POST | `/v1/indexes/discover` | Auto-import Typesense collections + auto-assign extensions |
 | GET | `/v1/indexes/{id}/status` | Poll ingest job status |
 | POST | `/v1/indexes/{id}/connectors/rest` | Save REST connector config (no ingest) |
-| POST | `/v1/indexes/{id}/connectors/sitemap` | Save sitemap connector config (no crawl) |
+| POST | `/v1/indexes/{id}/connectors/sitemap` | Replace sitemap connector config (no crawl); replaces existing sitemap connector in-place |
 | POST | `/v1/indexes/{id}/ingest/rest` | Start REST ingest (background) |
 | POST | `/v1/indexes/{id}/ingest/sitemap` | Start sitemap ingest (background) |
-| POST | `/v1/indexes/{id}/rebuild` | Rebuild source (background); **409** if already running |
+| POST | `/v1/indexes/{id}/rebuild` | Rebuild source (background); accepts `RestConnectorConfig` or `SitemapConnectorConfig`; **409** if already running |
 | GET | `/v1/indexes/{id}/status` | Poll ingest/rebuild job state |
 | GET | `/v1/indexes/{id}/documents` | List documents — includes `vec` (paginated) |
 | GET | `/v1/indexes/{id}/documents/public` | List documents — `vec` excluded (external consumers) |
@@ -140,7 +140,7 @@ Key internal functions:
 - `_generic_catalog_mapper(item, idx)` — packages extension output (flat dict) into Typesense catalog schema. Makes no assumptions about API field names; that is the extension's job.
 - `_map_external_doc(raw, meta)` — converts raw Typesense doc to ISP DocumentItem shape for search results.
 - `_run_ingest(idx_id, connector_cfg)` — background task: acquire job lock → heartbeat → fetch → extensions → embed → upsert → release lock.
-- `_run_rebuild(idx_id, cfg_dict)` — background task: acquire job lock → heartbeat → fetch → extensions → embed → drop+recreate collection → upsert → release lock.
+- `_run_rebuild(idx_id, cfg_dict)` — background task: acquire job lock → heartbeat → three branches: catalog write-back (REST), ISP-managed sitemap (crawl via `sitemap_connector`), ISP-managed REST; all branches embed → drop+recreate collection → upsert → release lock.
 - `_list_docs(idx_id, page, per_page, exclude_vec)` — shared helper for `/documents` and `/documents/public`.
 
 ### `routers/catalog.py` — PLP Product Search
