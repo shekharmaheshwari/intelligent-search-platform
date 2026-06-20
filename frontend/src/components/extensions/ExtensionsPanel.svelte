@@ -77,6 +77,17 @@
     }
   }
 
+  let filterQuery = '';
+  $: filteredExtensions = filterQuery.trim()
+    ? extensions.filter(ext => {
+        const q = filterQuery.toLowerCase();
+        return (
+          ext.name.toLowerCase().includes(q) ||
+          (ext.description ?? '').toLowerCase().includes(q)
+        );
+      })
+    : extensions;
+
   let deletingId = '';
 
   async function deleteExt(id: string) {
@@ -112,8 +123,27 @@
       <button class="btn-primary" on:click={openCreate}>Create your first extension</button>
     </div>
   {:else}
+    <div class="filter-wrap">
+      <span class="filter-icon">⌕</span>
+      <input
+        class="filter-input"
+        type="text"
+        placeholder="Filter…"
+        bind:value={filterQuery}
+        aria-label="Filter extensions"
+      />
+      {#if filterQuery}
+        <button class="filter-clear" on:click={() => filterQuery = ''} aria-label="Clear filter">✕</button>
+      {/if}
+    </div>
+
+    {#if filteredExtensions.length === 0}
+      <div class="empty">
+        <p>No matches for "{filterQuery}".</p>
+      </div>
+    {:else}
     <div class="ext-list">
-      {#each extensions as ext}
+      {#each filteredExtensions as ext}
         <div class="ext-card">
           <div class="ext-card-head">
             <div class="ext-info">
@@ -132,6 +162,7 @@
         </div>
       {/each}
     </div>
+    {/if}
   {/if}
 </div>
 
@@ -206,6 +237,42 @@
   .empty-icon { font-size: 36px; color: #2a2a2a; margin-bottom: 4px; }
   .empty p { margin: 0; font-size: 14px; color: #666; }
   .empty-sub { font-size: 12px; color: #444 !important; max-width: 380px; }
+
+  /* ── Filter bar ── */
+  .filter-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 6px;
+    padding: 0 10px;
+    height: 32px;
+    margin-bottom: 16px;
+    max-width: 320px;
+  }
+  .filter-wrap:focus-within { border-color: #3a3370; }
+  .filter-icon { font-size: 14px; color: #444; flex-shrink: 0; line-height: 1; }
+  .filter-input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: #ccc;
+    font-size: 13px;
+    min-width: 0;
+  }
+  .filter-input::placeholder { color: #3a3a3a; }
+  .filter-clear {
+    background: none;
+    border: none;
+    color: #444;
+    font-size: 10px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+  }
+  .filter-clear:hover { color: #888; }
 
   .ext-list { display: flex; flex-direction: column; gap: 12px; }
 
