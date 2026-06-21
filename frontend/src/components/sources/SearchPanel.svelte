@@ -89,32 +89,32 @@
   .search-input {
     flex: 1;
     min-width: 200px;
-    background: #1a1a1a;
-    border: 1px solid #2e2e2e;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
     border-radius: 7px;
     padding: 9px 12px;
-    color: #eee;
+    color: var(--text);
     font-size: 14px;
   }
-  .search-input:focus { outline: none; border-color: #7c6cf4; }
+  .search-input:focus { outline: none; border-color: var(--accent); }
   .mode-toggle {
     display: flex;
-    border: 1px solid #2e2e2e;
+    border: 1px solid var(--border-2);
     border-radius: 7px;
     overflow: hidden;
   }
   .mode-toggle button {
     background: transparent;
     border: none;
-    color: #666;
+    color: var(--text-4);
     padding: 7px 12px;
     font-size: 12px;
     cursor: pointer;
     text-transform: capitalize;
   }
-  .mode-toggle button.sel { background: #7c6cf4; color: #fff; }
+  .mode-toggle button.sel { background: var(--accent); color: #fff; }
   .btn-search {
-    background: #7c6cf4;
+    background: var(--accent);
     border: none;
     border-radius: 7px;
     color: #fff;
@@ -124,24 +124,24 @@
     cursor: pointer;
   }
   .btn-search:disabled { opacity: 0.5; cursor: not-allowed; }
-  .empty { color: #555; font-size: 13px; text-align: center; padding: 32px 0; }
-  .err { color: #e55; font-size: 12px; }
-  .result-meta { font-size: 12px; color: #555; }
+  .empty { color: var(--text-5); font-size: 13px; text-align: center; padding: 32px 0; }
+  .err { color: var(--danger-text); font-size: 12px; }
+  .result-meta { font-size: 12px; color: var(--text-5); }
   .results { display: flex; flex-direction: column; gap: 14px; }
   .result {
-    background: #111;
-    border: 1px solid #1e1e1e;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px 16px;
   }
   .result-title a {
-    color: #9d91f5;
+    color: var(--accent);
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
   }
   .result-title a:hover { text-decoration: underline; }
-  .result-title span { color: #ccc; font-size: 14px; font-weight: 500; }
-  .result-url { font-size: 11px; color: #444; margin: 3px 0 6px; }
-  .result-snippet { font-size: 13px; color: #777; line-height: 1.5; }
+  .result-title span { color: var(--text-2); font-size: 14px; font-weight: 500; }
+  .result-url { font-size: 11px; color: var(--text-6); margin: 3px 0 6px; }
+  .result-snippet { font-size: 13px; color: var(--text-4); line-height: 1.5; }
 </style>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ISP Documentation</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg: #0a0a0a; --bg2: #0f0f0f; --bg3: #111; --bg-hover: #141420;
+      --border: #222; --border2: #1e1e1e;
+      --text: #eee; --text-sub: #999; --text-muted: #666; --text-dim: #555; --text-faint: #444; --text-ghost: #333;
+      --accent: #7c6cf4;
+    }
+    [data-theme="light"] {
+      --bg: #f9f9fb; --bg2: #f2f2f5; --bg3: #fff; --bg-hover: #eeeef8;
+      --border: #ddd; --border2: #e4e4ea;
+      --text: #111; --text-sub: #444; --text-muted: #555; --text-dim: #666; --text-faint: #888; --text-ghost: #aaa;
+      --accent: #6b5ce7;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 56px 32px 80px;
+    }
+    .hero-title {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .hero-subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-bottom: 48px;
+      line-height: 1.6;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-faint);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 22px 24px;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .card:hover {
+      border-color: var(--accent);
+      background: var(--bg-hover);
+    }
+    .card-icon { font-size: 22px; margin-bottom: 12px; }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.55;
+    }
+    .card-arrow {
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--accent);
+    }
+    footer {
+      border-top: 1px solid var(--border2);
+      padding: 24px 32px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-ghost);
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .theme-btn {
+      margin-left: auto;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 15px;
+      padding: 4px 9px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo-icon">⬡</span>
+    <span class="logo-name">Intelligent Search Platform</span>
+    <button id="theme-toggle" class="theme-btn" title="Toggle theme">☀</button>
+  </header>
+
+  <div class="main">
+    <h1 class="hero-title">Documentation</h1>
+    <p class="hero-subtitle">
+      Everything you need to configure, run, and extend the Intelligent Search Platform.
+    </p>
+
+    <div class="section-label">Reference</div>
+    <div class="cards">
+      <a class="card" href="overview.html">
+        <div class="card-icon">⬡</div>
+        <div class="card-title">Overview</div>
+        <div class="card-desc">What ISP does, the tech stack, ports, and the core user flows — from adding a source to running a search.</div>
+        <div class="card-arrow">Read &rarr;</div>
+      </a>
+
+      <a class="card" href="connectors.html">
+        <div class="card-icon">⇄</div>
+        <div class="card-title">Connectors</div>
+        <div class="card-desc">REST, Sitemap, and Google Sheets connectors — configuration fields, field mapping, and auth setup.</div>
+        <div class="card-arrow">Read &rarr;</div>
+      </a>
+
+      <a class="card" href="architecture.html">
+        <div class="card-icon">◈</div>
+        <div class="card-title">Architecture</div>
+        <div class="card-desc">Backend 5-layer design and frontend 7-layer data architecture with data-flow diagrams.</div>
+        <div class="card-arrow">Read &rarr;</div>
+      </a>
+
+      <a class="card" href="api.html">
+        <div class="card-icon">⌘</div>
+        <div class="card-title">API Reference</div>
+        <div class="card-desc">All key REST endpoints — indexes, ingest, search, extensions, settings, and the public PLP catalog API.</div>
+        <div class="card-arrow">Read &rarr;</div>
+      </a>
+
+      <a class="card" href="setup.html">
+        <div class="card-icon">⚙</div>
+        <div class="card-title">Setup</div>
+        <div class="card-desc">First-time workspace setup with Docker Compose, environment variables, Google Sheets service account, and Vault.</div>
+        <div class="card-arrow">Read &rarr;</div>
+      </a>
+
+      <a class="card" href="security.html">
+        <div class="card-icon">🔒</div>
+        <div class="card-title">Security &amp; Secrets</div>
+        <div class="card-desc">How secrets are stored across env / Vault / AWS providers, the actual secrets.py implementation, and auth approaches.</div>
+        <div class="card-arrow">Read &rarr;</div>
+      </a>
+    </div>
+  </div>
+
+  <footer>
+    Intelligent Search Platform &mdash; Internal documentation
+  </footer>
+  <script>
+    (function(){
+      var btn = document.getElementById('theme-toggle');
+      function apply(t) {
+        if (t === 'light') { document.documentElement.setAttribute('data-theme','light'); btn.textContent = '☾'; }
+        else { document.documentElement.removeAttribute('data-theme'); btn.textContent = '☀'; }
+      }
+      apply(localStorage.getItem('isp-theme') === 'light' ? 'light' : 'dark');
+      btn.addEventListener('click', function(){
+        var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        localStorage.setItem('isp-theme', next);
+        apply(next);
+      });
+    })();
+  </script>
+</body>
+</html>

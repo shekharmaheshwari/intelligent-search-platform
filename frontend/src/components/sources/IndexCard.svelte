@@ -1,10 +1,4 @@
 <script lang="ts">
-  /**
-   * IndexCard — compact card for a single ISP index shown in the Dashboard grid.
-   *
-   * Clicking anywhere on the card dispatches ``open``; the ✕ button dispatches ``delete``
-   * with stopPropagation so it does not also trigger ``open``.
-   */
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../../lib/types';
 
@@ -12,7 +6,6 @@
 
   const dispatch = createEventDispatcher<{ open: string; delete: string }>();
 
-  /** Format an ISO date string to a short locale date (e.g. "Jun 5, 2026"). */
   function fmtDate(iso: string) {
     return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   }
@@ -38,16 +31,16 @@
 
 <style>
   .card {
-    background: #141414;
-    border: 1px solid #222;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-2);
     border-radius: 10px;
     padding: 20px;
     cursor: pointer;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .card:hover {
-    border-color: #7c6cf4;
-    box-shadow: 0 0 0 1px #7c6cf4;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
   }
   .top {
     display: flex;
@@ -56,8 +49,8 @@
     margin-bottom: 12px;
   }
   .badge {
-    background: #1e1b3a;
-    color: #9d91f5;
+    background: var(--accent-dim);
+    color: var(--accent);
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
@@ -68,23 +61,23 @@
   .del {
     background: none;
     border: none;
-    color: #444;
+    color: var(--text-6);
     cursor: pointer;
     font-size: 14px;
     line-height: 1;
     padding: 2px 4px;
   }
-  .del:hover { color: #e55; }
+  .del:hover { color: var(--danger-text); }
   h3 {
     margin: 0 0 6px;
     font-size: 15px;
     font-weight: 600;
-    color: #eee;
+    color: var(--text);
   }
   .desc {
     margin: 0 0 14px;
     font-size: 12px;
-    color: #666;
+    color: var(--text-4);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -93,6 +86,6 @@
     display: flex;
     gap: 6px;
     font-size: 12px;
-    color: #555;
+    color: var(--text-5);
   }
 </style>

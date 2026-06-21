@@ -21,6 +21,7 @@
   import CreateWizard from '../sources/CreateWizard.svelte';
   import ExtensionsPanel from '../extensions/ExtensionsPanel.svelte';
   import SettingsPanel from '../settings/SettingsPanel.svelte';
+  import DocsHome from './DocsHome.svelte';
 
   let showWizard = false;
   let windowWidth = 1024;
@@ -154,7 +155,13 @@
           <p>Add a source to start indexing your content and making it searchable.</p>
           <button class="btn-primary" on:click={() => showWizard = true}>Add your first source</button>
         </div>
+      {:else if state.view === 'dashboard'}
+        <!-- Indexes exist and loading is done but no index is selected (e.g.
+             user clicked the logo). Show the documentation home instead of a
+             meaningless spinner. -->
+        <DocsHome />
       {:else}
+        <!-- True loading state: still fetching indexes for the first time. -->
         <div class="welcome">
           <div class="spinner"></div>
         </div>
@@ -206,8 +213,8 @@
 <style>
   .app {
     min-height: 100vh;
-    background: #0a0a0a;
-    color: #eee;
+    background: var(--bg);
+    color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 
@@ -236,7 +243,7 @@
     display: none;
     background: none;
     border: none;
-    color: #7c6cf4;
+    color: var(--accent);
     font-size: 13px;
     cursor: pointer;
     padding: 12px 20px 4px;
@@ -265,7 +272,7 @@
       width: 48px;
       height: 48px;
       border-radius: 50%;
-      background: #7c6cf4;
+      background: var(--accent);
       color: #fff;
       border: none;
       font-size: 24px;
@@ -294,7 +301,7 @@
   .configure-back button {
     background: none;
     border: none;
-    color: #7c6cf4;
+    color: var(--accent);
     cursor: pointer;
     font-size: 13px;
     padding: 0;
@@ -311,12 +318,12 @@
     text-align: center;
     padding: 40px;
   }
-  .welcome-icon { font-size: 48px; color: #2a2a2a; }
-  .welcome h2 { margin: 0; font-size: 20px; color: #555; font-weight: 500; }
-  .welcome p { margin: 0; font-size: 13px; color: #444; max-width: 360px; }
+  .welcome-icon { font-size: 48px; color: var(--border-3); }
+  .welcome h2 { margin: 0; font-size: 20px; color: var(--text-5); font-weight: 500; }
+  .welcome p { margin: 0; font-size: 13px; color: var(--text-6); max-width: 360px; }
 
   .btn-primary {
-    background: #7c6cf4;
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -326,12 +333,12 @@
     cursor: pointer;
     margin-top: 8px;
   }
-  .btn-primary:hover { background: #6b5ce7; }
+  .btn-primary:hover { background: var(--accent-hover); }
 
   .spinner {
     width: 32px; height: 32px;
-    border: 3px solid #1a1a1a;
-    border-top-color: #7c6cf4;
+    border: 3px solid var(--surface);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
   }
@@ -348,8 +355,8 @@
   }
 
   .confirm-modal {
-    background: #111;
-    border: 1px solid #222;
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
     border-radius: 12px;
     padding: 28px 28px 22px;
     width: 360px;
@@ -360,10 +367,10 @@
     gap: 12px;
     text-align: center;
   }
-  .confirm-icon { font-size: 28px; color: #c44; }
-  .confirm-title { margin: 0; font-size: 16px; font-weight: 600; color: #eee; }
-  .confirm-body { margin: 0; font-size: 13px; color: #777; line-height: 1.55; }
-  .confirm-body strong { color: #ccc; }
+  .confirm-icon { font-size: 28px; color: var(--danger-text); }
+  .confirm-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); }
+  .confirm-body { margin: 0; font-size: 13px; color: var(--text-4); line-height: 1.55; }
+  .confirm-body strong { color: var(--text-2); }
   .confirm-actions {
     display: flex;
     gap: 10px;
@@ -373,34 +380,34 @@
   }
   .btn-cancel-modal {
     background: transparent;
-    border: 1px solid #2a2a2a;
-    color: #777;
+    border: 1px solid var(--border-3);
+    color: var(--text-4);
     border-radius: 7px;
     padding: 8px 18px;
     font-size: 13px;
     cursor: pointer;
   }
-  .btn-cancel-modal:hover { border-color: #444; color: #aaa; }
+  .btn-cancel-modal:hover { border-color: var(--text-6); color: var(--text-3); }
   .btn-delete-modal {
-    background: #7a1c1c;
-    border: 1px solid #a02020;
-    color: #ffaaaa;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    color: var(--danger-text);
     border-radius: 7px;
     padding: 8px 18px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
   }
-  .btn-delete-modal:hover:not(:disabled) { background: #8f2020; }
+  .btn-delete-modal:hover:not(:disabled) { opacity: 0.85; }
   .btn-delete-modal:disabled, .btn-cancel-modal:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .global-error {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background: #1a0f0f;
-    border: 1px solid #3a1e1e;
-    color: #e55;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    color: var(--danger-text);
     border-radius: 8px;
     padding: 12px 16px;
     font-size: 13px;
