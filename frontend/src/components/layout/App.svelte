@@ -21,6 +21,7 @@
   import CreateWizard from '../sources/CreateWizard.svelte';
   import ExtensionsPanel from '../extensions/ExtensionsPanel.svelte';
   import SettingsPanel from '../settings/SettingsPanel.svelte';
+  import DocsHome from './DocsHome.svelte';
 
   let showWizard = false;
   let windowWidth = 1024;
@@ -154,7 +155,13 @@
           <p>Add a source to start indexing your content and making it searchable.</p>
           <button class="btn-primary" on:click={() => showWizard = true}>Add your first source</button>
         </div>
+      {:else if state.view === 'dashboard'}
+        <!-- Indexes exist and loading is done but no index is selected (e.g.
+             user clicked the logo). Show the documentation home instead of a
+             meaningless spinner. -->
+        <DocsHome />
       {:else}
+        <!-- True loading state: still fetching indexes for the first time. -->
         <div class="welcome">
           <div class="spinner"></div>
         </div>

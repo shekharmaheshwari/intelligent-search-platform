@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Security &amp; Secrets — ISP Docs</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0a;
+      color: #eee;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    header {
+      background: #0f0f0f;
+      border-bottom: 1px solid #222;
+      padding: 0 32px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-icon { font-size: 22px; color: #7c6cf4; }
+    .logo-name { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -0.2px; }
+    .breadcrumb { font-size: 13px; color: #444; margin-left: 8px; }
+    .breadcrumb a { color: #555; text-decoration: none; }
+    .breadcrumb a:hover { color: #7c6cf4; }
+
+    .layout {
+      display: flex;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    nav.sidebar {
+      width: 210px;
+      flex-shrink: 0;
+      padding: 40px 24px 40px 0;
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 56px);
+      overflow-y: auto;
+    }
+    nav.sidebar .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #333;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      margin-top: 24px;
+    }
+    nav.sidebar a {
+      display: block;
+      font-size: 13px;
+      color: #555;
+      text-decoration: none;
+      padding: 5px 0;
+      border-left: 2px solid transparent;
+      padding-left: 10px;
+    }
+    nav.sidebar a:hover { color: #bbb; border-left-color: #444; }
+
+    main {
+      flex: 1;
+      min-width: 0;
+      padding: 48px 0 80px 40px;
+      border-left: 1px solid #181818;
+    }
+
+    h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: #555; margin-bottom: 40px; }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #ddd;
+      margin: 48px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #bbb;
+      margin: 28px 0 10px;
+    }
+    p { font-size: 13px; color: #666; margin-bottom: 14px; }
+    ul, ol { padding-left: 20px; margin-bottom: 14px; }
+    li { font-size: 13px; color: #666; margin-bottom: 5px; }
+    li strong { color: #bbb; }
+    strong { color: #ccc; }
+
+    code {
+      background: #151515;
+      border: 1px solid #222;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: #a8a0f8;
+    }
+    pre {
+      background: #0f0f0f;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: #aaa;
+      line-height: 1.7;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+    th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #444;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #1e1e1e;
+    }
+    td {
+      padding: 9px 12px;
+      border-bottom: 1px solid #141414;
+      color: #666;
+      vertical-align: top;
+    }
+    td strong { color: #bbb; }
+    tr:hover td { background: #0d0d0d; }
+
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .badge-green  { background: #0d2014; color: #4caf78; border: 1px solid #1a3d28; }
+    .badge-yellow { background: #1e1800; color: #d4a017; border: 1px solid #3a2e00; }
+    .badge-red    { background: #1e0c0c; color: #c44; border: 1px solid #3a1818; }
+    .badge-purple { background: #12101e; color: #7c6cf4; border: 1px solid #2a2440; }
+
+    .callout {
+      background: #0e0e18;
+      border: 1px solid #2a2440;
+      border-left: 3px solid #7c6cf4;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+    .callout-warn {
+      background: #140e00;
+      border-color: #3a2a00;
+      border-left-color: #d4a017;
+    }
+    .callout p { color: #888; margin: 0; font-size: 13px; }
+    .callout strong { color: #bbb; }
+
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .provider-card {
+      background: #0f0f0f;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .provider-card h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #ccc;
+      margin-bottom: 8px;
+    }
+    .provider-card p { font-size: 12px; color: #555; margin: 0; }
+
+    .effort-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .effort-label { font-size: 13px; color: #555; flex: 1; }
+    .effort-bar {
+      height: 4px;
+      border-radius: 2px;
+      background: #7c6cf4;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 700px) {
+      .layout { flex-direction: column; }
+      nav.sidebar { display: none; }
+      main { padding: 32px 0 60px; border-left: none; }
+      .provider-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo-icon">⬡</span>
+    <span class="logo-name">Intelligent Search Platform</span>
+    <span class="breadcrumb"><a href="index.html">Docs</a> / Security &amp; Secrets</span>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="nav-label">Secrets</div>
+      <a href="#why-not-env">Why not just .env?</a>
+      <a href="#architecture">Provider architecture</a>
+      <a href="#inventory">Secrets inventory</a>
+      <a href="#env-provider">env provider</a>
+      <a href="#vault-provider">Vault provider</a>
+      <a href="#aws-provider">AWS provider</a>
+      <a href="#migration">Migrating providers</a>
+
+      <div class="nav-label">Authentication</div>
+      <a href="#auth-current">Current state</a>
+      <a href="#approach-1">API Key / Password</a>
+      <a href="#approach-2">Username + TOTP</a>
+      <a href="#approach-3">OAuth2 / SSO</a>
+      <a href="#approach-4">Managed Auth</a>
+      <a href="#approach-5">SAML</a>
+      <a href="#auth-summary">Summary</a>
+    </nav>
+
+    <main>
+      <h1>Security &amp; Secrets</h1>
+      <p class="page-subtitle">
+        How ISP stores and retrieves secrets, and the available authentication approaches.
+      </p>
+
+      <!-- ──────────────────────────────────────── SECRETS ── -->
+      <h2 id="why-not-env">Why not just use .env?</h2>
+      <p>
+        ISP uses a <strong>provider-based secret abstraction</strong> so the app code never changes
+        when moving between environments. A single <code>secrets.py</code> module handles all secret
+        access; the active backend is controlled by one env var (<code>SECRET_PROVIDER</code>).
+      </p>
+
+      <table>
+        <thead>
+          <tr><th>Risk</th><th>.env file</th><th>Vault / Secrets Manager</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Secrets on disk (EC2)</td><td><span class="badge badge-red">Yes — plaintext</span></td><td><span class="badge badge-green">No</span></td></tr>
+          <tr><td>Stolen file = all secrets exposed</td><td><span class="badge badge-red">Yes</span></td><td><span class="badge badge-green">No — no key file to steal</span></td></tr>
+          <tr><td>Secret rotation after breach</td><td><span class="badge badge-yellow">Re-deploy required</span></td><td><span class="badge badge-green">Change value, done</span></td></tr>
+          <tr><td>Audit trail (who accessed what)</td><td><span class="badge badge-red">None</span></td><td><span class="badge badge-green">Vault audit log / CloudTrail</span></td></tr>
+          <tr><td>Works offline</td><td><span class="badge badge-green">Yes</span></td><td><span class="badge badge-green">Vault yes, AWS no</span></td></tr>
+        </tbody>
+      </table>
+      <p><code>.env</code> is kept as the <code>env</code> fallback for CI and minimal local setups only.</p>
+
+      <h2 id="architecture">Provider architecture</h2>
+      <p>
+        At process startup <code>bootstrap_secrets()</code> is called in <code>main.py</code> before
+        any other ISP import. It fetches all secrets from the active provider and injects them into
+        <code>os.environ</code>. Everything else in ISP — <code>config.py</code>, routers, services —
+        reads from <code>os.environ</code> as normal. Zero other code changes between environments.
+      </p>
+
+      <pre><code># main.py — bootstrap must run before any other ISP import
+from isp.services.infra.secrets import bootstrap_secrets
+bootstrap_secrets()
+
+# safe to import everything else now
+from isp.config import settings
+from isp.routers import indexes, search, ...</code></pre>
+
+      <div class="provider-grid">
+        <div class="provider-card">
+          <h4>env <span class="badge badge-yellow">Default</span></h4>
+          <p>Reads from <code>.env</code> file or shell environment. <br><br>Best for: CI pipelines, minimal local dev, quick prototypes.</p>
+        </div>
+        <div class="provider-card">
+          <h4>vault <span class="badge badge-purple">Local</span></h4>
+          <p>HashiCorp Vault running as a Docker container (<code>isp-vault:8200</code>) on the same Docker network. <br><br>Best for: local dev parity with production.</p>
+        </div>
+        <div class="provider-card">
+          <h4>aws <span class="badge badge-green">Production</span></h4>
+          <p>AWS Secrets Manager via IAM Role — no credentials file on disk. <br><br>Best for: EC2 deployments, production environments.</p>
+        </div>
+      </div>
+
+      <pre><code>┌─────────────────────────────────────────────────────────────┐
+│                        ISP Backend                          │
+│                                                             │
+│   config.py / routers / services                            │
+│       │                                                     │
+│       │  os.environ["VOYAGE_API_KEY"]                       │
+│       ▼                                                     │
+│   secrets.py  ◄── SECRET_PROVIDER env var                  │
+│       │                                                     │
+│       ├── "env"   → os.getenv()          (.env file)        │
+│       ├── "vault" → hvac client          (Vault container)  │
+│       └── "aws"   → boto3 client         (Secrets Manager)  │
+└─────────────────────────────────────────────────────────────┘</code></pre>
+
+      <h2 id="inventory">Secrets inventory</h2>
+      <p>
+        These are the exact keys in <code>_SECRET_KEYS</code> inside <code>secrets.py</code>.
+        They are fetched from the active provider and injected into <code>os.environ</code> at startup.
+        Vault and AWS store them under the <code>isp/</code> path prefix.
+      </p>
+      <pre><code># backend/src/isp/services/infra/secrets.py
+_SECRET_KEYS = [
+    "TYPESENSE_API_KEY",
+    "VOYAGE_API_KEY",
+    "OPENAI_API_KEY",
+    "DATABASE_URL",
+    "GOOGLE_SERVICE_ACCOUNT_JSON",
+]</code></pre>
+      <table>
+        <thead>
+          <tr><th>Key</th><th>Description</th><th>Used by</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>TYPESENSE_API_KEY</code></td><td>Typesense admin API key</td><td>typesense_client.py</td></tr>
+          <tr><td><code>VOYAGE_API_KEY</code></td><td>Voyage AI embedding API key</td><td>embedding_service.py</td></tr>
+          <tr><td><code>OPENAI_API_KEY</code></td><td>OpenAI API key (alternate embedding provider)</td><td>embedding_service.py</td></tr>
+          <tr><td><code>DATABASE_URL</code></td><td>PostgreSQL connection string (full URL)</td><td>isp-api → isp-db</td></tr>
+          <tr><td><code>GOOGLE_SERVICE_ACCOUNT_JSON</code></td><td>Service account key JSON for the Sheets connector</td><td>gsheet_connector.py</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="env-provider">Provider: env</h2>
+      <pre><code># backend/.env
+SECRET_PROVIDER=env
+
+TYPESENSE_API_KEY=ts-key-change-me
+VOYAGE_API_KEY=pa-xxx...
+OPENAI_API_KEY=sk-...           # optional — only if using OpenAI embeddings
+DATABASE_URL=postgresql+asyncpg://isp:isp-dev-password@isp-db:5432/isp
+GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"...",...}</code></pre>
+      <div class="callout callout-warn">
+        <p><strong>Warning:</strong> The <code>.env</code> file contains plaintext secrets. Never commit it to version control. Add <code>backend/.env</code> to <code>.gitignore</code>.</p>
+      </div>
+
+      <h2 id="vault-provider">Provider: vault (local Docker)</h2>
+      <p>The <code>isp-vault</code> container runs on <code>isp-net</code> alongside the API. It uses file-backed storage with auto-init and auto-unseal on restart via <code>vault/entrypoint.sh</code>.</p>
+
+      <h3>Configure backend</h3>
+      <pre><code># backend/.env
+SECRET_PROVIDER=vault
+VAULT_ADDR=http://isp-vault:8200   # container name on isp-net
+VAULT_TOKEN=isp-dev-token          # root token saved by entrypoint.sh</code></pre>
+
+      <h3>Populate secrets (one time, from your Mac)</h3>
+      <pre><code>export VAULT_ADDR=http://localhost:8200
+export VAULT_TOKEN=isp-dev-token
+
+# Enable KV v2 engine under the "isp" mount (one-time)
+vault secrets enable -path=isp kv-v2
+
+# Store all keys from _SECRET_KEYS — value field is mandatory in KV v2
+vault kv put isp/TYPESENSE_API_KEY           value="your-typesense-key"
+vault kv put isp/VOYAGE_API_KEY              value="your-voyage-key"
+vault kv put isp/OPENAI_API_KEY              value="sk-..."
+vault kv put isp/DATABASE_URL                value="postgresql+asyncpg://isp:pass@isp-db:5432/isp"
+vault kv put isp/GOOGLE_SERVICE_ACCOUNT_JSON value='{"type":"service_account",...}'</code></pre>
+
+      <h3>How secrets.py reads from Vault</h3>
+      <pre><code>client = hvac.Client(
+    url=os.getenv("VAULT_ADDR", "http://isp-vault:8200"),
+    token=os.getenv("VAULT_TOKEN"),
+)
+try:
+    # KV v2 automatically resolves isp/data/&lt;key&gt;
+    secret = client.secrets.kv.v2.read_secret_version(
+        path=key, mount_point="isp"
+    )
+    return secret["data"]["data"]["value"]
+except Exception as e:
+    log.warning("Vault: failed to read secret %s: %s", key, e)
+    return ""</code></pre>
+
+      <h3>bootstrap_secrets() — the startup call</h3>
+      <pre><code># bootstrap_secrets() skips keys already set in os.environ
+# (so docker-compose ENV overrides always win)
+def bootstrap_secrets() -> None:
+    provider = os.getenv("SECRET_PROVIDER", "env")
+    if provider == "env":
+        return  # already in os.environ via .env file
+
+    for key in _SECRET_KEYS:
+        if os.environ.get(key):
+            continue  # don't overwrite existing value
+        value = get_secret(key)
+        if value:
+            os.environ[key] = value</code></pre>
+
+      <h2 id="aws-provider">Provider: aws (production)</h2>
+      <p>
+        In production on EC2, <code>boto3</code> resolves AWS credentials automatically from the
+        <strong>IAM Role attached to the instance</strong> — no credentials file on disk, no key
+        to steal.
+      </p>
+      <pre><code># backend/.env (production EC2)
+SECRET_PROVIDER=aws
+AWS_REGION=us-east-1
+# No access keys — IAM Role on the EC2 instance provides them automatically</code></pre>
+
+      <h3>Credential resolution order (boto3)</h3>
+      <pre><code>boto3.client("secretsmanager")
+  │  checks in order:
+  ├─ 1. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY  (env vars — local dev)
+  ├─ 2. ~/.aws/credentials                          (aws configure — local dev)
+  └─ 3. IAM Role on EC2                             (metadata API — production)
+        → temporary rotating token, nothing on disk</code></pre>
+
+      <h3>Populate secrets in AWS (one time)</h3>
+      <pre><code>aws secretsmanager create-secret --name isp/TYPESENSE_API_KEY \
+  --secret-string "your-typesense-key"
+
+aws secretsmanager create-secret --name isp/VOYAGE_API_KEY \
+  --secret-string "your-voyage-key"
+
+aws secretsmanager create-secret --name isp/OPENAI_API_KEY \
+  --secret-string "sk-..."
+
+aws secretsmanager create-secret --name isp/DATABASE_URL \
+  --secret-string "postgresql+asyncpg://isp:pass@isp-db:5432/isp"
+
+aws secretsmanager create-secret --name isp/GOOGLE_SERVICE_ACCOUNT_JSON \
+  --secret-string '{"type":"service_account",...}'</code></pre>
+
+      <h3>IAM Role policy (minimum permissions)</h3>
+      <pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "secretsmanager:GetSecretValue",
+    "Resource": "arn:aws:secretsmanager:us-east-1:*:secret:isp/*"
+  }]
+}</code></pre>
+
+      <h2 id="migration">Migrating between providers</h2>
+      <p>
+        No code changes are ever required. The only change is the <code>SECRET_PROVIDER</code>
+        env var plus populating secrets in the target system.
+      </p>
+      <table>
+        <thead>
+          <tr><th></th><th>Local .env</th><th>Local Vault</th><th>AWS Secrets Manager</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>SECRET_PROVIDER</strong></td><td><code>env</code></td><td><code>vault</code></td><td><code>aws</code></td></tr>
+          <tr><td>Secrets on disk</td><td><span class="badge badge-red">Yes (plaintext)</span></td><td><span class="badge badge-green">No</span></td><td><span class="badge badge-green">No</span></td></tr>
+          <tr><td>Works offline</td><td><span class="badge badge-green">Yes</span></td><td><span class="badge badge-green">Yes</span></td><td><span class="badge badge-red">No</span></td></tr>
+          <tr><td>Audit trail</td><td><span class="badge badge-red">None</span></td><td><span class="badge badge-yellow">Vault audit log</span></td><td><span class="badge badge-green">CloudTrail</span></td></tr>
+          <tr><td>Secret rotation</td><td>Re-deploy</td><td><code>vault kv put</code></td><td>AWS console / CLI</td></tr>
+          <tr><td>Cost</td><td>Free</td><td>Free</td><td>~$2–3/month</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ──────────────────────────────────────── AUTH ── -->
+      <h2 id="auth-current">Authentication — current state</h2>
+      <div class="callout callout-warn">
+        <p><strong>No auth is implemented.</strong> The backend documents an <code>X-API-Key</code> header for production but does not enforce it. All routes are currently open. ISP should only be deployed on a private network or behind a VPN until auth is added.</p>
+      </div>
+      <p>The five approaches below are ordered from simplest to most complex, with effort and trade-off notes for each.</p>
+
+      <h2 id="approach-1">Approach 1 — API Key / Password Gate</h2>
+      <p>A single shared secret stored in <code>.env</code>. The frontend prompts for it on first load, exchanges it for a short-lived JWT, and attaches that JWT to every subsequent request.</p>
+      <pre><code>User opens app
+  → Frontend shows a password prompt
+  → POST /auth/login { password }
+  → Backend verifies against PASSWORD_HASH in .env, returns JWT
+  → Frontend stores JWT in memory/localStorage
+  → All API requests include Authorization: Bearer &lt;jwt&gt;</code></pre>
+      <table>
+        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
+        <tbody>
+          <tr><td>Minimal moving parts</td><td>Single shared secret — no per-user identity</td></tr>
+          <tr><td>No external dependency</td><td>Password rotation requires redeployment</td></tr>
+          <tr><td>Works offline</td><td>Not suitable for multi-user access control</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Effort:</strong> ~1 day &nbsp;|&nbsp; <strong>Best for:</strong> solo operator or small team on a private network.</p>
+
+      <h2 id="approach-2">Approach 2 — Username + Password + TOTP</h2>
+      <p>Traditional login form with an optional second factor — a 6-digit TOTP code from Google Authenticator or any TOTP app.</p>
+      <pre><code>User opens app
+  → Login form: email + password
+  → POST /auth/login → returns { requires_totp: true }
+  → Frontend shows TOTP input
+  → POST /auth/totp/verify { code } → returns JWT
+  → All API requests include Authorization: Bearer &lt;jwt&gt;</code></pre>
+      <p>Requires: <code>pyotp</code>, <code>passlib</code>, <code>python-jose</code>, a <code>users</code> table in PostgreSQL.</p>
+      <table>
+        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
+        <tbody>
+          <tr><td>Per-user identity and audit trail</td><td>Requires managing user accounts</td></tr>
+          <tr><td>Strong security with 2FA</td><td>Recovery flow needed if user loses authenticator</td></tr>
+          <tr><td>No external service dependency</td><td>More backend surface to maintain</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Effort:</strong> ~3–4 days &nbsp;|&nbsp; <strong>Best for:</strong> small teams wanting per-user identity without an external service.</p>
+
+      <h2 id="approach-3">Approach 3 — OAuth2 / OIDC SSO (Recommended)</h2>
+      <p>
+        Delegate authentication to Google (or GitHub). No passwords stored. Uses a <strong>split auth model</strong>:
+        admin routes use OAuth2, public search endpoints use a separately-issued API key.
+      </p>
+      <pre><code>┌─────────────────────────────────────────────────────────┐
+│                        ISP Backend                       │
+│                                                          │
+│  /admin/*          → OAuth2 JWT required                 │
+│  (indexes, rebuild,   (browser flow, Google account)     │
+│   extensions, settings)                                  │
+│                                                          │
+│  /v1/indexes/*/    → API Key required                    │
+│  search/public       (X-Api-Key header, per-index key)   │
+└─────────────────────────────────────────────────────────┘</code></pre>
+      <p>External services (PLP) continue calling <code>/search/public</code> with an API key:</p>
+      <pre><code>curl -X POST http://localhost:8001/v1/indexes/&lt;id&gt;/search/public \
+  -H "X-Api-Key: &lt;key-from-admin-ui&gt;" \
+  -d '{"q": "iPhone 16", "mode": "hybrid"}'</code></pre>
+      <table>
+        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
+        <tbody>
+          <tr><td>No passwords to store or manage</td><td>Requires internet access for admin login</td></tr>
+          <tr><td>Restrict to Google domain (<code>@yourcompany.com</code>)</td><td>OAuth app setup in Google Cloud Console</td></tr>
+          <tr><td>API keys independently rotatable</td><td>Redirect URI must match exactly (tricky in local dev)</td></tr>
+          <tr><td>Extends naturally to SAML later</td><td></td></tr>
+        </tbody>
+      </table>
+      <p><strong>Effort:</strong> ~3 days &nbsp;|&nbsp; <strong>Best for:</strong> teams using Google Workspace or GitHub. Recommended path for ISP.</p>
+
+      <h2 id="approach-4">Approach 4 — Managed Auth (Auth0, Clerk, Supabase)</h2>
+      <p>Offload all auth to a hosted identity platform. Your backend only validates the JWT they issue.</p>
+      <table>
+        <thead><tr><th>Service</th><th>Free tier</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Auth0</strong></td><td>7,500 MAU</td><td>Most feature-rich, supports SAML</td></tr>
+          <tr><td><strong>Clerk</strong></td><td>10,000 MAU</td><td>Best DX, Svelte SDK available</td></tr>
+          <tr><td><strong>Supabase Auth</strong></td><td>Generous</td><td>Good if you later adopt Supabase DB</td></tr>
+        </tbody>
+      </table>
+      <table>
+        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
+        <tbody>
+          <tr><td>Fastest to ship (~1 day, mostly config)</td><td>External dependency — outage = login broken</td></tr>
+          <tr><td>MFA, social login, SAML out of the box</td><td>Cost at scale, vendor lock-in</td></tr>
+          <tr><td>Admin dashboard for user management</td><td>User data leaves your infrastructure</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Effort:</strong> ~1 day &nbsp;|&nbsp; <strong>Best for:</strong> teams that need enterprise features without building them.</p>
+
+      <h2 id="approach-5">Approach 5 — SAML (Enterprise SSO)</h2>
+      <p>The enterprise identity federation protocol used by Okta, Azure AD, and Google Workspace in SAML mode. Required when IT mandates corporate SSO.</p>
+      <pre><code>User opens app
+  → Backend generates SAML AuthnRequest → redirects to IdP (Okta, Azure AD)
+  → User authenticates with corporate credentials
+  → IdP posts signed SAML Assertion to /auth/saml/callback
+  → Backend validates signature + attributes → issues JWT</code></pre>
+      <div class="callout">
+        <p>SAML requires <strong>HTTPS</strong> — it will not work over plain HTTP. Plan for TLS termination (nginx / ALB) before implementing.</p>
+      </div>
+      <p><strong>Effort:</strong> ~1 week &nbsp;|&nbsp; <strong>Best for:</strong> enterprise deployments where IT mandates Okta / Azure AD / ADFS.</p>
+
+      <h2 id="auth-summary">Summary</h2>
+      <table>
+        <thead>
+          <tr><th>Approach</th><th>Effort</th><th>External dep</th><th>Multi-user</th><th>2FA</th><th>Enterprise</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>API Key / Password</td><td>1 day</td><td>None</td><td>No</td><td>No</td><td>No</td></tr>
+          <tr><td>Username + TOTP</td><td>3–4 days</td><td>None</td><td>Yes</td><td>Yes</td><td>No</td></tr>
+          <tr><td><strong>OAuth2 / OIDC SSO</strong> ★</td><td>3 days</td><td>Google/GitHub</td><td>Yes</td><td>Provider</td><td>No</td></tr>
+          <tr><td>Managed (Auth0/Clerk)</td><td>1 day</td><td>Auth0/Clerk</td><td>Yes</td><td>Yes</td><td>Auth0 only</td></tr>
+          <tr><td>SAML</td><td>1 week</td><td>Corporate IdP</td><td>Yes</td><td>IdP</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <p><strong>Recommendation:</strong> <strong>Approach 3 — Google OAuth2 + per-index API keys.</strong> No passwords to manage, restricts admin access to a Google account or domain, and the public search endpoints remain simple header-key auth for PLP and other consumers.</p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
