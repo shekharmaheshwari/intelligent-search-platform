@@ -248,7 +248,7 @@
           {#each gsheetMappings as row, i}
             <div class="extra-row">
               <input bind:value={row.key} placeholder="Sheet column" class="field-input" />
-              <span style="color:#555">→</span>
+              <span class="arrow-sep">→</span>
               <input bind:value={row.value} placeholder="ISP field" class="field-input" />
               <button class="rm-btn" type="button" on:click={() => removeGsheetMapping(i)}>✕</button>
             </div>
@@ -257,7 +257,7 @@
         </div>
 
         <label class="field" style="flex-direction:row;align-items:center;gap:8px">
-          <input type="checkbox" bind:checked={gsheetSkipEmpty} style="accent-color:#7c6cf4" />
+          <input type="checkbox" bind:checked={gsheetSkipEmpty} />
           <span>Skip empty rows</span>
         </label>
       </fieldset>
@@ -369,7 +369,7 @@
           {#each metaFields as row, i}
             <div class="extra-row">
               <input bind:value={row.key} placeholder="og:site_name" class="field-input" />
-              <span style="color:#555">→</span>
+              <span class="arrow-sep">→</span>
               <input bind:value={row.value} placeholder="site_name" class="field-input" />
               <button class="rm-btn" type="button" on:click={() => removeMetaField(i)}>✕</button>
             </div>
@@ -448,8 +448,8 @@
 
 <style>
   .panel {
-    background: #111;
-    border: 1px solid #222;
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
     border-radius: 12px;
     width: 560px;
     max-width: 96vw;
@@ -464,16 +464,16 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    border-bottom: 1px solid #1e1e1e;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
   .panel-title {
     display: flex; align-items: center; gap: 8px;
-    font-size: 14px; font-weight: 600; color: #eee;
+    font-size: 14px; font-weight: 600; color: var(--text);
   }
-  .icon { color: #7c6cf4; font-size: 16px; }
-  .close { background: none; border: none; color: #555; cursor: pointer; font-size: 14px; }
-  .close:hover { color: #aaa; }
+  .icon { color: var(--accent); font-size: 16px; }
+  .close { background: none; border: none; color: var(--text-5); cursor: pointer; font-size: 14px; }
+  .close:hover { color: var(--text-3); }
 
   .body {
     padding: 20px;
@@ -483,7 +483,6 @@
     gap: 14px;
   }
 
-  /* Paste curl */
   .paste-curl-wrap {
     display: flex;
     flex-direction: column;
@@ -495,16 +494,16 @@
     gap: 6px;
     font-size: 12px;
     font-weight: 600;
-    color: #9d91f5;
+    color: var(--accent);
   }
   .paste-icon { font-size: 14px; }
   .paste-curl-input {
     width: 100%;
-    background: #0d0d0d;
-    border: 1.5px dashed #3a3070;
+    background: var(--bg);
+    border: 1.5px dashed var(--accent-border);
     border-radius: 8px;
     padding: 10px 12px;
-    color: #bbb;
+    color: var(--text-2);
     font-family: 'SF Mono', 'Fira Code', monospace;
     font-size: 11px;
     resize: none;
@@ -514,17 +513,17 @@
   }
   .paste-curl-input:focus {
     outline: none;
-    border-color: #7c6cf4;
+    border-color: var(--accent);
     border-style: solid;
   }
-  .paste-curl-input::placeholder { color: #333; }
-  .parse-err { margin: 0; font-size: 11px; color: #e55; }
+  .paste-curl-input::placeholder { color: var(--text-7); }
+  .parse-err { margin: 0; font-size: 11px; color: var(--danger-text); }
 
   .divider {
     display: flex;
     align-items: center;
     gap: 10px;
-    color: #333;
+    color: var(--text-7);
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -533,15 +532,14 @@
     content: '';
     flex: 1;
     height: 1px;
-    background: #1e1e1e;
+    background: var(--border);
   }
   .divider span { flex-shrink: 0; }
 
-  .hint { margin: 0; font-size: 12px; color: #666; line-height: 1.5; }
-  .hint-inline { font-size: 10px; color: #555; font-weight: 400; }
-  .req { color: #e55; }
+  .hint { margin: 0; font-size: 12px; color: var(--text-4); line-height: 1.5; }
+  .hint-inline { font-size: 10px; color: var(--text-5); font-weight: 400; }
+  .req { color: var(--danger-text); }
 
-  /* Form */
   fieldset.form {
     border: none;
     padding: 0;
@@ -555,70 +553,67 @@
   .field-row { display: flex; gap: 10px; align-items: flex-end; }
   .field {
     display: flex; flex-direction: column; gap: 5px;
-    font-size: 12px; color: #777;
+    font-size: 12px; color: var(--text-4);
   }
   .field input, .field select, .field textarea {
-    background: #0d0d0d;
-    border: 1px solid #252525;
+    background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 7px 10px;
-    color: #ddd;
+    color: var(--text-2);
     font-size: 12px;
     font-family: inherit;
     resize: vertical;
   }
   .field textarea { font-family: 'SF Mono', monospace; font-size: 11px; }
   .field input:focus, .field select:focus, .field textarea:focus {
-    outline: none; border-color: #7c6cf4;
+    outline: none; border-color: var(--accent);
   }
   .section-label {
     font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.6px; color: #444; margin-top: 2px;
+    letter-spacing: 0.6px; color: var(--text-6); margin-top: 2px;
   }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-  /* Curl */
-  .curl-block { background: #0a0a0a; border: 1px solid #1e1e1e; border-radius: 8px; overflow: hidden; }
+  .curl-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .curl-head {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 8px 12px; border-bottom: 1px solid #1a1a1a;
-    font-size: 11px; color: #555;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--text-5);
   }
   .copy-btn {
-    background: #161616; border: 1px solid #252525; color: #777;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-4);
     border-radius: 4px; padding: 3px 9px; font-size: 11px; cursor: pointer;
   }
-  .copy-btn:hover { border-color: #7c6cf4; color: #9d91f5; }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
   .curl-pre { margin: 0; padding: 12px; overflow-x: auto; }
   .curl-pre code {
     font-family: 'SF Mono', 'Fira Code', monospace;
     font-size: 11px; color: #7ec87e; white-space: pre; line-height: 1.6;
   }
 
-  .err { color: #e55; font-size: 12px; margin: 0; }
+  .err { color: var(--danger-text); font-size: 12px; margin: 0; }
 
-  /* Multi-row pattern fields (include/exclude patterns, meta field mappings) */
-  .field-label-text { font-size: 12px; color: #777; margin-bottom: 4px; display: block; }
+  .field-label-text { font-size: 12px; color: var(--text-4); margin-bottom: 4px; display: block; }
   .extra-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
   .field-input {
-    flex: 1; background: #0d0d0d; border: 1px solid #252525; border-radius: 6px;
-    padding: 6px 9px; color: #ddd; font-size: 12px; font-family: inherit;
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 9px; color: var(--text-2); font-size: 12px; font-family: inherit;
   }
-  .field-input:focus { outline: none; border-color: #7c6cf4; }
+  .field-input:focus { outline: none; border-color: var(--accent); }
   .rm-btn {
-    background: none; border: 1px solid #2a2a2a; border-radius: 5px;
-    color: #555; font-size: 11px; padding: 4px 7px; cursor: pointer; flex-shrink: 0;
+    background: none; border: 1px solid var(--border-3); border-radius: 5px;
+    color: var(--text-5); font-size: 11px; padding: 4px 7px; cursor: pointer; flex-shrink: 0;
   }
-  .rm-btn:hover { border-color: #e55; color: #e55; }
+  .rm-btn:hover { border-color: var(--danger-border); color: var(--danger-text); }
   .add-mapping-btn {
-    background: none; border: 1px dashed #2a2a2a; border-radius: 5px;
-    color: #555; font-size: 11px; padding: 5px 12px; cursor: pointer; margin-top: 2px;
+    background: none; border: 1px dashed var(--border-3); border-radius: 5px;
+    color: var(--text-5); font-size: 11px; padding: 5px 12px; cursor: pointer; margin-top: 2px;
   }
-  .add-mapping-btn:hover { border-color: #7c6cf4; color: #9d91f5; }
+  .add-mapping-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* Footer */
   .footer {
-    border-top: 1px solid #1a1a1a;
+    border-top: 1px solid var(--border);
     padding-top: 14px;
     margin-top: 2px;
   }
@@ -627,8 +622,8 @@
 
   .btn-copy-curl {
     background: transparent;
-    color: #9d91f5;
-    border: 1px solid #3a3070;
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
     border-radius: 7px;
     padding: 9px 16px;
     font-size: 13px;
@@ -637,23 +632,22 @@
     margin-right: auto;
   }
   .btn-copy-curl:disabled { opacity: 0.3; cursor: not-allowed; }
-  .btn-copy-curl:not(:disabled):hover { background: #1e1b3a; border-color: #7c6cf4; }
+  .btn-copy-curl:not(:disabled):hover { background: var(--accent-dim); border-color: var(--accent); }
 
   .btn-rebuild {
-    background: #7c6cf4; color: #fff; border: none;
+    background: var(--accent); color: #fff; border: none;
     border-radius: 7px; padding: 9px 20px;
     font-size: 13px; font-weight: 600; cursor: pointer;
   }
   .btn-rebuild:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-rebuild:not(:disabled):hover { background: #6b5ce7; }
+  .btn-rebuild:not(:disabled):hover { background: var(--accent-hover); }
 
   .btn-cancel {
-    background: transparent; color: #777; border: 1px solid #2a2a2a;
+    background: transparent; color: var(--text-4); border: 1px solid var(--border-3);
     border-radius: 7px; padding: 9px 18px; font-size: 13px; cursor: pointer;
   }
-  .btn-cancel:hover { border-color: #444; color: #aaa; }
+  .btn-cancel:hover { border-color: var(--text-6); color: var(--text-3); }
 
-  /* ── Progress section ── */
   .progress-section {
     display: flex;
     flex-direction: column;
@@ -676,7 +670,7 @@
   .pulse-dot {
     width: 8px; height: 8px;
     border-radius: 50%;
-    background: #7c6cf4;
+    background: var(--accent);
     animation: pulse 1.4s ease-in-out infinite;
     flex-shrink: 0;
   }
@@ -685,19 +679,19 @@
     50% { opacity: 0.4; transform: scale(0.75); }
   }
 
-  .stage-text { font-size: 13px; color: #bbb; font-weight: 500; }
+  .stage-text { font-size: 13px; color: var(--text-2); font-weight: 500; }
 
-  .pct-label { font-size: 13px; font-weight: 600; color: #7c6cf4; font-variant-numeric: tabular-nums; }
+  .pct-label { font-size: 13px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
 
   .progress-bar {
     width: 100%; height: 5px;
-    background: #1e1e1e;
+    background: var(--border);
     border-radius: 3px;
     overflow: hidden;
   }
   .fill {
     height: 100%;
-    background: linear-gradient(90deg, #5a4fd4, #9d91f5);
+    background: linear-gradient(90deg, var(--accent-hover), var(--accent));
     border-radius: 3px;
     transition: width 0.5s ease;
   }
@@ -708,11 +702,10 @@
     align-items: baseline;
     font-size: 12px;
   }
-  .doc-done { color: #9d91f5; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .doc-sep { color: #333; }
-  .doc-total { color: #555; }
+  .doc-done { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .doc-sep { color: var(--text-7); }
+  .doc-total { color: var(--text-5); }
 
-  /* ── Done section ── */
   .done-section {
     display: flex;
     justify-content: space-between;
@@ -737,8 +730,8 @@
     flex-shrink: 0;
   }
 
-  .done-text { font-size: 13px; color: #888; line-height: 1.5; }
-  .done-text strong { color: #ccc; }
+  .done-text { font-size: 13px; color: var(--text-3); line-height: 1.5; }
+  .done-text strong { color: var(--text-2); }
   .warn-check {
     width: 22px; height: 22px;
     border-radius: 50%;
@@ -749,6 +742,8 @@
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
-  .warn-text { color: #999; }
+  .warn-text { color: var(--text-3); }
   .warn-text strong { color: #f0a040; }
+  .arrow-sep { color: var(--text-5); }
+  input[type="checkbox"] { accent-color: var(--accent); }
 </style>

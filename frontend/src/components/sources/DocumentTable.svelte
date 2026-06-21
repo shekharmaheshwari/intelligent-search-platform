@@ -85,12 +85,12 @@
     align-items: center;
     gap: 10px;
   }
-  .count { font-size: 13px; color: #666; }
+  .count { font-size: 13px; color: var(--text-4); }
   .refresh {
-    background: none; border: none; color: #555; cursor: pointer; font-size: 16px;
+    background: none; border: none; color: var(--text-5); cursor: pointer; font-size: 16px;
   }
-  .refresh:hover { color: #9d91f5; }
-  .empty { color: #555; font-size: 13px; padding: 32px 0; text-align: center; }
+  .refresh:hover { color: var(--accent); }
+  .empty { color: var(--text-5); font-size: 13px; padding: 32px 0; text-align: center; }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -98,15 +98,15 @@
   }
   th {
     text-align: left;
-    color: #555;
+    color: var(--text-5);
     font-weight: 500;
     padding: 8px 12px;
-    border-bottom: 1px solid #1e1e1e;
+    border-bottom: 1px solid var(--border);
   }
   td {
     padding: 10px 12px;
-    border-bottom: 1px solid #1a1a1a;
-    color: #ccc;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-2);
     vertical-align: top;
   }
   .title-cell {
@@ -114,7 +114,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: #ddd;
+    color: var(--text-2);
   }
   .url-cell {
     max-width: 200px;
@@ -122,11 +122,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .url-cell a { color: #7c6cf4; text-decoration: none; }
+  .url-cell a { color: var(--accent); text-decoration: none; }
   .url-cell a:hover { text-decoration: underline; }
   .badge {
-    background: #1e1b3a;
-    color: #9d91f5;
+    background: var(--accent-dim);
+    color: var(--accent);
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
@@ -138,17 +138,17 @@
     align-items: center;
     gap: 12px;
     font-size: 13px;
-    color: #666;
+    color: var(--text-4);
   }
   .pagination button {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    color: #888;
+    background: var(--surface);
+    border: 1px solid var(--border-2);
+    color: var(--text-4);
     border-radius: 5px;
     padding: 5px 12px;
     cursor: pointer;
     font-size: 12px;
   }
   .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .pagination button:not(:disabled):hover { border-color: #7c6cf4; color: #9d91f5; }
+  .pagination button:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
 </style>
