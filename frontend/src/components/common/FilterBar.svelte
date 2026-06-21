@@ -21,18 +21,18 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: #111;
-    border: 1px solid #222;
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
     border-radius: 6px;
     padding: 0 10px;
     height: 32px;
   }
   .filter-bar:focus-within {
-    border-color: #3a3370;
+    border-color: var(--accent-border);
   }
   .icon {
     font-size: 14px;
-    color: #444;
+    color: var(--text-6);
     flex-shrink: 0;
     line-height: 1;
   }
@@ -41,21 +41,21 @@
     background: none;
     border: none;
     outline: none;
-    color: #ccc;
+    color: var(--text-2);
     font-size: 12px;
     font-family: inherit;
     min-width: 0;
   }
-  input::placeholder { color: #3a3a3a; }
+  input::placeholder { color: var(--text-6); }
   .clear {
     background: none;
     border: none;
-    color: #444;
+    color: var(--text-6);
     font-size: 10px;
     cursor: pointer;
     padding: 0;
     line-height: 1;
     flex-shrink: 0;
   }
-  .clear:hover { color: #888; }
+  .clear:hover { color: var(--text-3); }
 </style>
