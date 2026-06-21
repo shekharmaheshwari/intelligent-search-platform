@@ -50,10 +50,10 @@
     align-items: flex-start;
     margin-bottom: 28px;
   }
-  h1 { margin: 0 0 4px; font-size: 24px; color: #eee; }
-  .sub { margin: 0; font-size: 13px; color: #555; }
+  h1 { margin: 0 0 4px; font-size: 24px; color: var(--text); }
+  .sub { margin: 0; font-size: 13px; color: var(--text-5); }
   .btn-create {
-    background: #7c6cf4;
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -62,7 +62,7 @@
     font-weight: 600;
     cursor: pointer;
   }
-  .btn-create:hover { background: #6b5ce7; }
+  .btn-create:hover { background: var(--accent-hover); }
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -76,7 +76,7 @@
     padding: 80px 0;
     text-align: center;
   }
-  .empty-icon { font-size: 40px; color: #2a2a2a; }
-  .empty h2 { margin: 0; font-size: 18px; color: #555; }
-  .empty p { margin: 0; font-size: 13px; color: #444; max-width: 320px; }
+  .empty-icon { font-size: 40px; color: var(--border-3); }
+  .empty h2 { margin: 0; font-size: 18px; color: var(--text-5); }
+  .empty p { margin: 0; font-size: 13px; color: var(--text-6); max-width: 320px; }
 </style>
