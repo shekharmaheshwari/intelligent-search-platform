@@ -211,7 +211,7 @@
   .group-header {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   }
-  .group-title { font-size: 13px; font-weight: 700; color: #ddd; }
+  .group-title { font-size: 13px; font-weight: 700; color: var(--text-2); }
   .group-badge {
     font-size: 10px; font-weight: 600; padding: 2px 8px;
     border-radius: 10px; letter-spacing: 0.03em;
@@ -219,17 +219,17 @@
   .public-badge  { background: #0d2a1f; color: #4cde93; border: 1px solid #1a4a30; }
   .internal-badge { background: #1a1a2e; color: #7c7caa; border: 1px solid #2a2a44; }
 
-  .group-desc { font-size: 12px; color: #555; margin: 0; line-height: 1.6; }
-  .group-desc code { color: #9d91f5; background: #1a1a2e; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+  .group-desc { font-size: 12px; color: var(--text-5); margin: 0; line-height: 1.6; }
+  .group-desc code { color: var(--accent); background: var(--accent-dim); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
 
-  .divider { border: none; border-top: 1px solid #1a1a1a; margin: 8px 0 24px; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 8px 0 24px; }
 
   section { display: flex; flex-direction: column; gap: 8px; }
 
   .section-head {
     display: flex; justify-content: space-between; align-items: center; gap: 12px;
   }
-  .section-label { font-size: 12px; color: #555; }
+  .section-label { font-size: 12px; color: var(--text-5); }
 
   .endpoint-line {
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;
@@ -243,20 +243,20 @@
   .get  { background: #0d2a1f; color: #4cde93; }
 
   .path {
-    font-size: 12px; color: #aaa; font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px; color: var(--text-3); font-family: 'SF Mono', 'Fira Code', monospace;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
   .mode-tag {
-    font-size: 10px; color: #666; background: #1a1a1a;
-    border: 1px solid #2a2a2a; border-radius: 4px; padding: 1px 6px; flex-shrink: 0;
+    font-size: 10px; color: var(--text-4); background: var(--surface);
+    border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; flex-shrink: 0;
   }
 
-  .desc { font-size: 12px; color: #555; margin: 0; }
-  .desc code { color: #9d91f5; background: #1a1a2e; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+  .desc { font-size: 12px; color: var(--text-5); margin: 0; }
+  .desc code { color: var(--accent); background: var(--accent-dim); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
 
   .code-block {
-    background: #0d0d0d; border: 1px solid #1e1e1e;
+    background: var(--bg); border: 1px solid var(--border);
     border-radius: 7px; padding: 14px 16px;
     overflow-x: auto; margin: 0;
   }
@@ -266,9 +266,9 @@
   }
 
   .copy-btn {
-    background: #1a1a1a; border: 1px solid #2a2a2a;
-    color: #888; border-radius: 5px;
+    background: var(--surface); border: 1px solid var(--border-2);
+    color: var(--text-4); border-radius: 5px;
     padding: 4px 10px; font-size: 11px; cursor: pointer; flex-shrink: 0;
   }
-  .copy-btn:hover { border-color: #7c6cf4; color: #9d91f5; }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
 </style>

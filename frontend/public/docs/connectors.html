@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connectors — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#141414;
+      --border:#222;--border2:#1a1a1a;
+      --text:#eee;--text-h2:#ccc;--text-h3:#aaa;--text-p:#777;--text-td:#888;
+      --text-muted:#555;--text-faint:#444;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#b4a4f8;--pre-fg:#bbb;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f0f0f8;
+      --border:#ddd;--border2:#e8e8ed;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#666;
+      --text-muted:#666;--text-faint:#888;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;--pre-fg:#444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1060px; margin: 0 auto; padding: 48px 32px 80px; gap: 48px; }
+    nav.sidebar { flex-shrink: 0; width: 190px; }
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 24px; }
+    nav.sidebar li a { display: block; padding: 7px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    nav.sidebar li a:hover { color: var(--text); background: var(--bg-hover); }
+    nav.sidebar li a.active { color: var(--accent); background: var(--accent-dim); }
+    .content { flex: 1; min-width: 0; }
+    h1 { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 17px; font-weight: 600; color: var(--text-h2); margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 20px 0 8px; }
+    p { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th { text-align: left; padding: 9px 14px; background: var(--bg3); color: var(--text-h3); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border2); color: var(--text-td); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); overflow-x: auto; line-height: 1.6; margin-bottom: 20px; white-space: pre; }
+    .notice { background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 7px; padding: 14px 16px; font-size: 13px; color: var(--code-fg); line-height: 1.6; margin-bottom: 20px; }
+    .notice strong { color: var(--accent); }
+    .badge { display: inline-block; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border); border-radius: 4px; font-size: 11px; font-weight: 600; padding: 2px 7px; vertical-align: middle; letter-spacing: 0.3px; }
+    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; display: inline-block; margin-bottom: 32px; }
+    .back-link:hover { text-decoration: underline; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; transition: border-color 0.15s, color 0.15s; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 700px) { .layout { flex-direction: column; gap: 24px; } nav.sidebar { width: 100%; } nav.sidebar ul { flex-direction: row; flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo-icon">⬡</span>
+    <span class="logo-name">Intelligent Search Platform</span>
+    <div class="breadcrumb">
+      <a href="index.html">Docs</a>
+      <span>/</span>
+      <span style="color:#aaa">Connectors</span>
+    </div>
+    <button id="theme-toggle" class="theme-btn" title="Toggle theme">☀</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <ul>
+        <li><a href="index.html">← All docs</a></li>
+        <li><a href="overview.html">Overview</a></li>
+        <li><a href="connectors.html" class="active">Connectors</a></li>
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="api.html">API Reference</a></li>
+        <li><a href="setup.html">Setup</a></li>
+      </ul>
+    </nav>
+
+    <div class="content">
+      <a class="back-link" href="index.html">← Back to docs</a>
+      <h1>Connectors</h1>
+      <p class="page-subtitle">How ISP pulls data from REST APIs, sitemaps, and Google Sheets.</p>
+
+      <!-- ── REST ─────────────────────────────────────────────────────── -->
+      <h2>REST Connector <span class="badge">rest</span></h2>
+      <p>
+        The REST connector fetches JSON from any HTTP endpoint and maps fields into ISP's document schema.
+        It is the default connector used by the Create Wizard.
+      </p>
+
+      <h3>Configuration fields</h3>
+      <table>
+        <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>url</code></td><td>Yes</td><td>Full URL of the REST API endpoint to fetch.</td></tr>
+          <tr><td><code>method</code></td><td>No</td><td>HTTP method. Defaults to <code>GET</code>.</td></tr>
+          <tr><td><code>headers</code></td><td>No</td><td>Key/value pairs added to every request (e.g. <code>Authorization: Bearer ...</code>).</td></tr>
+          <tr><td><code>body</code></td><td>No</td><td>JSON body for POST requests.</td></tr>
+          <tr><td><code>result_path</code></td><td>No</td><td>Dot-path into the response to the array of items, e.g. <code>data.results</code>. Leave empty if the root is an array.</td></tr>
+          <tr><td><code>field_map</code></td><td>No</td><td>Object mapping source field names to target field names in the indexed document.</td></tr>
+          <tr><td><code>id_field</code></td><td>No</td><td>Source field to use as the document <code>id</code>. Defaults to <code>id</code>.</td></tr>
+          <tr><td><code>title_field</code></td><td>No</td><td>Source field to map to <code>title</code>.</td></tr>
+          <tr><td><code>content_field</code></td><td>No</td><td>Source field to map to <code>content</code> (used for embedding).</td></tr>
+          <tr><td><code>url_field</code></td><td>No</td><td>Source field to map to the document <code>url</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Example</h3>
+      <pre>{
+  "url": "https://api.example.com/products",
+  "result_path": "data.items",
+  "field_map": { "product_name": "title", "body_html": "content" },
+  "id_field": "sku",
+  "url_field": "canonical_url"
+}</pre>
+
+      <!-- ── Sitemap ───────────────────────────────────────────────────── -->
+      <h2>Sitemap Connector <span class="badge">sitemap</span></h2>
+      <p>
+        The sitemap connector reads a sitemap XML file, crawls each listed URL, extracts page content using
+        BeautifulSoup, and indexes it. Useful for indexing documentation sites, blogs, or any publicly
+        accessible web content.
+      </p>
+
+      <h3>Configuration fields</h3>
+      <table>
+        <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>sitemap_url</code></td><td>Yes</td><td>URL of the sitemap XML file (supports sitemap index files).</td></tr>
+          <tr><td><code>include_patterns</code></td><td>No</td><td>List of URL substring patterns. Only URLs matching at least one pattern are crawled.</td></tr>
+          <tr><td><code>exclude_patterns</code></td><td>No</td><td>List of URL substring patterns. URLs matching any pattern are skipped, even if they match an include pattern.</td></tr>
+          <tr><td><code>user_agent</code></td><td>No</td><td>Custom User-Agent header sent with every request. Defaults to a generic browser string.</td></tr>
+          <tr><td><code>max_pages</code></td><td>No</td><td>Maximum number of pages to crawl. Defaults to 500.</td></tr>
+          <tr><td><code>content_selector</code></td><td>No</td><td>CSS selector for the element(s) whose text becomes the indexed <code>content</code>. Defaults to <code>body</code>.</td></tr>
+          <tr><td><code>meta_fields</code></td><td>No</td><td>List of HTML <code>&lt;meta&gt;</code> tag names to extract and store as additional document fields.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Example</h3>
+      <pre>{
+  "sitemap_url": "https://docs.example.com/sitemap.xml",
+  "include_patterns": ["/en/", "/docs/"],
+  "exclude_patterns": ["/api/", "/changelog/"],
+  "content_selector": "article.main-content",
+  "max_pages": 200,
+  "meta_fields": ["description", "keywords"]
+}</pre>
+
+      <!-- ── Google Sheets ─────────────────────────────────────────────── -->
+      <h2>Google Sheets Connector <span class="badge">gsheet</span></h2>
+      <p>
+        The Google Sheets connector reads a spreadsheet and indexes its rows as documents. Each row becomes
+        one document; columns are mapped to ISP fields. Authentication uses a Google service account — no
+        OAuth user flow required.
+      </p>
+
+      <div class="notice">
+        <strong>Auth requirement:</strong> The service account JSON key must be set as
+        <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> in <code>backend/.env</code> (single-line JSON, no newlines).
+        The spreadsheet must be shared with the service account email address (the <code>client_email</code>
+        field in the JSON key) with at least <em>Viewer</em> access.
+      </div>
+
+      <h3>Configuration fields</h3>
+      <table>
+        <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>spreadsheet_id</code></td><td>Yes</td><td>The long ID from the Google Sheets URL: <code>docs.google.com/spreadsheets/d/<strong>{id}</strong>/edit</code>.</td></tr>
+          <tr><td><code>sheet_name</code></td><td>No</td><td>Name of the tab/sheet to read. Defaults to the first sheet.</td></tr>
+          <tr><td><code>header_row</code></td><td>No</td><td>1-based row number of the header row. Defaults to <code>1</code>.</td></tr>
+          <tr><td><code>id_column</code></td><td>No</td><td>Column name (from header row) to use as the document <code>id</code>. Defaults to <code>id</code>.</td></tr>
+          <tr><td><code>title_column</code></td><td>No</td><td>Column name to map to <code>title</code>.</td></tr>
+          <tr><td><code>content_column</code></td><td>No</td><td>Column name to map to <code>content</code> (used for embedding).</td></tr>
+          <tr><td><code>url_column</code></td><td>No</td><td>Column name to map to the document <code>url</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Service account setup</h3>
+      <ol style="font-size:14px;color:#777;line-height:1.8;margin-left:20px;margin-bottom:16px;">
+        <li>Go to the <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" style="color:#7c6cf4">Google Cloud Console</a> and create a new service account.</li>
+        <li>Create a JSON key for the service account and download the <code>.json</code> file.</li>
+        <li>Collapse the JSON to a single line: <code>jq -c . key.json</code></li>
+        <li>Add it to <code>backend/.env</code>:
+          <pre>GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"...","client_email":"isp@project.iam.gserviceaccount.com",...}</pre>
+        </li>
+        <li>Share your Google Sheet with the <code>client_email</code> address from the JSON, granting <em>Viewer</em> (or higher) permission.</li>
+      </ol>
+
+      <h3>Example</h3>
+      <pre>{
+  "spreadsheet_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms",
+  "sheet_name": "Products",
+  "header_row": 1,
+  "id_column": "SKU",
+  "title_column": "Product Name",
+  "content_column": "Description",
+  "url_column": "Page URL"
+}</pre>
+    </div>
+  </div>
+  <script>
+    (function(){
+      var btn = document.getElementById("theme-toggle");
+      function apply(t) {
+        if (t === "light") { document.documentElement.setAttribute("data-theme","light"); btn.textContent = "☾"; }
+        else { document.documentElement.removeAttribute("data-theme"); btn.textContent = "☀"; }
+      }
+      apply(localStorage.getItem("isp-theme") === "light" ? "light" : "dark");
+      btn.addEventListener("click", function(){
+        var next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+        localStorage.setItem("isp-theme", next);
+        apply(next);
+      });
+    })();
+  </script>
+</body>
+</html>
