@@ -4,150 +4,58 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Connectors — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
   <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#141414;
+      --border:#222;--border2:#1a1a1a;
+      --text:#eee;--text-h2:#ccc;--text-h3:#aaa;--text-p:#777;--text-td:#888;
+      --text-muted:#555;--text-faint:#444;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#b4a4f8;--pre-fg:#bbb;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f0f0f8;
+      --border:#ddd;--border2:#e8e8ed;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#666;
+      --text-muted:#666;--text-faint:#888;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;--pre-fg:#444;
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #0a0a0a;
-      color: #eee;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      min-height: 100vh;
-    }
-    header {
-      background: #0f0f0f;
-      border-bottom: 1px solid #222;
-      padding: 0 32px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .logo-icon { font-size: 22px; color: #7c6cf4; }
-    .logo-name { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -0.2px; }
-    .breadcrumb {
-      margin-left: auto;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: #555;
-    }
-    .breadcrumb a { color: #7c6cf4; text-decoration: none; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
     .breadcrumb a:hover { text-decoration: underline; }
-    .layout {
-      display: flex;
-      max-width: 1060px;
-      margin: 0 auto;
-      padding: 48px 32px 80px;
-      gap: 48px;
-    }
-    nav.sidebar {
-      flex-shrink: 0;
-      width: 190px;
-    }
-    nav.sidebar ul {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      position: sticky;
-      top: 24px;
-    }
-    nav.sidebar li a {
-      display: block;
-      padding: 7px 12px;
-      border-radius: 6px;
-      font-size: 13px;
-      color: #666;
-      text-decoration: none;
-    }
-    nav.sidebar li a:hover { color: #eee; background: #141414; }
-    nav.sidebar li a.active { color: #7c6cf4; background: #12101e; }
+    .layout { display: flex; max-width: 1060px; margin: 0 auto; padding: 48px 32px 80px; gap: 48px; }
+    nav.sidebar { flex-shrink: 0; width: 190px; }
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 24px; }
+    nav.sidebar li a { display: block; padding: 7px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    nav.sidebar li a:hover { color: var(--text); background: var(--bg-hover); }
+    nav.sidebar li a.active { color: var(--accent); background: var(--accent-dim); }
     .content { flex: 1; min-width: 0; }
-    h1 { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 8px; }
-    .page-subtitle { font-size: 14px; color: #555; margin-bottom: 40px; }
-    h2 {
-      font-size: 17px;
-      font-weight: 600;
-      color: #ccc;
-      margin: 36px 0 14px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #1a1a1a;
-    }
-    h3 { font-size: 14px; font-weight: 600; color: #aaa; margin: 20px 0 8px; }
-    p { font-size: 14px; color: #777; line-height: 1.7; margin-bottom: 14px; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-      margin-bottom: 20px;
-    }
-    th {
-      text-align: left;
-      padding: 9px 14px;
-      background: #111;
-      color: #aaa;
-      font-weight: 600;
-      border-bottom: 1px solid #222;
-    }
-    td {
-      padding: 9px 14px;
-      border-bottom: 1px solid #1a1a1a;
-      color: #888;
-      vertical-align: top;
-    }
+    h1 { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 17px; font-weight: 600; color: var(--text-h2); margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 20px 0 8px; }
+    p { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th { text-align: left; padding: 9px 14px; background: var(--bg3); color: var(--text-h3); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border2); color: var(--text-td); vertical-align: top; }
     tr:last-child td { border-bottom: none; }
-    code {
-      background: #111;
-      border: 1px solid #222;
-      border-radius: 4px;
-      padding: 2px 6px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 12px;
-      color: #b4a4f8;
-    }
-    pre {
-      background: #111;
-      border: 1px solid #222;
-      border-radius: 6px;
-      padding: 16px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 12px;
-      color: #bbb;
-      overflow-x: auto;
-      line-height: 1.6;
-      margin-bottom: 20px;
-      white-space: pre;
-    }
-    .notice {
-      background: #12101e;
-      border: 1px solid #2a2440;
-      border-radius: 7px;
-      padding: 14px 16px;
-      font-size: 13px;
-      color: #9a8ed8;
-      line-height: 1.6;
-      margin-bottom: 20px;
-    }
-    .notice strong { color: #b4a4f8; }
-    .badge {
-      display: inline-block;
-      background: #1a1a2e;
-      color: #7c6cf4;
-      border: 1px solid #2a2440;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 2px 7px;
-      vertical-align: middle;
-      letter-spacing: 0.3px;
-    }
-    .back-link { font-size: 13px; color: #7c6cf4; text-decoration: none; display: inline-block; margin-bottom: 32px; }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); overflow-x: auto; line-height: 1.6; margin-bottom: 20px; white-space: pre; }
+    .notice { background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 7px; padding: 14px 16px; font-size: 13px; color: var(--code-fg); line-height: 1.6; margin-bottom: 20px; }
+    .notice strong { color: var(--accent); }
+    .badge { display: inline-block; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border); border-radius: 4px; font-size: 11px; font-weight: 600; padding: 2px 7px; vertical-align: middle; letter-spacing: 0.3px; }
+    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; display: inline-block; margin-bottom: 32px; }
     .back-link:hover { text-decoration: underline; }
-    @media (max-width: 700px) {
-      .layout { flex-direction: column; gap: 24px; }
-      nav.sidebar { width: 100%; }
-      nav.sidebar ul { flex-direction: row; flex-wrap: wrap; }
-    }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; transition: border-color 0.15s, color 0.15s; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 700px) { .layout { flex-direction: column; gap: 24px; } nav.sidebar { width: 100%; } nav.sidebar ul { flex-direction: row; flex-wrap: wrap; } }
   </style>
 </head>
 <body>
@@ -159,6 +67,7 @@
       <span>/</span>
       <span style="color:#aaa">Connectors</span>
     </div>
+    <button id="theme-toggle" class="theme-btn" title="Toggle theme">☀</button>
   </header>
 
   <div class="layout">
@@ -295,5 +204,20 @@
 }</pre>
     </div>
   </div>
+  <script>
+    (function(){
+      var btn = document.getElementById("theme-toggle");
+      function apply(t) {
+        if (t === "light") { document.documentElement.setAttribute("data-theme","light"); btn.textContent = "☾"; }
+        else { document.documentElement.removeAttribute("data-theme"); btn.textContent = "☀"; }
+      }
+      apply(localStorage.getItem("isp-theme") === "light" ? "light" : "dark");
+      btn.addEventListener("click", function(){
+        var next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+        localStorage.setItem("isp-theme", next);
+        apply(next);
+      });
+    })();
+  </script>
 </body>
 </html>
