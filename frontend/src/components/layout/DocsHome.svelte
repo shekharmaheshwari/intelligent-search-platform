@@ -124,7 +124,7 @@
   }
   .subtitle {
     font-size: 14px;
-    color: #555;
+    color: var(--text-5);
     margin: 0;
   }
 
@@ -132,7 +132,7 @@
   .section-label {
     font-size: 11px;
     font-weight: 600;
-    color: #444;
+    color: var(--text-6);
     letter-spacing: 1px;
     text-transform: uppercase;
     margin-bottom: 16px;
@@ -151,19 +151,18 @@
     display: flex;
     align-items: flex-start;
     gap: 16px;
-    background: #0f0f0f;
-    border: 1px solid #1a1a1a;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px 18px;
   }
   .step-num {
-    /* Accent circle for the step number */
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: #12101e;
-    border: 1px solid #2a2440;
-    color: #7c6cf4;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-border);
+    color: var(--accent);
     font-size: 12px;
     font-weight: 700;
     display: flex;
@@ -180,11 +179,11 @@
   .step-label {
     font-size: 13px;
     font-weight: 600;
-    color: #ddd;
+    color: var(--text-2);
   }
   .step-detail {
     font-size: 13px;
-    color: #555;
+    color: var(--text-5);
     line-height: 1.5;
   }
 
@@ -199,8 +198,8 @@
     gap: 14px;
   }
   .card {
-    background: #0f0f0f;
-    border: 1px solid #1a1a1a;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 20px 22px;
     text-decoration: none;
@@ -210,30 +209,30 @@
     transition: border-color 0.15s, background 0.15s;
   }
   .card:hover {
-    border-color: #7c6cf4;
-    background: #101020;
+    border-color: var(--accent);
+    background: var(--accent-dim);
   }
   .card-icon {
     font-size: 20px;
     margin-bottom: 10px;
-    color: #7c6cf4;
+    color: var(--accent);
   }
   .card-title {
     font-size: 14px;
     font-weight: 600;
-    color: #fff;
+    color: var(--text);
     margin-bottom: 6px;
   }
   .card-desc {
     font-size: 13px;
-    color: #555;
+    color: var(--text-5);
     line-height: 1.55;
     flex: 1;
   }
   .card-arrow {
     margin-top: 14px;
     font-size: 12px;
-    color: #7c6cf4;
+    color: var(--accent);
   }
 
   /* ── Responsive ─────────────────────────────────────────────────── */
