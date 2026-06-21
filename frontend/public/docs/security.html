@@ -4,205 +4,73 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Security &amp; Secrets — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
   <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#0d0d0d;
+      --border:#222;--border2:#1e1e1e;--border3:#141414;
+      --text:#eee;--text-h2:#ddd;--text-h3:#bbb;--text-p:#666;--text-td:#666;
+      --text-muted:#555;--text-faint:#444;--text-ghost:#333;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#a8a0f8;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f5f5f8;
+      --border:#ddd;--border2:#e4e4ea;--border3:#eaeaee;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#555;
+      --text-muted:#666;--text-faint:#888;--text-ghost:#aaa;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #0a0a0a;
-      color: #eee;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      min-height: 100vh;
-      line-height: 1.6;
-    }
-    header {
-      background: #0f0f0f;
-      border-bottom: 1px solid #222;
-      padding: 0 32px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .logo-icon { font-size: 22px; color: #7c6cf4; }
-    .logo-name { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -0.2px; }
-    .breadcrumb { font-size: 13px; color: #444; margin-left: 8px; }
-    .breadcrumb a { color: #555; text-decoration: none; }
-    .breadcrumb a:hover { color: #7c6cf4; }
-
-    .layout {
-      display: flex;
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 0 24px;
-    }
-    nav.sidebar {
-      width: 210px;
-      flex-shrink: 0;
-      padding: 40px 24px 40px 0;
-      position: sticky;
-      top: 0;
-      height: calc(100vh - 56px);
-      overflow-y: auto;
-    }
-    nav.sidebar .nav-label {
-      font-size: 10px;
-      font-weight: 600;
-      color: #333;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      margin-bottom: 10px;
-      margin-top: 24px;
-    }
-    nav.sidebar a {
-      display: block;
-      font-size: 13px;
-      color: #555;
-      text-decoration: none;
-      padding: 5px 0;
-      border-left: 2px solid transparent;
-      padding-left: 10px;
-    }
-    nav.sidebar a:hover { color: #bbb; border-left-color: #444; }
-
-    main {
-      flex: 1;
-      min-width: 0;
-      padding: 48px 0 80px 40px;
-      border-left: 1px solid #181818;
-    }
-
-    h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
-    .page-subtitle { font-size: 14px; color: #555; margin-bottom: 40px; }
-
-    h2 {
-      font-size: 18px;
-      font-weight: 600;
-      color: #ddd;
-      margin: 48px 0 16px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #1a1a1a;
-    }
-    h3 {
-      font-size: 14px;
-      font-weight: 600;
-      color: #bbb;
-      margin: 28px 0 10px;
-    }
-    p { font-size: 13px; color: #666; margin-bottom: 14px; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; line-height: 1.6; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { font-size: 13px; color: var(--text-faint); margin-left: 8px; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .layout { display: flex; max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+    nav.sidebar { width: 210px; flex-shrink: 0; padding: 40px 24px 40px 0; position: sticky; top: 0; height: calc(100vh - 56px); overflow-y: auto; }
+    nav.sidebar .nav-label { font-size: 10px; font-weight: 600; color: var(--text-ghost); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; margin-top: 24px; }
+    nav.sidebar a { display: block; font-size: 13px; color: var(--text-muted); text-decoration: none; padding: 5px 0; border-left: 2px solid transparent; padding-left: 10px; }
+    nav.sidebar a:hover { color: var(--text-h3); border-left-color: var(--text-faint); }
+    main { flex: 1; min-width: 0; padding: 48px 0 80px 40px; border-left: 1px solid var(--border2); }
+    h1 { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 18px; font-weight: 600; color: var(--text-h2); margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 28px 0 10px; }
+    p { font-size: 13px; color: var(--text-p); margin-bottom: 14px; }
     ul, ol { padding-left: 20px; margin-bottom: 14px; }
-    li { font-size: 13px; color: #666; margin-bottom: 5px; }
-    li strong { color: #bbb; }
-    strong { color: #ccc; }
-
-    code {
-      background: #151515;
-      border: 1px solid #222;
-      border-radius: 4px;
-      padding: 1px 6px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 12px;
-      color: #a8a0f8;
-    }
-    pre {
-      background: #0f0f0f;
-      border: 1px solid #1e1e1e;
-      border-radius: 8px;
-      padding: 16px 18px;
-      overflow-x: auto;
-      margin-bottom: 20px;
-    }
-    pre code {
-      background: none;
-      border: none;
-      padding: 0;
-      font-size: 12px;
-      color: #aaa;
-      line-height: 1.7;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-      font-size: 13px;
-    }
-    th {
-      text-align: left;
-      padding: 8px 12px;
-      font-size: 11px;
-      font-weight: 600;
-      color: #444;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      border-bottom: 1px solid #1e1e1e;
-    }
-    td {
-      padding: 9px 12px;
-      border-bottom: 1px solid #141414;
-      color: #666;
-      vertical-align: top;
-    }
-    td strong { color: #bbb; }
-    tr:hover td { background: #0d0d0d; }
-
-    .badge {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: 600;
-      padding: 2px 7px;
-      border-radius: 4px;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-    }
+    li { font-size: 13px; color: var(--text-p); margin-bottom: 5px; }
+    li strong { color: var(--text-h3); }
+    strong { color: var(--text-h2); }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 16px 18px; overflow-x: auto; margin-bottom: 20px; }
+    pre code { background: none; border: none; padding: 0; font-size: 12px; color: var(--text-h3); line-height: 1.7; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+    th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; color: var(--text-faint); letter-spacing: 0.5px; text-transform: uppercase; border-bottom: 1px solid var(--border2); }
+    td { padding: 9px 12px; border-bottom: 1px solid var(--border3); color: var(--text-td); vertical-align: top; }
+    td strong { color: var(--text-h3); }
+    tr:hover td { background: var(--bg-hover); }
+    .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; text-transform: uppercase; }
     .badge-green  { background: #0d2014; color: #4caf78; border: 1px solid #1a3d28; }
     .badge-yellow { background: #1e1800; color: #d4a017; border: 1px solid #3a2e00; }
     .badge-red    { background: #1e0c0c; color: #c44; border: 1px solid #3a1818; }
-    .badge-purple { background: #12101e; color: #7c6cf4; border: 1px solid #2a2440; }
-
-    .callout {
-      background: #0e0e18;
-      border: 1px solid #2a2440;
-      border-left: 3px solid #7c6cf4;
-      border-radius: 8px;
-      padding: 14px 18px;
-      margin-bottom: 20px;
-    }
-    .callout-warn {
-      background: #140e00;
-      border-color: #3a2a00;
-      border-left-color: #d4a017;
-    }
-    .callout p { color: #888; margin: 0; font-size: 13px; }
-    .callout strong { color: #bbb; }
-
-    .provider-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-      margin-bottom: 28px;
-    }
-    .provider-card {
-      background: #0f0f0f;
-      border: 1px solid #1e1e1e;
-      border-radius: 10px;
-      padding: 18px 20px;
-    }
-    .provider-card h4 {
-      font-size: 13px;
-      font-weight: 600;
-      color: #ccc;
-      margin-bottom: 8px;
-    }
-    .provider-card p { font-size: 12px; color: #555; margin: 0; }
-
+    .badge-purple { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border); }
+    .callout { background: var(--accent-dim); border: 1px solid var(--accent-border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; }
+    .callout-warn { background: #140e00; border-color: #3a2a00; border-left-color: #d4a017; }
+    .callout p { color: var(--text-p); margin: 0; font-size: 13px; }
+    .callout strong { color: var(--text-h3); }
+    .provider-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 28px; }
+    .provider-card { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 18px 20px; }
+    .provider-card h4 { font-size: 13px; font-weight: 600; color: var(--text-h2); margin-bottom: 8px; }
+    .provider-card p { font-size: 12px; color: var(--text-muted); margin: 0; }
     .effort-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .effort-label { font-size: 13px; color: #555; flex: 1; }
-    .effort-bar {
-      height: 4px;
-      border-radius: 2px;
-      background: #7c6cf4;
-      flex-shrink: 0;
-    }
-
+    .effort-label { font-size: 13px; color: var(--text-muted); flex: 1; }
+    .effort-bar { height: 4px; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; transition: border-color 0.15s, color 0.15s; margin-left: auto; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
     @media (max-width: 700px) {
       .layout { flex-direction: column; }
       nav.sidebar { display: none; }
@@ -216,6 +84,7 @@
     <span class="logo-icon">⬡</span>
     <span class="logo-name">Intelligent Search Platform</span>
     <span class="breadcrumb"><a href="index.html">Docs</a> / Security &amp; Secrets</span>
+    <button id="theme-toggle" class="theme-btn" title="Toggle theme">☀</button>
   </header>
 
   <div class="layout">
@@ -593,5 +462,20 @@ aws secretsmanager create-secret --name isp/GOOGLE_SERVICE_ACCOUNT_JSON \
       </div>
     </main>
   </div>
+  <script>
+    (function(){
+      var btn = document.getElementById("theme-toggle");
+      function apply(t) {
+        if (t === "light") { document.documentElement.setAttribute("data-theme","light"); btn.textContent = "☾"; }
+        else { document.documentElement.removeAttribute("data-theme"); btn.textContent = "☀"; }
+      }
+      apply(localStorage.getItem("isp-theme") === "light" ? "light" : "dark");
+      btn.addEventListener("click", function(){
+        var next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+        localStorage.setItem("isp-theme", next);
+        apply(next);
+      });
+    })();
+  </script>
 </body>
 </html>
