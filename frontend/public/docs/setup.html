@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#141414;
+      --border:#222;--border2:#1a1a1a;
+      --text:#eee;--text-h2:#ccc;--text-h3:#aaa;--text-p:#777;--text-td:#888;
+      --text-muted:#555;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#b4a4f8;--pre-fg:#bbb;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f0f0f8;
+      --border:#ddd;--border2:#e8e8ed;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#666;
+      --text-muted:#666;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;--pre-fg:#444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1060px; margin: 0 auto; padding: 48px 32px 80px; gap: 48px; }
+    nav.sidebar { flex-shrink: 0; width: 190px; }
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 24px; }
+    nav.sidebar li a { display: block; padding: 7px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    nav.sidebar li a:hover { color: var(--text); background: var(--bg-hover); }
+    nav.sidebar li a.active { color: var(--accent); background: var(--accent-dim); }
+    .content { flex: 1; min-width: 0; }
+    h1 { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 17px; font-weight: 600; color: var(--text-h2); margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 20px 0 8px; }
+    p { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; }
+    ol, ul { font-size: 14px; color: var(--text-p); line-height: 1.8; margin-left: 20px; margin-bottom: 16px; }
+    li { margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th { text-align: left; padding: 9px 14px; background: var(--bg3); color: var(--text-h3); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border2); color: var(--text-td); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); overflow-x: auto; line-height: 1.6; margin-bottom: 20px; white-space: pre; }
+    .notice { background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 7px; padding: 14px 16px; font-size: 13px; color: var(--code-fg); line-height: 1.6; margin-bottom: 20px; }
+    .notice strong { color: var(--accent); }
+    .warn { background: #1a120a; border: 1px solid #3a2a10; border-radius: 7px; padding: 14px 16px; font-size: 13px; color: #c9903a; line-height: 1.6; margin-bottom: 20px; }
+    .warn strong { color: #e0aa55; }
+    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; display: inline-block; margin-bottom: 32px; }
+    .back-link:hover { text-decoration: underline; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; transition: border-color 0.15s, color 0.15s; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 700px) { .layout { flex-direction: column; gap: 24px; } nav.sidebar { width: 100%; } nav.sidebar ul { flex-direction: row; flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo-icon">⬡</span>
+    <span class="logo-name">Intelligent Search Platform</span>
+    <div class="breadcrumb">
+      <a href="index.html">Docs</a>
+      <span>/</span>
+      <span style="color:#aaa">Setup</span>
+    </div>
+    <button id="theme-toggle" class="theme-btn" title="Toggle theme">☀</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <ul>
+        <li><a href="index.html">← All docs</a></li>
+        <li><a href="overview.html">Overview</a></li>
+        <li><a href="connectors.html">Connectors</a></li>
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="api.html">API Reference</a></li>
+        <li><a href="setup.html" class="active">Setup</a></li>
+      </ul>
+    </nav>
+
+    <div class="content">
+      <a class="back-link" href="index.html">← Back to docs</a>
+      <h1>Setup</h1>
+      <p class="page-subtitle">First-time workspace setup, environment variables, and credential configuration.</p>
+
+      <!-- ── First-time setup ──────────────────────────────────────────── -->
+      <h2>First-time workspace setup</h2>
+      <p>ISP runs entirely in Docker. Clone the repo, then use the provided deploy script:</p>
+
+      <pre># 1. Clone
+git clone &lt;repo-url&gt; intelligent-search-platform
+cd intelligent-search-platform
+
+# 2. Copy and fill in the backend env file
+cp backend/.env.example backend/.env
+# (edit backend/.env — see Environment Variables section below)
+
+# 3. Start everything
+./deploy-api.sh</pre>
+
+      <p>
+        <code>deploy-api.sh</code> builds Docker images, starts all containers on the
+        <code>search_tmo-net</code> network, and waits for the API to become healthy.
+        After it completes, the UI is available at <a href="http://localhost:3001" style="color:#7c6cf4">http://localhost:3001</a>
+        and the API at <a href="http://localhost:8001" style="color:#7c6cf4">http://localhost:8001</a>.
+      </p>
+
+      <div class="notice">
+        <strong>Subsequent deploys:</strong> run <code>./deploy-api.sh</code> again to rebuild only changed
+        layers. Docker build cache makes this fast.
+      </div>
+
+      <!-- ── Environment variables ─────────────────────────────────────── -->
+      <h2>Environment Variables</h2>
+      <p>All variables go in <code>backend/.env</code>. The backend uses <code>pydantic-settings</code> with safe defaults for local Docker development — only the variables below are required for full functionality.</p>
+
+      <table>
+        <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>VOYAGE_API_KEY</code></td>
+            <td>Yes (for embeddings)</td>
+            <td>Voyage AI API key used to generate 1024-dim embeddings. Get one at <a href="https://www.voyageai.com" target="_blank" style="color:#7c6cf4">voyageai.com</a>. Without this, ISP falls back to lexical-only search.</td>
+          </tr>
+          <tr>
+            <td><code>GOOGLE_SERVICE_ACCOUNT_JSON</code></td>
+            <td>Yes (for GSheets)</td>
+            <td>Single-line JSON of the Google service account key file. Must have no newlines. See the Google Sheets section below.</td>
+          </tr>
+          <tr>
+            <td><code>SECRET_PROVIDER</code></td>
+            <td>No</td>
+            <td>Where ISP reads secrets from. Options: <code>env</code> (default), <code>vault</code>, <code>aws</code>.</td>
+          </tr>
+          <tr>
+            <td><code>DATABASE_URL</code></td>
+            <td>No</td>
+            <td>PostgreSQL connection string. Defaults to the Docker Compose isp-db service: <code>postgresql://isp:isp-dev-password@isp-db:5432/isp</code>.</td>
+          </tr>
+          <tr>
+            <td><code>TYPESENSE_HOST</code></td>
+            <td>No</td>
+            <td>Typesense container hostname. Defaults to <code>typesense</code> (Docker service name).</td>
+          </tr>
+          <tr>
+            <td><code>REDIS_URL</code></td>
+            <td>No</td>
+            <td>Redis URL for the embedding cache and distributed job lock. Defaults to <code>redis://isp-redis:6379</code>.</td>
+          </tr>
+          <tr>
+            <td><code>EMBED_MODEL</code></td>
+            <td>No</td>
+            <td>Active embedding model. Defaults to <code>voyage-3</code>. Can also be set via <code>PUT /v1/settings</code> at runtime.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Example backend/.env</h3>
+      <pre>VOYAGE_API_KEY=pa-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"my-project",...}
+SECRET_PROVIDER=env</pre>
+
+      <!-- ── SECRET_PROVIDER ───────────────────────────────────────────── -->
+      <h2>SECRET_PROVIDER options</h2>
+      <table>
+        <thead><tr><th>Value</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>env</code> (default)</td>
+            <td>Reads secrets directly from environment variables / <code>.env</code> file. Suitable for local development and single-host deployments.</td>
+          </tr>
+          <tr>
+            <td><code>vault</code></td>
+            <td>Reads secrets from HashiCorp Vault. Requires <code>VAULT_ADDR</code> and <code>VAULT_TOKEN</code> (or a Vault agent sidecar) to be configured. ISP will fetch the secrets at startup.</td>
+          </tr>
+          <tr>
+            <td><code>aws</code></td>
+            <td>Reads secrets from AWS Secrets Manager. Requires the container to have an IAM role or <code>AWS_ACCESS_KEY_ID</code> / <code>AWS_SECRET_ACCESS_KEY</code> in the environment. ISP fetches secrets by name at startup.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ── Google Sheets service account ─────────────────────────────── -->
+      <h2>Google Sheets service account</h2>
+      <p>The Google Sheets connector authenticates using a service account — no user OAuth flow is needed.</p>
+
+      <ol>
+        <li>Open the <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" style="color:#7c6cf4">Google Cloud Console — Service Accounts</a>.</li>
+        <li>Click <strong>Create Service Account</strong>. Give it a name (e.g. <code>isp-sheets-reader</code>) and click through to completion — no special IAM roles are needed.</li>
+        <li>Open the service account, go to the <strong>Keys</strong> tab, click <strong>Add key → Create new key → JSON</strong>. Download the <code>.json</code> file.</li>
+        <li>
+          Collapse the JSON to a single line (required — multi-line JSON will break the env var parser):
+          <pre>cat key.json | jq -c . &gt; key_single_line.json</pre>
+        </li>
+        <li>
+          Copy the single-line content into <code>backend/.env</code>:
+          <pre>GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"my-project","private_key_id":"abc123","private_key":"-----BEGIN RSA PRIVATE KEY-----\n...","client_email":"isp-sheets-reader@my-project.iam.gserviceaccount.com",...}</pre>
+        </li>
+        <li>
+          In Google Sheets, click <strong>Share</strong> on the spreadsheet you want to index.
+          Add the <code>client_email</code> from the JSON (e.g. <code>isp-sheets-reader@my-project.iam.gserviceaccount.com</code>) with at least <em>Viewer</em> access.
+        </li>
+        <li>Restart the ISP API container for the new env var to take effect: <code>docker compose restart isp-api</code>.</li>
+      </ol>
+
+      <div class="warn">
+        <strong>Never commit the service account JSON</strong> to git. The <code>backend/.env</code> file is in <code>.gitignore</code>.
+        For production, use <code>SECRET_PROVIDER=vault</code> or <code>SECRET_PROVIDER=aws</code> and store the JSON in your secrets manager.
+      </div>
+
+      <!-- ── Vault setup ───────────────────────────────────────────────── -->
+      <h2>Vault setup (optional)</h2>
+      <p>If you are using HashiCorp Vault as your secret provider:</p>
+      <ol>
+        <li>Store your secrets in Vault at a path like <code>secret/isp</code>:
+          <pre>vault kv put secret/isp \
+  VOYAGE_API_KEY="pa-xxx" \
+  GOOGLE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'</pre>
+        </li>
+        <li>Set the following in your environment (or container definition):
+          <pre>SECRET_PROVIDER=vault
+VAULT_ADDR=https://vault.internal:8200
+VAULT_TOKEN=s.xxxxxxxx
+VAULT_SECRET_PATH=secret/isp</pre>
+        </li>
+        <li>ISP will read all keys from that Vault path at startup and inject them as environment variables. No changes to the application code are needed.</li>
+      </ol>
+    </div>
+  </div>
+  <script>
+    (function(){
+      var btn = document.getElementById("theme-toggle");
+      function apply(t) {
+        if (t === "light") { document.documentElement.setAttribute("data-theme","light"); btn.textContent = "☾"; }
+        else { document.documentElement.removeAttribute("data-theme"); btn.textContent = "☀"; }
+      }
+      apply(localStorage.getItem("isp-theme") === "light" ? "light" : "dark");
+      btn.addEventListener("click", function(){
+        var next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+        localStorage.setItem("isp-theme", next);
+        apply(next);
+      });
+    })();
+  </script>
+</body>
+</html>

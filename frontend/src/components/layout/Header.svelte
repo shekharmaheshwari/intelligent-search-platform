@@ -1,13 +1,6 @@
 <script lang="ts">
-  /**
-   * Header — top navigation bar.
-   *
-   * Contains the ISP logo/home button and a Docs link.
-   * Clicking the logo resets the app to the dashboard view with no selected index.
-   */
-  import { appStateStore } from '../../lib/store';
+  import { appStateStore, themeStore } from '../../lib/store';
 
-  /** Navigate to the dashboard view and deselect any active index. */
   function goHome() {
     appStateStore.navigateTo('dashboard', null);
   }
@@ -19,7 +12,10 @@
     <span class="name">Intelligent Search Platform</span>
   </button>
   <nav>
-    <a href="https://github.com" target="_blank" rel="noopener">Docs</a>
+    <button class="theme-btn" on:click={themeStore.toggle} title="Toggle theme">
+      {$themeStore === 'light' ? '☾' : '☀'}
+    </button>
+    <a href="/docs/index.html" target="_blank" rel="noopener">Docs</a>
   </nav>
 </header>
 
@@ -30,8 +26,8 @@
     justify-content: space-between;
     padding: 0 24px;
     height: 56px;
-    background: #0f0f0f;
-    border-bottom: 1px solid #222;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border-2);
     position: sticky;
     top: 0;
     z-index: 100;
@@ -43,19 +39,34 @@
     background: none;
     border: none;
     cursor: pointer;
-    color: #fff;
+    color: var(--text);
     font-size: 15px;
     font-weight: 600;
     letter-spacing: -0.2px;
   }
   .icon {
     font-size: 22px;
-    color: #7c6cf4;
+    color: var(--accent);
+  }
+  nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
   }
   nav a {
-    color: #888;
+    color: var(--text-4);
     text-decoration: none;
     font-size: 13px;
   }
-  nav a:hover { color: #fff; }
+  nav a:hover { color: var(--text); }
+  .theme-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--text-4);
+    padding: 2px 4px;
+    line-height: 1;
+  }
+  .theme-btn:hover { color: var(--text); }
 </style>

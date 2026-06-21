@@ -1,14 +1,4 @@
 <script lang="ts">
-  /**
-   * SourcesSidebar — left navigation panel showing all indexed sources.
-   *
-   * Dispatches:
-   * - ``select``     — user clicked a source row (detail: index id)
-   * - ``create``     — user clicked the "+" button to open the Create Wizard
-   * - ``delete``     — user clicked the ✕ delete button (detail: index id)
-   * - ``extensions`` — user clicked the "⚙ Extensions" footer link
-   * - ``settings``   — user clicked the "⚙ Settings" footer link
-   */
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../../lib/types';
   import { connectorUrl, connectorType, shortUrl, filterIndexes } from './SourcesSidebar.helpers';
@@ -27,12 +17,10 @@
 
 <aside class="sidebar">
 
-  <!-- Search bar -->
   <div class="filter-wrap">
     <FilterBar bind:value={searchQuery} ariaLabel="Filter sources" />
   </div>
 
-  <!-- Sources group -->
   <div class="group">
     <div class="group-header">
       <button
@@ -116,8 +104,8 @@
   .sidebar {
     width: 256px;
     min-width: 256px;
-    background: #0d0d0d;
-    border-right: 1px solid #1a1a1a;
+    background: var(--bg-2);
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     height: calc(100vh - 56px);
@@ -128,7 +116,7 @@
 
   .sidebar-footer {
     margin-top: auto;
-    border-top: 1px solid #161616;
+    border-top: 1px solid var(--border);
     padding: 8px 10px;
   }
   .footer-link {
@@ -138,7 +126,7 @@
     width: 100%;
     background: none;
     border: none;
-    color: #444;
+    color: var(--text-6);
     font-size: 12px;
     cursor: pointer;
     padding: 7px 10px;
@@ -146,10 +134,9 @@
     text-align: left;
     transition: background 0.1s, color 0.1s;
   }
-  .footer-link:hover { background: #131313; color: #888; }
+  .footer-link:hover { background: var(--bg-3); color: var(--text-3); }
   .footer-icon { font-size: 13px; }
 
-  /* ── Search bar ── */
   .filter-wrap {
     margin: 10px 10px 4px;
   }
@@ -163,7 +150,6 @@
     }
   }
 
-  /* ── Group ── */
   .group {
     display: flex;
     flex-direction: column;
@@ -192,7 +178,7 @@
 
   .chevron {
     font-size: 14px;
-    color: #444;
+    color: var(--text-6);
     line-height: 1;
     transition: transform 0.15s;
     display: inline-block;
@@ -205,14 +191,14 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.7px;
-    color: #555;
+    color: var(--text-5);
   }
-  .group-toggle:hover .group-label { color: #888; }
+  .group-toggle:hover .group-label { color: var(--text-3); }
 
   .group-count {
     font-size: 10px;
-    color: #3a3a3a;
-    background: #181818;
+    color: var(--text-6);
+    background: var(--bg-3);
     border-radius: 8px;
     padding: 1px 5px;
     margin-left: 2px;
@@ -221,7 +207,7 @@
   .add-btn {
     background: none;
     border: none;
-    color: #555;
+    color: var(--text-5);
     width: 20px;
     height: 20px;
     border-radius: 4px;
@@ -236,20 +222,19 @@
     flex-shrink: 0;
   }
   .group-header:hover .add-btn { opacity: 1; }
-  .add-btn:hover { background: #1e1b3a; color: #9d91f5; }
+  .add-btn:hover { background: var(--accent-dim); color: var(--accent); }
 
-  /* ── Empty ── */
   .empty {
     padding: 10px 16px 14px 28px;
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
-  .empty p { margin: 0; font-size: 12px; color: #3a3a3a; }
+  .empty p { margin: 0; font-size: 12px; color: var(--text-6); }
   .add-link {
     background: none;
     border: none;
-    color: #7c6cf4;
+    color: var(--accent);
     font-size: 12px;
     cursor: pointer;
     padding: 0;
@@ -257,7 +242,6 @@
   }
   .add-link:hover { text-decoration: underline; }
 
-  /* ── Source list ── */
   .source-list {
     list-style: none;
     margin: 0;
@@ -271,10 +255,10 @@
     transition: background 0.1s, border-color 0.1s;
     position: relative;
   }
-  .source-item:hover { background: #131313; }
+  .source-item:hover { background: var(--bg-3); }
   .source-item.active {
-    background: #131313;
-    border-left-color: #7c6cf4;
+    background: var(--bg-3);
+    border-left-color: var(--accent);
   }
 
   .source-row {
@@ -295,17 +279,17 @@
   .source-name {
     font-size: 13px;
     font-weight: 500;
-    color: #ccc;
+    color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.3;
   }
-  .source-item.active .source-name { color: #eee; }
+  .source-item.active .source-name { color: var(--text); }
 
   .source-desc {
     font-size: 11px;
-    color: #4a4a4a;
+    color: var(--text-6);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -313,7 +297,7 @@
 
   .source-url {
     font-size: 10px;
-    color: #383838;
+    color: var(--text-7);
     font-family: 'SF Mono', 'Fira Code', monospace;
     white-space: nowrap;
     overflow: hidden;
@@ -332,8 +316,8 @@
     font-size: 9px;
     font-weight: 700;
     text-transform: uppercase;
-    color: #6b5ce7;
-    background: #16142a;
+    color: var(--accent);
+    background: var(--accent-dim);
     padding: 1px 4px;
     border-radius: 3px;
     letter-spacing: 0.3px;
@@ -341,13 +325,13 @@
 
   .doc-count {
     font-size: 10px;
-    color: #3a3a3a;
+    color: var(--text-6);
   }
 
   .del-btn {
     background: none;
     border: none;
-    color: #444;
+    color: var(--text-6);
     cursor: pointer;
     font-size: 12px;
     padding: 2px 4px;
@@ -356,5 +340,5 @@
     transition: background 0.1s, color 0.1s;
     flex-shrink: 0;
   }
-  .del-btn:hover { background: #2a0f0f; color: #e55; }
+  .del-btn:hover { background: var(--danger-bg); color: var(--danger-text); }
 </style>

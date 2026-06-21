@@ -7,12 +7,69 @@ import App from '../components/layout/App.svelte';
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Intelligent Search Platform</title>
+  <script>
+    (function(){var t=localStorage.getItem('isp-theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
+  </script>
   <style>
+    :root {
+      --bg:            #0a0a0a;
+      --bg-2:          #0f0f0f;
+      --bg-3:          #111111;
+      --bg-hover:      #141414;
+      --surface:       #1a1a1a;
+      --border:        #1e1e1e;
+      --border-2:      #222222;
+      --border-3:      #2a2a2a;
+      --text:          #eeeeee;
+      --text-2:        #cccccc;
+      --text-3:        #aaaaaa;
+      --text-4:        #777777;
+      --text-5:        #555555;
+      --text-6:        #444444;
+      --text-7:        #333333;
+      --accent:        #7c6cf4;
+      --accent-hover:  #6b5ce7;
+      --accent-dim:    #12101e;
+      --accent-border: #2a2440;
+      --danger-bg:     #7a1c1c;
+      --danger-border: #a02020;
+      --danger-text:   #ffaaaa;
+      --input-bg:      #0d0d0d;
+      --scroll-track:  #111111;
+      --scroll-thumb:  #2a2a2a;
+    }
+    [data-theme="light"] {
+      --bg:            #f5f5f8;
+      --bg-2:          #ffffff;
+      --bg-3:          #ecedf2;
+      --bg-hover:      #e4e5ec;
+      --surface:       #dddee8;
+      --border:        #d0d2de;
+      --border-2:      #c4c6d4;
+      --border-3:      #b0b2c4;
+      --text:          #111111;
+      --text-2:        #333333;
+      --text-3:        #555555;
+      --text-4:        #777777;
+      --text-5:        #888888;
+      --text-6:        #999999;
+      --text-7:        #aaaaaa;
+      --accent:        #5b4fe0;
+      --accent-hover:  #4a3ed4;
+      --accent-dim:    #eeebff;
+      --accent-border: #c0b8fa;
+      --danger-bg:     #fce8e8;
+      --danger-border: #f0aaaa;
+      --danger-text:   #b82020;
+      --input-bg:      #ffffff;
+      --scroll-track:  #e0e0ea;
+      --scroll-thumb:  #c0c0d0;
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0a0a0a; color: #eee; }
+    body { background: var(--bg); color: var(--text); transition: background 0.15s, color 0.15s; }
     ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #111; }
-    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: var(--scroll-track); }
+    ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 3px; }
   </style>
 </head>
 <body>
