@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Reference — ISP Docs</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0a;
+      color: #eee;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+    header {
+      background: #0f0f0f;
+      border-bottom: 1px solid #222;
+      padding: 0 32px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-icon { font-size: 22px; color: #7c6cf4; }
+    .logo-name { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -0.2px; }
+    .breadcrumb {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #555;
+    }
+    .breadcrumb a { color: #7c6cf4; text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .layout {
+      display: flex;
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 48px 32px 80px;
+      gap: 48px;
+    }
+    nav.sidebar {
+      flex-shrink: 0;
+      width: 190px;
+    }
+    nav.sidebar ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: sticky;
+      top: 24px;
+    }
+    nav.sidebar li a {
+      display: block;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #666;
+      text-decoration: none;
+    }
+    nav.sidebar li a:hover { color: #eee; background: #141414; }
+    nav.sidebar li a.active { color: #7c6cf4; background: #12101e; }
+    .content { flex: 1; min-width: 0; }
+    h1 { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: #555; margin-bottom: 40px; }
+    h2 {
+      font-size: 17px;
+      font-weight: 600;
+      color: #ccc;
+      margin: 36px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    p { font-size: 14px; color: #777; line-height: 1.7; margin-bottom: 14px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+    th {
+      text-align: left;
+      padding: 9px 14px;
+      background: #111;
+      color: #aaa;
+      font-weight: 600;
+      border-bottom: 1px solid #222;
+    }
+    td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #1a1a1a;
+      color: #888;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    code {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: #b4a4f8;
+    }
+    .method {
+      display: inline-block;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      min-width: 38px;
+      text-align: center;
+    }
+    .get  { background: #0d1e12; color: #4caf7d; border: 1px solid #1a3a23; }
+    .post { background: #12101e; color: #9a8ed8; border: 1px solid #2a2440; }
+    .del  { background: #1e0d0d; color: #c56; border: 1px solid #3a1e1e; }
+    .patch { background: #1a150a; color: #c9a040; border: 1px solid #3a2e0a; }
+    .path-cell {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: #ccc;
+    }
+    .back-link { font-size: 13px; color: #7c6cf4; text-decoration: none; display: inline-block; margin-bottom: 32px; }
+    .back-link:hover { text-decoration: underline; }
+    @media (max-width: 700px) {
+      .layout { flex-direction: column; gap: 24px; }
+      nav.sidebar { width: 100%; }
+      nav.sidebar ul { flex-direction: row; flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo-icon">⬡</span>
+    <span class="logo-name">Intelligent Search Platform</span>
+    <div class="breadcrumb">
+      <a href="index.html">Docs</a>
+      <span>/</span>
+      <span style="color:#aaa">API Reference</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <ul>
+        <li><a href="index.html">← All docs</a></li>
+        <li><a href="overview.html">Overview</a></li>
+        <li><a href="connectors.html">Connectors</a></li>
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="api.html" class="active">API Reference</a></li>
+        <li><a href="setup.html">Setup</a></li>
+      </ul>
+    </nav>
+
+    <div class="content">
+      <a class="back-link" href="index.html">← Back to docs</a>
+      <h1>API Reference</h1>
+      <p class="page-subtitle">
+        Base URL: <code>http://localhost:8001</code>. All endpoints are under <code>/v1/</code> unless noted.
+        Long-running operations (ingest, rebuild) return HTTP 202 and run as background tasks.
+        Poll <code>GET /v1/indexes/{id}/status</code> for progress.
+      </p>
+
+      <h2>Index Management</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/indexes</td>
+            <td>List all indexes. Returns an array of <code>IndexMeta</code> objects.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes</td>
+            <td>Create a new managed index. Body: <code>{ name, description, is_external?, ... }</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/indexes/{id}</td>
+            <td>Get metadata for a single index.</td>
+          </tr>
+          <tr>
+            <td><span class="method del">DELETE</span></td>
+            <td class="path-cell">/v1/indexes/{id}</td>
+            <td>Delete index and its Typesense collection. For external indexes, removes only the matching documents from the external collection.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/discover</td>
+            <td>Scan Typesense for untracked external collections and register them in PostgreSQL.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Ingest &amp; Rebuild</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/{id}/ingest/rest</td>
+            <td>Trigger REST ingest (background). Returns 202. Returns 409 if a job is already running.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/{id}/ingest/sitemap</td>
+            <td>Trigger sitemap crawl (background). Returns 202. Returns 409 if already running.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/{id}/ingest/gsheet</td>
+            <td>Trigger Google Sheets ingest (background). Returns 202. Returns 409 if already running.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/{id}/rebuild</td>
+            <td>Full rebuild — drops and recreates the Typesense collection. Background task. Returns 409 if already running.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/indexes/{id}/status</td>
+            <td>Poll ingest/rebuild job state. Returns <code>{ state, total, indexed, error }</code>. States: <code>idle | queued | running | done | error</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Connectors</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/{id}/connectors</td>
+            <td>Add or update a connector config (REST or Sitemap). Saved to the <code>connectors</code> JSONB column.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/{id}/connectors/gsheet</td>
+            <td>Save Google Sheets connector config for the index.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Search</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/{id}/search</td>
+            <td>Hybrid / lexical / semantic search. Authenticated. Response includes the raw embedding vectors (<code>vec</code> field). Body: <code>{ q, per_page?, page?, search_type? }</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/{id}/search/public</td>
+            <td>Same search — <code>vec</code> excluded from response. Used by external consumers such as the PLP.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/catalog/typeahead?q=</td>
+            <td>Live typeahead suggestions across all ISP-managed collections.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/catalog/search?q=</td>
+            <td>PLP product search across all ISP collections with editorial boosts (is_featured, popularity). Supports <code>filter_by</code>, <code>page</code>, <code>per_page</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/catalog/facets</td>
+            <td>Facet counts by <code>type</code>, <code>tags</code>, and <code>segment</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Documents</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/indexes/{id}/documents</td>
+            <td>Paginated document listing. Includes <code>vec</code>. Supports <code>page</code> and <code>per_page</code> query params.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/indexes/{id}/documents/public</td>
+            <td>Same listing — <code>vec</code> excluded. Safe for external consumers.</td>
+          </tr>
+          <tr>
+            <td><span class="method patch">PATCH</span></td>
+            <td class="path-cell">/v1/indexes/{id}/documents/{doc_id}</td>
+            <td>Partial document update. Allowed fields: <code>popularity</code>, <code>is_featured</code>, <code>boost_queries</code>. No re-embedding required.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Extensions</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/extensions</td>
+            <td>List the global extension library.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/extensions</td>
+            <td>Create a new JS extension. Body: <code>{ name, description, code }</code>. Code must define <code>function transform(doc) { return doc; }</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="method patch">PATCH</span></td>
+            <td class="path-cell">/v1/extensions/{id}</td>
+            <td>Update extension name, description, or code.</td>
+          </tr>
+          <tr>
+            <td><span class="method del">DELETE</span></td>
+            <td class="path-cell">/v1/extensions/{id}</td>
+            <td>Delete an extension from the library. Also unassigns it from all indexes.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/indexes/{id}/extensions</td>
+            <td>List extensions assigned to a specific index, ordered by <code>run_order</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="method patch">PATCH</span></td>
+            <td class="path-cell">/v1/indexes/{id}/extensions/{ext_id}</td>
+            <td>Assign an extension to an index or update its <code>run_order</code> / <code>enabled</code> flag.</td>
+          </tr>
+          <tr>
+            <td><span class="method del">DELETE</span></td>
+            <td class="path-cell">/v1/indexes/{id}/extensions/{ext_id}</td>
+            <td>Unassign an extension from an index (does not delete from the library).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Settings</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/settings</td>
+            <td>Get the current embedding model and the list of available models.</td>
+          </tr>
+          <tr>
+            <td><span class="method patch">PATCH</span></td>
+            <td class="path-cell">/v1/settings</td>
+            <td>Switch the active embedding model. Applied immediately — no restart required. <strong>Caution:</strong> switching to a model with a different vector dimension requires a full rebuild of all indexes.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Health</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/health</td>
+            <td>Liveness probe. Returns <code>{ status: "ok" }</code> when the API is running.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

@@ -19,7 +19,7 @@
     <span class="name">Intelligent Search Platform</span>
   </button>
   <nav>
-    <a href="https://github.com" target="_blank" rel="noopener">Docs</a>
+    <a href="/docs/index.html" target="_blank" rel="noopener">Docs</a>
   </nav>
 </header>
 
