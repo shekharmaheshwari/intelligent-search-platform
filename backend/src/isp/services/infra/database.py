@@ -95,6 +95,14 @@ async def init_db() -> None:
                 source      VARCHAR(32),
                 created_at  BIGINT
             );
+
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id          VARCHAR(12)  PRIMARY KEY,
+                index_id    VARCHAR(12)  NOT NULL REFERENCES indexes(id) ON DELETE CASCADE,
+                label       TEXT         NOT NULL,
+                key_hash    TEXT         NOT NULL UNIQUE,
+                created_at  TEXT         NOT NULL
+            );
         """)
         # Idempotent column additions — safe to run on existing databases.
         await conn.execute("""
