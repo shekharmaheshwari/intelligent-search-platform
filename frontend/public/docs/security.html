@@ -105,11 +105,6 @@
       <a href="#disabling">Disabling auth locally</a>
       <a href="#api-keys">API keys</a>
       <a href="#future-public-auth">Future: secure public routes</a>
-      <a href="#approach-1">Approach 1 — Password</a>
-      <a href="#approach-2">Approach 2 — TOTP</a>
-      <a href="#approach-4">Approach 4 — Managed</a>
-      <a href="#approach-5">Approach 5 — SAML</a>
-      <a href="#auth-summary">Summary</a>
     </nav>
 
     <main>
@@ -485,15 +480,7 @@ DELETE /v1/indexes/{id}/api-keys/{key-id}</code></pre>
       <pre><code># Consumer sends one header — no OAuth flow required
 POST /v1/indexes/{id}/search/public
 X-Api-Key: isp_&lt;48-hex-chars&gt;</code></pre>
-      <table>
-        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
-        <tbody>
-          <tr><td>No OAuth flow — works from curl, cron jobs, server-side apps</td><td>Keys must be distributed and stored securely by each consumer</td></tr>
-          <tr><td>Per-index scope — PLP key cannot access admin routes</td><td>Requires key management UI (planned)</td></tr>
-          <tr><td>Independently rotatable without touching admin credentials</td><td></td></tr>
-        </tbody>
-      </table>
-      <p><strong>What needs to be built:</strong> key management panel in the ISP admin UI; one-line change in <code>middleware.py</code> to re-enable the check.</p>
+      <p><strong>Work remaining:</strong> key management panel in the ISP admin UI + re-enable <code>X-Api-Key</code> check in <code>middleware.py</code>.</p>
 
       <h3>Option B — Shared read-only JWT</h3>
       <p>Issue a single long-lived JWT (not tied to a Google account) that all consumers share. Simpler to distribute but harder to rotate and not scoped per-consumer.</p>
@@ -503,14 +490,7 @@ POST /auth/service-token   { "label": "PLP service", "ttl_days": 365 }
 
 # Consumer sends as Bearer header
 Authorization: Bearer eyJ...</code></pre>
-      <table>
-        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
-        <tbody>
-          <tr><td>Single token, familiar Bearer pattern</td><td>All consumers share the same secret — rotating affects everyone</td></tr>
-          <tr><td>No separate key management UI needed</td><td>No per-consumer or per-index scoping</td></tr>
-        </tbody>
-      </table>
-      <p><strong>What needs to be built:</strong> <code>POST /auth/service-token</code> endpoint; middleware to accept both admin JWT and service JWT on public routes.</p>
+      <p><strong>Work remaining:</strong> <code>POST /auth/service-token</code> endpoint + middleware update.</p>
 
       <h3>Planned route protection (after implementation)</h3>
       <pre><code>┌──────────────────────────────────────────────────────────────────┐
@@ -526,91 +506,6 @@ Authorization: Bearer eyJ...</code></pre>
 └──────────────────────────────────────────────────────────────────┘</code></pre>
       <p><strong>Recommendation:</strong> Option A (per-index API keys). Infrastructure is already in place — this is a UI + one-line middleware change away.</p>
 
-      <h2 id="approach-1">Approach 1 — API Key / Password Gate</h2>
-      <p>A single shared secret stored in <code>.env</code>. The frontend prompts for it on first load, exchanges it for a short-lived JWT, and attaches that JWT to every subsequent request.</p>
-      <pre><code>User opens app
-  → Frontend shows a password prompt
-  → POST /auth/login { password }
-  → Backend verifies against PASSWORD_HASH in .env, returns JWT
-  → Frontend stores JWT in memory/localStorage
-  → All API requests include Authorization: Bearer &lt;jwt&gt;</code></pre>
-      <table>
-        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
-        <tbody>
-          <tr><td>Minimal moving parts</td><td>Single shared secret — no per-user identity</td></tr>
-          <tr><td>No external dependency</td><td>Password rotation requires redeployment</td></tr>
-          <tr><td>Works offline</td><td>Not suitable for multi-user access control</td></tr>
-        </tbody>
-      </table>
-      <p><strong>Effort:</strong> ~1 day &nbsp;|&nbsp; <strong>Best for:</strong> solo operator or small team on a private network.</p>
-
-      <h2 id="approach-2">Approach 2 — Username + Password + TOTP</h2>
-      <p>Traditional login form with an optional second factor — a 6-digit TOTP code from Google Authenticator or any TOTP app.</p>
-      <pre><code>User opens app
-  → Login form: email + password
-  → POST /auth/login → returns { requires_totp: true }
-  → Frontend shows TOTP input
-  → POST /auth/totp/verify { code } → returns JWT
-  → All API requests include Authorization: Bearer &lt;jwt&gt;</code></pre>
-      <p>Requires: <code>pyotp</code>, <code>passlib</code>, <code>python-jose</code>, a <code>users</code> table in PostgreSQL.</p>
-      <table>
-        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
-        <tbody>
-          <tr><td>Per-user identity and audit trail</td><td>Requires managing user accounts</td></tr>
-          <tr><td>Strong security with 2FA</td><td>Recovery flow needed if user loses authenticator</td></tr>
-          <tr><td>No external service dependency</td><td>More backend surface to maintain</td></tr>
-        </tbody>
-      </table>
-      <p><strong>Effort:</strong> ~3–4 days &nbsp;|&nbsp; <strong>Best for:</strong> small teams wanting per-user identity without an external service.</p>
-
-      <h2 id="approach-4">Approach 4 — Managed Auth (Auth0, Clerk, Supabase)</h2>
-      <p>Offload all auth to a hosted identity platform. Your backend only validates the JWT they issue.</p>
-      <table>
-        <thead><tr><th>Service</th><th>Free tier</th><th>Notes</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Auth0</strong></td><td>7,500 MAU</td><td>Most feature-rich, supports SAML</td></tr>
-          <tr><td><strong>Clerk</strong></td><td>10,000 MAU</td><td>Best DX, Svelte SDK available</td></tr>
-          <tr><td><strong>Supabase Auth</strong></td><td>Generous</td><td>Good if you later adopt Supabase DB</td></tr>
-        </tbody>
-      </table>
-      <table>
-        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
-        <tbody>
-          <tr><td>Fastest to ship (~1 day, mostly config)</td><td>External dependency — outage = login broken</td></tr>
-          <tr><td>MFA, social login, SAML out of the box</td><td>Cost at scale, vendor lock-in</td></tr>
-          <tr><td>Admin dashboard for user management</td><td>User data leaves your infrastructure</td></tr>
-        </tbody>
-      </table>
-      <p><strong>Effort:</strong> ~1 day &nbsp;|&nbsp; <strong>Best for:</strong> teams that need enterprise features without building them.</p>
-
-      <h2 id="approach-5">Approach 5 — SAML (Enterprise SSO)</h2>
-      <p>The enterprise identity federation protocol used by Okta, Azure AD, and Google Workspace in SAML mode. Required when IT mandates corporate SSO.</p>
-      <pre><code>User opens app
-  → Backend generates SAML AuthnRequest → redirects to IdP (Okta, Azure AD)
-  → User authenticates with corporate credentials
-  → IdP posts signed SAML Assertion to /auth/saml/callback
-  → Backend validates signature + attributes → issues JWT</code></pre>
-      <div class="callout">
-        <p>SAML requires <strong>HTTPS</strong> — it will not work over plain HTTP. Plan for TLS termination (nginx / ALB) before implementing.</p>
-      </div>
-      <p><strong>Effort:</strong> ~1 week &nbsp;|&nbsp; <strong>Best for:</strong> enterprise deployments where IT mandates Okta / Azure AD / ADFS.</p>
-
-      <h2 id="auth-summary">Summary</h2>
-      <table>
-        <thead>
-          <tr><th>Approach</th><th>Effort</th><th>External dep</th><th>Multi-user</th><th>2FA</th><th>Enterprise</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>API Key / Password</td><td>1 day</td><td>None</td><td>No</td><td>No</td><td>No</td></tr>
-          <tr><td>Username + TOTP</td><td>3–4 days</td><td>None</td><td>Yes</td><td>Yes</td><td>No</td></tr>
-          <tr><td><strong>OAuth2 / OIDC SSO</strong> ★ <span class="badge badge-green">LIVE</span></td><td>3 days</td><td>Google/GitHub</td><td>Yes</td><td>Provider</td><td>No</td></tr>
-          <tr><td>Managed (Auth0/Clerk)</td><td>1 day</td><td>Auth0/Clerk</td><td>Yes</td><td>Yes</td><td>Auth0 only</td></tr>
-          <tr><td>SAML</td><td>1 week</td><td>Corporate IdP</td><td>Yes</td><td>IdP</td><td>Yes</td></tr>
-        </tbody>
-      </table>
-      <div class="callout">
-        <p><strong>Recommendation:</strong> <strong>Approach 3 — Google OAuth2 + per-index API keys.</strong> No passwords to manage, restricts admin access to a Google account or domain, and the public search endpoints remain simple header-key auth for PLP and other consumers.</p>
-      </div>
     </main>
   </div>
   <script>
