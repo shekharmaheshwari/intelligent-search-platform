@@ -13,18 +13,41 @@ import type {
 } from './types';
 
 const BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8001/v1';
+const AUTH_ENABLED = import.meta.env.PUBLIC_AUTH_ENABLED === 'true';
+const API_ROOT = BASE.replace('/v1', '');
 
 /**
  * Core fetch wrapper.  Throws an ``Error`` with the status code and response
  * body text on any non-2xx response so callers can surface the message directly.
+ *
+ * When PUBLIC_AUTH_ENABLED=true it reads the JWT from localStorage and attaches
+ * it as ``Authorization: Bearer``.  On 401 it clears the stored token and
+ * redirects to the backend login endpoint so the OAuth flow restarts.
+ *
  * @param path  Path relative to ``BASE`` (must start with ``/``).
  * @param opts  Standard ``RequestInit`` options merged with default JSON headers.
  */
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...opts.headers as Record<string, string> },
-    ...opts,
-  });
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...opts.headers as Record<string, string>,
+  };
+
+  if (AUTH_ENABLED) {
+    const token = typeof localStorage !== 'undefined'
+      ? localStorage.getItem('isp-auth-token')
+      : null;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${BASE}${path}`, { ...opts, headers });
+
+  if (res.status === 401 && AUTH_ENABLED) {
+    localStorage.removeItem('isp-auth-token');
+    window.location.href = `${API_ROOT}/auth/login`;
+    throw new Error('Session expired — redirecting to login');
+  }
+
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`${res.status} ${text}`);

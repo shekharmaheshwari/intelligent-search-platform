@@ -437,6 +437,6 @@ ISP is safe to run behind a load balancer. A Redis-backed distributed lock preve
 
 ### Operations & security
 - [Secrets Strategy](docs/secrets-strategy.md) — `SECRET_PROVIDER=env|vault|aws`, Vault ↔ AWS migration
-- [Auth Approaches](docs/auth-approaches.md) — OAuth2, API Key, SSO options
+- [Auth Approaches](docs/auth-approaches.md) — OAuth2 / OIDC SSO implemented (Approach 3); set `AUTH_ENABLED=true` to activate
 - [Deploy to AWS EC2](docs/deploy-aws-ec2.md)
 - [AWS EC2 + Docker Compose](docs/aws-EC2-Docker-Compose.md)

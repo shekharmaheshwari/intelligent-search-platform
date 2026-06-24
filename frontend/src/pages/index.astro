@@ -1,5 +1,6 @@
 ---
 import App from '../components/layout/App.svelte';
+import LoginGate from '../components/auth/LoginGate.svelte';
 ---
 <!doctype html>
 <html lang="en">
@@ -73,6 +74,8 @@ import App from '../components/layout/App.svelte';
   </style>
 </head>
 <body>
-  <App client:load />
+  <LoginGate client:load>
+    <App client:load />
+  </LoginGate>
 </body>
 </html>

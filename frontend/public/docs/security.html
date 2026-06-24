@@ -99,12 +99,16 @@
       <a href="#migration">Migrating providers</a>
 
       <div class="nav-label">Authentication</div>
-      <a href="#auth-current">Current state</a>
-      <a href="#approach-1">API Key / Password</a>
-      <a href="#approach-2">Username + TOTP</a>
-      <a href="#approach-3">OAuth2 / SSO</a>
-      <a href="#approach-4">Managed Auth</a>
-      <a href="#approach-5">SAML</a>
+      <a href="#auth-current">Implementation</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#enabling">Enabling auth</a>
+      <a href="#disabling">Disabling auth locally</a>
+      <a href="#api-keys">API keys</a>
+      <a href="#future-public-auth">Future: secure public routes</a>
+      <a href="#approach-1">Approach 1 — Password</a>
+      <a href="#approach-2">Approach 2 — TOTP</a>
+      <a href="#approach-4">Approach 4 — Managed</a>
+      <a href="#approach-5">Approach 5 — SAML</a>
       <a href="#auth-summary">Summary</a>
     </nav>
 
@@ -339,11 +343,188 @@ aws secretsmanager create-secret --name isp/GOOGLE_SERVICE_ACCOUNT_JSON \
       </table>
 
       <!-- ──────────────────────────────────────── AUTH ── -->
-      <h2 id="auth-current">Authentication — current state</h2>
-      <div class="callout callout-warn">
-        <p><strong>No auth is implemented.</strong> The backend documents an <code>X-API-Key</code> header for production but does not enforce it. All routes are currently open. ISP should only be deployed on a private network or behind a VPN until auth is added.</p>
+      <h2 id="auth-current">Authentication — Approach 3 implemented ★</h2>
+      <div class="callout">
+        <p><strong>OAuth2 / OIDC SSO is live.</strong> ISP uses Google (or GitHub) OAuth2 for admin access and per-index API keys for public search endpoints. Auth is <strong>off by default</strong> — set <code>AUTH_ENABLED=true</code> in <code>backend/.env</code> to activate it. No existing routes or handlers were modified.</p>
       </div>
-      <p>The five approaches below are ordered from simplest to most complex, with effort and trade-off notes for each.</p>
+
+      <h2 id="how-it-works">How it works</h2>
+      <p>Auth is implemented as a fully decoupled <strong>Starlette middleware</strong> (<code>isp/auth/middleware.py</code>) that is only registered when <code>AUTH_ENABLED=true</code>. Route protection follows a fixed priority order:</p>
+      <pre><code>┌──────────────────────────────────────────────────────────────────┐
+│                          ISP Backend                              │
+│                                                                   │
+│  OPTIONS (preflight)                       → always open          │
+│  /health, /auth/*, /docs, /openapi.json    → always open          │
+│                                                                   │
+│  /v1/catalog/*, /v1/analytics/*,           → open (no auth)       │
+│  /v1/intent/*, /v1/indexes/*/search/public   (PLP-facing routes)  │
+│                                                                   │
+│  All other /v1/*                           → OAuth2 JWT required  │
+│  (indexes, rebuild, extensions, settings)    (Bearer header)      │
+└──────────────────────────────────────────────────────────────────┘</code></pre>
+      <div class="callout">
+        <p><strong>Future:</strong> <code>/v1/indexes/{id}/search/public</code> and other PLP-facing routes will be protected by per-index API keys (<code>X-Api-Key</code> header). The <code>api_keys</code> table and management endpoints are already built — enforcement will be added once the API key UI is complete.</p>
+      </div>
+
+      <h3>Login flow</h3>
+      <pre><code>1. User opens ISP → LoginGate.svelte checks localStorage for valid JWT
+2. No token → "Sign in with Google" button → GET /auth/login
+3. Backend redirects to Google consent screen (CSRF state in httpOnly cookie)
+4. Google redirects to GET /auth/callback?code=...&amp;state=...
+5. Backend verifies state, exchanges code → fetches email + name from Google
+6. Backend issues HS256 JWT (8h TTL) → redirects to http://localhost:3001?isp_token=&lt;jwt&gt;
+7. LoginGate.svelte reads ?isp_token= from URL, stores in localStorage, cleans URL
+8. All api.ts calls attach Authorization: Bearer &lt;token&gt;
+9. On 401 → localStorage cleared → redirect to /auth/login</code></pre>
+
+      <h3>New files</h3>
+      <table>
+        <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>isp/auth/__init__.py</code></td><td>Package marker</td></tr>
+          <tr><td><code>isp/auth/jwt_utils.py</code></td><td>HS256 <code>create_token</code> / <code>verify_token</code> using PyJWT</td></tr>
+          <tr><td><code>isp/auth/provider.py</code></td><td>Google &amp; GitHub OAuth2: auth URL, code exchange, userinfo fetch</td></tr>
+          <tr><td><code>isp/auth/middleware.py</code></td><td><code>AuthMiddleware</code> — open / API-key / JWT guards per route pattern</td></tr>
+          <tr><td><code>isp/routers/auth.py</code></td><td><code>/auth/login</code>, <code>/auth/callback</code>, <code>/auth/logout</code>, <code>/auth/me</code></td></tr>
+          <tr><td><code>isp/routers/api_keys.py</code></td><td>CRUD for per-index API keys (<code>/v1/indexes/{id}/api-keys</code>)</td></tr>
+          <tr><td><code>src/lib/stores/auth-store.ts</code></td><td>Svelte store — JWT in localStorage, expiry-aware</td></tr>
+          <tr><td><code>src/components/auth/LoginGate.svelte</code></td><td>Transparent when <code>AUTH_ENABLED=false</code>; shows login screen otherwise</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Existing files changed (minimal)</h3>
+      <table>
+        <thead><tr><th>File</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>config.py</code></td><td>8 new auth settings, all with safe defaults</td></tr>
+          <tr><td><code>database.py</code></td><td><code>api_keys</code> table added to <code>init_db()</code></td></tr>
+          <tr><td><code>secrets.py</code></td><td><code>OAUTH_CLIENT_SECRET</code>, <code>JWT_SECRET</code> added to bootstrap list</td></tr>
+          <tr><td><code>main.py</code></td><td>One <code>if settings.auth_enabled</code> block; auth/api_keys routers registered</td></tr>
+          <tr><td><code>pyproject.toml</code></td><td><code>PyJWT&gt;=2.8.0</code> added</td></tr>
+          <tr><td><code>api.ts</code></td><td><code>req()</code> injects Bearer token; handles 401 redirect</td></tr>
+          <tr><td><code>index.astro</code></td><td><code>&lt;App&gt;</code> wrapped in <code>&lt;LoginGate&gt;</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="enabling">Enabling auth</h2>
+      <h3>Step 1 — Create OAuth credentials</h3>
+      <p>For <strong>Google</strong>: open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--accent)">Google Cloud Console → Credentials</a>, create an <em>OAuth 2.0 Client ID</em> (Web application), and add <code>http://localhost:8001/auth/callback</code> as an authorised redirect URI.</p>
+      <p>For <strong>GitHub</strong>: open <a href="https://github.com/settings/developers" target="_blank" style="color:var(--accent)">GitHub → Settings → Developer settings → OAuth Apps</a>, set the callback URL to <code>http://localhost:8001/auth/callback</code>.</p>
+
+      <h3>Step 2 — backend/.env</h3>
+      <pre><code>AUTH_ENABLED=true
+OAUTH_PROVIDER=google              # or github
+OAUTH_CLIENT_ID=&lt;from console&gt;
+OAUTH_CLIENT_SECRET=&lt;from console&gt;
+OAUTH_REDIRECT_URI=http://localhost:8001/auth/callback
+OAUTH_FRONTEND_URL=http://localhost:3001
+OAUTH_ALLOWED_DOMAIN=yourcompany.com   # optional — restricts to one domain
+JWT_SECRET=&lt;random 32+ char string&gt;</code></pre>
+
+      <h3>Step 3 — frontend/.env</h3>
+      <pre><code>PUBLIC_AUTH_ENABLED=true
+PUBLIC_OAUTH_PROVIDER=google       # or github</code></pre>
+
+      <h3>Step 4 — restart</h3>
+      <pre><code>./deploy-api.sh</code></pre>
+      <p>On next load the UI will show the login screen. The first successful sign-in stores an 8-hour JWT in <code>localStorage</code>.</p>
+
+      <div class="callout callout-warn">
+        <p><strong>JWT_SECRET</strong> must be at least 32 random characters and must never be committed to git. Generate one with: <code>python3 -c "import secrets; print(secrets.token_hex(32))"</code></p>
+      </div>
+
+      <h2 id="disabling">Disabling auth for local development</h2>
+      <p><code>AUTH_ENABLED=false</code> is the default. When it is false:</p>
+      <ul>
+        <li>The <code>AuthMiddleware</code> is never registered — every route is open, identical to pre-auth behaviour.</li>
+        <li><code>LoginGate.svelte</code> renders the app directly with no token checks or login screen.</li>
+        <li><code>api.ts</code> does not attach an <code>Authorization</code> header and ignores 401 responses.</li>
+      </ul>
+      <p>To turn auth off, either omit the variable entirely or set it explicitly in both files:</p>
+      <pre><code># backend/.env
+AUTH_ENABLED=false
+
+# frontend/.env
+PUBLIC_AUTH_ENABLED=false</code></pre>
+      <p>Then restart: <code>./deploy-api.sh</code>. No code changes needed — the toggle is purely config.</p>
+      <div class="callout">
+        <p><strong>Tip:</strong> Keep a <code>backend/.env.local</code> with <code>AUTH_ENABLED=false</code> for local dev and a <code>backend/.env.prod</code> with <code>AUTH_ENABLED=true</code> for production. Neither file should be committed to git.</p>
+      </div>
+
+      <h2 id="api-keys">API keys — infrastructure ready, enforcement coming</h2>
+      <p>The API key system is fully built but not yet enforced. PLP-facing routes (<code>/search/public</code>, <code>/catalog</code>, <code>/analytics</code>, <code>/intent</code>) are currently open without any key. API key enforcement will be added in a future update once the key management UI is built.</p>
+      <h3>What's already built</h3>
+      <ul>
+        <li><code>api_keys</code> table in PostgreSQL — stores SHA-256 hashes, never plaintext</li>
+        <li>Management endpoints on the admin API (JWT required to call them):</li>
+      </ul>
+      <pre><code># List keys for an index
+GET  /v1/indexes/{id}/api-keys          Authorization: Bearer &lt;admin-jwt&gt;
+
+# Create a key (plaintext returned once — copy it now)
+POST /v1/indexes/{id}/api-keys          { "label": "PLP production" }
+→ { "id": "...", "key": "isp_&lt;48-hex-chars&gt;" }
+
+# Revoke a key
+DELETE /v1/indexes/{id}/api-keys/{key-id}</code></pre>
+      <h3>What's coming</h3>
+      <ul>
+        <li>API key management panel in the ISP admin UI (per index)</li>
+        <li>Enforcement of <code>X-Api-Key</code> header on <code>/search/public</code> and optionally on catalog/analytics routes</li>
+      </ul>
+
+      <h2 id="future-public-auth">Future: securing public routes with JWT</h2>
+      <p>
+        Currently <code>/v1/catalog/*</code>, <code>/v1/analytics/*</code>, <code>/v1/intent/*</code>, and
+        <code>/v1/indexes/{id}/search/public</code> are open without any authentication.
+        The planned approach to lock these down without breaking PLP or other consumers:
+      </p>
+
+      <h3>Option A — Per-index API keys (recommended)</h3>
+      <p>Each external consumer gets a long-lived opaque key scoped to one or more indexes. The infrastructure is already built.</p>
+      <pre><code># Consumer sends one header — no OAuth flow required
+POST /v1/indexes/{id}/search/public
+X-Api-Key: isp_&lt;48-hex-chars&gt;</code></pre>
+      <table>
+        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
+        <tbody>
+          <tr><td>No OAuth flow — works from curl, cron jobs, server-side apps</td><td>Keys must be distributed and stored securely by each consumer</td></tr>
+          <tr><td>Per-index scope — PLP key cannot access admin routes</td><td>Requires key management UI (planned)</td></tr>
+          <tr><td>Independently rotatable without touching admin credentials</td><td></td></tr>
+        </tbody>
+      </table>
+      <p><strong>What needs to be built:</strong> key management panel in the ISP admin UI; one-line change in <code>middleware.py</code> to re-enable the check.</p>
+
+      <h3>Option B — Shared read-only JWT</h3>
+      <p>Issue a single long-lived JWT (not tied to a Google account) that all consumers share. Simpler to distribute but harder to rotate and not scoped per-consumer.</p>
+      <pre><code># Generate once, distribute to consumers
+POST /auth/service-token   { "label": "PLP service", "ttl_days": 365 }
+→ { "token": "eyJ..." }
+
+# Consumer sends as Bearer header
+Authorization: Bearer eyJ...</code></pre>
+      <table>
+        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
+        <tbody>
+          <tr><td>Single token, familiar Bearer pattern</td><td>All consumers share the same secret — rotating affects everyone</td></tr>
+          <tr><td>No separate key management UI needed</td><td>No per-consumer or per-index scoping</td></tr>
+        </tbody>
+      </table>
+      <p><strong>What needs to be built:</strong> <code>POST /auth/service-token</code> endpoint; middleware to accept both admin JWT and service JWT on public routes.</p>
+
+      <h3>Planned route protection (after implementation)</h3>
+      <pre><code>┌──────────────────────────────────────────────────────────────────┐
+│                          ISP Backend                              │
+│                                                                   │
+│  OPTIONS, /health, /auth/*, /docs        → always open           │
+│                                                                   │
+│  /v1/catalog/*, /v1/analytics/*,         → X-Api-Key required    │
+│  /v1/intent/*, /v1/indexes/*/search/public (per-index key)       │
+│                                                                   │
+│  All other /v1/*                         → OAuth2 JWT required   │
+│  (indexes, rebuild, extensions, settings)  (admin Bearer token)  │
+└──────────────────────────────────────────────────────────────────┘</code></pre>
+      <p><strong>Recommendation:</strong> Option A (per-index API keys). Infrastructure is already in place — this is a UI + one-line middleware change away.</p>
 
       <h2 id="approach-1">Approach 1 — API Key / Password Gate</h2>
       <p>A single shared secret stored in <code>.env</code>. The frontend prompts for it on first load, exchanges it for a short-lived JWT, and attaches that JWT to every subsequent request.</p>
@@ -381,36 +562,6 @@ aws secretsmanager create-secret --name isp/GOOGLE_SERVICE_ACCOUNT_JSON \
         </tbody>
       </table>
       <p><strong>Effort:</strong> ~3–4 days &nbsp;|&nbsp; <strong>Best for:</strong> small teams wanting per-user identity without an external service.</p>
-
-      <h2 id="approach-3">Approach 3 — OAuth2 / OIDC SSO (Recommended)</h2>
-      <p>
-        Delegate authentication to Google (or GitHub). No passwords stored. Uses a <strong>split auth model</strong>:
-        admin routes use OAuth2, public search endpoints use a separately-issued API key.
-      </p>
-      <pre><code>┌─────────────────────────────────────────────────────────┐
-│                        ISP Backend                       │
-│                                                          │
-│  /admin/*          → OAuth2 JWT required                 │
-│  (indexes, rebuild,   (browser flow, Google account)     │
-│   extensions, settings)                                  │
-│                                                          │
-│  /v1/indexes/*/    → API Key required                    │
-│  search/public       (X-Api-Key header, per-index key)   │
-└─────────────────────────────────────────────────────────┘</code></pre>
-      <p>External services (PLP) continue calling <code>/search/public</code> with an API key:</p>
-      <pre><code>curl -X POST http://localhost:8001/v1/indexes/&lt;id&gt;/search/public \
-  -H "X-Api-Key: &lt;key-from-admin-ui&gt;" \
-  -d '{"q": "iPhone 16", "mode": "hybrid"}'</code></pre>
-      <table>
-        <thead><tr><th>Pro</th><th>Con</th></tr></thead>
-        <tbody>
-          <tr><td>No passwords to store or manage</td><td>Requires internet access for admin login</td></tr>
-          <tr><td>Restrict to Google domain (<code>@yourcompany.com</code>)</td><td>OAuth app setup in Google Cloud Console</td></tr>
-          <tr><td>API keys independently rotatable</td><td>Redirect URI must match exactly (tricky in local dev)</td></tr>
-          <tr><td>Extends naturally to SAML later</td><td></td></tr>
-        </tbody>
-      </table>
-      <p><strong>Effort:</strong> ~3 days &nbsp;|&nbsp; <strong>Best for:</strong> teams using Google Workspace or GitHub. Recommended path for ISP.</p>
 
       <h2 id="approach-4">Approach 4 — Managed Auth (Auth0, Clerk, Supabase)</h2>
       <p>Offload all auth to a hosted identity platform. Your backend only validates the JWT they issue.</p>
@@ -452,7 +603,7 @@ aws secretsmanager create-secret --name isp/GOOGLE_SERVICE_ACCOUNT_JSON \
         <tbody>
           <tr><td>API Key / Password</td><td>1 day</td><td>None</td><td>No</td><td>No</td><td>No</td></tr>
           <tr><td>Username + TOTP</td><td>3–4 days</td><td>None</td><td>Yes</td><td>Yes</td><td>No</td></tr>
-          <tr><td><strong>OAuth2 / OIDC SSO</strong> ★</td><td>3 days</td><td>Google/GitHub</td><td>Yes</td><td>Provider</td><td>No</td></tr>
+          <tr><td><strong>OAuth2 / OIDC SSO</strong> ★ <span class="badge badge-green">LIVE</span></td><td>3 days</td><td>Google/GitHub</td><td>Yes</td><td>Provider</td><td>No</td></tr>
           <tr><td>Managed (Auth0/Clerk)</td><td>1 day</td><td>Auth0/Clerk</td><td>Yes</td><td>Yes</td><td>Auth0 only</td></tr>
           <tr><td>SAML</td><td>1 week</td><td>Corporate IdP</td><td>Yes</td><td>IdP</td><td>Yes</td></tr>
         </tbody>
