@@ -26,5 +26,17 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8001
 
+    # ── Auth (Approach 3 — OAuth2 / OIDC SSO) ─────────────────────────────────
+    # All disabled by default; existing behaviour is unchanged when auth_enabled=false.
+    auth_enabled: bool = False
+    oauth_provider: str = "google"           # "google" | "github"
+    oauth_client_id: str = ""
+    oauth_client_secret: str = ""
+    oauth_allowed_domain: str = ""           # e.g. "yourcompany.com" — empty = any Google/GitHub account
+    oauth_redirect_uri: str = "http://localhost:8001/auth/callback"
+    oauth_frontend_url: str = "http://localhost:3001"  # where the SPA lives; token passed as ?isp_token=
+    jwt_secret: str = "change-me-in-production"
+    jwt_ttl_minutes: int = 480               # 8 hours
+
 
 settings = Settings()

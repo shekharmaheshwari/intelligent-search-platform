@@ -26,6 +26,7 @@ bootstrap_secrets()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router, analytics
+from isp.routers import auth as auth_router_module, api_keys as api_keys_router_module
 from isp.services.infra.database import init_db
 from isp.services.domain.settings_service import load_embed_model
 from isp.services.infra import typesense_client as ts
@@ -187,6 +188,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+if settings.auth_enabled:
+    from isp.auth.middleware import AuthMiddleware
+    app.add_middleware(AuthMiddleware)
+
 app.include_router(indexes.router, prefix="/v1")
 app.include_router(search.router, prefix="/v1")
 app.include_router(content.router, prefix="/v1")
@@ -194,6 +199,10 @@ app.include_router(catalog.router, prefix="/v1")
 app.include_router(extensions.router, prefix="/v1")
 app.include_router(settings_router.router, prefix="/v1")
 app.include_router(analytics.router, prefix="/v1")
+# Auth routes are always registered so /auth/login, /auth/callback etc. exist;
+# the middleware only enforces guards when AUTH_ENABLED=true.
+app.include_router(auth_router_module.router)
+app.include_router(api_keys_router_module.router, prefix="/v1")
 
 
 @app.get("/health")
