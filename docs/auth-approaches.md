@@ -35,10 +35,10 @@ Auth is a Starlette `BaseHTTPMiddleware` registered in `main.py` only when `AUTH
 
 ```
 1. User opens ISP → LoginGate.svelte checks localStorage for valid JWT
-2. No token → "Sign in with Google" button → GET /auth/login
-3. Backend sets CSRF state cookie → redirects to Google consent screen
-4. Google redirects to GET /auth/callback?code=...&state=...
-5. Backend verifies state, exchanges code, fetches email + name
+2. No token → "Sign in" button → GET /auth/login
+3. Backend sets CSRF state cookie → redirects to provider consent screen
+4. Provider redirects to GET /auth/callback?code=...&state=...
+5. Backend verifies state, exchanges code, fetches email + name from provider
 6. Backend issues HS256 JWT (8h TTL) → redirects to frontend?isp_token=<jwt>
 7. LoginGate.svelte reads ?isp_token=, stores in localStorage, cleans URL
 8. All api.ts calls attach Authorization: Bearer <token>
@@ -51,7 +51,7 @@ Auth is a Starlette `BaseHTTPMiddleware` registered in `main.py` only when `AUTH
 |---|---|
 | `backend/src/isp/auth/__init__.py` | Package marker |
 | `backend/src/isp/auth/jwt_utils.py` | HS256 `create_token` / `verify_token` (PyJWT) |
-| `backend/src/isp/auth/provider.py` | Google & GitHub OAuth2: auth URL, code exchange, userinfo |
+| `backend/src/isp/auth/provider.py` | Google, GitHub & Microsoft OAuth2: auth URL, code exchange, userinfo |
 | `backend/src/isp/auth/middleware.py` | `AuthMiddleware` — open / JWT per route pattern |
 | `backend/src/isp/routers/auth.py` | `/auth/login`, `/auth/callback`, `/auth/logout`, `/auth/me` |
 | `backend/src/isp/routers/api_keys.py` | CRUD for per-index API keys |
@@ -62,7 +62,7 @@ Auth is a Starlette `BaseHTTPMiddleware` registered in `main.py` only when `AUTH
 
 | File | Change |
 |---|---|
-| `config.py` | 8 new auth settings, all with safe defaults |
+| `config.py` | 9 new auth settings, all with safe defaults (includes `oauth_tenant_id` for Microsoft) |
 | `database.py` | `api_keys` table added to `init_db()` |
 | `secrets.py` | `OAUTH_CLIENT_SECRET`, `JWT_SECRET` added to bootstrap list |
 | `main.py` | One `if settings.auth_enabled` block; auth/api_keys routers registered |
@@ -78,24 +78,29 @@ Auth is a Starlette `BaseHTTPMiddleware` registered in `main.py` only when `AUTH
 
 **GitHub:** [Settings → Developer settings → OAuth Apps](https://github.com/settings/developers) → set callback to `http://localhost:8001/auth/callback`.
 
+**Microsoft:** [Azure portal → App registrations](https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade) → New registration → add `http://localhost:8001/auth/callback` as a redirect URI (Web platform). Copy the Application (client) ID and Directory (tenant) ID from the overview page. Under *Certificates & secrets*, create a new client secret.
+
 #### Step 2 — backend/.env
 
 ```env
 AUTH_ENABLED=true
-OAUTH_PROVIDER=google              # or github
+OAUTH_PROVIDER=google              # google | github | microsoft
 OAUTH_CLIENT_ID=<from console>
 OAUTH_CLIENT_SECRET=<from console>
 OAUTH_REDIRECT_URI=http://localhost:8001/auth/callback
 OAUTH_FRONTEND_URL=http://localhost:3001
 OAUTH_ALLOWED_DOMAIN=yourcompany.com   # optional — restricts to one domain
 JWT_SECRET=<random 32+ char string>    # python3 -c "import secrets; print(secrets.token_hex(32))"
+
+# Microsoft only
+OAUTH_TENANT_ID=common             # common | organizations | <your-tenant-id>
 ```
 
 #### Step 3 — frontend/.env
 
 ```env
 PUBLIC_AUTH_ENABLED=true
-PUBLIC_OAUTH_PROVIDER=google       # or github
+PUBLIC_OAUTH_PROVIDER=google       # google | github | microsoft
 ```
 
 #### Step 4 — restart
@@ -190,9 +195,10 @@ Consumer → Authorization: Bearer eyJ...
 
 ## Decision
 
-**Approach 3 (Google OAuth2 + per-index API keys)** was implemented because:
+**Approach 3 (OAuth2 / OIDC SSO + per-index API keys)** was implemented because:
 - No passwords to manage
-- Restricts admin access to a Google account or domain
+- Supports Google, GitHub, and Microsoft — switch via `OAUTH_PROVIDER` with no code changes
+- Restricts admin access to a single provider account or domain (`OAUTH_ALLOWED_DOMAIN`)
 - Public search endpoints remain simple header-key auth for PLP and other consumers
 - Fully decoupled — `AUTH_ENABLED=false` (default) preserves existing behaviour
 - Naturally upgrades to SAML if enterprise customers need it later
