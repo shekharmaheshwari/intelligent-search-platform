@@ -1,8 +1,8 @@
 """
-OAuth2 provider abstraction — Google and GitHub.
+OAuth2 provider abstraction — Google, GitHub, and Microsoft.
 
 All network I/O uses the ``httpx`` async client already in the dependency tree.
-Switch providers by setting ``OAUTH_PROVIDER=github`` (default: ``google``).
+Switch providers by setting ``OAUTH_PROVIDER=github|microsoft`` (default: ``google``).
 """
 from __future__ import annotations
 import urllib.parse
@@ -25,7 +25,17 @@ _GITHUB = {
 
 
 def _cfg() -> dict:
-    return _GITHUB if settings.oauth_provider == "github" else _GOOGLE
+    if settings.oauth_provider == "github":
+        return _GITHUB
+    if settings.oauth_provider == "microsoft":
+        tenant = settings.oauth_tenant_id or "common"
+        return {
+            "auth_url":     f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize",
+            "token_url":    f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token",
+            "userinfo_url": "https://graph.microsoft.com/v1.0/me",
+            "scope":        "openid email profile User.Read",
+        }
+    return _GOOGLE
 
 
 def get_authorization_url(state: str) -> str:
@@ -37,9 +47,10 @@ def get_authorization_url(state: str) -> str:
         "scope":         cfg["scope"],
         "state":         state,
     }
+    if settings.oauth_provider in ("google", "microsoft"):
+        params["prompt"] = "select_account"
     if settings.oauth_provider == "google":
         params["access_type"] = "online"
-        params["prompt"] = "select_account"
     return cfg["auth_url"] + "?" + urllib.parse.urlencode(params)
 
 
@@ -78,6 +89,11 @@ async def get_userinfo(access_token: str) -> dict:
             primary = next((e for e in emails_resp if e.get("primary")), None)
             email = primary["email"] if primary else ""
         return {"email": email, "name": info.get("name") or info.get("login", "")}
+
+    if settings.oauth_provider == "microsoft":
+        # Graph API returns displayName + mail (or userPrincipalName as fallback)
+        email = info.get("mail") or info.get("userPrincipalName", "")
+        return {"email": email, "name": info.get("displayName", "")}
 
     # Google OIDC userinfo
     return {"email": info.get("email", ""), "name": info.get("name", "")}
