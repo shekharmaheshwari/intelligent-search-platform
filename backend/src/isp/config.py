@@ -29,10 +29,11 @@ class Settings(BaseSettings):
     # ── Auth (Approach 3 — OAuth2 / OIDC SSO) ─────────────────────────────────
     # All disabled by default; existing behaviour is unchanged when auth_enabled=false.
     auth_enabled: bool = False
-    oauth_provider: str = "google"           # "google" | "github"
+    oauth_provider: str = "google"           # "google" | "github" | "microsoft"
     oauth_client_id: str = ""
     oauth_client_secret: str = ""
-    oauth_allowed_domain: str = ""           # e.g. "yourcompany.com" — empty = any Google/GitHub account
+    oauth_allowed_domain: str = ""           # e.g. "yourcompany.com" — empty = any account
+    oauth_tenant_id: str = "common"          # Microsoft only: "common" | "organizations" | <tenant-id>
     oauth_redirect_uri: str = "http://localhost:8001/auth/callback"
     oauth_frontend_url: str = "http://localhost:3001"  # where the SPA lives; token passed as ?isp_token=
     jwt_secret: str = "change-me-in-production"
