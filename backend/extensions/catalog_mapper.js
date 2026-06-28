@@ -17,6 +17,10 @@
  * @returns {Object} Document shaped to the ISP catalog schema expected by
  *   ``_generic_catalog_mapper`` in ``routers/indexes.py``.
  */
+function slugify(str) {
+  return String(str).toLowerCase().replace(/\s+/g, '-');
+}
+
 function transform(doc) {
   var type = doc._isp_type || 'device';
   var skus = (doc.skus || []).filter(function(s) { return s && typeof s === 'object'; });
@@ -53,11 +57,12 @@ function transform(doc) {
     });
   });
 
-  // Category (may be a string or object)
+  // Category (may be a string or object) — stored as a URL-friendly slug
   var catRaw = doc.category || doc.productCategory || doc.familyCategory || doc.subcategory || null;
-  var category = typeof catRaw === 'object' && catRaw
+  var catName = typeof catRaw === 'object' && catRaw
     ? (catRaw.name || (type === 'device' ? 'Smartphones' : 'Accessories'))
     : (catRaw || (type === 'device' ? 'Smartphones' : 'Accessories'));
+  var category = slugify(catName);
 
   // Availability
   var avail = doc.availability || doc.stock || doc.inventoryStatus;
@@ -74,7 +79,7 @@ function transform(doc) {
   }
 
   // Core fields
-  var manufacturer = doc.manufacturer || doc.brand || '';
+  var manufacturer = slugify(doc.manufacturer || doc.brand || '');
   var osName       = doc.operatingSystem || '';
   var display      = doc.familyName || doc.name || doc.title || doc.display || '';
   var rank         = parseInt(doc.deviceRank || doc.rank || '999', 10);
@@ -86,11 +91,11 @@ function transform(doc) {
 
   // Tags & aliases
   var aliases = manufacturer && display
-    ? [(manufacturer + ' ' + display).toLowerCase()] : [];
+    ? [(manufacturer + ' ' + display.toLowerCase())] : [];
   var tagSet = {};
   var rawTags = type === 'device'
-    ? [manufacturer.toLowerCase(), osName.toLowerCase(), 'phone', 'smartphone']
-    : [manufacturer.toLowerCase(), String(category).toLowerCase()];
+    ? [manufacturer, osName.toLowerCase(), 'phone', 'smartphone']
+    : [manufacturer, category];
   var tags = rawTags.filter(function(t) {
     if (!t || tagSet[t]) return false;
     tagSet[t] = true; return true;
@@ -119,7 +124,7 @@ function transform(doc) {
     url_name:         urlSlug,
     manufacturer:     manufacturer,
     operating_system: osName,
-    category:         String(category),
+    category:         category,
     price:            price,
     in_stock:         inStock,
     images:           images.slice(0, 3),
