@@ -207,6 +207,12 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
         # Carry over a pre-computed vector if the doc already has one
         if "vec" in doc:
             out["vec"] = doc["vec"]
+        # Promote category and manufacturer to top-level for native Typesense
+        # filter_by — values are kept in metadata too for backward compatibility.
+        for _field in ("category", "manufacturer"):
+            _val = combined_meta.get(_field) or doc.get(_field)
+            if _val and isinstance(_val, str):
+                out[_field] = _val.strip()
         # Promote scalar extra fields (e.g. from SitemapConnectorConfig.meta_fields)
         # to top-level so the Typesense wildcard field (.*) indexes them as filterable.
         for k, v in extra.items():
