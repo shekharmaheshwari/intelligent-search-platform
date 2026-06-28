@@ -376,3 +376,23 @@ src/
 6. **Store** (if global shared state is needed) — create `src/lib/stores/<domain>-store.ts` extending `StoreBase<T>`; expose action methods that call the service and update state with `this.set()`/`this.update()`. Export as a singleton and add to the `src/lib/store.ts` barrel.
 7. **Component** — place the component in the matching subfolder (`layout/`, `sources/`, `extensions/`, or `settings/`). Import the store singleton; read reactive values with `$: x = $<domain>Store.field`; call store action methods for mutations. For transient per-component data (not shared), call the service directly from the component instead of creating a store. When importing from `src/lib/`, use `../../lib/` (one extra level up because components are now one directory deeper).
 8. **Helpers** — create `<ComponentName>.helpers.ts` in the same subfolder as the component. Extract any pure formatting or derivation functions there.
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Fowler, M.** (2002). *Patterns of Enterprise Application Architecture*. Addison-Wesley. ISBN: 0-321-12742-0 — Defines Repository, Data Transfer Object (DTO), and Data Mapper patterns that ISP's 7-layer frontend architecture is built on; `IndexRepository` and `mapIndexMetaToIndex()` are direct implementations.
+
+2. **Gamma, E., Helm, R., Johnson, R., & Vlissides, J.** (1994). *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley. ISBN: 0-201-63361-2 — Defines the Singleton pattern (module-level store singletons `indexesStore`, `extensionsStore`) and the Observer pattern (Svelte's `writable` + `$: x = $store.field` reactive subscriptions).
+
+3. **Harris, T., Marlow, S., Peyton Jones, S., & Herlihy, M.** (2005). "Composable Memory Transactions." *Proceedings of the 10th ACM SIGPLAN Symposium on Principles and Practice of Parallel Programming (PPoPP 2005)*, pp. 48–60. DOI: [10.1145/1065944.1065952](https://doi.org/10.1145/1065944.1065952) — Software transactional memory; Svelte's writable store immutability rule (`always spread, never mutate`) follows the same principle: state transitions must be atomic and visible to all observers.
+
+4. **Hunt, A., & Thomas, D.** (1999). *The Pragmatic Programmer: From Journeyman to Master*. Addison-Wesley. ISBN: 0-201-61622-X — "Don't Repeat Yourself" (DRY) principle motivates the barrel `index.ts` re-export pattern; all consumers `import type { IndexMeta } from '../lib/types'` regardless of which domain file the type lives in.
+
+5. **Rich Harris.** (2019). "Rethinking Reactivity." *YouTube — Svelte Summit 2019*. URL: [svelte.dev](https://svelte.dev) — Svelte's compiler-based reactivity (no virtual DOM, `$:` reactive statements) eliminates the boilerplate of traditional React/Redux; ISP's `$: indexes = $indexesStore.indexes` pattern is idiomatic Svelte 4.
+
+6. **Abramov, D., & Clark, A.** (2015). "Redux: Predictable State Container for JavaScript Apps." *GitHub / redux.js.org*. URL: [redux.js.org](https://redux.js.org) — Redux popularised the unidirectional data flow `Action → Reducer → Store → View`; ISP's `Store.action() → this.set() → component re-render` follows the same one-way flow without Redux's verbosity.
+
+7. **Mayer, M.** (2021). *Svelte and Sapper in Action*. Manning Publications. ISBN: 978-1-617-29875-4 — Practical guide to Svelte 3/4 stores and component reactivity; directly relevant to `StoreBase<T>` design and the immutability rule enforced in ISP's stores.

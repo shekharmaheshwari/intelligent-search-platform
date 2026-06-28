@@ -216,3 +216,21 @@ pkill -f rexbert_local.py
 | Model download hangs | First-run download of `all-MiniLM-L6-v2` | Wait; it downloads ~80 MB once and caches locally |
 | `ModuleNotFoundError: sentence_transformers` | Dependencies not installed | Run `pip install fastapi uvicorn "sentence-transformers<3.0" numpy` |
 | Dimension mismatch warning in Settings | Selecting a rexbert model as the *global* model | Do not change the global model; use the RexBERT Server section to save credentials only |
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Devlin, J., Chang, M.-W., Lee, K., & Toutanova, K.** (2019). "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding." *Proceedings of NAACL-HLT 2019*, pp. 4171–4186. arXiv: [1810.04805](https://arxiv.org/abs/1810.04805) — Introduces BERT, the transformer-based language model whose architecture all-MiniLM-L6-v2 derives from; established pre-training + fine-tuning as the dominant paradigm for NLP.
+
+2. **Reimers, N., & Gurevych, I.** (2019). "Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks." *Proceedings of EMNLP-IJCNLP 2019*, pp. 3982–3992. arXiv: [1908.10084](https://arxiv.org/abs/1908.10084) — Introduces Sentence-BERT and the Sentence-Transformers library that the local RexBERT server is built on; establishes that siamese fine-tuning produces embeddings suitable for semantic similarity via cosine distance.
+
+3. **Wang, W., Wei, F., Dong, L., Bao, H., Yang, N., & Zhou, M.** (2020). "MiniLM: Deep Self-Attention Distillation for Task-Agnostic Compression of Pre-Trained Transformers." *Advances in Neural Information Processing Systems (NeurIPS 2020)*, pp. 5776–5788. arXiv: [2002.10957](https://arxiv.org/abs/2002.10957) — Introduces MiniLM distillation; `all-MiniLM-L6-v2` is a 6-layer distilled model that achieves near-BERT performance at ~5× lower inference cost.
+
+4. **Thakur, N., Reimers, N., Rücklé, A., Srivastava, A., & Gurevych, I.** (2021). "BEIR: A Heterogeneous Benchmark for Zero-shot Evaluation of Information Retrieval Models." *Proceedings of NeurIPS 2021 Datasets and Benchmarks Track*. arXiv: [2104.08663](https://arxiv.org/abs/2104.08663) — Benchmark establishing that smaller sentence-transformer models (MiniLM family) generalise well to out-of-domain retrieval tasks; justifies using `all-MiniLM-L6-v2` as a local embedding alternative when Voyage AI is unavailable.
+
+5. **Karpukhin, V., Oğuz, B., Min, S., Lewis, P., Wu, L., Edunov, S., Chen, D., & Yih, W.-T.** (2020). "Dense Passage Retrieval for Open-Domain Question Answering." *Proceedings of EMNLP 2020*, pp. 6769–6781. arXiv: [2004.04906](https://arxiv.org/abs/2004.04906) — Establishes asymmetric retrieval (separate query/document encoders) as the standard architecture; ISP mirrors this with `input_type="query"` for searches and `input_type="document"` for ingest embeddings.
+
+6. **Reimers, N., & Gurevych, I.** (2021). "The Curse of Dense Low-Dimensional Information Retrieval for Large Index Sizes." *Findings of ACL-IJCNLP 2021*. arXiv: [2012.14210](https://arxiv.org/abs/2012.14210) — Analyses the effect of embedding dimension on retrieval quality; motivates the per-model dimension selection (`all-MiniLM-L6-v2` at 384 vs. Voyage AI at 1024) and the requirement to rebuild indexes when switching models.

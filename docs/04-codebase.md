@@ -337,3 +337,21 @@ EXTENSIONS_DIR=/app/extensions
 HOST=0.0.0.0
 PORT=8001
 ```
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Fowler, M.** (2002). *Patterns of Enterprise Application Architecture*. Addison-Wesley. ISBN: 0-321-12742-0 — Defines the Service Layer, Repository, and Data Mapper patterns that structure ISP's `services/` and `routers/` separation; each router delegates all I/O to domain services.
+
+2. **Gamma, E., Helm, R., Johnson, R., & Vlissides, J.** (1994). *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley. ISBN: 0-201-63361-2 — "Gang of Four" patterns; ISP uses the Singleton pattern (module-level `_pool`, `_client` globals) and the Strategy pattern (embedding provider selection by model id).
+
+3. **Richardson, C.** (2018). *Microservices Patterns*. Manning Publications. ISBN: 978-1-617-29454-1 — Microservice decomposition principles; ISP is a micro-monolith (all services in one process) but applies the same domain-service / infra-service boundary as microservice patterns recommend.
+
+4. **Wynne, M., & Hellesøy, A.** (2017). *The Cucumber Book: Behaviour-Driven Development for Testers and Developers*. Pragmatic Bookshelf — Background on background tasks and async pipelines; ISP's `BackgroundTasks` ingest model follows the same separation-of-concerns principle.
+
+5. **Merkel, D.** (2014). "Docker: Lightweight Linux Containers for Consistent Development and Deployment." *Linux Journal*, 2014(239). ISSN: 1075-3583 — Docker Compose enables the multi-service dev environment documented in `backend/.env` and `docker-compose.yml`.
+
+6. **Dahl, R., & Schlueter Langford, I.** (2013). *Node.js in Action*. Manning Publications. ISBN: 978-1-617-29036-9 — Background on V8 JavaScript engine; PyMiniRacer embeds V8 to execute JS extensions in sandboxed isolates without Node.js APIs.

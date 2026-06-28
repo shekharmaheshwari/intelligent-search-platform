@@ -49,6 +49,19 @@ export class SettingsRepository {
   saveRexbertConfig(endpoint: string, apiKey?: string): Promise<AppSettings> {
     return api.saveRexbertConfig(endpoint, apiKey);
   }
+
+  /**
+   * Update one or more customer-context personalisation flags.
+   * Only the supplied fields are changed — partial updates are safe.
+   */
+  updateCustomerContext(flags: {
+    enabled?: boolean;
+    vectorBlendingEnabled?: boolean;
+    affinityBoostEnabled?: boolean;
+    viewedPenaltyEnabled?: boolean;
+  }): Promise<AppSettings> {
+    return api.updateCustomerContext(flags);
+  }
 }
 
 export const settingsRepository = new SettingsRepository();
