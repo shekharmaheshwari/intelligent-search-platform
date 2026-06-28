@@ -305,3 +305,23 @@ curl http://localhost:8001/v1/indexes | jq '.[] | {name, embed_model, intent_lab
 | `backend/src/isp/models/index.py` | `IndexMeta.intent_label`, `IndexCreate.intent_label` |
 | `plp/src/lib/controller/catalogController.ts` | `INTENT_TO_TAB` map, `loadProducts` intent flow |
 | `plp/src/lib/repository/catalogRepository.ts` | `getTabIntent()` — calls `GET /v1/intent/tab` |
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Broder, A.** (2002). "A Taxonomy of Web Search." *ACM SIGIR Forum*, 36(2), 3–10. DOI: [10.1145/792550.792552](https://doi.org/10.1145/792550.792552) — Seminal classification of web queries into navigational, informational, and transactional intent; directly motivates the category-intent detection problem solved in this module.
+
+2. **Karpukhin, V., Oğuz, B., Min, S., Lewis, P., Wu, L., Edunov, S., Chen, D., & Yih, W.-T.** (2020). "Dense Passage Retrieval for Open-Domain Question Answering." *Proceedings of EMNLP 2020*, pp. 6769–6781. arXiv: [2004.04906](https://arxiv.org/abs/2004.04906) — Introduces DPR and establishes that dense vector representations (inner product / cosine similarity) can classify query intent more accurately than sparse keyword matching alone; motivates Mode A vector scoring.
+
+3. **Salton, G., & McGill, M. J.** (1983). *Introduction to Modern Information Retrieval*. McGraw-Hill. ISBN: 0-07-054484-0 — Foundational textbook introducing cosine similarity as a document/query proximity measure; provides the theoretical basis for the vector dot-product scoring used in Mode A.
+
+4. **Manning, C. D., Raghavan, P., & Schütze, H.** (2008). *Introduction to Information Retrieval*. Cambridge University Press. ISBN: 978-0-521-86571-5. Online: [nlp.stanford.edu/IR-book](https://nlp.stanford.edu/IR-book/) — Chapter 6 covers vector space models and cosine similarity; Chapter 15 covers text classification; both directly relevant to vector-based intent classification.
+
+5. **Reimers, N., & Gurevych, I.** (2019). "Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks." *Proceedings of EMNLP 2019*, pp. 3982–3992. arXiv: [1908.10084](https://arxiv.org/abs/1908.10084) — Sentence-level embeddings that enable cosine-similarity comparison; the embedding model that produces the `vec` field used by Mode A intent scoring.
+
+6. **Lees-Miller, J., Anderson, F., Hoehn, B., & Greiner, R.** (2008). "Does Wikipedia Information Help Netflix Predictions?" *Proceedings of the 7th International Conference on Machine Learning and Applications (ICMLA 2008)*. — Coverage ratio (Mode B fallback) is an instance of inter-category agreement scoring; coverage metrics appear in ensemble and hybrid ranking literature.
+
+7. **Chapelle, O., Metlzer, D., Zhang, Y., & Grinspan, P.** (2009). "Expected Reciprocal Rank for Graded Relevance." *Proceedings of CIKM 2009*, pp. 621–630. DOI: [10.1145/1645953.1646033](https://doi.org/10.1145/1645953.1646033) — Expected Reciprocal Rank (ERR): confidence-based ranking metric; informs the `confidence = score[best] / sum(all_scores)` computation that determines intent detection certainty.

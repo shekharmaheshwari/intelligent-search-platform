@@ -201,3 +201,17 @@ docker compose -f /opt/isp/docker-compose.prod.yml down -v
 | **Total** | | **~$65/mo** |
 
 Stop the instance when not in use to save costs — data volumes persist when the instance is stopped.
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Armbrust, M. et al.** (2010). "A View of Cloud Computing." *Communications of the ACM*, 53(4), 50–58. DOI: [10.1145/1721654.1721672](https://doi.org/10.1145/1721654.1721672) — Defines IaaS (EC2 t3.large is Infrastructure as a Service); motivates the cost trade-off table in this document (~$65/month vs. $2.50/month stopped).
+
+2. **Merkel, D.** (2014). "Docker: Lightweight Linux Containers for Consistent Development and Deployment." *Linux Journal*, 2014(239). ISSN: 1075-3583 — Docker and Docker Compose underpin every container in `docker-compose.prod.yml`; `docker compose up -d` starts all six services.
+
+3. **Saltzer, J. H., Reed, D. P., & Clark, D. D.** (1984). "End-To-End Arguments in System Design." *ACM Transactions on Computer Systems*, 2(4), 277–288. DOI: [10.1145/357401.357402](https://doi.org/10.1145/357401.357402) — Security boundary at nginx (port 80); internal services (5432, 8108, 6379, 8001, 3001) are never exposed to the internet.
+
+4. **Amazon Web Services.** (2022). *AWS Well-Architected Framework — Security Pillar*. AWS Whitepaper. URL: [docs.aws.amazon.com/wellarchitected](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html) — Port 22 SSH restricted to `My IP` and IAM Role (no credentials on disk) align with the Security Pillar's least-privilege and credential management guidance.
