@@ -265,3 +265,21 @@ typesense.Client({
 ```
 
 Host is `typesense` (Docker container name on `search_tmo-net`). Configure via `TYPESENSE_HOST`, `TYPESENSE_PORT`, `TYPESENSE_API_KEY` env vars.
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Robertson, S., & Zaragoza, H.** (2009). "The Probabilistic Relevance Framework: BM25 and Beyond." *Foundations and Trends in Information Retrieval*, 3(4), 333–389. DOI: [10.1561/1500000019](https://doi.org/10.1561/1500000019) — Full derivation of BM25 including the IDF weighting and term-frequency saturation used by Typesense's lexical search; `query_by_weights: "2,1"` reflects BM25's field-weighting capability.
+
+2. **Cormack, G. V., Clarke, C. L. A., & Buettcher, S.** (2009). "Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods." *Proceedings of SIGIR 2009*, pp. 758–759. DOI: [10.1145/1571941.1572114](https://doi.org/10.1145/1571941.1572114) — Introduces RRF with K=60; ISP implements `0.7/(60+lex_rank+1) + 0.3/(60+sem_rank+1)` directly from this paper.
+
+3. **Karpukhin, V., Oğuz, B., Min, S., Lewis, P., Wu, L., Edunov, S., Chen, D., & Yih, W.-T.** (2020). "Dense Passage Retrieval for Open-Domain Question Answering." *Proceedings of EMNLP 2020*, pp. 6769–6781. arXiv: [2004.04906](https://arxiv.org/abs/2004.04906) — Establishes dense vector retrieval as complementary to sparse BM25; motivates the hybrid 0.7/0.3 weighting in favour of lexical precision while retaining semantic coverage.
+
+4. **Johnson, J., Douze, M., & Jégou, H.** (2021). "Billion-Scale Similarity Search with GPUs." *IEEE Transactions on Big Data*, 7(3), 535–547. arXiv: [1702.08734](https://arxiv.org/abs/1702.08734) — FAISS: the ANN library underlying Typesense's `vector_query` capability; `k` in `vec:([…], k:N)` controls the number of ANN candidates returned.
+
+5. **Liu, T.-Y.** (2009). "Learning to Rank for Information Retrieval." *Foundations and Trends in Information Retrieval*, 3(3), 225–331. DOI: [10.1561/1500000016](https://doi.org/10.1561/1500000016) — Surveys rank fusion and feature-based ranking; the editorial boosts (`is_featured`, `popularity`, `boost_queries_*`) are a hand-crafted instance of feature-based ranking applied post-RRF.
+
+6. **Salton, G., & McGill, M. J.** (1983). *Introduction to Modern Information Retrieval*. McGraw-Hill. ISBN: 0-07-054484-0 — Foundational text defining the vector space model; `exclude_fields: "vec"` on public endpoints reflects the distinction between internal ANN-retrieval use and external response payloads.

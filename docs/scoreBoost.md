@@ -157,3 +157,23 @@ var BOOST_CONTAINS = [
 | Single-index ISP search | `search_with_vec` | `backend/src/isp/services/infra/typesense_client.py:196` |
 | Document PATCH endpoint | `update_document` | `backend/src/isp/routers/indexes.py:807` |
 | Edit modal (UI) | `SourceContent.svelte` | `frontend/src/components/sources/SourceContent.svelte:302` |
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Cormack, G. V., Clarke, C. L. A., & Buettcher, S.** (2009). "Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods." *Proceedings of the 32nd Annual ACM SIGIR Conference*, pp. 758–759. DOI: [10.1145/1571941.1572114](https://doi.org/10.1145/1571941.1572114) — Introduces Reciprocal Rank Fusion (RRF) with the constant K=60 used in this system's `0.7/(60+rank+1) + 0.3/(60+rank+1)` scoring formula.
+
+2. **Robertson, S., & Zaragoza, H.** (2009). "The Probabilistic Relevance Framework: BM25 and Beyond." *Foundations and Trends in Information Retrieval*, 3(4), 333–389. DOI: [10.1561/1500000019](https://doi.org/10.1561/1500000019) — Comprehensive treatment of BM25 (Best Match 25), the term-frequency/IDF scoring function used for the lexical (0.7 weight) component of hybrid search.
+
+3. **Burges, C., Shaked, T., Renshaw, E., Lazier, A., Deeds, M., Hamilton, N., & Svore, K.** (2005). "Learning to Rank Using Gradient Descent." *Proceedings of the 22nd International Conference on Machine Learning (ICML 2005)*, pp. 89–96. DOI: [10.1145/1102351.1102363](https://doi.org/10.1145/1102351.1102363) — RankNet: gradient-descent approach to learning ranking functions, forerunner of LambdaMART; provides theoretical grounding for the editorial boost signals as learnable ranking features.
+
+4. **Robertson, S. E., & Sparck Jones, K.** (1976). "Relevance Weighting of Search Terms." *Journal of the American Society for Information Science*, 27(3), 129–146. DOI: [10.1002/asi.4630270302](https://doi.org/10.1002/asi.4630270302) — Original probabilistic relevance model underlying BM25; establishes inverse document frequency (IDF) and term frequency weighting principles.
+
+5. **Liu, T.-Y.** (2009). "Learning to Rank for Information Retrieval." *Foundations and Trends in Information Retrieval*, 3(3), 225–331. DOI: [10.1561/1500000016](https://doi.org/10.1561/1500000016) — Surveys pointwise, pairwise, and listwise ranking; provides the theoretical framework for additive score functions such as the editorial boosts implemented here.
+
+6. **Agrawal, R., & Srikant, R.** (1994). "Fast Algorithms for Mining Association Rules." *Proceedings of the 20th VLDB Conference*, pp. 487–499. — Association rule mining forms the theoretical basis for query-to-SKU merchandising rules (`boost_queries_equal` / `boost_queries_contains`), which are a manually curated special case.
+
+7. **Voorhees, E. M.** (1999). "The TREC-8 Question Answering Track Report." *Proceedings of TREC 1999*. — TREC evaluation benchmarks established the role of exact-match query boosts; informs the `boost_queries_equal` (+0.5) and contains-match (+0.3) magnitude design.

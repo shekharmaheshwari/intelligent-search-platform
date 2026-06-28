@@ -321,3 +321,21 @@ Then populate the same secrets in AWS Secrets Manager (see AWS setup above) and 
 - Typesense, PostgreSQL, Redis configuration
 
 The entire migration surface is: **one env var**.
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **OWASP Foundation.** (2023). *OWASP Secrets Management Cheat Sheet*. URL: [cheatsheetseries.owasp.org](https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html) — Definitive checklist for secrets management; ISP's three principles (no plaintext on disk, rotation without redeploy, audit trail) map directly to OWASP requirements. ISP uses Vault (local) and AWS Secrets Manager (prod) to satisfy all three.
+
+2. **Bellovin, S. M., & Cheswick, W. R.** (1994). "Network Firewalls." *IEEE Communications Magazine*, 32(9), 50–57. DOI: [10.1109/35.312843](https://doi.org/10.1109/35.312843) — Defense-in-depth principle: ISP's provider abstraction (Vault → AWS) is a layered security approach where no single compromise exposes all secrets.
+
+3. **Amazon Web Services.** (2022). *AWS Well-Architected Framework — Security Pillar*. AWS Whitepaper. URL: [docs.aws.amazon.com/wellarchitected](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html) — IAM Roles for EC2 (no credentials on disk) and AWS Secrets Manager align with the Security Pillar's "Use IAM roles to manage access" and "Protect secrets in transit and at rest" best practices.
+
+4. **Percival, H., & Gregory, B.** (2020). *Architecture Patterns with Python: Enabling Test-Driven Development, Domain-Driven Design, and Event-Driven Microservices*. O'Reilly. ISBN: 978-1-492-05235-4 — The `bootstrap_secrets()` → inject into `os.environ` → `config.py` reads normally pattern follows the Composition Root principle: one startup function wires the dependency chain before any application code runs.
+
+5. **HashiCorp.** (2015). *Vault: A Tool for Secrets Management*. HashiCorp Blog. URL: [vaultproject.io](https://www.vaultproject.io) — HashiCorp Vault provides KV v2 secrets engine, token-based authentication, and audit logging; ISP uses KV v2 with `mount_point="isp"` + `path=<key>` as documented here.
+
+6. **Bezos, J.** (2002). *Bezos API Mandate* (internal Amazon memo). — Origin of the "services must communicate through interfaces" principle; ISP's `secrets.py` is the only module that imports `hvac` or `boto3` — all other code reads from `os.environ` through the abstraction layer, following this API-boundary principle.

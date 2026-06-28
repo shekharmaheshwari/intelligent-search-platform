@@ -28,6 +28,12 @@ from isp.services.domain.settings_service import (
     get_custom_config,
     set_embed_config,
     set_setting,
+    get_customer_context_enabled,
+    set_customer_context_enabled,
+    get_cc_vector_blending_enabled,
+    get_cc_affinity_boost_enabled,
+    get_cc_viewed_penalty_enabled,
+    set_customer_context_flags,
 )
 from isp.services.infra import embedding_service
 
@@ -87,6 +93,18 @@ class SettingsResponse(BaseModel):
     custom_num_dim: int | None = None
     """Stored custom vector dimension."""
 
+    customer_context_enabled: bool = True
+    """Master switch — when False, all action-history personalisation is skipped."""
+
+    cc_vector_blending_enabled: bool = True
+    """When True, viewed-item vectors are blended into the query embedding for ANN retrieval."""
+
+    cc_affinity_boost_enabled: bool = True
+    """When True, category / manufacturer / type affinity boosts are applied after RRF."""
+
+    cc_viewed_penalty_enabled: bool = True
+    """When True, already-viewed items receive a -0.05 score demotion to surface variety."""
+
 
 class UpdateSettingsResponse(SettingsResponse):
     """Extended response returned by PUT /v1/settings, including a dimension-change flag."""
@@ -132,7 +150,49 @@ async def _build_response(model_id: str) -> dict:
         "custom_endpoint":   custom_cfg["endpoint"]   or None,
         "custom_model_name": custom_cfg["model_name"] or None,
         "custom_num_dim":    custom_cfg["num_dim"]    or None,
+        "customer_context_enabled":   get_customer_context_enabled(),
+        "cc_vector_blending_enabled": get_cc_vector_blending_enabled(),
+        "cc_affinity_boost_enabled":  get_cc_affinity_boost_enabled(),
+        "cc_viewed_penalty_enabled":  get_cc_viewed_penalty_enabled(),
     }
+
+
+class CustomerContextUpdate(BaseModel):
+    """
+    Request body for updating customer-context personalisation flags.
+
+    All fields are optional — only the supplied fields are changed, allowing
+    each toggle in the UI to send a minimal partial update.
+
+    - ``enabled``                 — master switch; False skips all CC logic
+    - ``vector_blending_enabled`` — blend viewed-item vectors into query embedding
+    - ``affinity_boost_enabled``  — category / manufacturer / type post-RRF boosts
+    - ``viewed_penalty_enabled``  — -0.05 demotion for already-viewed items
+    """
+
+    enabled:                 bool | None = None
+    vector_blending_enabled: bool | None = None
+    affinity_boost_enabled:  bool | None = None
+    viewed_penalty_enabled:  bool | None = None
+
+
+@router.put("/customer-context", response_model=SettingsResponse)
+async def set_customer_context(body: CustomerContextUpdate) -> SettingsResponse:
+    """
+    Update one or more customer-context personalisation flags.
+
+    Each field is optional — send only the flag(s) you want to change.
+    Settings persist across restarts and are applied immediately at runtime.
+    Useful for A/B testing individual personalisation components independently.
+    """
+    await set_customer_context_flags(
+        enabled=body.enabled,
+        vector_blending_enabled=body.vector_blending_enabled,
+        affinity_boost_enabled=body.affinity_boost_enabled,
+        viewed_penalty_enabled=body.viewed_penalty_enabled,
+    )
+    model = await get_embed_model()
+    return SettingsResponse(**(await _build_response(model)))
 
 
 class RexbertConfigUpdate(BaseModel):

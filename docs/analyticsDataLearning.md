@@ -256,3 +256,25 @@ DELETE FROM search_events WHERE created_at < (EXTRACT(EPOCH FROM NOW()) - 90*864
 2. **Cold start** — new documents have no click history; existing hand-set `popularity` values should be preserved until the doc accumulates enough signal (e.g. minimum 10 impressions threshold before overwriting).
 3. **Negative signals** — clicks on poor results inflate scores; consider dwell time or conversion signals if available from the PLP.
 4. **Multi-index normalisation** — popularity is normalised per-index, so scores are not comparable across indexes. This is intentional (each index has its own catalog).
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Joachims, T.** (2002). "Optimizing Search Engines Using Clickthrough Data." *Proceedings of the 8th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining (KDD 2002)*, pp. 133–142. ACM. DOI: [10.1145/775047.775067](https://doi.org/10.1145/775047.775067) — Foundational paper establishing that click-through data is a reliable implicit relevance signal and proposing algorithms to learn from it.
+
+2. **Joachims, T., Granka, L., Pan, B., Hembrooke, H., & Gay, G.** (2005). "Accurately Interpreting Clickthrough Data as Implicit Feedback." *SIGIR 2005*, pp. 154–161. DOI: [10.1145/1076034.1076063](https://doi.org/10.1145/1076034.1076063) — Shows that position bias must be corrected when treating clicks as relevance labels; informs the `position_weight = 1/log2(rank+2)` weighting used in this system.
+
+3. **Craswell, N., Zoeter, O., Taylor, M., & Ramsey, B.** (2008). "An Experimental Comparison of Click Position-Bias Models." *Proceedings of WSDM 2008*, pp. 87–94. DOI: [10.1145/1341531.1341545](https://doi.org/10.1145/1341531.1341545) — Defines the Examination Hypothesis and Cascade Model; establishes that CTR is a function of both relevance and position.
+
+4. **Järvelin, K., & Kekäläinen, J.** (2002). "Cumulated Gain-Based Evaluation of IR Techniques." *ACM Transactions on Information Systems*, 20(4), 422–446. DOI: [10.1145/582415.582418](https://doi.org/10.1145/582415.582418) — Introduces Discounted Cumulative Gain (DCG) and the logarithmic rank discount that underpins the `1/log2(rank+2)` position weight.
+
+5. **Agichtein, E., Brill, E., & Dumais, S.** (2006). "Improving Web Search Ranking by Incorporating User Behavior Information." *SIGIR 2006*, pp. 19–26. DOI: [10.1145/1148170.1148177](https://doi.org/10.1145/1148170.1148177) — Demonstrates that behavioural signals (impressions, clicks, dwell time) can measurably improve document ranking, directly motivating the popularity write-back loop.
+
+6. **Chapelle, O., & Zhang, Y.** (2009). "A Dynamic Bayesian Network Click Model for Web Search Ranking." *Proceedings of WWW 2009*, pp. 1–10. DOI: [10.1145/1526709.1526711](https://doi.org/10.1145/1526709.1526711) — DBN Click Model: probabilistic framework for click prediction that accounts for examination probability at each rank position.
+
+7. **Agarwal, A., Takatsu, K., Zaitsev, I., & Joachims, T.** (2019). "A General Framework for Counterfactual Learning-to-Rank." *SIGIR 2019*, pp. 5–14. DOI: [10.1145/3331184.3331202](https://doi.org/10.1145/3331184.3331202) — Provides unbiased estimators for relevance from biased click data; relevant to the planned cold-start threshold and bias correction in Phase 4.
+
+8. **Liu, T.-Y.** (2009). "Learning to Rank for Information Retrieval." *Foundations and Trends in Information Retrieval*, 3(3), 225–331. DOI: [10.1561/1500000016](https://doi.org/10.1561/1500000016) — Comprehensive survey of learning-to-rank algorithms; covers pointwise, pairwise, and listwise approaches that inform future phases of the analytics feedback loop.

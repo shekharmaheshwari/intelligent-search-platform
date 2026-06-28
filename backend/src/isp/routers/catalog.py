@@ -12,9 +12,19 @@ via Typesense ``multi_search`` and results are merged with Reciprocal Rank Fusio
 from __future__ import annotations
 import json
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from isp.models.search import CustomerAction
 from isp.services.infra import embedding_service
 from isp.services.infra import typesense_client as ts
+from isp.services.domain.context_service import (
+    SearchContext, build_context, context_boost, fetch_preference_vector,
+)
+from isp.services.domain.settings_service import (
+    get_customer_context_enabled,
+    get_cc_vector_blending_enabled,
+    get_cc_affinity_boost_enabled,
+    get_cc_viewed_penalty_enabled,
+)
 
 router = APIRouter(tags=["catalog-api"])
 
@@ -72,7 +82,15 @@ def _doc_to_item(doc: dict, score: float = 0.0) -> dict:
     }
 
 
-def _rrf_search(collections: list[str], q: str, vec, filter_by: str, page: int, per_page: int) -> dict:
+def _rrf_search(
+    collections: list[str],
+    q: str,
+    vec,
+    filter_by: str,
+    page: int,
+    per_page: int,
+    post_rrf_hook=None,
+) -> dict:
     """
     Hybrid RRF search across all ISP-managed collections.
 
@@ -163,6 +181,11 @@ def _rrf_search(collections: list[str], q: str, vec, filter_by: str, page: int, 
         boost_ct = doc.get("boost_queries_contains") or []
         if isinstance(boost_ct, list) and any(t.lower() in q_lower for t in boost_ct if t):
             scores[did] = scores.get(did, 0) + 0.3
+
+    # Context hook — applied after all editorial boosts so customer signals
+    # combine with rather than override merchandising rules.
+    if post_rrf_hook is not None:
+        post_rrf_hook(scores, all_docs)
 
     ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
     start = (page - 1) * per_page
@@ -285,14 +308,22 @@ async def intent_tab(q: str = Query(..., description="Search query")):
 # ── POST /v1/catalog ──────────────────────────────────────────────────────────
 
 class CatalogSearchRequest(BaseModel):
-    session_id:  str = ""
-    q:           str = ""
-    type:        str = "device"
-    page:        int = 1
-    per_page:    int = 24
-    category:    str | None = None
-    manufacturer: str | None = None
-    search_mode: str = "lexical"
+    session_id:    str = ""
+    q:             str = ""
+    type:          str = "device"
+    page:          int = 1
+    per_page:      int = 24
+    category:      str | None = None
+    manufacturer:  str | None = None
+    search_mode:   str = "lexical"
+    action_history: list[CustomerAction] = Field(
+        default_factory=list,
+        description=(
+            "Recent customer actions used to personalise ranking. "
+            "Viewed-item vectors are blended into the query embedding; "
+            "category and manufacturer signals boost matching documents after RRF."
+        ),
+    )
 
 
 @router.post("/catalog", summary="Search the product catalog")
@@ -315,12 +346,35 @@ async def search_catalog(req: CatalogSearchRequest):
     filters = [f"source_type:={req.type}"]
     filter_by = " && ".join(filters)
 
+    collections = _get_isp_collections()
+
+    # Build customer context from action history — each feature can be toggled
+    # independently for A/B testing via Settings → Customer Context.
+    ctx: SearchContext | None = None
+    ctx_hook = None
+    if req.action_history and get_customer_context_enabled():
+        ctx = build_context([a.model_dump() for a in req.action_history])
+
+        _apply_affinity = get_cc_affinity_boost_enabled()
+        _apply_penalty  = get_cc_viewed_penalty_enabled()
+
+        if _apply_affinity or _apply_penalty:
+            def ctx_hook(scores: dict, all_docs: dict) -> None:
+                for did, doc in all_docs.items():
+                    scores[did] = scores.get(did, 0.0) + context_boost(
+                        doc, ctx,
+                        apply_affinity=_apply_affinity,
+                        apply_viewed_penalty=_apply_penalty,
+                    )
+
     vec = None
     if req.search_mode in ("semantic", "hybrid") and req.q.strip():
         vec = await embedding_service.embed_query(req.q)
+        if ctx and ctx.vector_seed_ids and vec and get_cc_vector_blending_enabled():
+            vec = await fetch_preference_vector(ctx, collections, vec)
 
-    collections = _get_isp_collections()
-    result = _rrf_search(collections, req.q, vec, filter_by, req.page, req.per_page)
+    result = _rrf_search(collections, req.q, vec, filter_by, req.page, req.per_page,
+                         post_rrf_hook=ctx_hook)
 
     hits  = result.get("hits", [])
     found = result.get("found", 0)
@@ -339,6 +393,13 @@ async def search_catalog(req: CatalogSearchRequest):
 
     total_pages = max(1, (found + req.per_page - 1) // req.per_page)
 
+    context_actions = ["hybrid_search" if vec else "lexical_search"]
+    if ctx:
+        if ctx.vector_seed_ids:
+            context_actions.append("preference_vector_blend")
+        if ctx.category_affinity or ctx.manufacturer_affinity:
+            context_actions.append("affinity_boost")
+
     return {
         "items":                items,
         "total":                found,
@@ -346,7 +407,7 @@ async def search_catalog(req: CatalogSearchRequest):
         "per_page":             req.per_page,
         "total_pages":          total_pages,
         "context_segment":      "all",
-        "context_actions_used": ["hybrid_search" if vec else "lexical_search"],
+        "context_actions_used": context_actions,
     }
 
 
