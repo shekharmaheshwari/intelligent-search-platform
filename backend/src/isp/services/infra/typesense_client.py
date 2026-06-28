@@ -85,6 +85,10 @@ def create_collection(index_id: str, vec_dim: int | None = None) -> None:
             # metadata stores a JSON string so rich catalog data (images, price,
             # manufacturer, etc.) survives into ISP-managed collections intact.
             {"name": "metadata",    "type": "string", "optional": True, "index": False},
+            # Filterable catalog signals — top-level so Typesense can apply
+            # filter_by natively without scanning the metadata JSON string.
+            {"name": "category",     "type": "string", "optional": True, "facet": True},
+            {"name": "manufacturer", "type": "string", "optional": True, "facet": True},
             # Editorial signals — top-level so Typesense can sort and filter on them.
             {"name": "popularity",            "type": "int32",    "optional": True, "sort": True},
             {"name": "is_featured",           "type": "bool",     "optional": True},
@@ -120,6 +124,8 @@ def migrate_isp_fields() -> None:
         {"name": "version_score",          "type": "float",    "optional": True},
         {"name": "boost_queries_equal",    "type": "string[]", "optional": True},
         {"name": "boost_queries_contains", "type": "string[]", "optional": True},
+        {"name": "category",               "type": "string",   "optional": True, "facet": True},
+        {"name": "manufacturer",           "type": "string",   "optional": True, "facet": True},
     ]
     try:
         client = get_client()
@@ -192,7 +198,8 @@ def _apply_lexical_hook(raw: dict, hook) -> dict:
 
 
 def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
-                     exclude_vec: bool = False, post_rrf_hook=None) -> dict:
+                     exclude_vec: bool = False, post_rrf_hook=None,
+                     filter_by: str | None = None) -> dict:
     """
     Single-pass lexical search on an ISP-managed collection.
 
@@ -212,18 +219,20 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
     extra: dict = {"exclude_fields": "vec"} if exclude_vec else {}
 
     if mode == "semantic":
+        fb_params: dict = {"filter_by": filter_by} if filter_by else {}
         raw = client.collections[name].documents.search({
             "q": "*", "query_by": "title",
             "vector_query": f"vec:([],  k:{per_page})",
-            "page": page, "per_page": per_page, **extra,
+            "page": page, "per_page": per_page, **extra, **fb_params,
         })
         return _apply_lexical_hook(raw, post_rrf_hook) if post_rrf_hook else raw
 
+    fb_params: dict = {"filter_by": filter_by} if filter_by else {}
     base_params: dict = {
         "q": q, "query_by": "title,content",
         "query_by_weights": "2,1",
         "num_typos": 2,
-        "page": page, "per_page": per_page, **extra,
+        "page": page, "per_page": per_page, **extra, **fb_params,
     }
 
     def _search_with_sort(sort_by: str) -> dict:
@@ -249,6 +258,7 @@ def search_with_vec(
     version_boost: bool = False,
     exclude_vec: bool = False,
     post_rrf_hook=None,
+    filter_by: str | None = None,
 ) -> dict:
     """
     Hybrid search via Typesense multi_search + Reciprocal Rank Fusion.
@@ -262,6 +272,7 @@ def search_with_vec(
     vec_str = ",".join(str(v) for v in vec)
     client = get_client()
     extra: dict = {"exclude_fields": "vec"} if exclude_vec else {}
+    fb: dict = {"filter_by": filter_by} if filter_by else {}
     # Typesense hard cap is 250 per page; 3× over-fetch improves RRF recall
     # but must be clamped so we never exceed the limit.
     fetch_n = min(per_page * 3, 250)
@@ -270,13 +281,13 @@ def search_with_vec(
             "collection": name,
             "q": q, "query_by": "title,content",
             "query_by_weights": "2,1",
-            "per_page": str(fetch_n), **extra,
+            "per_page": str(fetch_n), **extra, **fb,
         },
         {
             "collection": name,
             "q": "*", "query_by": "title",
             "vector_query": f"vec:([{vec_str}], k:{fetch_n})",
-            "per_page": str(fetch_n), **extra,
+            "per_page": str(fetch_n), **extra, **fb,
         },
     ]}, {})
     results = resp.get("results", [{}, {}])
