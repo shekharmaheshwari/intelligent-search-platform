@@ -330,4 +330,24 @@ export const api = {
         custom_num_dim:    opts?.customNumDim    ?? null,
       }),
     }),
+
+  /**
+   * Update one or more customer-context personalisation flags.
+   * Only the fields you supply are changed — partial updates are safe.
+   */
+  updateCustomerContext: (flags: {
+    enabled?: boolean;
+    vectorBlendingEnabled?: boolean;
+    affinityBoostEnabled?: boolean;
+    viewedPenaltyEnabled?: boolean;
+  }) =>
+    req<AppSettings>('/settings/customer-context', {
+      method: 'PUT',
+      body: JSON.stringify({
+        enabled:                 flags.enabled,
+        vector_blending_enabled: flags.vectorBlendingEnabled,
+        affinity_boost_enabled:  flags.affinityBoostEnabled,
+        viewed_penalty_enabled:  flags.viewedPenaltyEnabled,
+      }),
+    }),
 };

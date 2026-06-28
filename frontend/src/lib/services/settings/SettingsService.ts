@@ -60,6 +60,20 @@ export class SettingsService {
     const dto = await this.repo.saveRexbertConfig(endpoint, apiKey);
     return mapAppSettingsToSettings(dto);
   }
+
+  /**
+   * Update one or more customer-context personalisation flags.
+   * Only the supplied fields are changed — partial updates are safe.
+   */
+  async updateCustomerContext(flags: {
+    enabled?: boolean;
+    vectorBlendingEnabled?: boolean;
+    affinityBoostEnabled?: boolean;
+    viewedPenaltyEnabled?: boolean;
+  }): Promise<Settings> {
+    const dto = await this.repo.updateCustomerContext(flags);
+    return mapAppSettingsToSettings(dto);
+  }
 }
 
 export const settingsService = new SettingsService(settingsRepository);
