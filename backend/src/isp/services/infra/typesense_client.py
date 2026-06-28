@@ -336,6 +336,35 @@ def search_with_vec(
             "page": page}
 
 
+def get_facets(index_id: str, facet_fields: list[str]) -> dict:
+    """
+    Return facet value counts for an ISP-managed collection.
+
+    Uses per_page=0 so Typesense computes counts without returning documents.
+    Returns {field: [{value, count}, ...]} sorted by count descending.
+    """
+    name = collection_name(index_id)
+    try:
+        result = get_client().collections[name].documents.search({
+            "q": "*",
+            "query_by": "title",
+            "facet_by": ",".join(facet_fields),
+            "per_page": 0,
+            "max_facet_values": 100,
+        })
+    except Exception:
+        return {}
+    facets: dict = {}
+    for fc in result.get("facet_counts", []):
+        field = fc.get("field_name")
+        if field:
+            facets[field] = [
+                {"value": c["value"], "count": c["count"]}
+                for c in fc.get("counts", [])
+            ]
+    return facets
+
+
 def list_documents(index_id: str, page: int, per_page: int,
                    exclude_vec: bool = False) -> dict:
     """Paginated document listing for an ISP-managed collection, sorted by most recently indexed."""

@@ -183,6 +183,23 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     return raw
 
 
+@router.get("/{idx_id}/facets", summary="Get facets for an index", tags=["public"])
+async def get_index_facets(idx_id: str):
+    """
+    Return category and manufacturer facet counts for an ISP-managed index.
+
+    Counts come directly from Typesense so they always reflect the indexed data.
+    Values match what is stored in Typesense (set by the index extension).
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    if meta.is_external:
+        raise HTTPException(400, "Facets are not available for external indexes")
+    facets = ts.get_facets(meta.id, ["category", "manufacturer"])
+    return {"facets": facets}
+
+
 @router.post("/{idx_id}/search", summary="Search an index")
 async def search(idx_id: str, req: SearchRequest):
     """
