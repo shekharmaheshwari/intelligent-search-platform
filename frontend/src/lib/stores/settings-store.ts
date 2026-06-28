@@ -41,6 +41,10 @@ class SettingsStore extends StoreBase<SettingsState> {
         custom_endpoint: domain.customEndpoint,
         custom_model_name: domain.customModelName,
         custom_num_dim: domain.customNumDim,
+        customer_context_enabled:   domain.customerContextEnabled,
+        cc_vector_blending_enabled: domain.ccVectorBlendingEnabled,
+        cc_affinity_boost_enabled:  domain.ccAffinityBoostEnabled,
+        cc_viewed_penalty_enabled:  domain.ccViewedPenaltyEnabled,
       };
       this.update(s => ({ ...s, settings: dto, loading: false }));
     } catch (e) {
@@ -78,9 +82,42 @@ class SettingsStore extends StoreBase<SettingsState> {
       custom_endpoint: domain.customEndpoint,
       custom_model_name: domain.customModelName,
       custom_num_dim: domain.customNumDim,
+      customer_context_enabled:   domain.customerContextEnabled,
+      cc_vector_blending_enabled: domain.ccVectorBlendingEnabled,
+      cc_affinity_boost_enabled:  domain.ccAffinityBoostEnabled,
+      cc_viewed_penalty_enabled:  domain.ccViewedPenaltyEnabled,
     };
     this.update(s => ({ ...s, settings: dto }));
     return dto;
+  }
+
+  /**
+   * Update one or more customer-context personalisation flags.
+   * Merges the response from the backend into the store's settings DTO.
+   */
+  async updateCustomerContext(flags: {
+    enabled?: boolean;
+    vectorBlendingEnabled?: boolean;
+    affinityBoostEnabled?: boolean;
+    viewedPenaltyEnabled?: boolean;
+  }): Promise<void> {
+    this.update(s => ({ ...s, loading: true, error: null }));
+    try {
+      const domain = await settingsService.updateCustomerContext(flags);
+      this.update(s => ({
+        ...s,
+        settings: s.settings ? {
+          ...s.settings,
+          customer_context_enabled:   domain.customerContextEnabled,
+          cc_vector_blending_enabled: domain.ccVectorBlendingEnabled,
+          cc_affinity_boost_enabled:  domain.ccAffinityBoostEnabled,
+          cc_viewed_penalty_enabled:  domain.ccViewedPenaltyEnabled,
+        } : s.settings,
+        loading: false,
+      }));
+    } catch (e) {
+      this.update(s => ({ ...s, error: String(e), loading: false }));
+    }
   }
 }
 

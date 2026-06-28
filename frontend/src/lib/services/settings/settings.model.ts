@@ -11,4 +11,8 @@ export interface Settings {
   customEndpoint?: string | null;
   customModelName?: string | null;
   customNumDim?: number | null;
+  customerContextEnabled?: boolean;
+  ccVectorBlendingEnabled?: boolean;
+  ccAffinityBoostEnabled?: boolean;
+  ccViewedPenaltyEnabled?: boolean;
 }
