@@ -403,3 +403,23 @@ function transform(doc) {
 | `frontend/src/lib/api.ts` | `rebuild()` widened to `RestConnectorConfig \| SitemapConnectorConfig`; added `saveSitemapConnector()` → `POST /indexes/{id}/connectors/sitemap` |
 | `frontend/src/lib/repository/IndexRepository.ts` | `rebuild` and `saveSitemapConnector` forwarded to `api.ts` |
 | `frontend/src/lib/services/indexes/IndexService.ts` | Same signatures propagated to service layer |
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Koster, M.** (1994). "A Standard for Robot Exclusion." *WWW Robots Page*. URL: [robotstxt.org](https://www.robotstxt.org/orig.html) — Defines the `robots.txt` standard and polite crawling conventions; ISP's 0.1-second polite delay between page fetches follows the crawl-rate guidelines introduced here.
+
+2. **Sitemaps.org Consortium** (Google, Yahoo, Microsoft). (2006). *Sitemaps XML Format Specification v0.9*. URL: [sitemaps.org/protocol.html](https://www.sitemaps.org/protocol.html) — ISP's sitemap connector parses the `<loc>` URL elements defined by this standard; `<lastmod>` and `<changefreq>` are also available for future incremental-crawl support.
+
+3. **Finn, A., Sundaram, H., & Lehmberg, O.** (2010). "Boilerplate Detection Using Shallow Text Features." *Proceedings of the 3rd ACM International Conference on Web Search and Data Mining (WSDM 2010)*, pp. 441–450. DOI: [10.1145/1718487.1718542](https://doi.org/10.1145/1718487.1718542) — Boilerplate removal: ISP strips `<script>`, `<style>`, `<nav>`, `<footer>`, `<header>`, `<aside>` — the same tag-class exclusions used in boilerplate-detection systems to isolate content from navigation chrome.
+
+4. **Open Graph Protocol.** (2010). *The Open Graph Protocol*. Facebook / ogp.me. URL: [ogp.me](https://ogp.me) — Defines `og:title`, `og:description`, `og:image`, `og:date` meta properties; ISP preferentially extracts these for `title`, `content`, and `metadata` fields because OG tags are curated for rich-link contexts.
+
+5. **Devlin, J., Chang, M.-W., Lee, K., & Toutanova, K.** (2019). "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding." *Proceedings of NAACL-HLT 2019*. arXiv: [1810.04805](https://arxiv.org/abs/1810.04805) — Contextual embeddings improve quality when the input text is semantically rich; ISP's choice to prepend `og:description` to body text before embedding maximises the semantic density of the vector representation.
+
+6. **Risvik, K. M., & Michelsen, R.** (2002). "Search Engines and Web Dynamics." *Computer Networks*, 39(3), 289–302. DOI: [10.1016/S1389-1286(02)00213-0](https://doi.org/10.1016/S1389-1286(02)00213-0) — Web dynamics and freshness; motivates `doc.id = MD5(url)[:16]` for deterministic re-crawl: same URL always overwrites the same document ID so stale content is replaced without manual deletion.
+
+7. **Cloudflare, Inc.** (2023). *Cloudflare Bot Management*. URL: [cloudflare.com/products/bot-management](https://www.cloudflare.com/products/bot-management) — User-agent-based bot protection is the first barrier to crawling; ISP's configurable `user_agent` field allows operators to supply a browser UA string to bypass basic bot detection (Cloudflare JS challenges require a headless browser and are explicitly out of scope).

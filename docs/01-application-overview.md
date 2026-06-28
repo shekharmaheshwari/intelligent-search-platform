@@ -228,3 +228,21 @@ search_tmo-net
 ├── tmo-plp       (3000)
 └── tmo-app       (8000)
 ```
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Cormack, G. V., Clarke, C. L. A., & Buettcher, S.** (2009). "Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods." *Proceedings of SIGIR 2009*, pp. 758–759. DOI: [10.1145/1571941.1572114](https://doi.org/10.1145/1571941.1572114) — Introduces RRF, the rank-merging strategy used in ISP's hybrid search to combine BM25 and semantic ANN results.
+
+2. **Robertson, S., & Zaragoza, H.** (2009). "The Probabilistic Relevance Framework: BM25 and Beyond." *Foundations and Trends in Information Retrieval*, 3(4), 333–389. DOI: [10.1561/1500000019](https://doi.org/10.1561/1500000019) — Full treatment of BM25, the full-text ranking function used by Typesense for the lexical search leg of hybrid mode.
+
+3. **Johnson, J., Douze, M., & Jégou, H.** (2021). "Billion-Scale Similarity Search with GPUs." *IEEE Transactions on Big Data*, 7(3), 535–547. arXiv: [1702.08734](https://arxiv.org/abs/1702.08734) — FAISS: approximate nearest-neighbour (ANN) search at scale; the approach Typesense uses internally for vector similarity retrieval.
+
+4. **Karpukhin, V., Oğuz, B., Min, S., Lewis, P., Wu, L., Edunov, S., Chen, D., & Yih, W.-T.** (2020). "Dense Passage Retrieval for Open-Domain Question Answering." *Proceedings of EMNLP 2020*. arXiv: [2004.04906](https://arxiv.org/abs/2004.04906) — Dense retrieval with separate query/document encoders; ISP mirrors this with Voyage AI's `input_type="query"` vs `input_type="document"` distinction.
+
+5. **Merkel, D.** (2014). "Docker: Lightweight Linux Containers for Consistent Development and Deployment." *Linux Journal*, 2014(239). ISSN: 1075-3583 — Docker containers enable ISP's reproducible multi-service deployment across development and production environments.
+
+6. **Reimers, N., & Gurevych, I.** (2019). "Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks." *Proceedings of EMNLP 2019*. arXiv: [1908.10084](https://arxiv.org/abs/1908.10084) — Sentence-level embeddings produced by Voyage AI follow this encoder architecture; ISP uses Voyage AI `voyage-3` (1024-dim) as its primary embedding provider.

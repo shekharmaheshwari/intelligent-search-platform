@@ -31,6 +31,8 @@
   $: settings = $settingsStore.settings;
   $: loading = $settingsStore.loading;
 
+  let activeTab: 'model' | 'personalisation' = 'model';
+
   let selectedModel = '';
   let saving = false;
   let errMsg = '';
@@ -134,6 +136,44 @@
     dimWarning = '';
   }
 
+  // ── Customer Context ─────────────────────────────────────────────────────────
+
+  let ccSaving = false;
+  let ccErr = '';
+  let ccSaved = '';  // key of the last-saved flag for transient success display
+
+  async function updateCC(flags: {
+    enabled?: boolean;
+    vectorBlendingEnabled?: boolean;
+    affinityBoostEnabled?: boolean;
+    viewedPenaltyEnabled?: boolean;
+  }, savedKey: string) {
+    ccSaving = true; ccErr = ''; ccSaved = '';
+    try {
+      await settingsStore.updateCustomerContext(flags);
+      ccSaved = savedKey;
+    } catch (e) {
+      ccErr = String(e);
+    } finally {
+      ccSaving = false;
+    }
+  }
+
+  $: masterOn = $settingsStore.settings?.customer_context_enabled !== false;
+
+  function onCCMasterChange(e: Event) {
+    updateCC({ enabled: (e.currentTarget as HTMLInputElement).checked }, 'master');
+  }
+  function onCCBlendingChange(e: Event) {
+    updateCC({ vectorBlendingEnabled: (e.currentTarget as HTMLInputElement).checked }, 'blending');
+  }
+  function onCCAffinityChange(e: Event) {
+    updateCC({ affinityBoostEnabled: (e.currentTarget as HTMLInputElement).checked }, 'affinity');
+  }
+  function onCCPenaltyChange(e: Event) {
+    updateCC({ viewedPenaltyEnabled: (e.currentTarget as HTMLInputElement).checked }, 'penalty');
+  }
+
   /**
    * Save the RexBERT endpoint and optional API key without changing the global model.
    * Used when the global is voyage/openai but per-index RexBERT overrides are needed.
@@ -168,6 +208,24 @@
     </div>
   </div>
 
+  <!-- Tab bar -->
+  <nav class="tab-bar">
+    <button
+      class="tab-btn"
+      class:tab-active={activeTab === 'model'}
+      on:click={() => activeTab = 'model'}
+    >
+      Embedding Model
+    </button>
+    <button
+      class="tab-btn"
+      class:tab-active={activeTab === 'personalisation'}
+      on:click={() => activeTab = 'personalisation'}
+    >
+      Customer Personalisation
+    </button>
+  </nav>
+
   {#if errMsg}
     <p class="err">{errMsg}</p>
   {/if}
@@ -175,6 +233,9 @@
   {#if loading}
     <div class="loading"><div class="spinner"></div><span>Loading…</span></div>
   {:else if settings}
+
+  <!-- ── Tab: Embedding Model ──────────────────────────────────────────────── -->
+  {#if activeTab === 'model'}
 
     <!-- Embedding Model Section -->
     <section class="section">
@@ -474,6 +535,141 @@
     </section>
 
   {/if}
+
+  <!-- ── Tab: Customer Personalisation ────────────────────────────────────── -->
+  {#if activeTab === 'personalisation'}
+
+    <section class="section cc-section">
+      <div class="section-header">
+        <h3>Customer Context &amp; Personalisation</h3>
+        <p class="section-sub">
+          These settings control how each shopper's browsing and purchase behaviour influences
+          their search results. Each signal can be enabled or disabled independently —
+          making it easy to run A/B tests and measure the real impact on conversions.
+          All changes take effect immediately with no restart required.
+        </p>
+      </div>
+
+      <div class="cc-flags">
+
+        <!-- Master toggle -->
+        <div class="cc-row cc-row-master">
+          <div class="cc-info">
+            <span class="cc-label cc-label-master">Customer Personalisation</span>
+            <span class="cc-desc">Master on/off switch for all personalisation features below.</span>
+            <span class="cc-hint">
+              When <strong>enabled</strong>, the search engine reads real-time signals from each
+              shopper's current session — products they viewed, added to cart, or searched for —
+              and adjusts results to reflect their interests.
+              When <strong>disabled</strong>, every shopper sees the same relevance-ranked results
+              regardless of their history. Turn this off for a fully neutral, unbiased search
+              experience or when troubleshooting unexpected ranking behaviour.
+            </span>
+          </div>
+          <label class="toggle" class:toggle-disabled={ccSaving}>
+            <input
+              type="checkbox"
+              checked={settings.customer_context_enabled !== false}
+              disabled={ccSaving}
+              on:change={onCCMasterChange}
+            />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+
+        <!-- Sub-flags (greyed out when master is off) -->
+        <div class="cc-row" class:cc-row-dim={!masterOn}>
+          <div class="cc-info">
+            <span class="cc-label">Semantic Browse Matching</span>
+            <span class="cc-desc">Surfaces products that <em>feel</em> similar to what the shopper has already browsed — even when the keywords don't match.</span>
+            <span class="cc-hint">
+              When a shopper views a "Sony WH-1000XM5 headphone," this feature quietly shifts
+              the meaning of their next search toward similar premium audio products —
+              even if they just type "headphones." It works by blending the visual/semantic
+              fingerprints of recently viewed items into the search query itself (20% blend,
+              80% original query intent), so it nudges rather than overrides what the shopper
+              typed. Disable this if you want keyword relevance to be the only factor in
+              what gets retrieved.
+            </span>
+          </div>
+          <label class="toggle" class:toggle-disabled={ccSaving || !masterOn}>
+            <input
+              type="checkbox"
+              checked={settings.cc_vector_blending_enabled !== false}
+              disabled={ccSaving || !masterOn}
+              on:change={onCCBlendingChange}
+            />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+
+        <div class="cc-row" class:cc-row-dim={!masterOn}>
+          <div class="cc-info">
+            <span class="cc-label">Brand &amp; Category Preference Boost</span>
+            <span class="cc-desc">Ranks products higher when they match the brands, categories, or product types the shopper gravitates toward.</span>
+            <span class="cc-hint">
+              If a customer frequently browses Sony electronics, Sony products will rank slightly
+              higher in their results for the rest of the session. The same applies to product
+              categories (e.g. "headphones") and types (e.g. "wireless"). Boosts are intentionally
+              small — category +0.20, brand +0.15, type +0.10 — so they complement relevance
+              rather than override it. A shopper with no strong preference will see no difference.
+              Disable to rank purely on textual and semantic relevance with no session-based
+              brand or category weighting.
+            </span>
+          </div>
+          <label class="toggle" class:toggle-disabled={ccSaving || !masterOn}>
+            <input
+              type="checkbox"
+              checked={settings.cc_affinity_boost_enabled !== false}
+              disabled={ccSaving || !masterOn}
+              on:change={onCCAffinityChange}
+            />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+
+        <div class="cc-row" class:cc-row-dim={!masterOn}>
+          <div class="cc-info">
+            <span class="cc-label">Already-Viewed Item Demotion</span>
+            <span class="cc-desc">Lowers the ranking of products the shopper has already seen in this session, so fresh options get a chance to surface.</span>
+            <span class="cc-hint">
+              Adds a small -0.05 score penalty to any item a customer has already viewed during
+              their current visit. This is useful in discovery-oriented searches where variety
+              matters — it gently pushes products the shopper has already considered further down
+              the list, giving newer items a fair shot. The penalty is subtle by design: it won't
+              hide a highly relevant product entirely, just break ties in favour of unseen items.
+              Disable if you want popular or previously viewed items to retain their full ranking
+              position (e.g. for high-intent "I'm ready to buy" search flows).
+            </span>
+          </div>
+          <label class="toggle" class:toggle-disabled={ccSaving || !masterOn}>
+            <input
+              type="checkbox"
+              checked={settings.cc_viewed_penalty_enabled !== false}
+              disabled={ccSaving || !masterOn}
+              on:change={onCCPenaltyChange}
+            />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+
+      </div>
+
+      {#if ccErr}<p class="err">{ccErr}</p>{/if}
+      {#if ccSaved && !ccErr}<p class="success">Setting saved.</p>{/if}
+    </section>
+
+  {/if}<!-- end personalisation tab -->
+
+  {/if}<!-- end settings loaded -->
 </div>
 
 <style>
@@ -482,9 +678,36 @@
     max-width: 820px;
   }
 
-  .panel-head { margin-bottom: 28px; }
+  .panel-head { margin-bottom: 0; }
   h2 { margin: 0; font-size: 20px; font-weight: 600; color: var(--text); }
   .panel-sub { margin: 4px 0 0; font-size: 13px; color: var(--text-5); }
+
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border-2);
+    margin: 20px 0 28px;
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-5);
+    cursor: pointer;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    font-family: inherit;
+  }
+  .tab-btn:hover { color: var(--text-2); }
+  .tab-active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
 
   .loading { display: flex; align-items: center; gap: 10px; color: var(--text-5); font-size: 13px; }
   .spinner {
@@ -707,5 +930,86 @@
     font-variant-numeric: tabular-nums;
     color: var(--accent);
     font-weight: 600;
+  }
+
+  .cc-section { margin-top: 0; }
+
+  .cc-flags {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .cc-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 18px 18px;
+    border-bottom: 1px solid var(--border);
+    gap: 20px;
+    transition: opacity 0.2s;
+  }
+  .cc-row:last-child { border-bottom: none; }
+
+  .cc-row-master { background: var(--bg); }
+
+  .cc-row-dim { opacity: 0.4; }
+
+  .cc-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cc-label { font-size: 13px; font-weight: 500; color: var(--text-2); }
+  .cc-label-master { font-size: 13px; font-weight: 600; color: var(--text); }
+
+  .cc-desc { font-size: 12px; color: var(--text-3); line-height: 1.45; font-weight: 500; }
+
+  .cc-hint {
+    font-size: 11px;
+    color: var(--text-5);
+    line-height: 1.6;
+    padding-top: 2px;
+    max-width: 600px;
+  }
+  .cc-hint strong { color: var(--text-4); font-weight: 600; }
+  .cc-hint em { color: var(--text-4); font-style: normal; font-weight: 500; }
+
+  .toggle { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; }
+  .toggle input { display: none; }
+  .toggle-disabled { opacity: 0.5; pointer-events: none; }
+
+  .toggle-track {
+    width: 44px;
+    height: 24px;
+    background: var(--border-2);
+    border-radius: 12px;
+    position: relative;
+    transition: background 0.2s;
+  }
+
+  .toggle input:checked + .toggle-track {
+    background: var(--accent);
+  }
+
+  .toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: #fff;
+    border-radius: 50%;
+    transition: left 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  .toggle input:checked + .toggle-track .toggle-thumb {
+    left: 23px;
   }
 </style>

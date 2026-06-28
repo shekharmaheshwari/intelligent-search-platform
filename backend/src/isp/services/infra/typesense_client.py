@@ -166,8 +166,33 @@ def count_documents(index_id: str) -> int:
         return 0
 
 
+def _apply_lexical_hook(raw: dict, hook) -> dict:
+    """
+    Apply a post-retrieval scoring hook to a flat Typesense hit list and re-sort.
+
+    Builds rank-based scores (1 / (K + rank + 1), K=60 — same constant as RRF)
+    so the hook's affinity boost values are in the correct relative magnitude.
+    The original hit objects are preserved; only their order changes.
+    """
+    hits = raw.get("hits", [])
+    if not hits:
+        return raw
+    K = 60
+    scores: dict[str, float] = {}
+    all_docs: dict[str, dict] = {}
+    for rank, hit in enumerate(hits):
+        doc = hit.get("document", {})
+        did = doc.get("id", str(rank))
+        scores[did] = 1.0 / (K + rank + 1)
+        all_docs[did] = doc
+    hook(scores, all_docs)
+    hit_by_id = {hit["document"]["id"]: hit for hit in hits if "document" in hit}
+    ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
+    return {**raw, "hits": [hit_by_id[d] for d in ranked if d in hit_by_id]}
+
+
 def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
-                     exclude_vec: bool = False) -> dict:
+                     exclude_vec: bool = False, post_rrf_hook=None) -> dict:
     """
     Single-pass lexical search on an ISP-managed collection.
 
@@ -176,17 +201,23 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
 
     ``exclude_vec`` tells Typesense not to return the ``vec`` field at all so the
     large embedding array is never transferred — useful for public-facing endpoints.
+
+    ``post_rrf_hook`` is an optional callable(scores, all_docs) applied after
+    retrieval to reorder results by customer affinity — the same hook used by
+    ``search_with_vec``.  This enables personalisation on empty-query browse where
+    no query vector is available for blending.
     """
     name = collection_name(index_id)
     client = get_client()
     extra: dict = {"exclude_fields": "vec"} if exclude_vec else {}
 
     if mode == "semantic":
-        return client.collections[name].documents.search({
+        raw = client.collections[name].documents.search({
             "q": "*", "query_by": "title",
             "vector_query": f"vec:([],  k:{per_page})",
             "page": page, "per_page": per_page, **extra,
         })
+        return _apply_lexical_hook(raw, post_rrf_hook) if post_rrf_hook else raw
 
     base_params: dict = {
         "q": q, "query_by": "title,content",
@@ -197,9 +228,10 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
 
     def _search_with_sort(sort_by: str) -> dict:
         try:
-            return client.collections[name].documents.search({**base_params, "sort_by": sort_by})
+            raw = client.collections[name].documents.search({**base_params, "sort_by": sort_by})
         except Exception:
-            return client.collections[name].documents.search({**base_params, "sort_by": "_text_match:desc"})
+            raw = client.collections[name].documents.search({**base_params, "sort_by": "_text_match:desc"})
+        return _apply_lexical_hook(raw, post_rrf_hook) if post_rrf_hook else raw
 
     if mode == "lexical":
         return _search_with_sort("is_featured:desc,_text_match:desc")
@@ -216,6 +248,7 @@ def search_with_vec(
     per_page: int,
     version_boost: bool = False,
     exclude_vec: bool = False,
+    post_rrf_hook=None,
 ) -> dict:
     """
     Hybrid search via Typesense multi_search + Reciprocal Rank Fusion.
@@ -229,18 +262,21 @@ def search_with_vec(
     vec_str = ",".join(str(v) for v in vec)
     client = get_client()
     extra: dict = {"exclude_fields": "vec"} if exclude_vec else {}
+    # Typesense hard cap is 250 per page; 3× over-fetch improves RRF recall
+    # but must be clamped so we never exceed the limit.
+    fetch_n = min(per_page * 3, 250)
     resp = client.multi_search.perform({"searches": [
         {
             "collection": name,
             "q": q, "query_by": "title,content",
             "query_by_weights": "2,1",
-            "per_page": str(per_page * 3), **extra,
+            "per_page": str(fetch_n), **extra,
         },
         {
             "collection": name,
             "q": "*", "query_by": "title",
-            "vector_query": f"vec:([{vec_str}], k:{per_page * 3})",
-            "per_page": str(per_page * 3), **extra,
+            "vector_query": f"vec:([{vec_str}], k:{fetch_n})",
+            "per_page": str(fetch_n), **extra,
         },
     ]}, {})
     results = resp.get("results", [{}, {}])
@@ -274,10 +310,17 @@ def search_with_vec(
         if isinstance(boost_ct, list) and any(t.lower() in q_lower for t in boost_ct if t):
             scores[did] = scores.get(did, 0) + 0.3
 
+    # Context hook — caller may pass a callable(scores, all_docs) to apply
+    # customer-action-history boosts after all editorial signals are applied.
+    # This runs on the full candidate set before page slicing so items near
+    # the page boundary can be promoted by personalization signals.
+    if post_rrf_hook is not None:
+        post_rrf_hook(scores, all_docs)
+
     ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
     start = (page - 1) * per_page
-    page_docs = [all_docs[d] for d in ranked[start:start + per_page]]
-    return {"hits": [{"document": d} for d in page_docs],
+    page_ids = ranked[start:start + per_page]
+    return {"hits": [{"document": all_docs[d], "score": scores[d]} for d in page_ids],
             "found": len(ranked),
             "page": page}
 
@@ -336,6 +379,7 @@ def search_external(
     page: int,
     per_page: int,
     exclude_vec: bool = False,
+    post_rrf_hook=None,
 ) -> dict:
     """
     Search an external Typesense collection with optional hybrid RRF.
@@ -358,13 +402,14 @@ def search_external(
         params["filter_by"] = filter_by
     if vec:
         vec_str = ",".join(str(v) for v in vec)
-        lex_params = {**params, "per_page": str(per_page * 3)}
+        fetch_n = min(per_page * 3, 250)
+        lex_params = {**params, "per_page": str(fetch_n)}
         sem_params = {
             "collection": col,
             "q": "*",
             "query_by": qb,
-            "vector_query": f"vec:([{vec_str}], k:{per_page * 3})",
-            "per_page": str(per_page * 3),
+            "vector_query": f"vec:([{vec_str}], k:{fetch_n})",
+            "per_page": str(fetch_n),
             "include_fields": fields,
         }
         if filter_by:
@@ -384,10 +429,13 @@ def search_external(
             scores[did] = scores.get(did, 0) + 0.3 / (K + rank + 1)
         all_docs = {**{d: doc for d, (_, doc) in lex_hits.items()},
                     **{d: doc for d, (_, doc) in sem_hits.items()}}
+        if post_rrf_hook is not None:
+            post_rrf_hook(scores, all_docs)
         ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
         start = (page - 1) * per_page
         page_docs = [all_docs[d] for d in ranked[start:start + per_page]]
-        return {"hits": [{"document": d} for d in page_docs], "found": len(ranked), "page": page}
+        return {"hits": [{"document": d, "score": scores[d]} for d in page_docs],
+                "found": len(ranked), "page": page}
     return get_client().collections[col].documents.search(params)
 
 

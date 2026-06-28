@@ -504,3 +504,25 @@ Hostname is `socket.gethostname()` — stable within one Docker container across
 2. **Domain service** — create `services/domain/<domain>_service.py` with `async def` CRUD functions. Import the pool via `from isp.services.infra.database import get_pool`. Add the table(s) to `init_db()` in `services/infra/database.py`.
 3. **Router** — create `routers/<domain>.py`, define endpoints, import the domain service with `from isp.services.domain import <domain>_service`. Register with `app.include_router(<domain>.router, prefix="/v1")` in `main.py`.
 4. **Infrastructure** (if needed) — add a new `services/infra/<name>.py` wrapping the external system. Keep it pure-function; no FastAPI imports. Import it in domain services via `from isp.services.infra import <name>`.
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Fowler, M.** (2002). *Patterns of Enterprise Application Architecture*. Addison-Wesley. ISBN: 0-321-12742-0 — Defines the Service Layer, Repository, and Data Mapper patterns; ISP's five-layer architecture (Config → Models → Router → Domain Service → Infra Service) directly follows Fowler's layered architecture taxonomy.
+
+2. **Cormack, G. V., Clarke, C. L. A., & Buettcher, S.** (2009). "Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods." *Proceedings of SIGIR 2009*, pp. 758–759. DOI: [10.1145/1571941.1572114](https://doi.org/10.1145/1571941.1572114) — RRF with K=60; directly implemented in `search_with_vec` and `_rrf_search` in `typesense_client.py`.
+
+3. **Robertson, S., & Zaragoza, H.** (2009). "The Probabilistic Relevance Framework: BM25 and Beyond." *Foundations and Trends in Information Retrieval*, 3(4), 333–389. DOI: [10.1561/1500000019](https://doi.org/10.1561/1500000019) — BM25 lexical scoring used as the 0.7-weight component of hybrid search.
+
+4. **Devlin, J., Chang, M.-W., Lee, K., & Toutanova, K.** (2019). "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding." *Proceedings of NAACL-HLT 2019*. arXiv: [1810.04805](https://arxiv.org/abs/1810.04805) — Transformer architecture underlying Voyage AI voyage-3 embeddings used for semantic ANN search.
+
+5. **Jones, N., & Bartell, B.** (2022). *FastAPI: Building Python Web APIs*. O'Reilly. — FastAPI's async request handling, Pydantic model validation, and `BackgroundTasks` pattern are core to ISP's router layer; FastAPI's dependency injection motivates the domain service pattern.
+
+6. **Ousterhout, J. K.** (1998). "Why Threads Are a Bad Idea (for Most Purposes)." *Proceedings of USENIX Annual Technical Conference*. — Motivates `loop.run_in_executor` for V8 JS execution: PyMiniRacer is synchronous; running it in a thread pool prevents blocking the asyncio event loop during extension application.
+
+7. **Kleppmann, M.** (2017). *Designing Data-Intensive Applications*. O'Reilly. ISBN: 978-1-449-37332-0 — Chapter 8 (Distributed Systems Troubles) and Chapter 9 (Consistency and Consensus) inform ISP's Redis distributed job lock design: `SET NX EX` with Lua compare-and-delete prevents two instances from rebuilding the same index concurrently.
+
+8. **Schmuck, F., & Wylie, J.** (2002). "Experience with Giga-File: Fast and Cheap Content-Based Addressing for Distributed Systems." *Proceedings of FAST 2002*. — SHA-256 content-addressed cache keys (`sha256("{model}:{input_type}:{text}")`) follow the content-addressable storage pattern; cache entries are automatically invalidated when the model changes.

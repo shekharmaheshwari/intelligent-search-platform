@@ -35,4 +35,8 @@ export interface AppSettings {
   custom_endpoint?: string | null;
   custom_model_name?: string | null;
   custom_num_dim?: number | null;
+  customer_context_enabled?: boolean;
+  cc_vector_blending_enabled?: boolean;
+  cc_affinity_boost_enabled?: boolean;
+  cc_viewed_penalty_enabled?: boolean;
 }
