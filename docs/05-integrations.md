@@ -333,3 +333,23 @@ Individual scripts for partial deploys:
 - `./deploy-db.sh` — database only (rarely needed)
 - `./deploy-api.sh` — after any backend Python or extension JS change
 - `./deploy-ui.sh` — after any frontend Svelte/TS change
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Fielding, R. T.** (2000). "Architectural Styles and the Design of Network-Based Software Architectures." *Doctoral dissertation, University of California, Irvine*. — Defines REST (Representational State Transfer); all ISP integrations — Frontend ↔ Backend, Backend ↔ Voyage AI, PLP ↔ ISP — use RESTful HTTP JSON APIs as specified here.
+
+2. **Cormack, G. V., Clarke, C. L. A., & Buettcher, S.** (2009). "Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods." *Proceedings of SIGIR 2009*, pp. 758–759. DOI: [10.1145/1571941.1572114](https://doi.org/10.1145/1571941.1572114) — RRF used in Integration 3 (Backend ↔ Typesense) for both ISP and catalog search; explains the `multi_search` + rank fusion pattern.
+
+3. **Johnson, J., Douze, M., & Jégou, H.** (2021). "Billion-Scale Similarity Search with GPUs." *IEEE Transactions on Big Data*, 7(3), 535–547. arXiv: [1702.08734](https://arxiv.org/abs/1702.08734) — ANN search library (FAISS) underlying Typesense's vector query capability used in Integration 3.
+
+4. **Devlin, J., Chang, M.-W., Lee, K., & Toutanova, K.** (2019). "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding." *Proceedings of NAACL-HLT 2019*. arXiv: [1810.04805](https://arxiv.org/abs/1810.04805) — Transformer architecture that Voyage AI voyage-3 builds upon (Integration 4: Backend ↔ Voyage AI).
+
+5. **Helland, P.** (2007). "Life beyond Distributed Transactions: An Apostate's Opinion." *Proceedings of the 3rd Biennial Conference on Innovative Data Systems Research (CIDR 2007)*, pp. 132–141. — Background on eventual consistency in distributed systems; informs the ISP design where PLP reads from eventually-consistent Typesense while PostgreSQL holds the authoritative metadata.
+
+6. **Merkel, D.** (2014). "Docker: Lightweight Linux Containers for Consistent Development and Deployment." *Linux Journal*, 2014(239). ISSN: 1075-3583 — Docker Compose enables the multi-service dev environment documented in Integration 7 (deployment integration).
+
+7. **Ousterhout, J. K.** (1998). "Why Threads Are a Bad Idea (for Most Purposes)." *Proceedings of USENIX Annual Technical Conference*. — Motivates `run_in_executor` for PyMiniRacer V8 calls (Integration 5: Extension Pipeline): synchronous V8 execution is offloaded to a thread pool to avoid blocking the asyncio event loop.

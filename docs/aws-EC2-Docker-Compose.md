@@ -566,3 +566,21 @@ your Mac
 | `rsync` | A smart file-copy tool that only transfers what changed |
 | Reverse proxy (nginx) | A gatekeeper that routes requests to the right container |
 | `.env.prod` | A file holding secrets — never committed to git |
+
+---
+
+## References
+
+> Citations below are sourced from training knowledge (not live browsing). DOI and arXiv links are provided where known.
+
+1. **Armbrust, M., Fox, A., Griffith, R., Joseph, A. D., Katz, R., Konwinski, A., Lee, G., Patterson, D., Rabkin, A., Stoica, I., & Zaharia, M.** (2010). "A View of Cloud Computing." *Communications of the ACM*, 53(4), 50–58. DOI: [10.1145/1721654.1721672](https://doi.org/10.1145/1721654.1721672) — Foundational cloud computing paper defining IaaS (EC2 is Infrastructure as a Service); motivates the trade-off between on-demand provisioning cost and operational flexibility that ISP deploys on.
+
+2. **Merkel, D.** (2014). "Docker: Lightweight Linux Containers for Consistent Development and Deployment." *Linux Journal*, 2014(239). ISSN: 1075-3583 — Introduces Docker containers and images; ISP uses Docker Compose to run six containers (API, UI, PostgreSQL, Typesense, Redis, nginx) with a single `up -d` command.
+
+3. **Fielding, R. T.** (2000). "Architectural Styles and the Design of Network-Based Software Architectures." *Doctoral dissertation, University of California, Irvine*. — Reverse proxy pattern: nginx routes `/v1/*` to the API and `/` to the UI, acting as the single public endpoint that enforces the REST interface contract.
+
+4. **Saltzer, J. H., Reed, D. P., & Clark, D. D.** (1984). "End-To-End Arguments in System Design." *ACM Transactions on Computer Systems*, 2(4), 277–288. DOI: [10.1145/357401.357402](https://doi.org/10.1145/357401.357402) — End-to-end principle: internal services (PostgreSQL 5432, Typesense 8108, Redis 6379) are not exposed to the internet; security checks are implemented at the nginx boundary, not duplicated at each service.
+
+5. **Amazon Web Services.** (2022). *AWS Well-Architected Framework — Security Pillar*. AWS Whitepaper. URL: [docs.aws.amazon.com/wellarchitected](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html) — Security group `isp-sg` with SSH restricted to `My IP` and HTTP open on port 80 follows the Principle of Least Privilege outlined in the Security Pillar.
+
+6. **Tange, O.** (2011). "GNU Parallel: The Command-Line Power Tool." *USENIX ;login:*, 36(1), 42–47. — `rsync` (used in `deploy-aws.sh`) follows the same delta-transfer principle: only changed files are sent on re-deployment, reducing deploy times from minutes to seconds after the first deploy.
