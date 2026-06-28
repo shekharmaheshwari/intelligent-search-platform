@@ -71,14 +71,24 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     # Build native Typesense filter string — works after schema migration promotes
     # category and manufacturer to top-level fields.  External collections skip
     # this path and rely on their own filter_by via search_external.
+    def _to_list(v) -> list[str]:
+        if not v:
+            return []
+        return v if isinstance(v, list) else [v]
+
     ts_filter: str | None = None
-    if not meta.is_external and (req.category or req.manufacturer):
+    if not meta.is_external:
         _parts = []
-        if req.category:
-            _parts.append(f"category:={req.category}")
-        if req.manufacturer:
-            _parts.append(f"manufacturer:={req.manufacturer}")
-        ts_filter = " && ".join(_parts)
+        cats = _to_list(req.category)
+        mfrs = _to_list(req.manufacturer)
+        if cats:
+            vals = ",".join(cats)
+            _parts.append(f"category:=[{vals}]")
+        if mfrs:
+            vals = ",".join(mfrs)
+            _parts.append(f"manufacturer:=[{vals}]")
+        if _parts:
+            ts_filter = " && ".join(_parts)
 
     has_ctx_sort = bool(ctx_hook)
     is_browse    = not req.q.strip()

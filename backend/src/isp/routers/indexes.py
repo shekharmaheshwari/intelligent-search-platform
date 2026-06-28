@@ -209,10 +209,15 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
             out["vec"] = doc["vec"]
         # Promote category and manufacturer to top-level for native Typesense
         # filter_by — values are kept in metadata too for backward compatibility.
-        for _field in ("category", "manufacturer"):
-            _val = combined_meta.get(_field) or doc.get(_field)
-            if _val and isinstance(_val, str):
-                out[_field] = _val.strip()
+        # category is slugified (spaces→dashes, lowercase) to match the PLP's
+        # FilterSidebar.slugify(); manufacturer uses the original casing.
+        _cat = combined_meta.get("category") or doc.get("category")
+        if _cat and isinstance(_cat, str):
+            import re as _re
+            out["category"] = _re.sub(r"\s+", "-", _cat.strip().lower())
+        _mfr = combined_meta.get("manufacturer") or doc.get("manufacturer")
+        if _mfr and isinstance(_mfr, str):
+            out["manufacturer"] = _mfr.strip()
         # Promote scalar extra fields (e.g. from SitemapConnectorConfig.meta_fields)
         # to top-level so the Typesense wildcard field (.*) indexes them as filterable.
         for k, v in extra.items():
