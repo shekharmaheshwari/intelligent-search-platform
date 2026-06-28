@@ -41,10 +41,10 @@ class SearchRequest(BaseModel):
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=10, ge=1, le=50)
     mode: str = "hybrid"
-    manufacturer: str | None = None
-    """Filter results to this manufacturer (matched against metadata.manufacturer)."""
-    category: str | None = None
-    """Filter results to this category slug (matched against slugified metadata.category)."""
+    manufacturer: list[str] | str | None = None
+    """Filter results to these manufacturers (single value or list for multi-select)."""
+    category: list[str] | str | None = None
+    """Filter results to these category slugs (single value or list for multi-select)."""
     action_history: list[CustomerAction] = Field(
         default_factory=list,
         description=(
