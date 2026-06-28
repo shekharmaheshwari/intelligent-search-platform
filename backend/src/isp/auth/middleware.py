@@ -6,6 +6,7 @@ Route protection rules (evaluated in order):
   2. /health, /auth/*, /docs, /openapi.json, /redoc → always open
   3. /v1/catalog/*, /v1/analytics/*, /v1/intent/*   → open (PLP-facing, no auth)
   4. /v1/indexes/{id}/search/public                  → open (external search, no auth)
+     /v1/indexes/{id}/facets                         → open (PLP-facing facet counts, no auth)
      Future: enforce X-Api-Key here when API key management UI is built.
   5. /v1/*                                           → JWT required (Bearer header)
   6. Everything else                                 → open
@@ -30,7 +31,8 @@ _PUBLIC_API_PREFIXES = (
     "/v1/analytics",     # impression/click logging
     "/v1/intent",        # tab intent
 )
-_SEARCH_PUBLIC = re.compile(r"^/v1/indexes/[^/]+/search/public$")
+_SEARCH_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/search/public$")
+_FACETS_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/facets$")
 
 
 def _extract_token(request: Request) -> str | None:
@@ -57,8 +59,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(p) for p in _PUBLIC_API_PREFIXES):
             return await call_next(request)
 
-        # Public search endpoint — open without auth
-        if _SEARCH_PUBLIC.match(path):
+        # Public search and facets endpoints — open without auth
+        if _SEARCH_PUBLIC.match(path) or _FACETS_PUBLIC.match(path):
             return await call_next(request)
 
         # Admin routes — JWT
