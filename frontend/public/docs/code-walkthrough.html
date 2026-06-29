@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Code Walkthrough — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#0d0d0d;
+      --border:#222;--border2:#1e1e1e;--border3:#141414;
+      --text:#eee;--text-h2:#ddd;--text-h3:#bbb;--text-p:#666;--text-td:#666;
+      --text-muted:#555;--text-faint:#444;--text-ghost:#333;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#a8a0f8;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f5f5f8;
+      --border:#ddd;--border2:#e4e4ea;--border3:#eaeaee;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#555;
+      --text-muted:#666;--text-faint:#888;--text-ghost:#aaa;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; line-height: 1.6; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { font-size: 13px; color: var(--text-faint); margin-left: 8px; }
+    .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; transition: border-color 0.15s, color 0.15s; margin-left: auto; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .layout { display: flex; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    nav.sidebar { width: 220px; flex-shrink: 0; padding: 40px 24px 40px 0; position: sticky; top: 0; height: calc(100vh - 56px); overflow-y: auto; }
+    nav.sidebar .nav-label { font-size: 10px; font-weight: 600; color: var(--text-ghost); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; margin-top: 24px; }
+    nav.sidebar a { display: block; font-size: 13px; color: var(--text-muted); text-decoration: none; padding: 5px 0; border-left: 2px solid transparent; padding-left: 10px; }
+    nav.sidebar a:hover { color: var(--text-h3); border-left-color: var(--text-faint); }
+    main { flex: 1; min-width: 0; padding: 48px 0 80px 40px; border-left: 1px solid var(--border2); }
+    h1 { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 18px; font-weight: 600; color: var(--text-h2); margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 15px; font-weight: 600; color: var(--accent); margin: 32px 0 10px; }
+    h4 { font-size: 13px; font-weight: 600; color: var(--text-h3); margin: 20px 0 8px; }
+    p { font-size: 13px; color: var(--text-p); margin-bottom: 14px; }
+    ul, ol { padding-left: 20px; margin-bottom: 14px; }
+    li { font-size: 13px; color: var(--text-p); margin-bottom: 5px; }
+    li strong { color: var(--text-h3); }
+    strong { color: var(--text-h2); }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 16px 18px; overflow-x: auto; margin-bottom: 20px; }
+    pre code { background: none; border: none; padding: 0; font-size: 12px; color: var(--text-h3); line-height: 1.7; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+    th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; color: var(--text-faint); letter-spacing: 0.5px; text-transform: uppercase; border-bottom: 1px solid var(--border2); }
+    td { padding: 9px 12px; border-bottom: 1px solid var(--border3); color: var(--text-td); vertical-align: top; }
+    td strong { color: var(--text-h3); }
+    td code { font-size: 11px; }
+    tr:hover td { background: var(--bg-hover); }
+    .file-block { background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; margin-bottom: 28px; overflow: hidden; }
+    .file-block-header { padding: 14px 18px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 10px; }
+    .file-path { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--accent); font-weight: 600; }
+    .file-desc { font-size: 12px; color: var(--text-muted); }
+    .file-block-body { padding: 14px 18px; }
+    .method { border-left: 2px solid var(--accent-border); padding: 10px 0 10px 14px; margin-bottom: 14px; }
+    .method-sig { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); font-weight: 600; margin-bottom: 4px; }
+    .method-desc { font-size: 12px; color: var(--text-p); }
+    .callout { background: var(--accent-dim); border: 1px solid var(--accent-border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; }
+    .callout p { color: var(--text-p); margin: 0; font-size: 13px; }
+    .callout strong { color: var(--text-h3); }
+    .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .badge-green  { background: #0d2014; color: #4caf78; border: 1px solid #1a3d28; }
+    .badge-purple { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border); }
+    .flow-box { background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 16px 18px; margin-bottom: 20px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--text-h3); line-height: 1.8; white-space: pre; overflow-x: auto; }
+    @media (max-width: 800px) { .layout { flex-direction: column; } nav.sidebar { display: none; } main { padding: 32px 0 60px; border-left: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo-icon">⬡</span>
+    <span class="logo-name">Intelligent Search Platform</span>
+    <span class="breadcrumb"><a href="index.html">Docs</a> / Code Walkthrough</span>
+    <button id="theme-toggle" class="theme-btn" title="Toggle theme">☀</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="nav-label">Overview</div>
+      <a href="#stack">Stack &amp; ports</a>
+      <a href="#layout">Repository layout</a>
+      <a href="#startup">Startup sequence</a>
+
+      <div class="nav-label">Backend — Infra</div>
+      <a href="#database">database.py</a>
+      <a href="#typesense">typesense_client.py</a>
+      <a href="#embedding">embedding_service.py</a>
+      <a href="#extension-runner">extension_runner.py</a>
+      <a href="#job-lock">job_lock.py</a>
+      <a href="#secrets">secrets.py</a>
+      <a href="#connectors">Connectors</a>
+
+      <div class="nav-label">Backend — Domain</div>
+      <a href="#index-service">index_service.py</a>
+      <a href="#extension-service">extension_service.py</a>
+      <a href="#analytics-service">analytics_service.py</a>
+      <a href="#settings-service">settings_service.py</a>
+
+      <div class="nav-label">Backend — Auth</div>
+      <a href="#jwt-utils">jwt_utils.py</a>
+      <a href="#provider">provider.py</a>
+      <a href="#middleware">middleware.py</a>
+      <a href="#auth-router">auth router</a>
+
+      <div class="nav-label">Backend — Routers</div>
+      <a href="#router-indexes">indexes.py</a>
+      <a href="#router-search">search.py</a>
+      <a href="#router-catalog">catalog.py</a>
+      <a href="#router-other">other routers</a>
+
+      <div class="nav-label">Frontend</div>
+      <a href="#api-ts">api.ts</a>
+      <a href="#stores">Stores</a>
+      <a href="#repositories">Repositories</a>
+      <a href="#services-fe">Services</a>
+      <a href="#components">Components</a>
+
+      <div class="nav-label">Data &amp; Flows</div>
+      <a href="#schema">DB schema</a>
+      <a href="#flow-ingest">Ingest flow</a>
+      <a href="#flow-search">Search flow</a>
+    </nav>
+
+    <main>
+      <h1>Code Walkthrough</h1>
+      <p class="page-subtitle">Method-level reference for every file in ISP — backend, frontend, auth, and data flows.</p>
+
+      <!-- ── STACK ── -->
+      <h2 id="stack">Stack &amp; ports</h2>
+      <table>
+        <thead><tr><th>Layer</th><th>Technology</th><th>Local port</th><th>Internal host</th></tr></thead>
+        <tbody>
+          <tr><td>Admin UI</td><td>Astro 4 + Svelte 4 + TypeScript</td><td>3001</td><td>isp-ui:80</td></tr>
+          <tr><td>API</td><td>FastAPI + asyncpg (Python 3.12)</td><td>8001</td><td>isp-api:8001</td></tr>
+          <tr><td>Search engine</td><td>Typesense 0.25</td><td>8108</td><td>typesense:8108</td></tr>
+          <tr><td>Relational DB</td><td>PostgreSQL 16</td><td>5432</td><td>isp-db:5432</td></tr>
+          <tr><td>Embedding cache</td><td>Redis 7</td><td>6379</td><td>isp-redis:6379</td></tr>
+          <tr><td>Secrets store</td><td>HashiCorp Vault (local) / AWS Secrets Manager (prod)</td><td>8200</td><td>isp-vault:8200</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ── LAYOUT ── -->
+      <h2 id="layout">Repository layout</h2>
+      <pre><code>intelligent-search-platform/
+├── backend/src/isp/
+│   ├── auth/              jwt_utils.py · provider.py · middleware.py
+│   ├── models/            index.py · search.py  (Pydantic schemas)
+│   ├── routers/           indexes · search · catalog · content · extensions
+│   │                      analytics · settings · auth · api_keys
+│   ├── services/
+│   │   ├── domain/        index_service · extension_service · analytics_service · settings_service
+│   │   └── infra/         database · typesense_client · embedding_service
+│   │                      extension_runner · job_lock · secrets
+│   │                      rest_connector · sitemap_connector · gsheet_connector
+│   ├── config.py          all settings (pydantic-settings)
+│   └── main.py            app entry point, lifespan, middleware, router registration
+├── frontend/src/
+│   ├── components/        Svelte UI components (auth, layout, sources, extensions, settings)
+│   ├── lib/
+│   │   ├── api.ts         typed fetch wrapper
+│   │   ├── repository/    raw API calls per domain
+│   │   ├── services/      DTO → app model mapping
+│   │   ├── stores/        Svelte writable stores (global state)
+│   │   └── types/         TypeScript interfaces
+│   └── pages/index.astro  single entry page — mounts &lt;LoginGate&gt; + &lt;App&gt;
+├── docs/                  markdown + HTML documentation
+└── docker-compose.yml</code></pre>
+
+      <!-- ── STARTUP ── -->
+      <h2 id="startup">Startup sequence (main.py)</h2>
+      <p><code>main.py</code> is the FastAPI entry point. On every container start, the lifespan handler runs these steps before the first request is served:</p>
+      <div class="flow-box">1. bootstrap_secrets()            fetch secrets from Vault / AWS / env → inject into os.environ
+2. job_lock.release_stale()       clear any Redis locks left by a prior container crash
+3. init_db()                      CREATE TABLE IF NOT EXISTS all PostgreSQL tables
+4. seed_slugs()                   back-fill human-readable slugs for indexes created pre-slug
+5. load_embed_model()             restore operator-chosen embedding model from app_settings
+6. _ensure_catalog_collection()   create shared Typesense catalog collection if missing
+7. ts.migrate_isp_fields()        add new schema fields to existing isp_* collections
+8. _seed_extensions_from_files()  scan backend/extensions/*.js → upsert into DB → auto-assign</div>
+      <p>After lifespan: CORS middleware → optional <code>AuthMiddleware</code> (if <code>AUTH_ENABLED=true</code>) → all routers mounted at <code>/v1</code>.</p>
+
+      <!-- ══════════════════════════════════════════════════════ INFRA ══ -->
+      <h2 id="database">database.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/services/infra/database.py</span>
+          <span class="file-desc">asyncpg connection pool and schema initialisation</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">get_pool() → asyncpg.Pool</div>
+            <div class="method-desc">Lazy singleton — creates the asyncpg connection pool (min 2, max 10) on first call and reuses it for the process lifetime. Reads <code>DATABASE_URL</code> from config.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">init_db() → None</div>
+            <div class="method-desc">Creates all PostgreSQL tables using <code>CREATE TABLE IF NOT EXISTS</code> — safe to call on every startup. Also runs idempotent <code>ALTER TABLE … ADD COLUMN IF NOT EXISTS</code> statements for columns added after initial schema, and backfills <code>intent_label</code> for the four known ISP indexes.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TYPESENSE ── -->
+      <h2 id="typesense">typesense_client.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/services/infra/typesense_client.py</span>
+          <span class="file-desc">Thin wrapper around the Typesense SDK — all Typesense I/O goes through this module</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">get_client() → typesense.Client</div>
+            <div class="method-desc">Lazy singleton Typesense client. Connects to <code>typesense_host:typesense_port</code> from config with a 10 s connection timeout.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">collection_name(index_id) → str</div>
+            <div class="method-desc">Returns <code>isp_{index_id}</code> — the naming convention for ISP-managed Typesense collections.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">create_collection(index_id, vec_dim?) → None</div>
+            <div class="method-desc">Provisions a new ISP-managed collection with fields: <code>title</code>, <code>content</code>, <code>url</code>, <code>source_type</code>, <code>indexed_at</code>, <code>metadata</code>, <code>popularity</code>, <code>is_featured</code>, <code>version_score</code>, <code>boost_queries_equal</code>, <code>boost_queries_contains</code>, <code>vec</code> (float[]), and a wildcard <code>.*</code> auto field. Idempotent — does nothing if collection already exists.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">drop_collection(index_id) → None</div>
+            <div class="method-desc">Deletes an ISP-managed collection. Silently ignores missing collections.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">migrate_isp_fields() → None</div>
+            <div class="method-desc">Idempotent startup migration — adds <code>version_score</code>, <code>boost_queries_equal</code>, <code>boost_queries_contains</code> to any <code>isp_*</code> or <code>catalog</code> collection that doesn't already have them. Errors are swallowed — a missing field means the feature is inactive until next rebuild.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">upsert_documents(index_id, docs) → int</div>
+            <div class="method-desc">Batch-upsert documents into an ISP-managed collection. Returns count of successful upserts. Logs detailed error info on failures.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">search_documents(index_id, q, mode, page, per_page, exclude_vec?) → dict</div>
+            <div class="method-desc">Single-pass lexical or semantic search on an ISP-managed collection. Used as the fallback path when no embedding vector is available. Sorts by <code>is_featured:desc, _text_match:desc</code>.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">search_with_vec(index_id, q, vec, page, per_page, version_boost?, exclude_vec?) → dict</div>
+            <div class="method-desc">Hybrid search via <code>multi_search</code> (2 passes) + Reciprocal Rank Fusion. Fetches <code>per_page × 3</code> candidates from both lexical (weight 0.7) and semantic (weight 0.3) passes, merges with RRF (K=60), then applies editorial boosts for <code>is_featured</code>, <code>popularity</code>, <code>boost_queries_equal</code>, and <code>boost_queries_contains</code> before slicing the requested page.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">search_external(col, q, filter_by, query_by, vec?, page, per_page) → dict</div>
+            <div class="method-desc">Same hybrid RRF logic applied to an external (non-ISP) Typesense collection. <code>filter_by</code> is applied to both passes to preserve source isolation (e.g. <code>type:=device</code>). Falls back to single lexical pass when no vector is supplied.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">list_documents(index_id, page, per_page, exclude_vec?) → dict</div>
+            <div class="method-desc">Paginated document listing sorted by <code>indexed_at:desc</code>.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">update_document_fields(col_name, doc_id, fields) → bool</div>
+            <div class="method-desc">Partial field update using Typesense <code>action=update</code> — only overwrites supplied keys, leaves the rest intact.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">retrieve_document(col_name, doc_id) → dict | None</div>
+            <div class="method-desc">Fetches a single document by id. Returns None if not found.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">delete_from_collection(col_name, filter_by) → int</div>
+            <div class="method-desc">Deletes all documents matching a filter expression from any named collection.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">upsert_to_collection(col_name, docs) → int</div>
+            <div class="method-desc">Upserts into any named collection — used for catalog write-back from external sources.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">count_documents(index_id) / count_external(col, filter_by) → int</div>
+            <div class="method-desc">Returns document count for ISP-managed or external collections respectively. Returns 0 on error.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">set_vec_dim(dim) / get_vec_dim() → None / int</div>
+            <div class="method-desc">Get/set the vector dimension used when provisioning new collections. Updated at runtime when the operator switches embedding models.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── EMBEDDING ── -->
+      <h2 id="embedding">embedding_service.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/services/infra/embedding_service.py</span>
+          <span class="file-desc">Multi-provider embedding with a two-tier cache (L1 LRU + L2 Redis)</span>
+        </div>
+        <div class="file-block-body">
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Supported providers: <strong>Voyage AI</strong> (voyage-3, voyage-3-large, …), <strong>OpenAI</strong> (text-embedding-3-small), <strong>RexBERT</strong> (rexbert-micro/mini/base/large), <strong>Custom</strong> (any OpenAI-compatible endpoint). Cache: L1 LRUCache (2048 slots, in-process) → L2 Redis (24 h TTL). Vectors stored as <code>struct.pack</code> bytes (~4 KB per 1024-dim vector).</p>
+          <div class="method">
+            <div class="method-sig">embed_texts(texts, model?) → list[list[float]]</div>
+            <div class="method-desc">Embed a list of document strings using <code>input_type="document"</code> (Voyage AI optimised for indexing). Used during ingest. Returns empty list when the provider API key is not configured.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">embed_query(q, model?) → list[float]</div>
+            <div class="method-desc">Embed a single search query using <code>input_type="query"</code> (Voyage AI optimised for retrieval). Checks L1 LRU → L2 Redis before calling the provider API. Writes back to both cache layers on a miss. Returns empty list on failure.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">get_current_model() / set_current_model(model) → str / None</div>
+            <div class="method-desc">Get or set the active embedding model name at runtime. Calls <code>ts.set_vec_dim()</code> when switching to a model with a different output dimension.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">set_openai_api_key(key) / set_custom_config(endpoint, model, dim, key)</div>
+            <div class="method-desc">Runtime updates for OpenAI and custom provider configuration without restarting the process.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── EXTENSION RUNNER ── -->
+      <h2 id="extension-runner">extension_runner.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/services/infra/extension_runner.py</span>
+          <span class="file-desc">V8 JavaScript sandbox via PyMiniRacer — transforms documents before indexing</span>
+        </div>
+        <div class="file-block-body">
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Each extension is compiled into its own V8 isolate once per ingest batch, then called for every document. No filesystem, no network, no Node.js APIs — ECMAScript built-ins only. Synchronous V8 execution is wrapped in <code>run_in_executor</code> so it does not block the asyncio event loop.</p>
+          <div class="method">
+            <div class="method-sig">apply_extensions(docs, extension_records) → list[dict]  <em>[async]</em></div>
+            <div class="method-desc">Async entry point. Delegates to <code>_run_sync</code> in a thread executor. Calls each enabled extension's <code>transform(doc)</code> function in ascending <code>run_order</code>. Compile failures skip the extension for the entire batch; runtime errors on a single document keep that document in its pre-error state — neither abort the ingest.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">filter_urls(urls, extension_records) → list[str]  <em>[async]</em></div>
+            <div class="method-desc">Async entry point for URL pre-filtering during sitemap crawl. Calls each extension's optional <code>filterUrl(url)</code> function. A falsy return drops the URL before any HTTP fetch occurs. Extensions that don't define <code>filterUrl</code> are silently skipped.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">_run_sync(docs, extension_records) → list[dict]</div>
+            <div class="method-desc">Synchronous V8 execution loop. Compiles each extension once into a <code>MiniRacer</code> isolate, then iterates all documents, applying the extension chain in order.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">_filter_urls_sync(urls, extension_records) → list[str]</div>
+            <div class="method-desc">Synchronous URL filter loop. Checks <code>typeof filterUrl === "function"</code> before calling to skip extensions that only define <code>transform</code>.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── JOB LOCK ── -->
+      <h2 id="job-lock">job_lock.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/services/infra/job_lock.py</span>
+          <span class="file-desc">Redis-backed distributed lock — prevents concurrent rebuilds on the same index</span>
+        </div>
+        <div class="file-block-body">
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Key: <code>isp:job:{idx_id}</code>. Value: <code>{hostname}:{uuid4()}</code>. Initial TTL: 10 min. Heartbeat extends TTL every 5 min. Lua scripts for atomic compare-and-delete / compare-and-extend prevent one instance from releasing another's lock. Degrades gracefully when Redis is unreachable — single-instance deployments are unaffected.</p>
+          <div class="method">
+            <div class="method-sig">acquire(idx_id) → str | None  <em>[async]</em></div>
+            <div class="method-desc">Try to set <code>isp:job:{idx_id}</code> with NX (only if not exists). Returns an opaque token string on success, or <code>None</code> if another instance already holds the lock.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">release(idx_id, token) → None  <em>[async]</em></div>
+            <div class="method-desc">Atomically delete the lock key only if the stored value matches <code>token</code> (Lua compare-and-delete). Prevents instance A from releasing a lock re-acquired by instance B after A's TTL expired.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">heartbeat(idx_id, token) → None  <em>[async]</em></div>
+            <div class="method-desc">Runs as an asyncio task alongside the background rebuild job. Extends the lock TTL every 5 minutes (Lua compare-and-extend) until the task is cancelled in the <code>finally</code> block.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">release_stale_for_instance() → None  <em>[async]</em></div>
+            <div class="method-desc">Called once at startup. Scans <code>isp:job:*</code> and deletes any lock whose value starts with the current container hostname — cleaning up orphaned locks from a prior crash.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SECRETS ── -->
+      <h2 id="secrets">secrets.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/services/infra/secrets.py</span>
+          <span class="file-desc">Provider-based secret abstraction — env / Vault / AWS Secrets Manager</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">bootstrap_secrets() → None</div>
+            <div class="method-desc">Called before any ISP module imports <code>config.py</code>. Fetches all <code>_SECRET_KEYS</code> from the active provider and injects them into <code>os.environ</code>. Skips keys already present. No-op when <code>SECRET_PROVIDER=env</code> (default). Controlled by the <code>SECRET_PROVIDER</code> env var: <code>env</code> | <code>vault</code> | <code>aws</code>.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">get_secret(key) → str</div>
+            <div class="method-desc">Fetch one secret from the configured provider. Vault: reads from KV v2 mount <code>isp/</code> via <code>hvac</code>. AWS: calls <code>secretsmanager.get_secret_value(SecretId=f"isp/{key}")</code> via <code>boto3</code> (credentials from IAM Role on EC2 — nothing on disk). Returns empty string on error.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CONNECTORS ── -->
+      <h2 id="connectors">Connectors</h2>
+      <table>
+        <thead><tr><th>File</th><th>Key method</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>rest_connector.py</code></td><td><code>fetch_documents(cfg)</code></td><td>HTTP GET/POST to a REST endpoint. Extracts items via JSONPath (<code>items_path</code>). Handles cursor and offset pagination. Returns <code>list[dict]</code>.</td></tr>
+          <tr><td><code>sitemap_connector.py</code></td><td><code>fetch_documents(cfg, extensions)</code></td><td>Parses sitemap XML, runs URL list through extension <code>filterUrl</code> hooks, fetches each page (respects <code>include/exclude_patterns</code>, <code>user_agent</code>, <code>max_pages</code>), extracts meta title / description / content.</td></tr>
+          <tr><td><code>gsheet_connector.py</code></td><td><code>fetch_documents(cfg)</code></td><td>Reads rows from a Google Sheet via Sheets API v4 using a service account JSON key. First row (or <code>header_row</code>) becomes field names. Returns <code>list[dict]</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ══════════════════════════════════════════════════════ DOMAIN ══ -->
+      <h2 id="index-service">index_service.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/services/domain/index_service.py</span>
+          <span class="file-desc">PostgreSQL CRUD for indexes, ingest_status, and deleted_splits tables</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">list_indexes() → list[IndexMeta]</div>
+            <div class="method-desc">Returns all indexes ordered by <code>created_at DESC</code>.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">get_index(idx_id) → IndexMeta | None</div>
+            <div class="method-desc">Fetch a single index by hex id. Returns None if not found.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">get_index_by_slug(slug) → IndexMeta | None</div>
+            <div class="method-desc">Fetch a single index by human-readable slug. Used by <code>_resolve_index</code> in routers so consumer-facing URLs can use <code>/phones</code> instead of <code>/isp_abc123</code>.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">create_index(name, description, embed_model?, intent_label?, slug?) → IndexMeta</div>
+            <div class="method-desc">Inserts a new row with a 12-char hex id. Auto-generates a URL-safe slug from the name (<code>_slugify</code>) and ensures uniqueness by appending the first 4 chars of the id on collision. The Typesense collection is provisioned separately in the router.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">update_index(idx_id, **fields) → None</div>
+            <div class="method-desc">Partial update — only supplied fields are written.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">delete_index(idx_id) → None</div>
+            <div class="method-desc">Deletes the DB row. The router is responsible for dropping the Typesense collection.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">get_ingest_status(idx_id) / update_ingest_status(idx_id, **fields)</div>
+            <div class="method-desc">Read and write the <code>ingest_status</code> table. State machine: <code>idle → running → ready | error</code>. The rebuild handler polls this to stream progress to the UI.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">seed_slugs() → None</div>
+            <div class="method-desc">Back-fill empty slug columns for indexes created before the slug column was added. Called once at startup after <code>init_db</code>.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">discover_external_collections() → list[IndexMeta]</div>
+            <div class="method-desc">Scans all Typesense collections and registers any that are not yet tracked in PostgreSQL as external ISP sources. Uses <code>_KNOWN_SPLITS</code> to map collection names to named sub-sources (e.g. <code>catalog → [devices, accessories, …]</code>).</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">_slugify(name) → str</div>
+            <div class="method-desc">Lowercase → spaces/underscores to hyphens → strip non-alphanumeric → collapse hyphens → strip leading/trailing hyphens.</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 id="extension-service">extension_service.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/services/domain/extension_service.py</span>
+          <span class="file-desc">CRUD for extensions and index_extensions join table</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">list_extensions() → list[dict]</div>
+            <div class="method-desc">All extensions ordered by name.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">upsert_extension_by_name(name, description, code) → dict</div>
+            <div class="method-desc">Insert or update an extension by name. Used by <code>_seed_extensions_from_files</code> at startup so file-based extensions are always in sync with the DB.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">assign_extension_if_new(index_id, extension_id, run_order?) → None</div>
+            <div class="method-desc">Add a row to <code>index_extensions</code> with <code>ON CONFLICT DO NOTHING</code> — preserves any user-configured enabled/run_order state for already-assigned extensions.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">get_index_extensions(index_id) → list[dict]</div>
+            <div class="method-desc">Returns all extensions assigned to an index ordered by <code>run_order ASC</code>, including the full extension code. Used by the rebuild pipeline to build the extension chain.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">update_index_extension(index_id, extension_id, enabled?, run_order?) → None</div>
+            <div class="method-desc">Update <code>enabled</code> flag or <code>run_order</code> on an assigned extension without touching the extension code.</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 id="analytics-service">analytics_service.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/services/domain/analytics_service.py</span>
+          <span class="file-desc">Search event storage and click-through rate queries</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">record_impression(index_id, session_id, query, doc_id, rank, source)</div>
+            <div class="method-desc">Insert a search impression event into <code>search_events</code>. Called by the PLP on every search result render.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">record_click(index_id, session_id, doc_id)</div>
+            <div class="method-desc">Mark a <code>search_events</code> row as clicked (<code>clicked = true</code>) by matching session + doc id.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">get_ctr_report(index_id, days?) → dict</div>
+            <div class="method-desc">Aggregates impressions and clicks per query over the last N days. Returns per-query CTR — used by the analytics dashboard and the future learning pipeline.</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 id="settings-service">settings_service.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/services/domain/settings_service.py</span>
+          <span class="file-desc">Embedding model selection and custom endpoint config, persisted in app_settings</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">load_embed_model() → None</div>
+            <div class="method-desc">Reads the <code>embed_model</code> key from <code>app_settings</code> at startup and calls <code>embedding_service.set_current_model()</code> to restore the operator's last choice.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">set_embed_model(model) → None</div>
+            <div class="method-desc">Persists the new model in <code>app_settings</code>, updates <code>embedding_service</code>, and calls <code>ts.set_vec_dim(DIM_BY_MODEL[model])</code> so new collections are provisioned with the correct vector dimension.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">get_custom_config() / set_custom_config(endpoint, model, dim, key) → dict / None</div>
+            <div class="method-desc">Read/write the custom embedding provider config (OpenAI-compatible endpoint) from <code>app_settings</code>.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════ AUTH ══ -->
+      <h2 id="jwt-utils">jwt_utils.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/auth/jwt_utils.py</span>
+          <span class="file-desc">HS256 JWT sign / verify for ISP admin sessions</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">create_token(email, name) → str</div>
+            <div class="method-desc">Signs an HS256 JWT with payload <code>{sub: email, name, iat, exp}</code>. TTL defaults to 8 hours (<code>JWT_TTL_MINUTES</code>). Called after a successful OAuth2 callback.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">verify_token(token) → dict</div>
+            <div class="method-desc">Decodes and validates the JWT signature and expiry. Raises <code>jwt.PyJWTError</code> on failure — caught by the middleware to return 401.</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 id="provider">provider.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/auth/provider.py</span>
+          <span class="file-desc">OAuth2 adapters for Google, GitHub, and Microsoft</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">_cfg() → dict</div>
+            <div class="method-desc">Returns the auth/token/userinfo URLs and scope for the configured <code>OAUTH_PROVIDER</code>. Microsoft URLs are built dynamically from <code>OAUTH_TENANT_ID</code> (<code>common</code> by default).</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">get_authorization_url(state) → str</div>
+            <div class="method-desc">Builds the provider's consent screen URL with CSRF state, client id, redirect uri, and scope. Adds <code>prompt=select_account</code> for Google and Microsoft; <code>access_type=online</code> for Google only.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">exchange_code(code) → str  <em>[async]</em></div>
+            <div class="method-desc">Posts the authorization code to the provider's token endpoint (with client secret) and returns the <code>access_token</code> string.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">get_userinfo(access_token) → dict  <em>[async]</em></div>
+            <div class="method-desc">Fetches <code>{email, name}</code> from the provider's userinfo endpoint. GitHub: falls back to <code>GET /user/emails</code> if primary email is hidden. Microsoft: maps <code>displayName</code> + <code>mail</code> (or <code>userPrincipalName</code>). Google: maps OIDC standard claims.</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 id="middleware">middleware.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/auth/middleware.py</span>
+          <span class="file-desc">Starlette BaseHTTPMiddleware — registered only when AUTH_ENABLED=true</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">AuthMiddleware.dispatch(request, call_next)  <em>[async]</em></div>
+            <div class="method-desc">Evaluates every request in this priority order:
+              <ol style="margin:8px 0 0 16px;font-size:12px;color:var(--text-p)">
+                <li>OPTIONS → always pass through (CORS preflight)</li>
+                <li><code>/health</code>, <code>/auth/*</code>, <code>/docs</code>, <code>/openapi.json</code>, <code>/redoc</code> → always open</li>
+                <li><code>/v1/catalog/*</code>, <code>/v1/analytics/*</code>, <code>/v1/intent/*</code> → open (PLP-facing)</li>
+                <li><code>/v1/indexes/{id}/search/public</code> → open</li>
+                <li>All other <code>/v1/*</code> → extract Bearer token → <code>verify_token()</code> → 401 on failure</li>
+                <li>Everything else → pass through</li>
+              </ol>
+            </div>
+          </div>
+          <div class="method">
+            <div class="method-sig">_extract_token(request) → str | None</div>
+            <div class="method-desc">Reads token from <code>Authorization: Bearer</code> header first, then falls back to <code>isp-auth-token</code> cookie.</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 id="auth-router">routers/auth.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/routers/auth.py</span>
+          <span class="file-desc">OAuth2 login / callback / logout / me — always registered, always public</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">GET /auth/login</div>
+            <div class="method-desc">Generates a 16-byte hex CSRF state token, sets it as an httpOnly <code>oauth_state</code> cookie, and redirects the browser to the provider's consent screen.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">GET /auth/callback?code=&amp;state=</div>
+            <div class="method-desc">Verifies the state cookie matches the query param (CSRF check). Exchanges the code for an access token, fetches <code>{email, name}</code>, optionally enforces <code>OAUTH_ALLOWED_DOMAIN</code>, issues an HS256 JWT, and redirects to <code>{OAUTH_FRONTEND_URL}?isp_token=&lt;jwt&gt;</code>.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">POST /auth/logout</div>
+            <div class="method-desc">Clears the <code>isp-auth-token</code> cookie and returns 200. The frontend also clears localStorage on its side.</div>
+          </div>
+          <div class="method">
+            <div class="method-sig">GET /auth/me</div>
+            <div class="method-desc">Extracts the Bearer token from the request, verifies it, and returns <code>{email, name}</code> from the JWT payload.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════ ROUTERS ══ -->
+      <h2 id="router-indexes">routers/indexes.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/routers/indexes.py — prefix /v1/indexes</span>
+          <span class="file-desc">Source management, ingest, rebuild, and document listing</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method"><div class="method-sig">GET /v1/indexes</div><div class="method-desc">List all ISP indexes from PostgreSQL.</div></div>
+          <div class="method"><div class="method-sig">POST /v1/indexes</div><div class="method-desc">Create a new index. Provisions a Typesense collection (<code>ts.create_collection</code>) and inserts a DB row.</div></div>
+          <div class="method"><div class="method-sig">DELETE /v1/indexes/{id}</div><div class="method-desc">Delete index DB row and drop its Typesense collection.</div></div>
+          <div class="method"><div class="method-sig">POST /v1/indexes/{id}/rebuild</div><div class="method-desc">Persists the connector config to the DB, then starts a <code>BackgroundTask</code> that: acquires the job lock → fetches documents via the appropriate connector → injects <code>_isp_type</code> → runs JS extensions → embeds titles → upserts to Typesense → releases the lock. Progress is written to <code>ingest_status</code>.</div></div>
+          <div class="method"><div class="method-sig">GET /v1/indexes/{id}/status</div><div class="method-desc">Returns the current <code>ingest_status</code> row (state, total, indexed, error). Polled by the UI to show live rebuild progress.</div></div>
+          <div class="method"><div class="method-sig">GET /v1/indexes/{id}/documents</div><div class="method-desc">Paginated document listing from Typesense (sorted by <code>indexed_at:desc</code>).</div></div>
+          <div class="method"><div class="method-sig">GET /v1/indexes/discover</div><div class="method-desc">Scans Typesense for unregistered external collections and registers them as ISP sources.</div></div>
+          <div class="method"><div class="method-sig">_resolve_index(id_or_slug)</div><div class="method-desc">Tries slug lookup first, falls back to hex id — used by search and content routers so consumer URLs can use human-readable slugs.</div></div>
+        </div>
+      </div>
+
+      <h2 id="router-search">routers/search.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/routers/search.py — prefix /v1/indexes/{id}</span>
+          <span class="file-desc">Hybrid search for ISP-managed and external indexes</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method"><div class="method-sig">POST /v1/indexes/{id}/search  (JWT required)</div><div class="method-desc">Admin search. Resolves id or slug → embeds query (L1→L2→API) → calls <code>ts.search_with_vec</code> (RRF hybrid) or <code>ts.search_external</code> for external indexes.</div></div>
+          <div class="method"><div class="method-sig">POST /v1/indexes/{id}/search/public  (open)</div><div class="method-desc">PLP-facing search. Same logic as admin search but always sets <code>exclude_vec=True</code> so the 4KB embedding array is never returned to the browser.</div></div>
+        </div>
+      </div>
+
+      <h2 id="router-catalog">routers/catalog.py</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">backend/src/isp/routers/catalog.py — prefix /v1/catalog</span>
+          <span class="file-desc">Unified catalog search powering the PLP — always open, no auth</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method"><div class="method-sig">POST /v1/catalog/search</div><div class="method-desc">Multi-source catalog search. Runs RRF across all catalog sub-sources filtered by <code>type</code>. Supports tab-intent routing — a query like "Galaxy Watch" is routed to the smartwatch tab via the intent label.</div></div>
+          <div class="method"><div class="method-sig">GET /v1/catalog/facets</div><div class="method-desc">Returns facet counts for <code>type</code>, <code>tags</code>, and <code>segment</code> fields. Used by the PLP filter bar.</div></div>
+        </div>
+      </div>
+
+      <h2 id="router-other">Other routers</h2>
+      <table>
+        <thead><tr><th>Router</th><th>Prefix</th><th>Key endpoints</th></tr></thead>
+        <tbody>
+          <tr><td><code>content.py</code></td><td><code>/v1/indexes/{id}</code></td><td>GET <code>/documents/{doc_id}</code> — single document detail; PATCH <code>/documents/{doc_id}</code> — partial field update</td></tr>
+          <tr><td><code>extensions.py</code></td><td><code>/v1/extensions</code></td><td>CRUD for extensions; GET/POST/DELETE <code>/v1/indexes/{id}/extensions</code> for per-index assignment; PATCH to toggle enabled/run_order</td></tr>
+          <tr><td><code>analytics.py</code></td><td><code>/v1/analytics</code></td><td>POST <code>/impression</code> — log a search result view; POST <code>/click</code> — log a click; GET <code>/report/{index_id}</code> — CTR report</td></tr>
+          <tr><td><code>settings.py</code></td><td><code>/v1/settings</code></td><td>GET/POST <code>/embed-model</code>; GET/POST <code>/openai</code>; GET/POST <code>/custom</code></td></tr>
+          <tr><td><code>api_keys.py</code></td><td><code>/v1/indexes/{id}/api-keys</code></td><td>GET list; POST create (returns plaintext key once); DELETE <code>/{key_id}</code> revoke</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ══════════════════════════════════════════════════════ FRONTEND ══ -->
+      <h2 id="api-ts">frontend — api.ts</h2>
+      <div class="file-block">
+        <div class="file-block-header">
+          <span class="file-path">frontend/src/lib/api.ts</span>
+          <span class="file-desc">Single typed HTTP client — all backend calls go through this file</span>
+        </div>
+        <div class="file-block-body">
+          <div class="method">
+            <div class="method-sig">req&lt;T&gt;(path, opts?) → Promise&lt;T&gt;</div>
+            <div class="method-desc">Core fetch wrapper. Sets <code>Content-Type: application/json</code>. When <code>PUBLIC_AUTH_ENABLED=true</code>: reads JWT from <code>localStorage('isp-auth-token')</code> and attaches as <code>Authorization: Bearer</code>. On 401: clears token and redirects to <code>/auth/login</code>. On non-2xx: throws <code>Error</code> with status + body text. <code>BASE</code> is set at build time via <code>PUBLIC_API_URL</code>.</div>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);">The <code>api</code> object exports typed methods: <code>listIndexes</code>, <code>createIndex</code>, <code>deleteIndex</code>, <code>rebuildIndex</code>, <code>getStatus</code>, <code>listDocuments</code>, <code>search</code>, <code>listExtensions</code>, <code>assignExtension</code>, <code>updateIndexExtension</code>, <code>getSettings</code>, <code>saveSettings</code>, <code>logImpression</code>, <code>logClick</code>, and more.</p>
+        </div>
+      </div>
+
+      <h2 id="stores">frontend — Stores</h2>
+      <p>All stores extend <code>StoreBase&lt;T&gt;</code> (a thin Svelte writable wrapper). State is always replaced with new references — never mutated in place.</p>
+      <table>
+        <thead><tr><th>Store</th><th>State</th><th>Key actions</th></tr></thead>
+        <tbody>
+          <tr><td><code>indexes-store.ts</code></td><td>indexes[], loading, error</td><td><code>load()</code> — fetch full list; <code>upsert(idx)</code> — add/replace one; <code>remove(id)</code> — delete one</td></tr>
+          <tr><td><code>extensions-store.ts</code></td><td>extensions[], loading, error</td><td><code>loadForIndex(id)</code> — fetch assigned extensions; <code>toggle(id, enabled)</code></td></tr>
+          <tr><td><code>settings-store.ts</code></td><td>settings, loading, error</td><td><code>load()</code>; <code>save(settings)</code></td></tr>
+          <tr><td><code>app-state-store.ts</code></td><td>activeIndexId, activePanel, navState</td><td><code>setActiveIndex(id)</code>; <code>setPanel(name)</code></td></tr>
+          <tr><td><code>auth-store.ts</code></td><td>token string in localStorage</td><td><code>setToken(t)</code> — write + parse; <code>getToken()</code> — read + expiry check; <code>clear()</code> — remove</td></tr>
+          <tr><td><code>theme-store.ts</code></td><td>light | dark</td><td><code>toggle()</code> — flip and persist to localStorage</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="repositories">frontend — Repositories</h2>
+      <p>Thin wrappers around <code>api.ts</code>. No data transformation — return raw API DTOs. One file per domain.</p>
+      <table>
+        <thead><tr><th>File</th><th>Methods</th></tr></thead>
+        <tbody>
+          <tr><td><code>IndexRepository.ts</code></td><td><code>list()</code>, <code>create(payload)</code>, <code>delete(id)</code>, <code>rebuild(id, connector)</code>, <code>getStatus(id)</code>, <code>listDocuments(id, page)</code></td></tr>
+          <tr><td><code>ExtensionRepository.ts</code></td><td><code>listAll()</code>, <code>listForIndex(id)</code>, <code>assign(indexId, extId)</code>, <code>update(indexId, extId, patch)</code>, <code>remove(indexId, extId)</code></td></tr>
+          <tr><td><code>SettingsRepository.ts</code></td><td><code>get()</code>, <code>save(settings)</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="services-fe">frontend — Services</h2>
+      <p>Map API DTOs to typed app models. Each domain has <code>model.ts</code> (types), <code>mapper.ts</code> (DTO→model), and <code>Service.ts</code> (orchestration). No UI or state management here.</p>
+      <table>
+        <thead><tr><th>File</th><th>mapper key mappings</th></tr></thead>
+        <tbody>
+          <tr><td><code>index.mapper.ts</code></td><td><code>created_at → createdAt</code>, <code>doc_count → docCount</code>, <code>collection_name → collectionName</code>, <code>is_external → isExternal</code>, etc.</td></tr>
+          <tr><td><code>extension.mapper.ts</code></td><td><code>created_at → createdAt</code>, <code>run_order → runOrder</code>, <code>enabled → enabled</code></td></tr>
+          <tr><td><code>settings.mapper.ts</code></td><td><code>embed_model → embedModel</code>, <code>custom_endpoint → customEndpoint</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="components">frontend — Key Components</h2>
+      <table>
+        <thead><tr><th>Component</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>layout/App.svelte</code></td><td>Root shell — sidebar + main panel layout. Loads indexes on mount. Subscribes to <code>app-state-store</code> to render the active panel.</td></tr>
+          <tr><td><code>layout/Header.svelte</code></td><td>Top bar with index selector, nav tabs, and theme toggle.</td></tr>
+          <tr><td><code>sources/Dashboard.svelte</code></td><td>Index list overview with card-per-index layout and create button.</td></tr>
+          <tr><td><code>sources/IndexDetail.svelte</code></td><td>Tabbed detail view for one index: Search | Documents | Rebuild | Connector | Extensions.</td></tr>
+          <tr><td><code>sources/RebuildPanel.svelte</code></td><td>Connector config form (REST / Sitemap / GSheet) + rebuild trigger + live progress polling via <code>GET /status</code>.</td></tr>
+          <tr><td><code>sources/SearchPanel.svelte</code></td><td>Admin query tester — mode selector (hybrid/semantic/lexical), results with score and metadata.</td></tr>
+          <tr><td><code>sources/DocumentTable.svelte</code></td><td>Paginated document browser with expand-row to show all fields including raw metadata JSON.</td></tr>
+          <tr><td><code>sources/CreateWizard.svelte</code></td><td>Multi-step wizard for creating a new index (name → connector type → connector config → confirm).</td></tr>
+          <tr><td><code>extensions/ExtensionsPanel.svelte</code></td><td>Extension library and per-index assignment. Allows toggling enabled/disabled and reordering via run_order.</td></tr>
+          <tr><td><code>settings/SettingsPanel.svelte</code></td><td>Embedding model selector and custom/OpenAI provider config form.</td></tr>
+          <tr><td><code>auth/LoginGate.svelte</code></td><td>Wraps the entire app. On mount: reads <code>?isp_token=</code> from URL, stores via <code>auth-store</code>, cleans URL. Shows login screen if no valid token and <code>AUTH_ENABLED=true</code>. Completely transparent otherwise.</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ══════════════════════════════════════════════════════ SCHEMA ══ -->
+      <h2 id="schema">Database schema</h2>
+      <p>All tables created idempotently by <code>init_db()</code>. New columns added via <code>ALTER TABLE … ADD COLUMN IF NOT EXISTS</code> — no migration tool.</p>
+      <table>
+        <thead><tr><th>Table</th><th>Primary key</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>indexes</code></td><td><code>id VARCHAR(12)</code></td><td>One row per ISP source — name, connectors (JSONB), collection_name, is_external, embed_model, version_boost, intent_label, slug</td></tr>
+          <tr><td><code>ingest_status</code></td><td><code>index_id</code></td><td>Live rebuild progress: state (idle/running/ready/error), total, indexed, error message</td></tr>
+          <tr><td><code>extensions</code></td><td><code>id VARCHAR(12)</code></td><td>JS extension code and metadata (name, description, created_at, updated_at)</td></tr>
+          <tr><td><code>index_extensions</code></td><td><code>(index_id, extension_id)</code></td><td>Assignment join table with run_order and enabled flag</td></tr>
+          <tr><td><code>app_settings</code></td><td><code>key TEXT</code></td><td>Key-value store for operator settings (active embed model, custom endpoint config)</td></tr>
+          <tr><td><code>search_events</code></td><td><code>id BIGSERIAL</code></td><td>Every search impression and click (index_id, session_id, query, doc_id, rank, clicked, source, created_at)</td></tr>
+          <tr><td><code>api_keys</code></td><td><code>id VARCHAR(12)</code></td><td>Per-index API key hashes (SHA-256, never plaintext), label, index_id FK</td></tr>
+          <tr><td><code>deleted_splits</code></td><td><code>split_key TEXT</code></td><td>Tombstones for ingest split keys — prevents re-indexing deleted document ranges</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ══════════════════════════════════════════════════════ FLOWS ══ -->
+      <h2 id="flow-ingest">Ingest / Rebuild flow</h2>
+      <div class="flow-box">POST /v1/indexes/{id}/rebuild  (with connector config)
+  │
+  ├─ Persist connector config to DB  (router)
+  ├─ Acquire Redis job lock           (job_lock.acquire)
+  │   └─ None → 409 Conflict (another rebuild running)
+  ├─ ingest_status → running
+  │
+  ├─ Connector.fetch_documents()
+  │   ├─ rest_connector    → HTTP GET/POST + JSONPath extraction + pagination
+  │   ├─ sitemap_connector → parse XML → filter_urls() → HTTP fetch each page
+  │   └─ gsheet_connector  → Sheets API v4 rows
+  │
+  ├─ _inject_isp_type(docs)           infer catalog type from connector body
+  ├─ apply_extensions(docs)           V8 sandbox: transform(doc) per extension in run_order
+  │
+  ├─ embedding_service.embed_texts(titles)
+  │   └─ Provider API (Voyage / OpenAI / RexBERT / custom) → list[list[float]]
+  │
+  ├─ ts.upsert_documents(index_id, docs)   OR   ts.upsert_to_collection("catalog", docs)
+  │
+  ├─ ingest_status → ready (or error)
+  └─ job_lock.release()</div>
+
+      <h2 id="flow-search">Search flow</h2>
+      <div class="flow-box">POST /v1/indexes/{id}/search  { q, mode, page, per_page }
+  │
+  ├─ _resolve_index(id_or_slug)
+  │   └─ try slug → try hex id → 404
+  │
+  ├─ embedding_service.embed_query(q)
+  │   ├─ L1 LRUCache hit  → return cached vector
+  │   ├─ L2 Redis hit     → deserialise struct.pack bytes → write L1 → return
+  │   └─ Provider API     → write L2 (bytes) + L1 → return
+  │
+  ├─ IS EXTERNAL INDEX?
+  │   ├─ Yes → ts.search_external(col, q, filter_by, query_by, vec, …)
+  │   │         └─ multi_search: lexical + semantic → RRF merge (K=60, 0.7/0.3)
+  │   │              → scoped to external_filter (e.g. type:=device)
+  │   │
+  │   └─ No  → ts.search_with_vec(index_id, q, vec, …)
+  │             └─ multi_search: lexical + semantic → RRF merge
+  │                  + editorial boosts (is_featured, popularity, boost_queries_*)
+  │                  + optional version_score boost
+  │
+  └─ Response { hits, found, page }</div>
+
+    </main>
+  </div>
+
+  <script>
+    (function(){
+      var btn = document.getElementById("theme-toggle");
+      function apply(t) {
+        if (t === "light") { document.documentElement.setAttribute("data-theme","light"); btn.textContent = "☾"; }
+        else { document.documentElement.removeAttribute("data-theme"); btn.textContent = "☀"; }
+      }
+      apply(localStorage.getItem("isp-theme") === "light" ? "light" : "dark");
+      btn.addEventListener("click", function(){
+        var next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+        localStorage.setItem("isp-theme", next);
+        apply(next);
+      });
+    })();
+  </script>
+</body>
+</html>
