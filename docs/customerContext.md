@@ -23,10 +23,10 @@ Customer browser
           ▼
 ISP Public Search API  (POST /v1/indexes/{id}/search/public  or  POST /v1/catalog)
   │
-  ├── context_service.build_context()
+  ├── context_service.build_context(max_actions=50)
   │       time-decay weights per action
   │       affinity maps: category / manufacturer / source_type
-  │       vector seed list (most-recent viewed items)
+  │       vector seed list (most-recent view / cart / purchase items)
   │
   ├── embedding_service.embed_query()  →  query vector
   │       + context_service.fetch_preference_vector()
@@ -951,6 +951,14 @@ Proceedings of SIGIR 2009, pp. 758–759.
 https://dl.acm.org/doi/10.1145/1571941.1572114
 
 > The paper that defines RRF and proves it outperforms individual ranking signals. Directly informs the `0.7 lex + 0.3 sem` fusion used in ISP's `search_with_vec` and `_rrf_search`.
+
+**BM25 — The Probabilistic Relevance Framework**
+Robertson, S., & Zaragoza, H. (2009).
+*The probabilistic relevance framework: BM25 and beyond.*
+Foundations and Trends in Information Retrieval, 3(4), 333–389.
+https://doi.org/10.1561/1500000019
+
+> Definitive survey covering BM25 derivation, parameter tuning (k1, b), and extensions. BM25 is Typesense's default full-text ranking function and the 0.7-weight lexical leg in ISP's hybrid search RRF merge.
 
 **Sparse + Dense Retrieval Survey**
 Lin, J., & Ma, X. (2021).

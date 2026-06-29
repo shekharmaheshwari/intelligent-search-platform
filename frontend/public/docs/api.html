@@ -51,6 +51,7 @@
     .post { background: #12101e; color: #9a8ed8; border: 1px solid #2a2440; }
     .del  { background: #1e0d0d; color: #c56; border: 1px solid #3a1e1e; }
     .patch { background: #1a150a; color: #c9a040; border: 1px solid #3a2e0a; }
+    .put   { background: #0a1820; color: #38bdf8; border: 1px solid #0e3050; }
     .path-cell { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--text-h2); }
     .back-link { font-size: 13px; color: var(--accent); text-decoration: none; display: inline-block; margin-bottom: 32px; }
     .back-link:hover { text-decoration: underline; }
@@ -88,8 +89,8 @@
       <h1>API Reference</h1>
       <p class="page-subtitle">
         Base URL: <code>http://localhost:8001</code>. All endpoints are under <code>/v1/</code> unless noted.
-        Long-running operations (ingest, rebuild) return HTTP 202 and run as background tasks.
-        Poll <code>GET /v1/indexes/{id}/status</code> for progress.
+        Long-running operations (ingest, rebuild) return HTTP 200 with an <code>IngestStatus</code> body and run as background tasks.
+        Poll <code>GET /v1/indexes/{id}/status</code> for progress. Returns 409 if a job is already running.
       </p>
 
       <h2>Index Management</h2>
@@ -131,22 +132,22 @@
           <tr>
             <td><span class="method post">POST</span></td>
             <td class="path-cell">/v1/indexes/{id}/ingest/rest</td>
-            <td>Trigger REST ingest (background). Returns 202. Returns 409 if a job is already running.</td>
+            <td>Trigger REST ingest (background). Returns 200 + <code>IngestStatus</code>. Returns 409 if a job is already running.</td>
           </tr>
           <tr>
             <td><span class="method post">POST</span></td>
             <td class="path-cell">/v1/indexes/{id}/ingest/sitemap</td>
-            <td>Trigger sitemap crawl (background). Returns 202. Returns 409 if already running.</td>
+            <td>Trigger sitemap crawl (background). Returns 200 + <code>IngestStatus</code>. Returns 409 if already running.</td>
           </tr>
           <tr>
             <td><span class="method post">POST</span></td>
             <td class="path-cell">/v1/indexes/{id}/ingest/gsheet</td>
-            <td>Trigger Google Sheets ingest (background). Returns 202. Returns 409 if already running.</td>
+            <td>Trigger Google Sheets ingest (background). Returns 200 + <code>IngestStatus</code>. Returns 409 if already running.</td>
           </tr>
           <tr>
             <td><span class="method post">POST</span></td>
             <td class="path-cell">/v1/indexes/{id}/rebuild</td>
-            <td>Full rebuild — drops and recreates the Typesense collection. Background task. Returns 409 if already running.</td>
+            <td>Full rebuild — drops and recreates the Typesense collection, then re-indexes all documents. Returns 200 + <code>IngestStatus</code>. Returns 409 if already running.</td>
           </tr>
           <tr>
             <td><span class="method get">GET</span></td>
@@ -162,13 +163,18 @@
         <tbody>
           <tr>
             <td><span class="method post">POST</span></td>
-            <td class="path-cell">/v1/indexes/{id}/connectors</td>
-            <td>Add or update a connector config (REST or Sitemap). Saved to the <code>connectors</code> JSONB column.</td>
+            <td class="path-cell">/v1/indexes/{id}/connectors/rest</td>
+            <td>Save REST connector config for the index (URL, headers, body, field mapping). Stored in PostgreSQL; call <code>/ingest/rest</code> to start fetch.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/{id}/connectors/sitemap</td>
+            <td>Save sitemap connector config (sitemap URL, include/exclude patterns, user agent). Call <code>/ingest/sitemap</code> to start crawl.</td>
           </tr>
           <tr>
             <td><span class="method post">POST</span></td>
             <td class="path-cell">/v1/indexes/{id}/connectors/gsheet</td>
-            <td>Save Google Sheets connector config for the index.</td>
+            <td>Save Google Sheets connector config (spreadsheet ID, sheet name, field mapping). Call <code>/ingest/gsheet</code> to start import.</td>
           </tr>
         </tbody>
       </table>
@@ -188,19 +194,29 @@
             <td>Same search — <code>vec</code> excluded from response. Used by external consumers such as the PLP.</td>
           </tr>
           <tr>
-            <td><span class="method get">GET</span></td>
-            <td class="path-cell">/v1/catalog/typeahead?q=</td>
-            <td>Live typeahead suggestions across all ISP-managed collections.</td>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/catalog</td>
+            <td>PLP product search across all ISP-managed collections. Body: <code>{ q, type, search_mode, page, per_page, category?, manufacturer?, action_history? }</code>. Returns <code>{ items, total, page, total_pages, context_actions_used }</code>.</td>
           </tr>
           <tr>
             <td><span class="method get">GET</span></td>
-            <td class="path-cell">/v1/catalog/search?q=</td>
-            <td>PLP product search across all ISP collections with editorial boosts (is_featured, popularity). Supports <code>filter_by</code>, <code>page</code>, <code>per_page</code>.</td>
+            <td class="path-cell">/v1/catalog/facets?type=</td>
+            <td>Aggregate facet counts (manufacturer, category, price_range) for the PLP filter sidebar. Scans up to 250 docs per collection.</td>
           </tr>
           <tr>
             <td><span class="method get">GET</span></td>
-            <td class="path-cell">/v1/catalog/facets</td>
-            <td>Facet counts by <code>type</code>, <code>tags</code>, and <code>segment</code>.</td>
+            <td class="path-cell">/v1/suggest?q=&amp;limit=</td>
+            <td>Typeahead autocomplete across all ISP-managed collections. Minimum 2 chars. Returns up to <code>limit</code> (default 8) suggestions with <code>{ text, type }</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/intent/tab?q=</td>
+            <td>Classify a search query into a tab label (e.g. <code>device</code> vs <code>accessory</code>) using vector similarity against indexed collections with <code>intent_label</code> set.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/indexes/{id}/facets</td>
+            <td>Category and manufacturer facet counts for a single ISP-managed index, read directly from Typesense. Public — no auth required.</td>
           </tr>
         </tbody>
       </table>
@@ -242,7 +258,7 @@
             <td>Create a new JS extension. Body: <code>{ name, description, code }</code>. Code must define <code>function transform(doc) { return doc; }</code>.</td>
           </tr>
           <tr>
-            <td><span class="method patch">PATCH</span></td>
+            <td><span class="method put">PUT</span></td>
             <td class="path-cell">/v1/extensions/{id}</td>
             <td>Update extension name, description, or code.</td>
           </tr>
@@ -257,7 +273,7 @@
             <td>List extensions assigned to a specific index, ordered by <code>run_order</code>.</td>
           </tr>
           <tr>
-            <td><span class="method patch">PATCH</span></td>
+            <td><span class="method post">POST</span></td>
             <td class="path-cell">/v1/indexes/{id}/extensions/{ext_id}</td>
             <td>Assign an extension to an index or update its <code>run_order</code> / <code>enabled</code> flag.</td>
           </tr>
@@ -279,9 +295,19 @@
             <td>Get the current embedding model and the list of available models.</td>
           </tr>
           <tr>
-            <td><span class="method patch">PATCH</span></td>
+            <td><span class="method put">PUT</span></td>
             <td class="path-cell">/v1/settings</td>
             <td>Switch the active embedding model. Applied immediately — no restart required. <strong>Caution:</strong> switching to a model with a different vector dimension requires a full rebuild of all indexes.</td>
+          </tr>
+          <tr>
+            <td><span class="method put">PUT</span></td>
+            <td class="path-cell">/v1/settings/customer-context</td>
+            <td>Enable/disable the customer context master flag and individual sub-flags (<code>vector_blending_enabled</code>, <code>affinity_boost_enabled</code>, <code>viewed_penalty_enabled</code>). Cached in memory; no DB read on hot search path.</td>
+          </tr>
+          <tr>
+            <td><span class="method put">PUT</span></td>
+            <td class="path-cell">/v1/settings/rexbert-config</td>
+            <td>Set the shared RexBERT endpoint URL and optional API key for all RexBERT model variants.</td>
           </tr>
         </tbody>
       </table>
