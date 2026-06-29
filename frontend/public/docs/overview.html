@@ -122,8 +122,8 @@
       </table>
 
       <h2>Docker Network</h2>
-      <p>All services run on the external Docker network <code>search_tmo-net</code>, allowing ISP to reach Typesense and other services directly by container name.</p>
-      <pre>search_tmo-net
+      <p>All services run on the Docker network <code>isp-net</code> (defined in <code>docker-compose.yml</code>), allowing ISP to reach Typesense and other services directly by container name.</p>
+      <pre>isp-net
 ├── isp-ui        (3001)
 ├── isp-api       (8001)
 ├── isp-db        (5432)

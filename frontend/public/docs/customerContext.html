@@ -1,0 +1,1728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Context — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#141414;
+      --border:#222;--border2:#1a1a1a;
+      --text:#eee;--text-h2:#ccc;--text-h3:#aaa;--text-p:#777;--text-td:#888;
+      --text-muted:#555;--text-faint:#444;--text-ghost:#333;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#b4a4f8;--pre-fg:#bbb;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f0f0f8;
+      --border:#ddd;--border2:#e8e8ed;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#666;
+      --text-muted:#666;--text-faint:#888;--text-ghost:#aaa;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;--pre-fg:#444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1060px; margin: 0 auto; padding: 48px 32px 80px; gap: 48px; }
+    nav.sidebar { flex-shrink: 0; width: 200px; }
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 24px; }
+    nav.sidebar li a { display: block; padding: 7px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    nav.sidebar li a:hover { color: var(--text); background: var(--bg-hover); }
+    nav.sidebar li a.active { color: var(--accent); background: var(--accent-dim); }
+    .content { flex: 1; min-width: 0; }
+    h1 { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 17px; font-weight: 600; color: var(--text-h2); margin: 40px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 22px 0 8px; }
+    h4 { font-size: 13px; font-weight: 600; color: var(--text-h3); margin: 18px 0 6px; }
+    p { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; }
+    ul, ol { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; padding-left: 20px; }
+    li { margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th { text-align: left; padding: 9px 14px; background: var(--bg3); color: var(--text-h3); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border2); color: var(--text-td); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); overflow-x: auto; line-height: 1.6; margin-bottom: 20px; white-space: pre; }
+    .math-block { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 18px 20px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); margin-bottom: 20px; line-height: 2.0; overflow-x: auto; white-space: pre; }
+    .math-block .hi  { color: var(--accent); font-weight: 700; }
+    .math-block .val { color: #4ade80; }
+    .math-block .dim { color: var(--text-muted); }
+    .chart-wrap  { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 20px 20px 16px; margin-bottom: 24px; overflow-x: auto; }
+    .chart-label { font-size: 11px; font-weight: 600; color: var(--text-faint); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 14px; }
+    blockquote { border-left: 2px solid var(--accent-border); padding: 2px 0 2px 16px; margin: 12px 0 18px; }
+    blockquote p { font-size: 13px; color: var(--text-muted); font-style: italic; }
+    .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-right: 6px; }
+    .badge-done { background: #0e2318; color: #4ade80; }
+    .badge-planned { background: #1a1508; color: #facc15; }
+    .badge-future { background: #111; color: var(--text-muted); border: 1px solid var(--border); }
+    .ref-block { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 16px 20px; margin-bottom: 14px; }
+    .ref-title { font-size: 13px; font-weight: 600; color: var(--text-h3); margin-bottom: 4px; }
+    .ref-authors { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+    .ref-venue { font-size: 12px; color: var(--text-faint); margin-bottom: 6px; }
+    .ref-link { font-size: 12px; color: var(--accent); text-decoration: none; }
+    .ref-link:hover { text-decoration: underline; }
+    .ref-note { font-size: 12px; color: var(--text-muted); margin-top: 6px; font-style: italic; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; transition: border-color 0.15s, color 0.15s; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 700px) { .layout { flex-direction: column; gap: 24px; } nav.sidebar { width: 100%; } nav.sidebar ul { flex-direction: row; flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo-icon">⬡</span>
+    <span class="logo-name">Intelligent Search Platform</span>
+    <div class="breadcrumb">
+      <a href="index.html">Docs</a>
+      <span>/</span>
+      <span style="color:#aaa">Customer Context</span>
+    </div>
+    <button id="theme-toggle" class="theme-btn" title="Toggle theme">☀</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <ul>
+        <li><a href="index.html">← All docs</a></li>
+        <li><a href="#why">Why context</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#action-types">Action types</a></li>
+        <li><a href="#action-weights">Action weights</a></li>
+        <li><a href="#time-decay">Time-decay</a></li>
+        <li><a href="#storage">Storage tiers</a></li>
+        <li><a href="#preference-vector">Preference vector</a></li>
+        <li><a href="#affinity">Affinity boosts</a></li>
+        <li><a href="#controls">Operator controls</a></li>
+        <li><a href="#browse">Browse personalisation</a></li>
+        <li><a href="#other">Other options</a></li>
+        <li><a href="#api">API reference</a></li>
+        <li><a href="#privacy">Privacy</a></li>
+        <li><a href="#status">Implementation status</a></li>
+        <li><a href="#references">References</a></li>
+      </ul>
+    </nav>
+
+    <div class="content">
+      <h1>Customer Context</h1>
+      <p class="page-subtitle">A complete reference for how ISP uses customer behaviour to contextualise search results: what signals are collected, how they influence ranking, and every available personalisation option.</p>
+
+      <!-- WHY -->
+      <h2 id="why">Why customer context</h2>
+      <p>Two customers searching the same query want different things. Without context, both get the same ranked list. ISP adds context in two stages: first it scores every product for relevance (RRF), then it adds a personalisation layer on top (affinity). Neither stage hides results — they only shift the order.</p>
+
+      <!-- STEP 1: RRF -->
+      <h3>Step 1 — Relevance score: BM25 + Semantic → RRF</h3>
+      <p>Every search runs two passes simultaneously and fuses them with <strong>Reciprocal Rank Fusion (RRF)</strong>:</p>
+      <ul>
+        <li><strong>BM25</strong> — keyword engine: finds products whose titles and descriptions contain the exact search words.</li>
+        <li><strong>Semantic</strong> — meaning engine: uses vector embeddings to find products that <em>mean</em> the same thing, even without exact word overlap ("warm coat" matches "winter jacket").</li>
+        <li><strong>RRF</strong> — takes the ranked list from each engine and merges them into a single score using rank position, not raw scores.</li>
+      </ul>
+      <div class="math-block"><span class="dim">── RRF formula ─────────────────────────────────────────────────</span>
+<span class="hi">RRF(d) = 1 / (k + rank_bm25)  +  1 / (k + rank_semantic)</span>   <span class="dim">k = 60</span>
+
+<span class="dim">── Worked example: search "wireless earbuds" ───────────────────</span>
+
+Sony WH-1000XM6      BM25 rank <span class="hi">#1</span>,  semantic rank <span class="hi">#1</span>
+  <span class="val">RRF = 1/(60+1) + 1/(60+1)  =  0.0164 + 0.0164  =  0.033</span>
+
+Samsung Galaxy Buds  BM25 rank <span class="hi">#8</span>,  semantic rank <span class="hi">#10</span>
+  <span class="val">RRF = 1/(60+8) + 1/(60+10) =  0.0147 + 0.0143  =  0.029</span>
+
+<span class="dim">Sony ranks higher because it appeared near the top in BOTH engines.
+Samsung appeared later in both — lower RRF despite being a great product.</span></div>
+
+      <p>The RRF score is purely about relevance to the search query. No customer history is involved yet.</p>
+
+      <!-- STEP 2: Affinity -->
+      <h3>Step 2 — Personalisation layer: the affinity boost</h3>
+      <p>After RRF produces a relevance ranking, ISP checks each product against the customer's session history and adds a small boost. The boost is proportional to how strongly the customer has shown interest in that product's category, brand, and type.</p>
+      <div class="math-block"><span class="dim">── Affinity formula ─────────────────────────────────────────────</span>
+<span class="hi">affinity(d) = 0.20 × category_affinity[d.category]
+            + 0.15 × manufacturer_affinity[d.manufacturer]
+            + 0.10 × type_affinity[d.type]</span>
+
+<span class="dim">── Customer: viewed 3 Samsung phones ───────────────────────────</span>
+  manufacturer_affinity["samsung"]  =  <span class="val">1.00</span>   <span class="dim">← viewed Samsung ×3</span>
+  category_affinity["smartphones"]  =  <span class="val">1.00</span>   <span class="dim">← all were phones</span>
+  category_affinity["earbuds"]      =  <span class="val">0.00</span>   <span class="dim">← never viewed earbuds</span>
+  type_affinity["accessory"]        =  <span class="val">0.00</span>   <span class="dim">← all were devices</span>
+
+<span class="dim">── Affinity per product in "wireless earbuds" results ──────────</span>
+Samsung Galaxy Buds 3  (category: earbuds, brand: samsung, type: accessory)
+  <span class="val">affinity = 0.20×0.00 + 0.15×1.00 + 0.10×0.00  =  +0.15</span>  <span class="dim">← brand match only</span>
+
+Sony WH-1000XM6        (category: earbuds, brand: sony,    type: accessory)
+  <span class="val">affinity = 0.20×0.00 + 0.15×0.00 + 0.10×0.00  =  +0.00</span>  <span class="dim">← no match</span>
+
+<span class="dim">final score  =  RRF score  +  affinity boost</span></div>
+
+      <!-- EXAMPLE: Samsung earbuds -->
+      <h3>Example: Samsung customer searches "wireless earbuds"</h3>
+      <p>Samsung Galaxy Buds 3 had the lowest RRF score among the top 5 results. But the manufacturer affinity boost (+0.15) is large enough to push its final score above the others — because the RRF scores are tightly clustered.</p>
+      <table>
+        <tr><th>Product</th><th>RRF score</th><th>Affinity added</th><th>Final score</th><th>Position</th></tr>
+        <tr><td><strong>Samsung Galaxy Buds 3</strong></td><td>0.029</td><td style="color:#7c6cf4"><strong>+0.15</strong></td><td><strong>0.179</strong></td><td>5 → <strong>1</strong></td></tr>
+        <tr><td>Sony WH-1000XM6</td><td>0.033</td><td>+0.00</td><td>0.033</td><td>1 → 2</td></tr>
+        <tr><td>Bose QC45</td><td>0.031</td><td>+0.00</td><td>0.031</td><td>2 → 3</td></tr>
+        <tr><td>Apple AirPods 4</td><td>0.027</td><td>+0.00</td><td>0.027</td><td>3 → 4</td></tr>
+        <tr><td>JBL Tune 760</td><td>0.025</td><td>+0.00</td><td>0.025</td><td>4 → 5</td></tr>
+      </table>
+      <p>Sony dropped from #1 to #2 — it was not removed, it is still visible. Samsung rose because the system correctly identifies it as the customer's preferred brand. <strong>The customer finds what they searched for, shaped by who they are.</strong></p>
+
+      <div class="chart-wrap">
+        <div class="chart-label">Fig 1 — Score composition: how RRF + affinity combine into final score</div>
+        <canvas id="chart-scores" width="520" height="230"></canvas>
+      </div>
+
+      <div class="chart-wrap">
+        <div class="chart-label">Fig 2 — Rank movement: positions before and after personalisation</div>
+        <canvas id="chart-ranks" width="520" height="250"></canvas>
+      </div>
+
+      <!-- ALEX -->
+      <h3>When category mismatch protects the customer — Alex's office chair</h3>
+      <p>Alex has spent the last session buying gaming gear (Logitech keyboard, mouse, headset). Now Alex searches <strong>"ergonomic office chair"</strong>. This is the hardest case: session history points one way, search intent points the other.</p>
+
+      <p><strong>Bad personalisation (override):</strong> a naive system ignores the RRF score entirely and forces gaming items to the top.</p>
+      <table>
+        <tr><th>Rank</th><th>Product</th><th>Why</th></tr>
+        <tr><td>1</td><td>DXRacer Gaming Chair</td><td>System thinks: Alex loves gaming</td></tr>
+        <tr><td>2</td><td>Herman Miller Aeron</td><td>Demoted — still present, but buried</td></tr>
+        <tr><td>3</td><td>Steelcase Leap</td><td>Demoted</td></tr>
+      </table>
+      <p>Alex searched for a back-friendly work chair and got a racing seat. This is the failure mode personalisation must avoid.</p>
+
+      <p><strong>ISP's approach (nudge):</strong> RRF runs first. None of the top ergonomic chairs are Logitech-branded or tagged "gaming", so they receive near-zero affinity boost. DXRacer gets the gaming category boost, but the semantic model already scored it low (0.008) because "ergonomic office chair" and "gaming chair" are semantically distant. The RRF gap is large enough that affinity cannot close it.</p>
+      <table>
+        <tr><th>Product</th><th>RRF</th><th>Affinity</th><th>Final</th><th>Rank</th></tr>
+        <tr><td>Herman Miller Aeron</td><td>0.032</td><td>+0.00</td><td>0.032</td><td>1 → 1</td></tr>
+        <tr><td>Steelcase Leap</td><td>0.031</td><td>+0.00</td><td>0.031</td><td>2 → 2</td></tr>
+        <tr><td>Humanscale Freedom</td><td>0.029</td><td>+0.00</td><td>0.029</td><td>3 → 3</td></tr>
+        <tr><td>IKEA Markus</td><td>0.025</td><td>+0.00</td><td>0.025</td><td>4 → 4</td></tr>
+        <tr><td>DXRacer Gaming Chair</td><td>0.008</td><td>+0.20</td><td>0.028</td><td>8 → 5</td></tr>
+      </table>
+      <p>DXRacer rises from #8 to #5 — the affinity did fire — but Herman Miller stays at #1 because the semantic relevance gap (0.032 vs 0.008) is larger than any affinity can compensate for. The relevant chairs are protected by their own RRF scores.</p>
+
+      <!-- SAFETY PROPERTY -->
+      <h3>The safety ceiling — editorial boost always beats maximum affinity</h3>
+      <p>The maximum possible affinity boost is <strong>+0.45</strong> (all three dimensions at 1.0). The <code>is_featured</code> editorial boost is <strong>+0.50</strong>. A featured product always outranks a maximally-boosted personalised one.</p>
+      <div class="math-block"><span class="dim">── Safety property ──────────────────────────────────────────────</span>
+
+Sony WH-1000XM6  (is_featured = true)
+  <span class="val">final = RRF(0.033) + editorial(0.500) = 0.533</span>
+
+Samsung Galaxy Buds 3  (manufacturer affinity = 1.0)
+  <span class="val">final = RRF(0.029) + affinity(0.150)  = 0.179</span>
+
+<span class="hi">0.533  >  0.179  →  Sony stays #1 regardless of personalisation</span>
+
+<span class="dim">Max affinity (+0.45) cannot beat a single is_featured editorial boost (+0.50).
+A strong objective match always outranks a maximally personalised weak match.</span></div>
+
+      <div class="chart-wrap">
+        <div class="chart-label">Fig 3 — Score ceiling: editorial boost vs affinity boost vs pure relevance</div>
+        <canvas id="chart-ceiling" width="520" height="300"></canvas>
+      </div>
+      <p><strong>Key guarantee:</strong> personalisation raises the floor for preferred items. It does not lower the ceiling for objectively strong ones.</p>
+
+      <!-- ARCHITECTURE -->
+      <h2 id="architecture">Architecture overview</h2>
+      <pre>Customer browser
+  ├── sessionStorage      current-session events (raw, minute-scale)
+  └── localStorage        cross-session profile (compressed, day-scale)
+          │
+          │  action_history[] merged on every search request
+          ▼
+ISP Public Search API  (POST /v1/indexes/{id}/search/public  or  POST /v1/catalog)
+  │
+  ├── context_service.build_context()   (max_actions=50, client sends up to 20)
+  │       time-decay weights per action
+  │       affinity maps: category / manufacturer / source_type
+  │       vector seed list (most-recent view / cart / purchase items, up to 5)
+  │
+  ├── embedding_service.embed_query()  →  query vector
+  │       + context_service.fetch_preference_vector()
+  │           weighted centroid of viewed-item vectors
+  │           blended at 80 % query intent / 20 % preference
+  │
+  ├── typesense_client.search_with_vec()        (hybrid / semantic — query present)
+  │       RRF (BM25 0.7  +  semantic 0.3)
+  │       editorial boosts: is_featured, popularity, boost_queries
+  │       post_rrf_hook: context affinity boosts
+  │             ├── +0.20 × category affinity
+  │             ├── +0.15 × manufacturer affinity
+  │             ├── +0.10 × source_type affinity
+  │             └── -0.05  already-viewed demotion
+  │
+  └── typesense_client.search_documents()       (lexical — empty query / browse)
+          fetch up to 4 × 250 = 1 000 items across _MAX_BROWSE_PAGES pages
+          rank-score each hit: score = 1 / (K + position)  k=60, position 1-indexed
+          post_rrf_hook: same affinity boosts as above
+          re-sort all hits by final score, re-paginate to requested page</pre>
+
+      <!-- ACTION TYPES -->
+      <h2 id="action-types">Action types</h2>
+      <p>Every customer interaction is represented as a <code>CustomerAction</code> object.</p>
+      <pre>interface CustomerAction {
+  type:          'view' | 'cart' | 'purchase' | 'search' | 'category';
+  item_id?:      string;   // Typesense doc id — used for preference vector seeding
+  item_type?:    string;   // "device" | "accessory"
+  category?:     string;   // product category (e.g. "smartphones")
+  manufacturer?: string;   // brand (e.g. "Samsung")
+  query?:        string;   // past search query (type="search" only)
+  timestamp?:    number;   // Unix ms — used for time-decay weighting
+  weight?:       number;   // caller-supplied multiplier (default 1.0)
+}</pre>
+
+      <h3>Implemented event sources</h3>
+      <table>
+        <tr><th>Event</th><th>Triggered by</th><th>Fields populated</th></tr>
+        <tr><td><code>view</code></td><td>Opening a product card</td><td><code>item_id</code>, <code>item_type</code>, <code>category</code>, <code>manufacturer</code>, <code>timestamp</code></td></tr>
+        <tr><td><code>search</code></td><td>Submitting a search query</td><td><code>query</code>, <code>timestamp</code></td></tr>
+        <tr><td><code>category</code></td><td>Clicking a tab (Phones / Accessories / …)</td><td><code>category</code>, <code>timestamp</code></td></tr>
+      </table>
+
+      <h3>Planned event sources</h3>
+      <table>
+        <tr><th>Event</th><th>Trigger point</th><th>Extra value</th></tr>
+        <tr><td><code>cart</code></td><td>Add-to-cart button</td><td>Stronger purchase intent than view</td></tr>
+        <tr><td><code>purchase</code></td><td>Order confirmation page</td><td>Strongest signal; suppresses re-showing same item</td></tr>
+        <tr><td><code>wishlist</code></td><td>Save / favourite action</td><td>Durable long-term interest</td></tr>
+        <tr><td><code>dwell</code></td><td>Time-on-page &gt; threshold</td><td>Differentiates genuine interest from accidental click</td></tr>
+        <tr><td><code>scroll_past</code></td><td>Item visible but scrolled away quickly</td><td>Negative signal — mild demotion</td></tr>
+        <tr><td><code>price_filter</code></td><td>User applies a price range filter</td><td>Infers budget segment</td></tr>
+        <tr><td><code>oos_skip</code></td><td>Out-of-stock item ignored</td><td>Informs stock-sensitivity</td></tr>
+      </table>
+
+      <h3>Session timeline — worked example</h3>
+      <p>Alex browses a phone store for 4 minutes. Five events are captured in <code>sessionStorage</code> and bundled with the next search request.</p>
+      <div class="math-block"><span class="dim">── 4-minute session — events recorded ──────────────────────────────────────────</span>
+
+t = 0:00   <span class="hi">category</span>  { type:"category", category:"smartphones",                         ts: 0      }
+t = 0:45   <span class="hi">search</span>    { type:"search",   query:"samsung galaxy s25",                   ts: 45000  }
+t = 1:30   <span class="hi">view</span>      { type:"view",     item_id:"s25-001", category:"smartphones",
+                              manufacturer:"Samsung", item_type:"device",         ts: 90000  }
+t = 2:10   <span class="hi">view</span>      { type:"view",     item_id:"s25-002", category:"smartphones",
+                              manufacturer:"Samsung", item_type:"device",         ts: 130000 }
+t = 3:55   <span class="hi">search</span>    { type:"search",   query:"wireless earbuds",                     ts: 235000 }
+
+<span class="dim">Total: 5 events  │  Preference vector seeds: ["s25-001","s25-002"]  (view / cart / purchase)
+search and category events have no item_id — they build query affinity, not vector seeds.</span></div>
+      <div class="chart-wrap">
+        <div class="chart-label">Fig 4 — Session event timeline: 5 events across 4 minutes</div>
+        <canvas id="chart-timeline" width="520" height="130"></canvas>
+      </div>
+      <p><code>search</code> and <code>category</code> events have no <code>item_id</code> and do not seed the preference vector. <code>view</code>, <code>cart</code>, and <code>purchase</code> events are all vector-eligible — their <code>item_id</code>s populate both the preference vector seed list and the viewed-item penalty set (see <code>_VECTOR_ELIGIBLE</code> in <code>context_service.py</code>).</p>
+
+      <!-- ACTION WEIGHTS -->
+      <h2 id="action-weights">Action weights</h2>
+      <p>Base weights before time-decay:</p>
+      <table>
+        <tr><th>Type</th><th>Weight</th><th>Rationale</th></tr>
+        <tr><td><code>purchase</code></td><td>3.0</td><td>Conversion — highest possible intent signal</td></tr>
+        <tr><td><code>cart</code></td><td>2.0</td><td>Clear interest, incomplete conversion</td></tr>
+        <tr><td><code>view</code></td><td>1.0</td><td>Baseline browsing signal</td></tr>
+        <tr><td><code>search</code></td><td>0.5</td><td>Intent without product selection</td></tr>
+        <tr><td><code>category</code></td><td>0.3</td><td>Broad interest only</td></tr>
+        <tr><td><code>wishlist</code> <em>(planned)</em></td><td>2.5</td><td>Durable opt-in interest</td></tr>
+        <tr><td><code>dwell</code> <em>(planned)</em></td><td>1.5</td><td>Quality engagement above a simple click</td></tr>
+        <tr><td><code>scroll_past</code> <em>(planned)</em></td><td>−0.3</td><td>Negative signal — suppress similar items</td></tr>
+      </table>
+      <p>The caller may supply a <code>weight</code> multiplier (e.g. <code>2.0</code> for a very recent high-priority event) which is multiplied with the base weight before any decay is applied.</p>
+
+      <div class="chart-wrap">
+        <div class="chart-label">Fig 5 — Base weights by action type (purchase = strongest signal)</div>
+        <canvas id="chart-weights" width="520" height="200"></canvas>
+      </div>
+
+      <h3>Accumulated weights — worked example</h3>
+      <p>After Alex's 4-minute session (2 phone views, 2 searches, 1 category tap), the raw weights per dimension accumulate as follows:</p>
+      <div class="math-block"><span class="dim">── Step 1: accumulate raw weights ───────────────────────────────────────────</span>
+
+  view × 2    (category="smartphones", manufacturer="Samsung", item_type="device")
+    category["smartphones"]    +=  <span class="val">1.0</span> × 2  =  <span class="val">2.0</span>
+    manufacturer["samsung"]    +=  <span class="val">1.0</span> × 2  =  <span class="val">2.0</span>
+    type["device"]             +=  <span class="val">1.0</span> × 2  =  <span class="val">2.0</span>
+
+  search × 2  (no item_id → no category / manufacturer dimension updated)
+    <span class="dim">← search events only feed query-language stats, not affinity maps</span>
+
+  category × 1  (category="smartphones")
+    category["smartphones"]    +=  <span class="val">0.3</span> × 1  =  <span class="val">0.3</span>
+
+<span class="dim">── Step 2: max-normalise to [0, 1] ──────────────────────────────────────────</span>
+
+  raw totals:  smartphones=<span class="val">2.3</span>,  samsung=<span class="val">2.0</span>,  device=<span class="val">2.0</span>   →  max = 2.3
+
+  category_affinity["smartphones"]  =  2.3 / 2.3  =  <span class="hi">1.00</span>
+  manufacturer_affinity["samsung"]  =  2.0 / 2.3  =  <span class="hi">0.87</span>
+  type_affinity["device"]           =  2.0 / 2.3  =  <span class="hi">0.87</span></div>
+
+      <!-- TIME DECAY -->
+      <h2 id="time-decay">Time-decay</h2>
+      <h3>Why decay matters</h3>
+      <p>An action taken 3 seconds ago is a much stronger signal than one taken 45 minutes ago. Without decay, a product the customer briefly glanced at an hour ago carries the same weight as one they just put in their cart.</p>
+
+      <h3>Implemented — Phase 2 (planned)</h3>
+      <p>Each action's effective weight is:</p>
+      <pre>effective_weight = type_weight × caller_weight × exp(−age_seconds / half_life_seconds)</pre>
+      <p>Half-lives by type:</p>
+      <table>
+        <tr><th>Type</th><th>Half-life</th><th>At 30 min</th><th>At 2 hours</th><th>At 1 day</th></tr>
+        <tr><td><code>purchase</code></td><td>no decay</td><td>100%</td><td>100%</td><td>100%</td></tr>
+        <tr><td><code>cart</code></td><td>30 min</td><td>50%</td><td>6%</td><td>&lt; 1%</td></tr>
+        <tr><td><code>view</code></td><td>15 min</td><td>25%</td><td>1.5%</td><td>&lt; 1%</td></tr>
+        <tr><td><code>search</code></td><td>8 min</td><td>8%</td><td>&lt; 1%</td><td>&lt; 1%</td></tr>
+        <tr><td><code>category</code></td><td>5 min</td><td>3%</td><td>&lt; 1%</td><td>&lt; 1%</td></tr>
+      </table>
+      <p><code>purchase</code> events do not decay within a session. If <code>timestamp</code> is absent the action is treated as age zero (full weight) — backward compatible with clients that do not yet send timestamps.</p>
+
+      <div class="math-block"><span class="dim">── Worked examples: same type, different ages ───────────────────────────────</span>
+
+  Cart event, 45 minutes ago:
+    base_weight  =  <span class="hi">2.0</span>    half_life = <span class="hi">1800</span>s   age = <span class="hi">2700</span>s
+    decay_factor =  exp(−2700 / 1800)  =  exp(−1.5)  =  <span class="val">0.223</span>
+    effective_w  =  2.0 × 0.223  =  <span class="val">0.447</span>   <span class="dim">← less than a fresh view</span>
+
+  View event, 2 minutes ago:
+    base_weight  =  <span class="hi">1.0</span>    half_life =  <span class="hi">900</span>s   age =  <span class="hi">120</span>s
+    decay_factor =  exp(−120 / 900)  =  exp(−0.133)  =  <span class="val">0.875</span>
+    effective_w  =  1.0 × 0.875  =  <span class="val">0.875</span>   <span class="dim">← beats the stale cart</span>
+
+<span class="hi">Takeaway: a 2-minute-old view (0.875) outweighs a 45-minute-old cart add (0.447).
+Recency can override action type when signals are sufficiently spread in time.</span></div>
+      <div class="chart-wrap">
+        <div class="chart-label">Fig 6 — Weight retention over time by action type (purchase = no decay)</div>
+        <canvas id="chart-decay" width="520" height="230"></canvas>
+      </div>
+
+      <!-- STORAGE -->
+      <h2 id="storage">Storage tiers</h2>
+      <h3>Tier 1 — Current session (<code>sessionStorage</code>)</h3>
+      <ul>
+        <li>Raw event list, newest first</li>
+        <li>Client-side cap: 20 events (controlled by <code>MAX_SESSION_ACTIONS</code> in the PLP)</li>
+        <li>Server-side cap: 50 actions processed per request (<code>max_actions=50</code> in <code>build_context()</code>)</li>
+        <li>Cleared when the browser tab/session closes</li>
+        <li>Minute-scale decay applied server-side via <code>timestamp</code></li>
+        <li>Highest influence on results</li>
+      </ul>
+
+      <h3>Tier 2 — Visitor profile (<code>localStorage</code>) — planned</h3>
+      <p>Persists across browser closes on the same device. Stores a compressed profile rather than raw events to avoid unbounded growth.</p>
+      <pre>interface VisitorProfile {
+  visitor_id:           string;           // UUID, generated once, no PII
+  last_updated:         number;           // Unix ms
+  category_weights:     Record&lt;string, number&gt;;
+  manufacturer_weights: Record&lt;string, number&gt;;
+  type_weights:         Record&lt;string, number&gt;;
+  recent_item_ids: {
+    id:           string;
+    type?:        string;
+    category?:    string;
+    manufacturer?: string;
+    ts:           number;
+  }[];                                    // last 10, newest first
+}</pre>
+      <p>Profile TTL: 30 days. Items older than 30 days are pruned from <code>recent_item_ids</code> on each write.</p>
+      <p><strong>Merge strategy on every search request:</strong> <code>getHistory()</code> produces a unified <code>action_history</code> array by taking all raw events from <code>sessionStorage</code> (real timestamps) and converting the <code>localStorage</code> profile into synthetic <code>CustomerAction</code> events with <code>weight: 0.5</code>. The server-side decay function handles both uniformly.</p>
+
+      <h3>Tier 3 — Server-side profile (identified users) — planned</h3>
+      <p>For customers who sign in via OAuth2. Profile stored in Redis (key: <code>isp:visitor:{email}</code>, TTL 30 days).</p>
+      <table>
+        <tr><th>Endpoint</th><th>Purpose</th></tr>
+        <tr><td><code>GET /v1/visitor/profile</code></td><td>Returns the server profile for the current JWT user</td></tr>
+        <tr><td><code>POST /v1/visitor/profile</code></td><td>Merges a client <code>VisitorProfile</code> into the server profile</td></tr>
+      </table>
+
+      <h3>Tier merge — worked example</h3>
+      <p>When the PLP makes a search call, <code>getHistory()</code> assembles the final <code>action_history</code> array by merging both tiers before sending to the server:</p>
+      <div class="math-block"><span class="dim">── Tier 1 (sessionStorage) — raw events, real timestamps ────────────────────</span>
+
+  { type:"view",    item_id:"buds-001", manufacturer:"Samsung", ts: now − 5 min }  w = 1.0
+  { type:"search",  query:"wireless earbuds",                   ts: now − 8 min }  w = 0.5
+
+<span class="dim">── Tier 2 (localStorage) — synthetic events, weight multiplied by 0.5 ──────</span>
+
+  { type:"view",    item_id:"s25-001",  manufacturer:"Samsung", ts: 3 days ago  }  w = 0.5
+  { type:"purchase",item_id:"case-001", manufacturer:"Samsung", ts: 7 days ago  }  w = 1.5
+
+<span class="dim">── Merged array sent to server ───────────────────────────────────────────────</span>
+
+  [ tier1_raw_events ]  ++  [ tier2_synthetic_events × 0.5 weight ]
+     ↑ full weight               ↑ half weight — cross-session memory, less certain
+     ↑ real ts                   ↑ ts from profile.last_updated
+
+  Server applies time-decay uniformly across both tiers via the timestamp field.
+  <span class="hi">Result: recent tier1 events dominate; tier2 provides longitudinal brand context.</span></div>
+
+      <!-- PREFERENCE VECTOR -->
+      <h2 id="preference-vector">Preference vector blending</h2>
+      <p>The primary personalisation mechanism for <strong>semantic and hybrid search</strong>. By blending viewed-item vectors into the query vector <em>before</em> the ANN call, retrieval naturally surfaces items that are both semantically relevant to the query <strong>and</strong> similar to what the customer has been looking at.</p>
+
+      <h3>The algorithm</h3>
+      <p><strong>Step 1 — Collect item vectors.</strong> For each <code>item_id</code> in <code>ctx.vector_seed_ids</code> (up to 5, ordered by recency), fetch the stored <code>vec</code> embedding from Typesense.</p>
+      <p><strong>Step 2 — Compute centroid (equal-weight mean).</strong> Average the item vectors dimension by dimension:</p>
+      <pre>preference_vec[i] = (vec_1[i] + vec_2[i] + ... + vec_n[i]) / n</pre>
+      <pre>  Samsung Galaxy Buds  →  v₁  =  [ 0.82,  0.14,  0.55,  0.91, ... ]
+  Samsung Phone Case   →  v₂  =  [ 0.79,  0.21,  0.48,  0.88, ... ]
+  Samsung Charger      →  v₃  =  [ 0.85,  0.09,  0.61,  0.94, ... ]
+                         p  =      [ 0.82,  0.15,  0.55,  0.91, ... ]   ← centroid</pre>
+      <blockquote><p>Mathematical basis: centroid computation is the direct descendant of the <strong>Rocchio (1971)</strong> relevance feedback algorithm. The vector space model was introduced by <strong>Salton, Wong &amp; Yang (1975)</strong>.</p></blockquote>
+
+      <p><strong>Step 3 — Linear blend with query vector.</strong></p>
+      <pre>blended[i] = 0.8 × query_vec[i]  +  0.2 × preference_vec[i]</pre>
+      <pre>  q  = embed("wireless earbuds")  →  [ 0.60,  0.88,  0.33,  0.72, ... ]
+  p  = Samsung centroid           →  [ 0.82,  0.15,  0.55,  0.91, ... ]
+  blended                         →  [ 0.64,  0.73,  0.37,  0.76, ... ]</pre>
+      <blockquote><p>This is the <strong>Rocchio update rule</strong> applied to dense vectors: <code>Q_new = 0.8·Q_orig + 0.2·centroid(relevant)</code>. The 0.2 value prevents query drift — values above 0.5 cause semantically off-topic but "preferred-brand" items to flood results (<strong>Efthimiadis, 1996</strong>).</p></blockquote>
+
+      <p><strong>Step 4 — L2 normalisation</strong> (required for cosine-distance ANN search).</p>
+      <pre>final_vec[i] = blended[i] / sqrt(Σ blended[i]²)</pre>
+
+      <h3>L2 normalisation — worked example</h3>
+      <div class="math-block"><span class="dim">── Blended vector (first 4 of 1024 dims, NOT yet normalised) ────────────────</span>
+
+  blended  =  0.8 × q  +  0.2 × p
+           =  0.8 × [0.60,  0.88,  0.33,  0.72, ...]
+           +  0.2 × [0.82,  0.15,  0.55,  0.91, ...]
+           =        [<span class="val">0.644</span>, <span class="val">0.734</span>, <span class="val">0.374</span>, <span class="val">0.758</span>, ...]
+
+<span class="dim">── L2 norm (magnitude) ──────────────────────────────────────────────────────</span>
+
+  ‖blended‖  =  sqrt(0.644² + 0.734² + 0.374² + 0.758² + ...)
+             ≈  sqrt(0.415 + 0.539 + 0.140 + 0.575 + ...)
+             ≈  <span class="val">1.324</span>
+
+<span class="dim">── Divide every dimension by the norm ───────────────────────────────────────</span>
+
+  final[0] = 0.644 / 1.324 = <span class="hi">0.486</span>
+  final[1] = 0.734 / 1.324 = <span class="hi">0.554</span>
+  final[2] = 0.374 / 1.324 = <span class="hi">0.282</span>
+  final[3] = 0.758 / 1.324 = <span class="hi">0.572</span>
+             ...  (1024 dimensions total)
+
+  verify: sqrt(0.486² + 0.554² + 0.282² + 0.572² + ...)  ≈  <span class="val">1.000</span>  ✓</div>
+      <div class="chart-wrap">
+        <div class="chart-label">Fig 7 — 2D projection: query vector nudged toward Samsung item cluster</div>
+        <canvas id="chart-vector" width="520" height="270"></canvas>
+      </div>
+
+      <h3>Why L2 normalisation?</h3>
+      <p>Typesense's ANN index uses cosine similarity: <code>cosine_sim(A, B) = (A · B) / (‖A‖ × ‖B‖)</code>. When both vectors are unit-length this simplifies to a plain dot product. After blending the norm is not 1, so normalisation is required.</p>
+
+      <h3>Relationship to affinity</h3>
+      <table>
+        <tr><th></th><th>Affinity boosts</th><th>Preference vector blending</th></tr>
+        <tr><td><strong>When it runs</strong></td><td>After RRF merge (re-ranking)</td><td>Before ANN lookup (retrieval)</td></tr>
+        <tr><td><strong>What it uses</strong></td><td>Weighted action counts</td><td>Stored embedding vectors</td></tr>
+        <tr><td><strong>Effect</strong></td><td>Nudges score of already-retrieved items</td><td>Steers which items are retrieved at all</td></tr>
+        <tr><td><strong>Requires query?</strong></td><td>No</td><td>Yes</td></tr>
+      </table>
+
+      <h3>Tuning knobs</h3>
+      <table>
+        <tr><th>Parameter</th><th>Default</th><th>Effect</th></tr>
+        <tr><td><code>blend_weight</code></td><td>0.2</td><td>Fraction of preference vector. Higher → stronger personalisation, less query fidelity</td></tr>
+        <tr><td><code>max_seeds</code></td><td>5</td><td>Number of viewed items whose vectors are fetched from Typesense</td></tr>
+        <tr><td>View half-life</td><td>15 min</td><td>How fast item-level interest decays (Phase 3)</td></tr>
+      </table>
+
+      <!-- AFFINITY -->
+      <h2 id="affinity">Affinity boosts (post-RRF)</h2>
+      <p>Applied <strong>after</strong> RRF merge and editorial boosts, before final page slice. These are additive score adjustments that nudge results toward the customer's demonstrated interests.</p>
+      <table>
+        <tr><th>Signal</th><th>Boost</th><th>Applied when</th></tr>
+        <tr><td>Category match</td><td>+0.20 × affinity</td><td><code>metadata.category</code> matches a category in <code>category_affinity</code></td></tr>
+        <tr><td>Manufacturer match</td><td>+0.15 × affinity</td><td><code>metadata.manufacturer</code> matches <code>manufacturer_affinity</code></td></tr>
+        <tr><td>Source type match</td><td>+0.10 × affinity</td><td><code>source_type</code> matches <code>type_affinity</code></td></tr>
+        <tr><td>Already viewed</td><td>−0.05</td><td>Doc id is in <code>viewed_ids</code></td></tr>
+      </table>
+      <p>All affinity values are normalised to [0,1] so maximum total boost is <code>+0.45</code>. Editorial boosts (<code>is_featured</code> +0.5, <code>popularity</code> ≤ +0.5) are larger — a featured item stays featured even for a customer with no category affinity.</p>
+
+      <h3>How affinity is calculated</h3>
+      <p><strong>Step 1 — Accumulate weighted counts.</strong> For every action in <code>action_history</code>, compute <code>w = type_weight × caller_weight</code> and add to running sums keyed by <code>category</code>, <code>manufacturer</code>, and <code>item_type</code>.</p>
+      <p><strong>Step 2 — Max-normalise to [0, 1].</strong></p>
+      <pre>affinity[k] = raw[k] / max(raw.values())</pre>
+      <p><strong>Step 3 — Apply as additive score boost per document.</strong></p>
+      <pre>boost = 0.20 × category_affinity.get(doc_cat,  0)
+      + 0.15 × manufacturer_affinity.get(doc_mfr, 0)
+      + 0.10 × type_affinity.get(doc_type, 0)
+      − 0.05  (if doc.id is in viewed_ids)</pre>
+
+      <h3>Example scores</h3>
+      <table>
+        <tr><th>Document</th><th>Category</th><th>Manufacturer</th><th>Type</th><th>Total</th></tr>
+        <tr><td>Samsung Galaxy Buds 3</td><td>+0.20</td><td>+0.15</td><td>+0.10</td><td><strong>+0.45</strong></td></tr>
+        <tr><td>Apple AirPods 4</td><td>+0.20</td><td>0</td><td>+0.10</td><td><strong>+0.30</strong></td></tr>
+        <tr><td>Samsung Galaxy S25</td><td>+0.07</td><td>+0.15</td><td>+0.07</td><td><strong>+0.29</strong></td></tr>
+        <tr><td>Sony WH-1000XM6</td><td>0</td><td>0</td><td>+0.10</td><td><strong>+0.10</strong></td></tr>
+      </table>
+
+      <div class="chart-wrap">
+        <div class="chart-label">Fig 8 — Affinity score breakdown per product (Samsung earbuds customer)</div>
+        <canvas id="chart-affinity-breakdown" width="520" height="210"></canvas>
+      </div>
+
+      <h3>Full score — RRF + affinity combined</h3>
+      <p>Using the affinity values from Alex's session above (manufacturer_affinity["samsung"] = 0.87):</p>
+      <div class="math-block"><span class="dim">── Samsung Galaxy Buds 3 (category:earbuds, brand:samsung, type:accessory) ───</span>
+
+  category_affinity["earbuds"]      =  <span class="val">0.00</span>  <span class="dim">← Alex only viewed phones, not earbuds</span>
+  manufacturer_affinity["samsung"]  =  <span class="val">0.87</span>  <span class="dim">← strong brand signal from 2 phone views</span>
+  type_affinity["accessory"]        =  <span class="val">0.00</span>  <span class="dim">← all viewed items were devices</span>
+
+  affinity = 0.20×<span class="val">0.00</span> + 0.15×<span class="val">0.87</span> + 0.10×<span class="val">0.00</span>  =  <span class="hi">+0.130</span>
+  final    = RRF(<span class="val">0.029</span>) + affinity(<span class="val">0.130</span>)               =  <span class="hi">0.159</span>
+
+<span class="dim">── Apple AirPods 4 (category:earbuds, brand:apple, type:accessory) ──────────</span>
+
+  manufacturer_affinity["apple"]  =  <span class="val">0.00</span>  <span class="dim">← no Apple products viewed</span>
+  affinity = 0.20×0.00 + 0.15×0.00 + 0.10×0.00  =  <span class="hi">+0.000</span>
+  final    = RRF(<span class="val">0.027</span>) + affinity(<span class="val">0.000</span>)         =  <span class="hi">0.027</span>
+
+<span class="hi">Samsung Buds win (0.159 > 0.027) despite lower pure-relevance RRF (0.029 vs 0.027).</span></div>
+
+      <!-- OPERATOR CONTROLS -->
+      <h2 id="controls">Operator controls</h2>
+      <p>ISP exposes four independent feature flags in <strong>Settings → Personalisation tab</strong>. All flags are cached in memory — there is no database round-trip per search request.</p>
+      <table>
+        <tr><th>Flag</th><th>Default</th><th>Effect when off</th></tr>
+        <tr><td>Personalisation (master)</td><td>On</td><td><code>action_history</code> is completely ignored; no context is built. All sub-flags become inert.</td></tr>
+        <tr><td>Preference Vector Blending</td><td>On</td><td>Viewed-item vectors are not blended into the query. ANN uses raw query vector only.</td></tr>
+        <tr><td>Affinity Score Boosts</td><td>On</td><td>Category (+0.20), manufacturer (+0.15), and product-type (+0.10) adjustments are skipped.</td></tr>
+        <tr><td>Viewed Item Penalty</td><td>On</td><td>Already-viewed items are not demoted (−0.05). Variety suppression is disabled.</td></tr>
+      </table>
+      <p>The master toggle is a hard gate. <strong>A/B testing use:</strong> because each flag can be turned off independently, you can isolate the contribution of each personalisation signal.</p>
+      <p>Flags are stored in the <code>app_settings</code> PostgreSQL table and updated in place on every <code>PUT /settings/customer-context</code> call — no DB read on the hot search path.</p>
+
+      <h3>Flag precedence</h3>
+      <div class="math-block"><span class="dim">── master flag = OFF ─────────────────────────────────────────────────────────</span>
+
+  personalisation = false
+    → action_history discarded on arrival
+    → context_service.build_context()  →  empty context  { }
+    → preference_vector_blend  =  N/A   (no context to blend)
+    → affinity_boosts          =  N/A
+    → viewed_item_penalty      =  N/A
+
+<span class="dim">── master = ON, sub-flags evaluated independently ────────────────────────────</span>
+
+  preference_vector_blend
+    ON  → ANN query  =  0.8×query_vec  +  0.2×preference_vec  (blended)
+    OFF → ANN query  =  query_vec  (raw, no personalisation in retrieval)
+
+  affinity_boosts
+    ON  → doc.score  +=  0.20×cat  +  0.15×mfr  +  0.10×type
+    OFF → doc.score  unchanged  (re-ranking is skipped entirely)
+
+  viewed_item_penalty
+    ON  → doc.score  −= 0.05  if doc.id ∈ viewed_ids
+    OFF → all items treated equally regardless of prior views</div>
+      <div class="chart-wrap">
+        <div class="chart-label">Fig 9 — A/B variant flag matrix (✓ = flag on, · = flag off)</div>
+        <canvas id="chart-flags" width="520" height="170"></canvas>
+      </div>
+
+      <!-- BROWSE -->
+      <h2 id="browse">Browse personalisation (empty-query)</h2>
+      <p>When the search query is empty, the PLP frontend forces <code>mode: 'lexical'</code>. Because there is no query vector, preference vector blending cannot run. However, affinity boosts and the viewed-item penalty operate purely on document metadata and apply to browse.</p>
+      <p><strong>Large-batch fetch:</strong> re-sorting only the first page would miss Samsung items at position 25+. When an affinity hook is active, <code>_run_search</code> paginates up to <code>_MAX_BROWSE_PAGES = 4</code> pages (1 000 items), applies the hook over all results, then slices to the requested page.</p>
+
+      <h3>Signal status</h3>
+      <table>
+        <tr><th>Signal</th><th>Empty-query browse</th></tr>
+        <tr><td>Preference vector blending</td><td>N/A — no query vector</td></tr>
+        <tr><td>Affinity boosts (category / manufacturer / type)</td><td>✅ Applied over full batch</td></tr>
+        <tr><td>Viewed-item penalty</td><td>✅ Applied — same hook</td></tr>
+      </table>
+
+      <h3>Multi-page fetch — worked example</h3>
+      <p>Without multi-page fetch, affinity can only affect items on page 1. Samsung Galaxy Buds 3 at position 25 would never surface. With the 4-page batch, it can:</p>
+      <div class="math-block"><span class="dim">── Samsung customer, empty query, page 1 (24 items) ─────────────────────────</span>
+
+  Without personalisation:
+    Typesense returns items sorted by popularity + is_featured
+    Samsung Galaxy Buds 3  →  position <span class="hi">25</span>  (just off page 1, never seen)
+
+  With personalisation  (_MAX_BROWSE_PAGES = 4, fetches 1 000 items):
+    Each item gets a rank_score = 1 / (60 + position)    <span class="dim">(same RRF formula)</span>
+
+    Item #18 (no affinity):
+      score = 1/(60+18) + 0.000  =  <span class="val">0.0128</span>
+
+    Samsung Galaxy Buds 3, position 25, manufacturer_affinity = 0.87:
+      rank_score  =  1/(60+25)         =  <span class="val">0.0118</span>
+      affinity    =  0.15 × 0.87       =  <span class="val">0.130</span>   <span class="dim">(manufacturer match only)</span>
+      final       =  0.0118 + 0.130    =  <span class="hi">0.142</span>  <span class="dim">>> item #18 (0.0128)</span>
+
+  ISP re-sorts all 1 000 items by final score, then slices [0:24] for page 1.
+  <span class="hi">Samsung Galaxy Buds 3 lands in page 1 position ~2 — affinity overcomes the rank gap.</span></div>
+      <div class="chart-wrap">
+        <div class="chart-label">Fig 10 — Browse rerank: Samsung items bubble into page 1 after multi-page fetch</div>
+        <canvas id="chart-browse" width="520" height="230"></canvas>
+      </div>
+
+      <!-- OTHER OPTIONS -->
+      <h2 id="other">Other personalisation options</h2>
+
+      <h3>Explicit preference signals</h3>
+      <p><strong>Wishlist / save:</strong> <code>type: "wishlist"</code>, weight 2.5×, half-life 7 days. Contributes heavily to the preference vector.</p>
+      <p><strong>Rating / feedback:</strong> <code>type: "rating"</code> with a <code>weight</code> field (5-star → +1.0, 1-star → −1.0). Negative ratings suppress similar items.</p>
+      <p><strong>"Not interested":</strong> hard <code>−0.5</code> penalty for items in suppressed categories.</p>
+
+      <h3>Segment detection</h3>
+      <table>
+        <tr><th>Segment</th><th>Detection rule</th><th>Adjustment</th></tr>
+        <tr><td>Budget seeker</td><td>80%+ of viewed items priced &lt; $100</td><td>Boost items by <code>price_asc</code> secondary sort</td></tr>
+        <tr><td>Premium buyer</td><td>80%+ of viewed items priced &gt; $500</td><td>Boost <code>is_featured</code> items more aggressively</td></tr>
+        <tr><td>Accessory cross-sell</td><td>Viewed 1+ device + 0 accessories</td><td>Surface accessory tab suggestion</td></tr>
+        <tr><td>Loyalty</td><td><code>purchase</code> events in history</td><td>Boost "new for existing customers" items</td></tr>
+        <tr><td>Researcher</td><td>&gt; 5 <code>view</code> events without <code>cart</code></td><td>Surface comparison / spec-heavy content</td></tr>
+      </table>
+
+      <h3>Negative signals</h3>
+      <table>
+        <tr><th>Signal</th><th>Source</th><th>Effect</th></tr>
+        <tr><td><code>scroll_past</code></td><td>Item visible for &lt; 2 s then scrolled away</td><td>−0.15 on similar category/manufacturer</td></tr>
+        <tr><td><code>quick_close</code></td><td>Modal opened and closed in &lt; 1 s</td><td>−0.10 on that specific item</td></tr>
+        <tr><td>Out-of-stock ignore</td><td>Customer skips OOS items consistently</td><td>Prefer <code>in_stock: true</code></td></tr>
+      </table>
+
+      <h3>Dwell time signal</h3>
+      <pre>// In ProductModal.svelte
+const openedAt = Date.now();
+// on close:
+const dwellMs = Date.now() - openedAt;
+if (dwellMs > 5000) {
+  recordAction({ type: 'dwell', item_id: item.id, weight: Math.min(dwellMs / 30000, 2.0), ... });
+}</pre>
+
+      <h3>Collaborative filtering</h3>
+      <p>Offline nightly job reads <code>search_events</code>, computes co-view pairs, stores in <code>co_view_pairs</code> table <code>(item_id_a, item_id_b, score)</code>. At search time, co-view partners of viewed items are used as additional preference vector seeds — personalises results for customers with zero current-session history.</p>
+
+      <h3>A/B testing variants</h3>
+      <table>
+        <tr><th>Variant</th><th>Configuration</th></tr>
+        <tr><td><code>control</code></td><td>No personalisation</td></tr>
+        <tr><td><code>affinity_only</code></td><td>Category/manufacturer boosts, no vector blend</td></tr>
+        <tr><td><code>vector_only</code></td><td>Preference vector blend, no affinity boosts</td></tr>
+        <tr><td><code>full</code></td><td>Both (current default)</td></tr>
+        <tr><td><code>aggressive</code></td><td><code>blend_weight: 0.4</code> instead of 0.2</td></tr>
+      </table>
+
+      <!-- API REFERENCE -->
+      <h2 id="api">API reference</h2>
+      <h3>POST /v1/indexes/{id}/search/public</h3>
+      <pre>{
+  "q": "samsung galaxy",
+  "mode": "hybrid",
+  "page": 1,
+  "per_page": 24,
+  "action_history": [
+    {
+      "type": "view",
+      "item_id": "abc123",
+      "item_type": "device",
+      "category": "smartphones",
+      "manufacturer": "Samsung",
+      "timestamp": 1750000100000
+    },
+    {
+      "type": "search",
+      "query": "android phone",
+      "timestamp": 1750000050000
+    },
+    {
+      "type": "category",
+      "category": "phones",
+      "timestamp": 1750000000000
+    }
+  ]
+}</pre>
+
+      <h3>POST /v1/catalog</h3>
+      <p>The catalog endpoint is used by the PLP. It adds <code>session_id</code>, <code>type</code>, and <code>search_mode</code> fields, and the response includes <code>context_actions_used</code> to indicate which personalisation paths fired:</p>
+      <pre>{
+  "session_id":   "sess-abc123",
+  "q":            "wireless earbuds",
+  "type":         "device",
+  "search_mode":  "lexical",
+  "page":         1,
+  "per_page":     24,
+  "action_history": [...]
+}</pre>
+      <p>Response:</p>
+      <pre>{
+  "items":                [...],
+  "total":                56,
+  "page":                 1,
+  "per_page":             24,
+  "total_pages":          3,
+  "context_segment":      "all",
+  "context_actions_used": [
+    "lexical_search",
+    "preference_vector_blend",
+    "affinity_boost"
+  ]
+}</pre>
+      <p><code>context_actions_used[0]</code> is <code>"lexical_search"</code> (PLP default) or <code>"hybrid_search"</code> (when <code>search_mode</code> is <code>"hybrid"</code> and embeddings are available). <code>"preference_vector_blend"</code> is only present when at least one <code>item_id</code> was provided in a vector-eligible action. <code>"affinity_boost"</code> fires when any category or manufacturer affinity was derived.</p>
+
+      <!-- PRIVACY -->
+      <h2 id="privacy">Privacy and data handling</h2>
+      <table>
+        <tr><th>Concern</th><th>Approach</th></tr>
+        <tr><td>No PII in action history</td><td><code>item_id</code> is an opaque Typesense doc id, not a product SKU or user identifier.</td></tr>
+        <tr><td>Session storage only (current)</td><td><code>sessionStorage</code> is cleared on browser close. No server-side persistence of raw events.</td></tr>
+        <tr><td>Visitor profile opt-out</td><td><code>localStorage</code> is deletable via browser settings. A "Clear my history" button calls <code>localStorage.removeItem('isp_visitor_profile')</code>.</td></tr>
+        <tr><td>Server-side profile (Phase 4)</td><td>Requires explicit opt-in (login). TTL 30 days. Deleted on account deletion. No raw query strings stored.</td></tr>
+        <tr><td>Action history is ephemeral</td><td>The server processes <code>action_history</code> in-memory per request and discards it. No event log is written.</td></tr>
+        <tr><td><code>search_events</code> table</td><td>Stores <code>session_id</code> (UUID, no link to customer identity unless logged in) + query + impressions + clicks. Analytics only.</td></tr>
+      </table>
+
+      <!-- IMPLEMENTATION STATUS -->
+      <h2 id="status">Implementation status</h2>
+      <table>
+        <tr><th>Feature</th><th>Status</th></tr>
+        <tr><td><code>CustomerAction</code> model (frontend + backend)</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td><code>view</code>, <code>search</code>, <code>category</code> event recording</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td><code>action_history</code> sent on every search</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Affinity boosts (category, manufacturer, type)</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Preference vector blending (equal weight)</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Viewed-item demotion</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Operator controls — 4-flag Settings panel</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Personalisation on empty-query browse</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Native category/manufacturer filter (<code>filter_by</code>)</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Timestamps on actions</td><td><span class="badge badge-planned">Planned — Phase 2</span></td></tr>
+        <tr><td>Time-decay in <code>build_context()</code></td><td><span class="badge badge-planned">Planned — Phase 2</span></td></tr>
+        <tr><td>Decay-weighted preference vector</td><td><span class="badge badge-planned">Planned — Phase 3</span></td></tr>
+        <tr><td><code>localStorage</code> visitor profile (returning customer)</td><td><span class="badge badge-planned">Planned — Phase 3</span></td></tr>
+        <tr><td><code>cart</code> and <code>purchase</code> events</td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td><code>dwell</code> time signal</td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td>Negative signals (<code>scroll_past</code>, <code>quick_close</code>)</td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td>Segment detection</td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td>Server-side profile (Redis, cross-device)</td><td><span class="badge badge-planned">Planned — Phase 4</span></td></tr>
+        <tr><td>Collaborative filtering</td><td><span class="badge badge-future">Future</span></td></tr>
+        <tr><td>Geo / time-of-day context</td><td><span class="badge badge-future">Future</span></td></tr>
+        <tr><td>A/B testing variants</td><td><span class="badge badge-future">Future</span></td></tr>
+        <tr><td>CTR feedback loop integration</td><td><span class="badge badge-future">Future</span></td></tr>
+      </table>
+
+      <!-- REFERENCES -->
+      <h2 id="references">References</h2>
+
+      <h3>ANN and HNSW vector indexing</h3>
+      <div class="ref-block">
+        <div class="ref-title">Approximate nearest neighbors: towards removing the curse of dimensionality</div>
+        <div class="ref-authors">Indyk, P., &amp; Motwani, R. (1998)</div>
+        <div class="ref-venue">STOC 1998, pp. 604–613</div>
+        <a class="ref-link" href="https://dl.acm.org/doi/10.1145/276698.276876" target="_blank">dl.acm.org/doi/10.1145/276698.276876</a>
+        <div class="ref-note">Formally defined the ANN problem. Established the theoretical foundation for HNSW, FAISS, Annoy, and ScaNN.</div>
+      </div>
+      <div class="ref-block">
+        <div class="ref-title">Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs</div>
+        <div class="ref-authors">Malkov, Y. A., &amp; Yashunin, D. A. (2018)</div>
+        <div class="ref-venue">IEEE TPAMI, 42(4), 824–836</div>
+        <a class="ref-link" href="https://arxiv.org/abs/1603.09320" target="_blank">arxiv.org/abs/1603.09320</a>
+        <div class="ref-note">Defines HNSW — the multi-layer graph used by Typesense. Directly underpins every <code>vector_query</code> call in <code>search_with_vec()</code>.</div>
+      </div>
+      <div class="ref-block">
+        <div class="ref-title">Billion-scale similarity search with GPUs (FAISS)</div>
+        <div class="ref-authors">Johnson, J., Douze, M., &amp; Jégou, H. (2019)</div>
+        <div class="ref-venue">IEEE Transactions on Big Data, 7(3), 535–547</div>
+        <a class="ref-link" href="https://arxiv.org/abs/1702.08734" target="_blank">arxiv.org/abs/1702.08734</a>
+      </div>
+      <div class="ref-block">
+        <div class="ref-title">ANN-Benchmarks: A benchmarking tool for approximate nearest neighbor algorithms</div>
+        <div class="ref-authors">Aumuller, M., Bernhardsson, E., &amp; Faithfull, A. (2020)</div>
+        <div class="ref-venue">Information Systems, 87, 101374</div>
+        <a class="ref-link" href="https://ann-benchmarks.com" target="_blank">ann-benchmarks.com</a>
+      </div>
+
+      <h3>BM25 full-text retrieval</h3>
+      <div class="ref-block">
+        <div class="ref-title">The probabilistic relevance framework: BM25 and beyond</div>
+        <div class="ref-authors">Robertson, S., &amp; Zaragoza, H. (2009)</div>
+        <div class="ref-venue">Foundations and Trends in Information Retrieval, 3(4), 333–389</div>
+        <a class="ref-link" href="https://doi.org/10.1561/1500000019" target="_blank">doi.org/10.1561/1500000019</a>
+        <div class="ref-note">Definitive reference for BM25 (Best Match 25) — the lexical ranking function used for the keyword pass in ISP's hybrid search. The RRF formula combines BM25 rank positions (weight 0.7) with semantic rank positions (weight 0.3). Typesense uses BM25 internally for <code>query_by</code> text fields.</div>
+      </div>
+
+      <h3>Hybrid search and rank fusion</h3>
+      <div class="ref-block">
+        <div class="ref-title">Reciprocal rank fusion outperforms Condorcet and individual rank learning methods</div>
+        <div class="ref-authors">Cormack, G. V., Clarke, C. L. A., &amp; Buettcher, S. (2009)</div>
+        <div class="ref-venue">SIGIR 2009, pp. 758–759</div>
+        <a class="ref-link" href="https://dl.acm.org/doi/10.1145/1571941.1572114" target="_blank">dl.acm.org/doi/10.1145/1571941.1572114</a>
+        <div class="ref-note">Defines RRF. Directly informs the <code>0.7 lex + 0.3 sem</code> fusion used in ISP's <code>search_with_vec</code>.</div>
+      </div>
+
+      <h3>Preference vector and query expansion</h3>
+      <div class="ref-block">
+        <div class="ref-title">A vector space model for automatic indexing</div>
+        <div class="ref-authors">Salton, G., Wong, A., &amp; Yang, C. S. (1975)</div>
+        <div class="ref-venue">Communications of the ACM, 18(11), 613–620</div>
+        <a class="ref-link" href="https://dl.acm.org/doi/10.1145/361219.361220" target="_blank">dl.acm.org/doi/10.1145/361219.361220</a>
+        <div class="ref-note">Introduced the vector space model for IR. Establishes the mathematical basis for representing both queries and documents as vectors — the foundation on which preference vector blending rests. Cited in the preference vector section.</div>
+      </div>
+      <div class="ref-block">
+        <div class="ref-title">Relevance feedback in information retrieval</div>
+        <div class="ref-authors">Rocchio, J. J. (1971)</div>
+        <div class="ref-venue">In The SMART Retrieval System. Prentice-Hall.</div>
+        <div class="ref-note">Original formalisation of blending a query vector with document vectors. The preference vector blend (<code>0.8 × query + 0.2 × mean(item_vecs)</code>) is a direct descendant of the Rocchio update rule.</div>
+      </div>
+      <div class="ref-block">
+        <div class="ref-title">Query expansion</div>
+        <div class="ref-authors">Efthimiadis, E. N. (1996)</div>
+        <div class="ref-venue">Annual Review of Information Science and Technology (ARIST), 31, 121–187</div>
+        <div class="ref-note">Comprehensive survey of query expansion techniques. Directly cited in the preference vector section: blend weights above 0.5 cause query drift — the customer's preferred brand items flood results at the expense of the actual search intent. ISP uses 0.2 to prevent this.</div>
+      </div>
+      <div class="ref-block">
+        <div class="ref-title">Sentence-BERT: Sentence embeddings using siamese BERT-networks</div>
+        <div class="ref-authors">Reimers, N., &amp; Gurevych, I. (2019)</div>
+        <div class="ref-venue">EMNLP 2019, pp. 3982–3992</div>
+        <a class="ref-link" href="https://arxiv.org/abs/1908.10084" target="_blank">arxiv.org/abs/1908.10084</a>
+        <div class="ref-note">Confirms cosine similarity in embedding space is the correct metric and L2 normalisation is required before blending. The L2 normalisation worked example (Fig 7) verifies ‖final‖ ≈ 1.0 following this requirement.</div>
+      </div>
+
+      <h3>Affinity scoring and behavioural signals</h3>
+      <div class="ref-block">
+        <div class="ref-title">Collaborative filtering for implicit feedback datasets</div>
+        <div class="ref-authors">Hu, Y., Koren, Y., &amp; Volinsky, C. (2008)</div>
+        <div class="ref-venue">ICDM 2008, pp. 263–272</div>
+        <a class="ref-link" href="https://doi.org/10.1109/ICDM.2008.22" target="_blank">doi.org/10.1109/ICDM.2008.22</a>
+        <div class="ref-note">Foundational paper for treating implicit signals as confidence-weighted preferences. The <code>weight</code> multiplier field on <code>CustomerAction</code> implements this directly.</div>
+      </div>
+      <div class="ref-block">
+        <div class="ref-title">Novelty and diversity in information retrieval evaluation</div>
+        <div class="ref-authors">Clarke, C. L. A., et al. (2008)</div>
+        <div class="ref-venue">SIGIR 2008, pp. 659–666</div>
+        <a class="ref-link" href="https://dl.acm.org/doi/10.1145/1390334.1390446" target="_blank">dl.acm.org/doi/10.1145/1390334.1390446</a>
+        <div class="ref-note">Motivates the viewed-item demotion (−0.05): once a customer has seen an item, its marginal value in subsequent pages is lower.</div>
+      </div>
+      <div class="ref-block">
+        <div class="ref-title">Beyond clicks: Dwell time for personalization</div>
+        <div class="ref-authors">Yi, X., Hong, L., Zhong, E., Liu, N. N., &amp; Smola, A. (2014)</div>
+        <div class="ref-venue">RecSys 2014, pp. 113–120</div>
+        <a class="ref-link" href="https://dl.acm.org/doi/10.1145/2645710.2645724" target="_blank">dl.acm.org/doi/10.1145/2645710.2645724</a>
+      </div>
+
+      <h3>Time-decay</h3>
+      <div class="ref-block">
+        <div class="ref-title">Collaborative filtering with temporal dynamics</div>
+        <div class="ref-authors">Koren, Y. (2009)</div>
+        <div class="ref-venue">KDD 2009, pp. 447–456</div>
+        <a class="ref-link" href="https://dl.acm.org/doi/10.1145/1557019.1557072" target="_blank">dl.acm.org/doi/10.1145/1557019.1557072</a>
+        <div class="ref-note">Demonstrates user preferences drift over time. Directly motivates the half-life decay applied per action type.</div>
+      </div>
+
+      <h3>A/B testing and controlled experiments</h3>
+      <div class="ref-block">
+        <div class="ref-title">Controlled experiments on the web: Survey and practical guide</div>
+        <div class="ref-authors">Kohavi, R., Longbotham, R., Sommerfield, D., &amp; Henne, R. M. (2009)</div>
+        <div class="ref-venue">Data Mining and Knowledge Discovery, 18(1), 140–181</div>
+        <a class="ref-link" href="https://doi.org/10.1007/s10618-008-0114-1" target="_blank">doi.org/10.1007/s10618-008-0114-1</a>
+        <div class="ref-note">Foundational reference for online controlled experiment design. Directly informs the 5-variant A/B flag matrix (Fig 9): isolating <code>affinity_only</code>, <code>vector_only</code>, and <code>full</code> as orthogonal variants lets operators measure the marginal contribution of each personalisation signal independently.</div>
+      </div>
+
+      <h3>General information retrieval</h3>
+      <div class="ref-block">
+        <div class="ref-title">Introduction to Information Retrieval</div>
+        <div class="ref-authors">Manning, C. D., Raghavan, P., &amp; Schütze, H. (2008)</div>
+        <div class="ref-venue">Cambridge University Press</div>
+        <a class="ref-link" href="https://nlp.stanford.edu/IR-book/" target="_blank">nlp.stanford.edu/IR-book</a>
+        <div class="ref-note">Chapters 6 (scoring), 9 (relevance feedback), and 11 (probabilistic IR) are directly relevant to ISP's ranking design.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Theme toggle ──────────────────────────────────────────────────────────
+    (function(){
+      var btn = document.getElementById('theme-toggle');
+      function apply(t) {
+        if (t === 'light') { document.documentElement.setAttribute('data-theme','light'); btn.textContent = '☾'; }
+        else { document.documentElement.removeAttribute('data-theme'); btn.textContent = '☀'; }
+        setTimeout(drawAllCharts, 40);
+      }
+      apply(localStorage.getItem('isp-theme') === 'light' ? 'light' : 'dark');
+      btn.addEventListener('click', function(){
+        var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        localStorage.setItem('isp-theme', next);
+        apply(next);
+      });
+    })();
+
+    // ── Chart data ────────────────────────────────────────────────────────────
+    var EARBUDS = [
+      { name: 'Samsung Galaxy Buds 3', short: 'Samsung Buds 3', rrf: 0.029, affinity: 0.150, before: 5, after: 1 },
+      { name: 'Sony WH-1000XM6',       short: 'Sony XM6',       rrf: 0.033, affinity: 0.000, before: 1, after: 2 },
+      { name: 'Bose QC45',             short: 'Bose QC45',      rrf: 0.031, affinity: 0.000, before: 2, after: 3 },
+      { name: 'Apple AirPods 4',       short: 'AirPods 4',      rrf: 0.027, affinity: 0.000, before: 3, after: 4 },
+      { name: 'JBL Tune 760',          short: 'JBL Tune 760',   rrf: 0.025, affinity: 0.000, before: 4, after: 5 },
+    ];
+
+    // ── Theme-aware colours ───────────────────────────────────────────────────
+    function clr() {
+      var light = document.documentElement.getAttribute('data-theme') === 'light';
+      return {
+        text:   light ? '#111'     : '#ddd',
+        muted:  light ? '#888'     : '#777',
+        faint:  light ? '#ccc'     : '#333',
+        bg:     light ? '#ffffff'  : '#111111',
+        border: light ? '#e0e0e0'  : '#222222',
+        accent: light ? '#6b5ce7'  : '#7c6cf4',
+        blue:   light ? '#2563eb'  : '#60a5fa',
+        green:  light ? '#16a34a'  : '#4ade80',
+        red:    light ? '#dc2626'  : '#f87171',
+      };
+    }
+
+    // ── Fig 1: Stacked horizontal bar chart ───────────────────────────────────
+    function drawScoreChart() {
+      var canvas = document.getElementById('chart-scores');
+      if (!canvas) return;
+      var c = clr(), ctx = canvas.getContext('2d');
+      var W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      var labelW = 148, rightPad = 56, barH = 26, gap = 18, topPad = 38;
+      var chartW = W - labelW - rightPad;
+      var maxVal = 0.22;
+      var data = EARBUDS.slice().sort(function(a,b){ return (b.rrf+b.affinity)-(a.rrf+a.affinity); });
+
+      // Legend
+      ctx.fillStyle = c.blue;  ctx.fillRect(labelW, 8, 12, 10);
+      ctx.fillStyle = c.text;  ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('RRF — relevance', labelW + 16, 18);
+      ctx.fillStyle = c.accent; ctx.fillRect(labelW + 126, 8, 12, 10);
+      ctx.fillText('Affinity — personalisation', labelW + 142, 18);
+
+      // X axis ticks
+      [0, 0.05, 0.10, 0.15, 0.20].forEach(function(v) {
+        var x = labelW + (v / maxVal) * chartW;
+        ctx.fillStyle = c.muted; ctx.font = '10px SF Mono,monospace'; ctx.textAlign = 'center';
+        ctx.fillText(v.toFixed(2), x, topPad - 10);
+        ctx.strokeStyle = c.faint; ctx.lineWidth = 0.5; ctx.setLineDash([3,4]);
+        ctx.beginPath(); ctx.moveTo(x, topPad - 4); ctx.lineTo(x, topPad + data.length*(barH+gap) - gap); ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      // Axis line
+      ctx.strokeStyle = c.faint; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(labelW, topPad - 4); ctx.lineTo(labelW, topPad + data.length*(barH+gap) - gap); ctx.stroke();
+
+      data.forEach(function(d, i) {
+        var y = topPad + i * (barH + gap);
+        var final = d.rrf + d.affinity;
+        var rrfW = (d.rrf / maxVal) * chartW;
+        var affW = (d.affinity / maxVal) * chartW;
+
+        // Label
+        ctx.fillStyle = i === 0 ? c.text : c.muted;
+        ctx.font = (i === 0 ? '600' : '400') + ' 12px -apple-system,sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(d.short, labelW - 8, y + barH/2 + 4);
+
+        // RRF bar
+        ctx.fillStyle = c.blue; ctx.globalAlpha = 0.85;
+        ctx.fillRect(labelW, y, rrfW, barH);
+
+        // Affinity bar
+        if (d.affinity > 0) {
+          ctx.fillStyle = c.accent;
+          ctx.fillRect(labelW + rrfW, y, affW, barH);
+        }
+        ctx.globalAlpha = 1;
+
+        // Final score
+        ctx.fillStyle = i === 0 ? c.accent : c.muted;
+        ctx.font = (i === 0 ? '700' : '400') + ' 11px SF Mono,monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(final.toFixed(3), labelW + (final / maxVal) * chartW + 6, y + barH/2 + 4);
+
+        // Rank after label
+        ctx.fillStyle = c.faint; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText('#' + (i+1), W - rightPad + 4, y + barH/2 + 4);
+      });
+    }
+
+    // ── Fig 2: Rank movement diagram ──────────────────────────────────────────
+    function drawRankChart() {
+      var canvas = document.getElementById('chart-ranks');
+      if (!canvas) return;
+      var c = clr(), ctx = canvas.getContext('2d');
+      var W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      var n = EARBUDS.length, r = 18, topPad = 52, step = (H - topPad - 28) / (n - 1);
+      var leftX = W * 0.27, rightX = W * 0.73;
+
+      // Sort for before/after columns
+      var before = EARBUDS.slice().sort(function(a,b){ return b.rrf - a.rrf; });
+      var after  = EARBUDS.slice().sort(function(a,b){ return (b.rrf+b.affinity)-(a.rrf+a.affinity); });
+
+      var byPos = {}, ayPos = {};
+      before.forEach(function(d,i){ byPos[d.name] = topPad + i * step; });
+      after.forEach(function(d,i){  ayPos[d.name] = topPad + i * step; });
+
+      // Headers
+      ctx.fillStyle = c.muted; ctx.font = '600 12px -apple-system,sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('Before personalisation', leftX, 22);
+      ctx.fillText('After personalisation', rightX, 22);
+      ctx.fillStyle = c.faint; ctx.font = '11px -apple-system,sans-serif';
+      ctx.fillText('sorted by RRF score', leftX, 38);
+      ctx.fillText('sorted by final score', rightX, 38);
+
+      // Connecting lines
+      EARBUDS.forEach(function(d) {
+        var by = byPos[d.name], ay = ayPos[d.name];
+        var moved = by - ay;
+        var lineClr = moved > 2 ? c.green : moved < -2 ? c.red : c.faint;
+        ctx.strokeStyle = lineClr; ctx.lineWidth = moved !== 0 ? 1.5 : 1;
+        ctx.setLineDash(Math.abs(moved) < 2 ? [4,3] : []);
+        ctx.globalAlpha = 0.55;
+        ctx.beginPath();
+        ctx.moveTo(leftX + r, by);
+        ctx.bezierCurveTo(W/2, by, W/2, ay, rightX - r, ay);
+        ctx.stroke();
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      });
+
+      // Draw before circles + labels
+      before.forEach(function(d, i) {
+        var y = topPad + i * step;
+        var personal = d.affinity > 0;
+        ctx.fillStyle = personal ? c.accent : c.bg;
+        ctx.strokeStyle = personal ? c.accent : c.border;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(leftX, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = personal ? '#fff' : c.text;
+        ctx.font = '700 13px -apple-system,sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(i+1, leftX, y+5);
+        ctx.fillStyle = c.muted; ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'right';
+        ctx.fillText(d.short, leftX - r - 8, y+4);
+      });
+
+      // Draw after circles + labels
+      after.forEach(function(d, i) {
+        var y = topPad + i * step;
+        var personal = d.affinity > 0;
+        ctx.fillStyle = personal ? c.accent : c.bg;
+        ctx.strokeStyle = personal ? c.accent : c.border;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(rightX, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = personal ? '#fff' : c.text;
+        ctx.font = '700 13px -apple-system,sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(i+1, rightX, y+5);
+        ctx.fillStyle = c.muted; ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(d.short, rightX + r + 8, y+4);
+      });
+
+      // Legend
+      [[c.green,'Moved up'],[c.red,'Moved down'],[c.faint,'No change']].forEach(function(pair, i) {
+        var lx = W/2 - 140 + i*110, ly = H - 10;
+        ctx.strokeStyle = pair[0]; ctx.lineWidth = 2; ctx.globalAlpha = 0.8;
+        ctx.beginPath(); ctx.moveTo(lx, ly - 4); ctx.lineTo(lx + 18, ly - 4); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.fillStyle = c.muted; ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(pair[1], lx + 22, ly);
+      });
+    }
+
+    // ── Fig 3: Score ceiling chart ────────────────────────────────────────────
+    function drawCeilingChart() {
+      var canvas = document.getElementById('chart-ceiling');
+      if (!canvas) return;
+      var c = clr(), ctx = canvas.getContext('2d');
+      var W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      var scenarios = [
+        { label: 'Sony WH-1000XM6',       sub: '(is_featured = true)',  rrf: 0.033, editorial: 0.500, affinity: 0.000, total: 0.533, col: c.green  },
+        { label: 'Samsung Galaxy Buds 3',  sub: '(brand affinity)',      rrf: 0.029, editorial: 0.000, affinity: 0.150, total: 0.179, col: c.accent },
+        { label: 'Sony WH-1000XM6',        sub: '(not featured)',        rrf: 0.033, editorial: 0.000, affinity: 0.000, total: 0.033, col: c.blue   },
+        { label: 'JBL Tune 760',           sub: '(no boost)',            rrf: 0.025, editorial: 0.000, affinity: 0.000, total: 0.025, col: c.faint  },
+      ];
+
+      var axisX = 52, axisTop = 16, axisH = H - 90;
+      var maxScore = 0.62, barW = 60, barGap = 32;
+      var totalW = scenarios.length * (barW + barGap) - barGap;
+      var startX = axisX + 24 + (W - axisX - 30 - totalW) / 2;
+
+      // Y axis
+      ctx.strokeStyle = c.faint; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(axisX, axisTop); ctx.lineTo(axisX, axisTop + axisH); ctx.stroke();
+
+      // Y ticks + grid
+      [0, 0.10, 0.20, 0.30, 0.40, 0.45, 0.50, 0.60].forEach(function(v) {
+        var y = axisTop + axisH - (v / maxScore) * axisH;
+        ctx.fillStyle = c.muted; ctx.font = '10px SF Mono,monospace'; ctx.textAlign = 'right';
+        ctx.fillText(v.toFixed(2), axisX - 5, y + 3);
+        ctx.strokeStyle = c.faint; ctx.lineWidth = 0.5; ctx.setLineDash([3,4]);
+        ctx.beginPath(); ctx.moveTo(axisX + 1, y); ctx.lineTo(W - 12, y); ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      // Threshold labels
+      var thresholds = [
+        { v: 0.45, label: 'max affinity', col: c.accent },
+        { v: 0.50, label: 'editorial boost', col: c.green },
+      ];
+      thresholds.forEach(function(t) {
+        var y = axisTop + axisH - (t.v / maxScore) * axisH;
+        ctx.fillStyle = t.col; ctx.font = '600 10px -apple-system,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText('← ' + t.label, axisX + 6, y - 3);
+      });
+
+      // Bars
+      scenarios.forEach(function(s, i) {
+        var x = startX + i * (barW + barGap);
+        var baseY = axisTop + axisH;
+        var rrfH  = (s.rrf / maxScore) * axisH;
+        var affH  = (s.affinity / maxScore) * axisH;
+        var editH = (s.editorial / maxScore) * axisH;
+
+        ctx.globalAlpha = 0.85;
+        // RRF (blue base)
+        ctx.fillStyle = c.blue;
+        ctx.fillRect(x, baseY - rrfH, barW, rrfH);
+        // Affinity (purple)
+        if (affH > 0) { ctx.fillStyle = c.accent; ctx.fillRect(x, baseY - rrfH - affH, barW, affH); }
+        // Editorial (green)
+        if (editH > 0) { ctx.fillStyle = c.green; ctx.fillRect(x, baseY - rrfH - editH, barW, editH); }
+        ctx.globalAlpha = 1;
+
+        // Total score on top
+        ctx.fillStyle = s.col; ctx.font = '700 11px SF Mono,monospace'; ctx.textAlign = 'center';
+        ctx.fillText(s.total.toFixed(3), x + barW/2, baseY - (s.total/maxScore)*axisH - 6);
+
+        // Labels below
+        ctx.fillStyle = c.muted; ctx.font = '600 10px -apple-system,sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(s.label, x + barW/2, baseY + 16);
+        ctx.font = '10px -apple-system,sans-serif'; ctx.fillStyle = c.faint;
+        ctx.fillText(s.sub, x + barW/2, baseY + 30);
+      });
+
+      // Legend
+      [[c.blue,'RRF'],[c.accent,'Affinity'],[c.green,'Editorial (is_featured)']].forEach(function(pair, i) {
+        var lx = axisX + 10 + i * 148, ly = H - 10;
+        ctx.fillStyle = pair[0]; ctx.fillRect(lx, ly - 10, 12, 10);
+        ctx.fillStyle = c.muted; ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(pair[1], lx + 16, ly);
+      });
+    }
+
+    // ── Fig 4: Session event timeline ─────────────────────────────────────────
+    function drawTimelineChart() {
+      var canvas = document.getElementById('chart-timeline');
+      if (!canvas) return;
+      var c = clr(), ctx = canvas.getContext('2d');
+      var W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      var events = [
+        { t: 0,      label: 'category',  sub: 'smartphones',         col: function(c){ return c.muted; } },
+        { t: 45000,  label: 'search',    sub: '"samsung galaxy s25"', col: function(c){ return c.blue;  } },
+        { t: 90000,  label: 'view',      sub: 's25-001 (Samsung)',    col: function(c){ return c.green; } },
+        { t: 130000, label: 'view',      sub: 's25-002 (Samsung)',    col: function(c){ return c.green; } },
+        { t: 235000, label: 'search',    sub: '"wireless earbuds"',   col: function(c){ return c.blue;  } },
+      ];
+      var maxT = 240000;
+      var lPad = 24, rPad = 24, topY = 42, lineY = 68, dotR = 7;
+      var trackW = W - lPad - rPad;
+
+      // Axis line
+      ctx.strokeStyle = c.border; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(lPad, lineY); ctx.lineTo(W - rPad, lineY); ctx.stroke();
+
+      // Time labels
+      [0, 60, 120, 180, 240].forEach(function(sec) {
+        var x = lPad + (sec * 1000 / maxT) * trackW;
+        ctx.fillStyle = c.faint; ctx.font = '10px SF Mono,monospace'; ctx.textAlign = 'center';
+        ctx.fillText(sec + 's', x, lineY + 18);
+        ctx.strokeStyle = c.faint; ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(x, lineY + 4); ctx.lineTo(x, lineY + 8); ctx.stroke();
+      });
+
+      // Events
+      events.forEach(function(ev, i) {
+        var x = lPad + (ev.t / maxT) * trackW;
+        var col = ev.col(c);
+        ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(x, lineY, dotR, 0, Math.PI * 2);
+        ctx.fill();
+
+        var above = (i % 2 === 0);
+        var ty = above ? lineY - dotR - 26 : lineY + dotR + 20;
+        var sy = above ? lineY - dotR - 14 : lineY + dotR + 32;
+
+        ctx.fillStyle = col; ctx.font = '600 11px -apple-system,sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(ev.label, x, ty);
+        ctx.fillStyle = c.faint; ctx.font = '10px -apple-system,sans-serif';
+        ctx.fillText(ev.sub, x, sy);
+
+        // Stem
+        ctx.strokeStyle = col; ctx.lineWidth = 0.8; ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        if (above) { ctx.moveTo(x, lineY - dotR); ctx.lineTo(x, lineY - dotR - 10); }
+        else        { ctx.moveTo(x, lineY + dotR); ctx.lineTo(x, lineY + dotR + 10); }
+        ctx.stroke(); ctx.globalAlpha = 1;
+      });
+
+      // Legend
+      [[c.green,'view (seeds vector)'],[c.blue,'search'],[c.muted,'category']].forEach(function(p, i) {
+        var lx = 32 + i * 148, ly = H - 6;
+        ctx.fillStyle = p[0]; ctx.fillRect(lx, ly - 9, 10, 9);
+        ctx.fillStyle = c.muted; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(p[1], lx + 14, ly);
+      });
+    }
+
+    // ── Fig 5: Action weights bar chart ──────────────────────────────────────
+    function drawWeightsChart() {
+      var canvas = document.getElementById('chart-weights');
+      if (!canvas) return;
+      var c = clr(), ctx = canvas.getContext('2d');
+      var W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      var items = [
+        { label: 'purchase',        weight: 3.0, note: 'conversion', planned: false },
+        { label: 'wishlist',        weight: 2.5, note: 'planned',    planned: true  },
+        { label: 'cart',            weight: 2.0, note: 'high intent', planned: false },
+        { label: 'dwell',           weight: 1.5, note: 'planned',    planned: true  },
+        { label: 'view',            weight: 1.0, note: 'browsing',   planned: false },
+        { label: 'search',          weight: 0.5, note: 'intent',     planned: false },
+        { label: 'category',        weight: 0.3, note: 'broad',      planned: false },
+        { label: 'scroll_past',     weight:-0.3, note: 'negative / planned', planned: true  },
+      ];
+
+      var lPad = 106, rPad = 70, barH = 14, gap = 8, topPad = 16;
+      var maxAbs = 3.2;
+      var zeroX = lPad + (3.0 / (maxAbs * 2)) * (W - lPad - rPad);
+
+      // Zero line
+      ctx.strokeStyle = c.border; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(zeroX, topPad); ctx.lineTo(zeroX, topPad + items.length * (barH + gap)); ctx.stroke();
+
+      // X ticks
+      [-0.5, 0, 1.0, 2.0, 3.0].forEach(function(v) {
+        var x = zeroX + (v / maxAbs) * (W - lPad - rPad) * 0.5;
+        ctx.fillStyle = c.faint; ctx.font = '9px SF Mono,monospace'; ctx.textAlign = 'center';
+        ctx.fillText(v.toFixed(1), x, topPad - 4);
+        ctx.strokeStyle = c.faint; ctx.lineWidth = 0.4; ctx.setLineDash([2,3]);
+        ctx.beginPath(); ctx.moveTo(x, topPad); ctx.lineTo(x, topPad + items.length * (barH + gap)); ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      items.forEach(function(it, i) {
+        var y = topPad + i * (barH + gap);
+        var barPx = (Math.abs(it.weight) / maxAbs) * (W - lPad - rPad) * 0.5;
+        var col = it.planned ? c.faint : (it.weight < 0 ? c.red : c.accent);
+
+        ctx.fillStyle = it.planned ? c.faint : c.text;
+        ctx.font = it.planned ? '12px -apple-system,sans-serif' : '600 12px -apple-system,sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(it.label + (it.planned ? ' *' : ''), lPad - 6, y + barH - 2);
+
+        ctx.fillStyle = col; ctx.globalAlpha = it.planned ? 0.45 : 0.85;
+        if (it.weight >= 0) ctx.fillRect(zeroX, y, barPx, barH);
+        else                ctx.fillRect(zeroX - barPx, y, barPx, barH);
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = col; ctx.font = '600 10px SF Mono,monospace'; ctx.textAlign = 'left';
+        var labelX = it.weight >= 0 ? zeroX + barPx + 5 : zeroX - barPx - 28;
+        ctx.fillText(it.weight.toFixed(1), labelX, y + barH - 2);
+      });
+
+      ctx.fillStyle = c.faint; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText('* planned', lPad, topPad + items.length * (barH + gap) + 14);
+    }
+
+    // ── Fig 6: Time-decay curve chart ─────────────────────────────────────────
+    function drawDecayChart() {
+      var canvas = document.getElementById('chart-decay');
+      if (!canvas) return;
+      var c = clr(), ctx = canvas.getContext('2d');
+      var W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      var decays = [
+        { label: 'purchase',  halfLife: Infinity, col: function(c){ return c.green;  } },
+        { label: 'cart',      halfLife: 1800,     col: function(c){ return c.accent; } },
+        { label: 'view',      halfLife:  900,     col: function(c){ return c.blue;   } },
+        { label: 'search',    halfLife:  480,     col: function(c){ return c.muted;  } },
+        { label: 'category',  halfLife:  300,     col: function(c){ return c.faint;  } },
+      ];
+
+      var lPad = 44, rPad = 16, topPad = 18, botPad = 48;
+      var chartW = W - lPad - rPad, chartH = H - topPad - botPad;
+      var maxMin = 120;
+
+      // Axes
+      ctx.strokeStyle = c.border; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(lPad, topPad); ctx.lineTo(lPad, topPad + chartH); ctx.lineTo(lPad + chartW, topPad + chartH); ctx.stroke();
+
+      // Y ticks
+      [0, 0.25, 0.5, 0.75, 1.0].forEach(function(v) {
+        var y = topPad + chartH - v * chartH;
+        ctx.fillStyle = c.faint; ctx.font = '9px SF Mono,monospace'; ctx.textAlign = 'right';
+        ctx.fillText((v * 100).toFixed(0) + '%', lPad - 4, y + 3);
+        ctx.strokeStyle = c.faint; ctx.lineWidth = 0.4; ctx.setLineDash([3,4]);
+        ctx.beginPath(); ctx.moveTo(lPad + 1, y); ctx.lineTo(lPad + chartW, y); ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      // X ticks (minutes)
+      [0, 15, 30, 60, 90, 120].forEach(function(min) {
+        var x = lPad + (min / maxMin) * chartW;
+        ctx.fillStyle = c.faint; ctx.font = '9px SF Mono,monospace'; ctx.textAlign = 'center';
+        ctx.fillText(min + 'min', x, topPad + chartH + 12);
+      });
+
+      // Curves
+      decays.forEach(function(d) {
+        var col = d.col(c);
+        ctx.strokeStyle = col; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        for (var step = 0; step <= 200; step++) {
+          var sec = (step / 200) * maxMin * 60;
+          var retain = d.halfLife === Infinity ? 1.0 : Math.exp(-sec / d.halfLife);
+          var x = lPad + (sec / (maxMin * 60)) * chartW;
+          var y = topPad + chartH - retain * chartH;
+          if (step === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke(); ctx.globalAlpha = 1;
+
+        // End label at 120 min
+        var endRetain = d.halfLife === Infinity ? 1.0 : Math.exp(-(maxMin * 60) / d.halfLife);
+        var labelY = topPad + chartH - endRetain * chartH;
+        ctx.fillStyle = col; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(d.label, lPad + chartW + 4, Math.max(labelY + 4, topPad + 12));
+      });
+
+      // Legend
+      ctx.fillStyle = c.muted; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('Time since event →', lPad + chartW / 2, H - 4);
+    }
+
+    // ── Fig 7: Vector blend 2D diagram ────────────────────────────────────────
+    function drawVectorChart() {
+      var canvas = document.getElementById('chart-vector');
+      if (!canvas) return;
+      var c = clr(), ctx = canvas.getContext('2d');
+      var W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      var ox = 60, oy = H - 44, scaleX = (W - ox - 30), scaleY = (H - oy - 20) * -1;
+
+      function pt(x, y) { return { px: ox + x * scaleX, py: oy + y * scaleY }; }
+      function dot(p, r, col, lbl, lblRight) {
+        ctx.fillStyle = col; ctx.beginPath(); ctx.arc(p.px, p.py, r, 0, Math.PI*2); ctx.fill();
+        if (lbl) {
+          ctx.fillStyle = col; ctx.font = '600 11px -apple-system,sans-serif';
+          ctx.textAlign = lblRight ? 'left' : 'right';
+          ctx.fillText(lbl, p.px + (lblRight ? r+4 : -r-4), p.py + 4);
+        }
+      }
+      function arrow(from, to, col, alpha) {
+        alpha = alpha || 1;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = col; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(to.px, to.py); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      // Axes
+      ctx.strokeStyle = c.border; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(ox, H-14); ctx.lineTo(ox, oy + scaleY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(24, oy);   ctx.lineTo(W - 14, oy); ctx.stroke();
+      ctx.fillStyle = c.faint; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('dim₁ (electronics relevance →)', ox + scaleX / 2, H - 4);
+      ctx.save(); ctx.translate(14, oy + scaleY / 2); ctx.rotate(-Math.PI/2);
+      ctx.fillText('dim₂ (Samsung affinity →)', 0, 0); ctx.restore();
+
+      // Axis ticks
+      [0.2, 0.4, 0.6, 0.8, 1.0].forEach(function(v) {
+        ctx.strokeStyle = c.faint; ctx.lineWidth = 0.4; ctx.setLineDash([2,3]);
+        var px = ox + v * scaleX, py = oy + v * scaleY;
+        ctx.beginPath(); ctx.moveTo(px, oy); ctx.lineTo(px, oy + scaleY); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ox, py); ctx.lineTo(ox + scaleX, py); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = c.faint; ctx.font = '9px SF Mono,monospace'; ctx.textAlign = 'center';
+        ctx.fillText(v.toFixed(1), px, oy + 12);
+        ctx.textAlign = 'right'; ctx.fillText(v.toFixed(1), ox - 4, py + 3);
+      });
+
+      // Samsung item vectors (cluster high-right in dim2)
+      var samsungItems = [
+        { x: 0.82, y: 0.88, lbl: 'v₁ (S25-001)' },
+        { x: 0.79, y: 0.84, lbl: 'v₂ (S25-002)' },
+      ];
+      samsungItems.forEach(function(it) {
+        var p = pt(it.x, it.y);
+        arrow(null, p, c.accent, 0.25);
+        dot(p, 5, c.accent, it.lbl, false);
+      });
+
+      // Preference vector centroid
+      var pref = pt(0.805, 0.86);
+      arrow(null, pref, c.accent, 0.6);
+      dot(pref, 7, c.accent, 'p (centroid)', false);
+
+      // Query vector (high dim1, mid dim2)
+      var qv = pt(0.60, 0.33);
+      arrow(null, qv, c.blue, 0.9);
+      dot(qv, 7, c.blue, 'q (query)', true);
+
+      // Blended vector
+      var blnd = pt(0.644, 0.404);
+      arrow(null, blnd, c.green, 0.9);
+      dot(blnd, 8, c.green, 'blended (0.8q+0.2p)', true);
+
+      // Dotted guide from q toward p
+      ctx.strokeStyle = c.accent; ctx.lineWidth = 1; ctx.globalAlpha = 0.35; ctx.setLineDash([4,4]);
+      ctx.beginPath(); ctx.moveTo(qv.px, qv.py); ctx.lineTo(pref.px, pref.py); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+
+      // Legend
+      [[c.blue,'q — raw query'],[c.accent,'Samsung items + centroid'],[c.green,'blended — nudged toward Samsung']].forEach(function(p, i) {
+        var lx = 66 + i * 154, ly = H - oy + 10 + 28;
+        ctx.fillStyle = p[0]; ctx.fillRect(lx, ly - 8, 10, 8);
+        ctx.fillStyle = c.muted; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(p[1], lx + 14, ly);
+      });
+    }
+
+    // ── Fig 8: Affinity breakdown bar chart ───────────────────────────────────
+    function drawAffinityBreakdownChart() {
+      var canvas = document.getElementById('chart-affinity-breakdown');
+      if (!canvas) return;
+      var c = clr(), ctx = canvas.getContext('2d');
+      var W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      var products = [
+        { name: 'Samsung Buds 3', cat: 0.00, mfr: 0.130, typ: 0.00 },
+        { name: 'Apple AirPods 4', cat: 0.00, mfr: 0.000, typ: 0.00 },
+        { name: 'Samsung Galaxy S25', cat: 0.035, mfr: 0.130, typ: 0.087 },
+        { name: 'Sony WH-1000XM6', cat: 0.00, mfr: 0.000, typ: 0.00 },
+      ];
+
+      var lPad = 134, rPad = 64, barH = 22, gap = 16, topPad = 36;
+      var maxVal = 0.30;
+      var chartW = W - lPad - rPad;
+
+      // Legend
+      [[c.accent,'Category (+0.20×)'], [c.green,'Manufacturer (+0.15×)'], [c.blue,'Type (+0.10×)']].forEach(function(p, i) {
+        ctx.fillStyle = p[0]; ctx.fillRect(lPad + i * 154, 10, 10, 10);
+        ctx.fillStyle = c.muted; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(p[1], lPad + i * 154 + 14, 20);
+      });
+
+      // X axis ticks
+      [0, 0.05, 0.10, 0.15, 0.20, 0.25].forEach(function(v) {
+        var x = lPad + (v / maxVal) * chartW;
+        ctx.fillStyle = c.faint; ctx.font = '9px SF Mono,monospace'; ctx.textAlign = 'center';
+        ctx.fillText(v.toFixed(2), x, topPad - 6);
+        ctx.strokeStyle = c.faint; ctx.lineWidth = 0.4; ctx.setLineDash([2,3]);
+        ctx.beginPath(); ctx.moveTo(x, topPad - 2); ctx.lineTo(x, topPad + products.length * (barH + gap) - gap); ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      ctx.strokeStyle = c.border; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(lPad, topPad - 2); ctx.lineTo(lPad, topPad + products.length * (barH + gap) - gap); ctx.stroke();
+
+      products.forEach(function(p, i) {
+        var y = topPad + i * (barH + gap);
+        var total = p.cat + p.mfr + p.typ;
+        var x = lPad;
+
+        ctx.fillStyle = c.muted; ctx.font = '600 11px -apple-system,sans-serif'; ctx.textAlign = 'right';
+        ctx.fillText(p.name, lPad - 6, y + barH/2 + 4);
+
+        var segments = [
+          { val: p.cat, col: c.accent },
+          { val: p.mfr, col: c.green  },
+          { val: p.typ, col: c.blue   },
+        ];
+        ctx.globalAlpha = 0.85;
+        segments.forEach(function(seg) {
+          if (seg.val > 0) {
+            var w = (seg.val / maxVal) * chartW;
+            ctx.fillStyle = seg.col;
+            ctx.fillRect(x, y, w, barH);
+            x += w;
+          }
+        });
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = total > 0 ? c.accent : c.faint;
+        ctx.font = '600 10px SF Mono,monospace'; ctx.textAlign = 'left';
+        ctx.fillText('+' + total.toFixed(3), x + 5, y + barH/2 + 4);
+      });
+    }
+
+    // ── Fig 9: A/B flag matrix ────────────────────────────────────────────────
+    function drawFlagsChart() {
+      var canvas = document.getElementById('chart-flags');
+      if (!canvas) return;
+      var c = clr(), ctx = canvas.getContext('2d');
+      var W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      var variants = ['control', 'affinity_only', 'vector_only', 'full', 'aggressive'];
+      var flags    = ['Personalisation\n(master)', 'Preference\nVector Blend', 'Affinity\nBoosts', 'Viewed Item\nPenalty'];
+      var matrix   = [
+        [false, false, false, false],
+        [true,  false, true,  true ],
+        [true,  true,  false, true ],
+        [true,  true,  true,  true ],
+        [true,  true,  true,  true ],
+      ];
+      var notes = ['', '', '', 'default', 'blend_weight=0.4'];
+
+      var colW = 90, rowH = 28, lPad = 112, topPad = 54;
+
+      // Flag headers
+      flags.forEach(function(f, j) {
+        var x = lPad + j * colW + colW/2;
+        var lines = f.split('\n');
+        ctx.fillStyle = c.text; ctx.font = '600 10px -apple-system,sans-serif'; ctx.textAlign = 'center';
+        lines.forEach(function(line, li) { ctx.fillText(line, x, 14 + li * 14); });
+      });
+
+      // Variant rows
+      variants.forEach(function(v, i) {
+        var y = topPad + i * rowH;
+        ctx.fillStyle = i % 2 === 0 ? c.bg : c.bg;
+        ctx.fillStyle = c.muted; ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'right';
+        ctx.fillText(v, lPad - 8, y + rowH/2 + 4);
+        if (notes[i]) {
+          ctx.fillStyle = c.faint; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'left';
+          ctx.fillText('← ' + notes[i], lPad + flags.length * colW + 4, y + rowH/2 + 4);
+        }
+
+        matrix[i].forEach(function(on, j) {
+          var cx = lPad + j * colW + colW/2, cy = y + rowH/2;
+          ctx.fillStyle = on ? c.green   : c.faint;
+          ctx.font      = on ? '700 13px -apple-system,sans-serif' : '12px -apple-system,sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(on ? '✓' : '·', cx, cy + 5);
+        });
+      });
+
+      // Grid lines
+      ctx.strokeStyle = c.border; ctx.lineWidth = 0.5;
+      flags.forEach(function(_, j) {
+        var x = lPad + j * colW;
+        ctx.beginPath(); ctx.moveTo(x, topPad - 6); ctx.lineTo(x, topPad + variants.length * rowH); ctx.stroke();
+      });
+      ctx.beginPath(); ctx.moveTo(lPad, topPad - 6); ctx.lineTo(lPad + flags.length * colW, topPad - 6); ctx.stroke();
+    }
+
+    // ── Fig 10: Browse rerank chart ───────────────────────────────────────────
+    function drawBrowseChart() {
+      var canvas = document.getElementById('chart-browse');
+      if (!canvas) return;
+      var c = clr(), ctx = canvas.getContext('2d');
+      var W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      var items = [
+        { name: 'Apple iPhone 16',     pos: 1,  affinity: 0.000, isSamsung: false },
+        { name: 'Samsung Galaxy S25',  pos: 2,  affinity: 0.217, isSamsung: true  },
+        { name: 'Google Pixel 9',      pos: 3,  affinity: 0.000, isSamsung: false },
+        { name: 'Sony Xperia 1 VI',    pos: 4,  affinity: 0.000, isSamsung: false },
+        { name: 'Samsung A55',         pos: 10, affinity: 0.217, isSamsung: true  },
+        { name: 'Samsung Buds 3',      pos: 25, affinity: 0.130, isSamsung: true  },
+        { name: 'OnePlus 13',          pos: 6,  affinity: 0.000, isSamsung: false },
+      ];
+
+      var n = items.length;
+      var lPad = 132, rPad = 24, barH = 20, gap = 8, topPad = 50;
+      var maxScore = 0.28;
+      var chartW = W - lPad - rPad;
+
+      // Headers
+      ctx.fillStyle = c.muted; ctx.font = '600 11px -apple-system,sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('Without personalisation (position score only)', lPad + chartW * 0.28, 18);
+      ctx.fillText('With personalisation (+ affinity)', lPad + chartW * 0.78, 18);
+      ctx.fillStyle = c.faint; ctx.font = '10px -apple-system,sans-serif';
+      ctx.fillText('1/(60 + original_pos)', lPad + chartW * 0.28, 32);
+      ctx.fillText('rank_score + affinity boost', lPad + chartW * 0.78, 32);
+
+      // Divider
+      ctx.strokeStyle = c.border; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(lPad + chartW * 0.52, topPad - 6); ctx.lineTo(lPad + chartW * 0.52, topPad + n * (barH + gap)); ctx.stroke();
+
+      items.sort(function(a, b) { return a.pos - b.pos; });
+      items.forEach(function(it, i) {
+        var y = topPad + i * (barH + gap);
+        var rankScore = 1 / (60 + it.pos);
+        var finalScore = rankScore + it.affinity;
+
+        // Label
+        ctx.fillStyle = it.isSamsung ? c.accent : c.muted;
+        ctx.font = it.isSamsung ? '600 11px -apple-system,sans-serif' : '11px -apple-system,sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText((it.isSamsung ? '★ ' : '') + it.name, lPad - 5, y + barH/2 + 4);
+
+        // Before bar (left half)
+        var halfW = chartW * 0.48;
+        var bw = (rankScore / maxScore) * halfW;
+        ctx.fillStyle = it.isSamsung ? c.accent : c.blue; ctx.globalAlpha = 0.75;
+        ctx.fillRect(lPad, y, bw, barH);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = c.faint; ctx.font = '9px SF Mono,monospace'; ctx.textAlign = 'left';
+        ctx.fillText(rankScore.toFixed(4), lPad + bw + 3, y + barH/2 + 3);
+
+        // After bar (right half)
+        var startX = lPad + chartW * 0.52;
+        var fw = (finalScore / maxScore) * halfW;
+        ctx.fillStyle = it.isSamsung ? c.accent : c.blue; ctx.globalAlpha = 0.75;
+        ctx.fillRect(startX, y, fw, barH);
+        if (it.affinity > 0) {
+          var rw = (it.affinity / maxScore) * halfW;
+          ctx.fillStyle = c.green; ctx.globalAlpha = 0.75;
+          ctx.fillRect(startX + fw - rw, y, rw, barH);
+        }
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = it.isSamsung ? c.green : c.faint; ctx.font = '9px SF Mono,monospace'; ctx.textAlign = 'left';
+        ctx.fillText(finalScore.toFixed(4), startX + fw + 3, y + barH/2 + 3);
+      });
+
+      // Legend
+      [[c.blue,'Rank score'],[c.green,'Affinity added'],[c.accent,'Samsung items']].forEach(function(p, i) {
+        var lx = lPad + i * 144, ly = H - 6;
+        ctx.fillStyle = p[0]; ctx.fillRect(lx, ly - 9, 10, 9);
+        ctx.fillStyle = c.muted; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(p[1], lx + 14, ly);
+      });
+    }
+
+    function drawAllCharts() {
+      drawScoreChart();
+      drawRankChart();
+      drawCeilingChart();
+      drawTimelineChart();
+      drawWeightsChart();
+      drawDecayChart();
+      drawVectorChart();
+      drawAffinityBreakdownChart();
+      drawFlagsChart();
+      drawBrowseChart();
+    }
+
+    drawAllCharts();
+  </script>
+</body>
+</html>
