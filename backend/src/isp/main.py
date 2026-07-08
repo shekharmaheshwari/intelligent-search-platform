@@ -27,6 +27,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router, analytics
 from isp.routers import auth as auth_router_module, api_keys as api_keys_router_module
+from isp.routers.admin import router as admin_router
 from isp.services.infra.database import init_db
 from isp.services.domain.settings_service import load_embed_model
 from isp.services.infra import typesense_client as ts
@@ -158,6 +159,8 @@ async def lifespan(app: FastAPI):
     await load_embed_model()          # restore operator-chosen model before serving requests
     _ensure_catalog_collection()
     ts.migrate_isp_fields()
+    # Provision the search_suggestions collection used by the autocomplete API.
+    ts.ensure_suggestions_collection()
     await _seed_extensions_from_files()
     yield
 
@@ -199,6 +202,7 @@ app.include_router(catalog.router, prefix="/v1")
 app.include_router(extensions.router, prefix="/v1")
 app.include_router(settings_router.router, prefix="/v1")
 app.include_router(analytics.router, prefix="/v1")
+app.include_router(admin_router, prefix="/v1/admin")
 # Auth routes are always registered so /auth/login, /auth/callback etc. exist;
 # the middleware only enforces guards when AUTH_ENABLED=true.
 app.include_router(auth_router_module.router)
