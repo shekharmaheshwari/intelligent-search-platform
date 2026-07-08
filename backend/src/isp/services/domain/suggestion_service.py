@@ -3,9 +3,9 @@ suggestion_service.py — populates and maintains the search_suggestions Typesen
 
 Two population paths:
   1. seed_suggestions_from_index(index_id) — called at end of every rebuild.
-     Primary: runs extractSuggestions(doc) from every JS extension assigned to the index.
-     Baseline: if no extension defines extractSuggestions, falls back to extracting the
-     document's title and category fields directly — no heuristics, just those two fields.
+     Runs extractSuggestions(doc) from every JS extension assigned to the index.
+     If no extension defines extractSuggestions, nothing is seeded — all phrase
+     logic lives in JS, not in Python.
   2. run_nightly_aggregation() — called by a scheduled job at 02:00.
      Reads search_events, counts query frequency over 30 days, upserts as type="query".
 
@@ -46,20 +46,6 @@ def _make_id(type_: str, query: str, category: str | None) -> str:
     return f"{type_}:{_slugify(query)}:{_slugify(category or 'global')}"
 
 
-def _baseline_phrases(doc: dict, intent_label: str) -> list[tuple[str, str | None]]:
-    """
-    Minimal fallback when no extension defines extractSuggestions.
-
-    Extracts the document title scoped to the index's intent_label — not the
-    document's own category field, which may differ (e.g. "handset" vs "device").
-    Using intent_label ensures the suggestion appears in the correct Suggestions tab.
-    """
-    title = str(doc.get("title") or "").strip().lower()
-    if not title:
-        return []
-    return [(title, intent_label or None)]
-
-
 def _run_extraction_sync(docs: list[dict], extension_records: list[dict]) -> list[tuple[str, str | None]]:
     """
     Run extractSuggestions(doc) from each assigned extension that defines it.
@@ -68,11 +54,11 @@ def _run_extraction_sync(docs: list[dict], extension_records: list[dict]) -> lis
     for filterUrl — compile once, check typeof, call per document.
 
     Returns a flat list of (query_text, category_or_None) tuples.
+    Returns empty list if no extension defines extractSuggestions.
     """
     if not _MR_AVAILABLE or not docs or not extension_records:
         return []
 
-    # Compile each extension and record whether it exports extractSuggestions.
     contexts: list[tuple[str, object]] = []
     for ext in extension_records:
         if not ext.get("enabled", True):
@@ -115,37 +101,42 @@ async def seed_suggestions_from_index(index_id: str) -> int:
     """
     Refresh catalog suggestions for an index on every rebuild.
 
-    Strategy:
-      1. Resolve the index's intent_label (category scope) from the DB.
-      2. Run JS extractSuggestions from assigned extensions; fall back to
-         title-only baseline if none define it.
-      3. Preserve existing operator boost values by reading them before deletion.
-      4. Delete all type=catalog suggestions scoped to this category.
-      5. Re-upsert the fresh phrase set with preserved boost values.
+    All phrase logic lives in JS extensions — Python only orchestrates:
+      1. Fetch all documents from the index's Typesense collection (paginated).
+      2. Resolve the index's intent_label from the DB.
+      3. Run JS extractSuggestions from assigned extensions via py_mini_racer.
+         If no extension defines extractSuggestions, returns 0 — nothing seeded.
+      4. When extension returns no category, fill in intent_label automatically.
+      5. Preserve existing operator boost values before deletion.
+      6. Delete stale catalog entries (by intent_label + raw doc categories).
+      7. Re-upsert fresh phrases with preserved boost values.
 
-    This means the Suggestions tab always reflects the current index content —
-    stale entries from old extraction logic are never left behind.
-    Operator boost values survive the refresh cycle.
     type=query suggestions (from search_events) are never touched.
-
     Returns the count of entries upserted.
     """
     col = ts.collection_name(index_id)
 
-    try:
-        raw = ts.get_client().collections[col].documents.search({
-            "q": "*",
-            "query_by": "title",
-            "per_page": 250,
-        })
-    except Exception:
-        return 0
+    # Paginate through all documents — large indexes have 500+ items.
+    docs: list[dict] = []
+    page = 1
+    while True:
+        try:
+            raw = ts.get_client().collections[col].documents.search({
+                "q": "*",
+                "query_by": "title",
+                "per_page": 250,
+                "page": page,
+            })
+        except Exception:
+            break
+        hits = raw.get("hits", [])
+        docs.extend(hit.get("document", {}) for hit in hits)
+        if len(hits) < 250:
+            break
+        page += 1
 
-    hits = raw.get("hits", [])
-    if not hits:
+    if not docs:
         return 0
-
-    docs = [hit.get("document", {}) for hit in hits]
 
     # Resolve the category scope for this index.
     pool = await get_pool()
@@ -155,28 +146,24 @@ async def seed_suggestions_from_index(index_id: str) -> int:
         )
     intent_label = (row["intent_label"] or "").strip() if row else ""
 
-    # Run JS extractSuggestions; fall back to title-only baseline if none fire.
+    # Run JS extractSuggestions. No extension = no suggestions — all logic is in JS.
     extension_records = await extension_service.list_index_extensions(index_id)
-    if extension_records:
-        loop = asyncio.get_event_loop()
-        phrase_pairs = await loop.run_in_executor(
-            None, _run_extraction_sync, docs, extension_records
-        )
-    else:
-        phrase_pairs = []
+    loop = asyncio.get_event_loop()
+    phrase_pairs = await loop.run_in_executor(
+        None, _run_extraction_sync, docs, extension_records
+    )
 
     if not phrase_pairs:
-        for doc in docs:
-            phrase_pairs.extend(_baseline_phrases(doc, intent_label))
-
-    if not phrase_pairs:
+        log.info("index %s: no extractSuggestions extension found — skipping seed", index_id)
         return 0
 
-    # Deduplicate phrases into candidate dicts.
+    # Deduplicate. When extension returns no category, use intent_label so the
+    # suggestion is correctly scoped for the delete-and-reinsert cycle.
     seen_ids: set[str] = set()
     candidates: list[dict] = []
     for query_text, cat in phrase_pairs:
-        entry_id = _make_id("catalog", query_text, cat)
+        effective_cat = cat or intent_label or None
+        entry_id = _make_id("catalog", query_text, effective_cat)
         if entry_id in seen_ids:
             continue
         seen_ids.add(entry_id)
@@ -186,31 +173,30 @@ async def seed_suggestions_from_index(index_id: str) -> int:
             "type":       "catalog",
             "popularity": 0,
             "boost":      0,
-            **({"category": cat} if cat else {}),
+            **({"category": effective_cat} if effective_cat else {}),
         })
 
     if not candidates:
         return 0
 
-    # When a category scope exists: read existing boost values, delete stale
-    # catalog entries for this category, then re-upsert with boost preserved.
-    # Without a scope we fall back to additive upsert to avoid touching other
-    # indexes' global suggestions.
+    # Preserve boost, delete stale entries, re-upsert.
+    # Delete by both intent_label and raw doc category slugs to catch entries
+    # created by older extractors that used doc.category instead of intent_label.
     if intent_label:
         boost_map = ts.fetch_catalog_boost_map(intent_label)
-        ts.delete_from_collection(
-            "search_suggestions",
-            f"type:=catalog && category:={intent_label}",
-        )
+
+        raw_doc_categories = {
+            str(doc.get("category") or "").strip().lower()
+            for doc in docs
+        } - {""}
+        for cat in {intent_label} | raw_doc_categories:
+            ts.delete_from_collection(
+                "search_suggestions",
+                f"type:=catalog && category:={cat}",
+            )
+
         for entry in candidates:
             entry["boost"] = boost_map.get(entry["id"], 0)
-    else:
-        # Additive path — only insert entries not already present.
-        existing = list_suggestions_by_category(None, "*", 1, 1000)
-        existing_ids = {h.get("id") for h in existing.get("hits", []) if h.get("id")}
-        candidates = [e for e in candidates if e["id"] not in existing_ids]
-        if not candidates:
-            return 0
 
     return ts.upsert_suggestions(candidates)
 
