@@ -115,3 +115,20 @@ async def rebuild_suggestions():
     """
     count = await suggestion_service.run_nightly_aggregation()
     return {"upserted": count}
+
+
+@router.post("/suggestions/seed/{index_id}", summary="Re-seed catalog suggestions for one index")
+async def seed_index_suggestions(index_id: str):
+    """
+    Re-run catalog suggestion seeding for a single index without triggering a
+    full data rebuild.  Useful after assigning or updating a JS extension that
+    defines ``extractSuggestions``, or for testing new phrase logic.
+
+    Runs the same 8-step refresh as the post-rebuild hook:
+    reads existing docs from Typesense → runs JS extractor (or title fallback)
+    → preserves boost values → deletes stale catalog entries → re-upserts.
+
+    Returns the count of suggestion entries upserted.
+    """
+    count = await suggestion_service.seed_suggestions_from_index(index_id)
+    return {"upserted": count}
