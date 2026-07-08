@@ -20,12 +20,13 @@
   import DocumentTable from './DocumentTable.svelte';
   import SearchPanel from './SearchPanel.svelte';
   import ApiPanel from './ApiPanel.svelte';
+  import SuggestionsTab from './SuggestionsTab.svelte';
   import { fmtDate } from './IndexDetail.helpers';
 
   export let indexId: string;
-  export let tab: 'overview' | 'connector' | 'documents' | 'search' | 'api' = 'overview';
+  export let tab: 'overview' | 'connector' | 'documents' | 'search' | 'api' | 'suggestions' = 'overview';
 
-  const tabs: Array<'overview' | 'connector' | 'documents' | 'search' | 'api'> = ['overview', 'connector', 'documents', 'search', 'api'];
+  const tabs: Array<'overview' | 'connector' | 'documents' | 'search' | 'api' | 'suggestions'> = ['overview', 'connector', 'documents', 'search', 'api', 'suggestions'];
 
   const dispatch = createEventDispatcher<{ back: void }>();
 
@@ -553,6 +554,10 @@
 
       {:else if tab === 'api'}
         <ApiPanel {indexId} />
+
+      {:else if tab === 'suggestions'}
+        <!-- Pass intentLabel as category; convert null → undefined so the prop type is satisfied. -->
+        <SuggestionsTab {indexId} category={meta.intentLabel ?? undefined} />
       {/if}
     </div>
   {/if}
