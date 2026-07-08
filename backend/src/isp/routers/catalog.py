@@ -484,17 +484,29 @@ async def suggest(
     q:          str = Query(..., description="Partial query (min 2 chars)"),
     session_id: str = Query(default=""),
     limit:      int = Query(default=8, ge=1, le=20),
+    category:   str | None = Query(default=None, description="Active catalog tab — boosts matching suggestions"),
 ):
     """
     Typeahead autocomplete for the PLP search bar.
 
-    Searches ``title`` and ``content`` across all ISP collections with
-    typo-tolerance, ranked by text match.  Returns at most ``limit`` unique
-    suggestions with their product type.
+    Queries the ``search_suggestions`` Typesense collection first, ranked by
+    boost then popularity, with optional category-context promotion.  Falls back
+    to a multi-collection product-title search when the suggestions collection is
+    empty or unavailable.  Returns at most ``limit`` results.
     """
     if not q or len(q) < 2:
         return {"suggestions": [], "query": q}
 
+    # Primary path: dedicated suggestions collection (fast, operator-curated).
+    try:
+        results = ts.get_suggestions(q, category, limit)
+        if results:
+            return {"suggestions": results, "query": q}
+    except Exception:
+        # suggestions collection unavailable — fall through to product-title search
+        pass
+
+    # Fallback path: scan ISP-managed collections by title when suggestions are absent.
     collections = _get_isp_collections()
     if not collections:
         return {"suggestions": [], "query": q}
