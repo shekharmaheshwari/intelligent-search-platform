@@ -194,43 +194,58 @@
       <pre>/**
  * extractSuggestions(doc) — called once per document at rebuild time.
  *
- * @param  doc  Raw Typesense document (same shape as transform receives)
- * @return      Array of { query: string, category: string|null } objects
- *
- * IMPORTANT: the category value must be the index's intent_label (e.g. "device"),
- * NOT doc.category (e.g. "handset"). The Suggestions tab filters by intent_label.
+ * @param  doc  ISP catalog document already mapped to the Typesense schema.
+ *              Not the raw API payload — fields like title, manufacturer,
+ *              operating_system, price, and metadata (JSON string) are available.
+ * @return      Array of { query: string, category?: string } objects.
+ *              category is optional — when omitted the seeder uses the index's
+ *              intent_label automatically, making the extension reusable across
+ *              any index of the same type without hardcoding a category string.
  */
 function extractSuggestions(doc) {
   // index-specific logic here
-  return [{ query: "...", category: "device" }];
+  return [{ query: "..." }];   // category omitted → seeder uses intent_label
 }</pre>
 
-      <h3>Example — Phones / Accessories / Tablets (T-Mobile REST catalog)</h3>
-      <pre>// @name Catalog Mapper
-// existing:
-function transform(doc) { /* ... field mapping ... */ }
+      <div class="notice">
+        <strong>category is optional.</strong> When omitted or <code>null</code>, the seeder
+        automatically scopes the suggestion to the index's <code>intent_label</code> (read from
+        the <code>indexes</code> table). A single extension can therefore be assigned to Phones,
+        Tablets, and Smartwatches without knowing or hardcoding the category string.
+      </div>
 
-// new — seeder calls this at rebuild time:
+      <h3>Example — Device catalog (<code>backend/extensions/device_suggestions.js</code>)</h3>
+      <p>The real extension currently assigned to the Phones index. Reusable for Tablets and Smartwatches — category is omitted so the seeder infers it from each index's <code>intent_label</code>.</p>
+      <p>Extracts only the product title and aliases — simple and reliable. Richer phrases (brand combos, OS, price tier) are added organically as real user searches accumulate via the nightly aggregation job.</p>
+      <pre>// @name Device Suggestions
+// @description Generates typeahead search suggestions from ISP catalog device documents.
+// Assign to Phones, Tablets, or Smartwatches indexes.
+
 function extractSuggestions(doc) {
-  var mfr   = doc.manufacturer || "";
-  var cat   = doc.category || doc.source_type || "";
-  var title = doc.title || "";
-  var phrases = [];
+  var results = [];
+  var seen = {};
 
-  if (cat)        phrases.push({ query: cat,             category: null });
-  if (mfr)        phrases.push({ query: mfr,             category: null });
-  if (mfr && cat) phrases.push({ query: mfr + " " + cat, category: cat  });
-
-  // model-family keyword — "Apple iPhone 15 Pro" → "iphone"
-  if (title &amp;&amp; mfr) {
-    var idx  = title.toLowerCase().indexOf(mfr.toLowerCase());
-    var rest = idx >= 0 ? title.slice(idx + mfr.length).trim() : title.trim();
-    var word = rest.split(" ")[0].replace(/[^a-zA-Z0-9]/g, "");
-    if (word.length >= 3 &amp;&amp; word.toLowerCase() !== mfr.toLowerCase())
-      phrases.push({ query: word.toLowerCase(), category: cat || null });
+  function add(query) {
+    var q = String(query || '').trim().toLowerCase();
+    if (q &amp;&amp; !seen[q]) { seen[q] = true; results.push({ query: q }); }
   }
-  return phrases;
+
+  add(doc.title);
+
+  var meta = {};
+  try { meta = JSON.parse(doc.metadata || '{}'); } catch (e) {}
+  (meta.aliases || []).forEach(function(a) { add(a); });
+
+  return results;
 }</pre>
+
+      <table>
+        <thead><tr><th>Phrase generated</th><th>Source field</th></tr></thead>
+        <tbody>
+          <tr><td><code>iphone 17 pro max</code></td><td><code>title</code></td></tr>
+          <tr><td><code>apple iphone 17 pro max</code></td><td><code>metadata.aliases</code></td></tr>
+        </tbody>
+      </table>
 
       <h3>Example — Furniture catalog (different data shape)</h3>
       <pre>// @name Furniture Suggestion Extractor
@@ -240,47 +255,40 @@ function extractSuggestions(doc) {
   var brand = doc.brand || "";
   var phrases = [];
 
-  if (room)              phrases.push({ query: room,                category: null });
-  if (style &amp;&amp; room)     phrases.push({ query: style + " " + room,  category: room });
-  if (brand &amp;&amp; room)     phrases.push({ query: brand + " " + room,  category: room });
+  if (room)          phrases.push({ query: room });
+  if (style &amp;&amp; room) phrases.push({ query: style + " " + room });
+  if (brand &amp;&amp; room) phrases.push({ query: brand + " " + room });
   return phrases;
 }</pre>
 
       <h3>Execution at seeding time</h3>
+      <p>Python (<code>suggestion_service.py</code>) is pure orchestration — no phrase logic lives here:</p>
       <ol>
-        <li>Resolve the index's <code>intent_label</code> from the <code>indexes</code> table — this is the category scope for all suggestions from this index.</li>
-        <li>Fetch all extensions assigned to the index via <code>extension_service</code>.</li>
-        <li>Filter to those whose JS code defines <code>extractSuggestions</code> (detected via <code>typeof extractSuggestions == "function"</code>, same pattern as <code>filterUrl</code>).</li>
-        <li>Execute each function on every document using <code>py_mini_racer</code> (V8 — already used by the existing extension runner, no new dependency).</li>
-        <li>Fall back to the title-only baseline if no extension fires.</li>
+        <li>Fetch all documents from the index's Typesense collection (paginated, 250/page).</li>
+        <li>Resolve the index's <code>intent_label</code> from the <code>indexes</code> table.</li>
+        <li>Load assigned extensions and filter to those that define <code>extractSuggestions</code> (detected via <code>typeof extractSuggestions == "function"</code>).</li>
+        <li>Execute each function on every document using <code>py_mini_racer</code> (V8).
+            <strong>If no extension defines <code>extractSuggestions</code>, seeding stops here — nothing is upserted.</strong></li>
+        <li>For each returned phrase: if <code>category</code> is omitted or <code>null</code>, substitute <code>intent_label</code> so the suggestion is correctly scoped.</li>
         <li>Read existing boost values for the index category before touching anything.</li>
-        <li>Delete all <code>type=catalog</code> suggestions scoped to the index's <code>intent_label</code>.</li>
+        <li>Delete stale <code>type=catalog</code> entries by both <code>intent_label</code> and any raw document category slugs (catches legacy entries from older extractors).</li>
         <li>Re-upsert the fresh phrase set with preserved boost values.</li>
       </ol>
 
       <div class="notice">
-        <strong>Baseline fallback.</strong> If no assigned extension defines
-        <code>extractSuggestions</code>, the seeder falls back to extracting the document's
-        <code>title</code> field, scoped to the index's <code>intent_label</code>. This ensures
-        every index produces useful suggestions immediately after its first rebuild. Once an
-        extension defines <code>extractSuggestions</code>, the baseline is bypassed entirely.
+        <strong>No Python fallback.</strong> If an index has no extension with
+        <code>extractSuggestions</code>, that index produces no catalog suggestions.
+        All phrase decisions live in JS — Python only orchestrates fetch, run, and upsert.
       </div>
 
-      <table>
-        <thead><tr><th>Field</th><th>Suggestion written</th><th>Category scoped to</th></tr></thead>
-        <tbody>
-          <tr><td><code>title</code></td><td>full title, lowercased</td><td>index <code>intent_label</code> (e.g. <code>"device"</code>)</td></tr>
-        </tbody>
-      </table>
-
       <div class="warn">
-        <strong>Use <code>intent_label</code>, not <code>doc.category</code>.</strong>
+        <strong>If you set <code>category</code> explicitly: use <code>intent_label</code>, not <code>doc.category</code>.</strong>
         A document's own <code>category</code> field (e.g. <code>"handset"</code>,
         <code>"smartphones"</code>) is a raw connector value that may differ from the index's
         <code>intent_label</code> (e.g. <code>"device"</code>). Scoping suggestions to the
         document field stores them under the wrong category — they will never appear in the
-        Suggestions tab. Always use <code>intent_label</code> as the category scope, both in
-        the baseline and in custom <code>extractSuggestions</code> extensions.
+        Suggestions tab. The safest approach is to omit <code>category</code> entirely and let
+        the seeder fill in <code>intent_label</code> automatically.
       </div>
 
       <h3>Source 2 — Search query history (nightly job) <span class="phase-badge phase-1">Phase 1</span></h3>
@@ -305,6 +313,16 @@ GROUP BY q, cat</pre>
       <p>
         Schedule: nightly at 02:00. Can be triggered manually via
         <code>POST /v1/admin/suggestions/rebuild</code> (JWT-protected).
+      </p>
+      <p>
+        To re-seed catalog suggestions for a single index without a full data rebuild
+        (e.g. after assigning or editing an <code>extractSuggestions</code> extension):
+      </p>
+      <pre>POST /v1/admin/suggestions/seed/{index_id}</pre>
+      <p>
+        Runs the same 9-step refresh as the post-rebuild hook — reads existing Typesense
+        documents, runs JS extractors, preserves boost, deletes stale entries, re-upserts —
+        without touching connector config or re-fetching from the source API.
       </p>
       <div class="warn">
         <strong>Dependency:</strong> the <code>category_hint</code> column needs to be added to
@@ -592,6 +610,90 @@ DELETE /v1/indexes/{id}/suggestions/{suggestion_id}</pre>
         <li>Real-time popularity increment on the search hot path</li>
         <li>Personalised suggestions using customer action history</li>
       </ul>
+
+      <!-- ── LLM enrichment ───────────────────────────────────────────── -->
+      <h2>Future: LLM-assisted suggestion enrichment <span class="phase-badge phase-2">Phase 3</span></h2>
+
+      <h3>Motivation</h3>
+      <p>
+        The JS extension system extracts phrases that are explicitly present in document
+        fields — manufacturer, OS, category slug, "for X" device targets. It cannot infer
+        terms that are semantically implied but not literally present.
+      </p>
+
+      <table>
+        <thead><tr><th>Document title</th><th>What JS extracts</th><th>What an LLM would add</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>"Powerstation Mini 5K w/ Stand"</code></td>
+            <td><code>"charger"</code>, <code>"mophie charger"</code></td>
+            <td><code>"power bank"</code>, <code>"portable charger"</code>, <code>"travel charger"</code></td>
+          </tr>
+          <tr>
+            <td><code>"Qi2 Mini Wireless Charging Car Vent Mount"</code></td>
+            <td><code>"wireless charger"</code>, <code>"car mount"</code></td>
+            <td><code>"phone holder for car"</code>, <code>"qi2 charger"</code>, <code>"magnetic car mount"</code></td>
+          </tr>
+          <tr>
+            <td><code>"ZAGG XTR5 Screen Protector"</code></td>
+            <td><code>"screen protector"</code>, <code>"zagg screen protector"</code></td>
+            <td><code>"tempered glass"</code>, <code>"premium screen protector"</code>, <code>"shatterproof glass"</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Proposed design</h3>
+      <p>
+        Add an optional <code>_run_llm_enrichment(docs, intent_label)</code> step in
+        <code>suggestion_service.py</code> that runs <strong>after</strong> JS extraction,
+        before deduplication. Skipped entirely when no LLM API key is configured — opt-in,
+        never breaks environments without external API access.
+      </p>
+      <pre>JS extension
+    ↓ phrase_pairs
+LLM enrichment  ← opt-in, only if ANTHROPIC_API_KEY or OPENAI_API_KEY set
+    ↓ additional phrase_pairs
+Deduplicate → delete stale → upsert</pre>
+
+      <h3>Batching strategy</h3>
+      <p>Calling the LLM once per document is slow and expensive. Batch 10–20 docs per call:</p>
+      <ul>
+        <li>542 accessories ÷ 15 per batch ≈ 37 API calls per rebuild</li>
+        <li>~200 tokens in + ~150 tokens out per batch ≈ 13 K tokens total</li>
+        <li>Cost at Claude Haiku pricing: <strong>~$0.02 per full accessories rebuild</strong></li>
+        <li>Latency: ~30–60 seconds (parallelisable with <code>asyncio.gather</code>)</li>
+      </ul>
+
+      <h3>Prompt contract</h3>
+      <pre>You are a search suggestion generator for a telecom accessory catalog.
+Given the following product documents, return a JSON array of search phrases
+a customer might type to find these products. Phrases should be 2–5 words,
+lowercase, generic enough to match multiple products.
+
+Documents:
+[{ "title": "...", "category": "...", "manufacturer": "..." }, ...]
+
+Return only: ["phrase 1", "phrase 2", ...]
+No explanation.</pre>
+
+      <div class="notice">
+        <strong>Implementation notes</strong><br/>
+        Use the API key already stored in ISP settings — no new credential management needed.<br/>
+        Recommended model: <strong>Claude Haiku</strong> or <strong>GPT-4o-mini</strong> — fast and cheap, sufficient for structured phrase generation.<br/>
+        LLM-generated phrases get <code>type="catalog"</code> and participate in the same boost and refresh cycle.<br/>
+        The LLM step is <strong>additive</strong> — it supplements JS extraction, never replaces it. If the LLM call fails, the seeder continues with JS-only results.<br/>
+        Cap LLM suggestions per document at 5–8 to avoid flooding the collection with low-quality phrases.
+      </div>
+
+      <h3>Files to add or modify</h3>
+      <table>
+        <thead><tr><th>File</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>suggestion_service.py</code></td><td>Add <code>_run_llm_enrichment(docs, intent_label)</code> — batches docs, calls LLM API, parses response</td></tr>
+          <tr><td><code>infra/llm_client.py</code></td><td>New — thin wrapper around Anthropic/OpenAI SDK, reads key from settings</td></tr>
+          <tr><td><code>routers/admin.py</code></td><td>Expose <code>llm_enrichment_enabled</code> flag so operators can toggle per environment</td></tr>
+        </tbody>
+      </table>
 
       <!-- ── References ───────────────────────────────────────────────── -->
       <h2>References</h2>

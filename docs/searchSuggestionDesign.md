@@ -85,53 +85,70 @@ every document in the index and collects the phrase tuples it returns.
 /**
  * extractSuggestions(doc) — called once per document at rebuild time.
  *
- * @param  doc  Raw Typesense document (same shape as transform receives)
- * @return      Array of { query: string, category: string|null } objects
+ * @param  doc     ISP catalog document already mapped to the Typesense schema.
+ *                 Not the raw API payload — fields like title, manufacturer,
+ *                 operating_system, price, and metadata (JSON string) are available.
+ * @return         Array of { query: string, category?: string } objects.
+ *                 category is optional — when omitted the seeder uses the index's
+ *                 intent_label automatically, making the extension reusable across
+ *                 any index of the same type without hardcoding a category string.
  */
 function extractSuggestions(doc) {
   // index-specific logic here
-  return [{ query: "...", category: "..." }];
+  return [{ query: "..." }];
 }
 ```
 
-The function receives the raw Typesense document dict and must return an array of
-`{ query, category }` objects.  `category` may be `null` for global (non-scoped)
-suggestions.
+The function receives the **already-mapped Typesense document** (not the raw API
+payload) and returns an array of `{ query, category? }` objects.
 
-> **Scoping note:** the `category` value in the returned objects must match the
-> index's `intent_label` (e.g. `"device"`, `"accessory"`) for suggestions to appear
-> in the correct Suggestions tab.  The document's own `category` field (e.g.
-> `"handset"`, `"smartphones"`) is a raw connector value and will not match.
+**`category` is optional.** When omitted or `null`, the seeder automatically scopes
+the suggestion to the index's `intent_label` (read from the `indexes` table).  This
+means a single extension can be assigned to any device-type index (Phones, Tablets,
+Smartwatches) without knowing or hardcoding the index's category.
 
-### Example — Phones / Accessories / Tablets (T-Mobile REST catalog)
+> **If you do set `category` explicitly:** it must match the index's `intent_label`
+> (e.g. `"device"`, `"accessory"`), not the document's own `category` field
+> (e.g. `"handset"`, `"smartphones"`), which is a raw connector value and will not
+> match the Suggestions tab filter.
+
+### Example — Device catalog (`backend/extensions/device_suggestions.js`)
+
+Assigned to Phones, Tablets, and Smartwatches.  Extracts only the product title
+and any aliases stored in metadata — simple, reliable, no hardcoded field logic.
+Real user searches (Source 2) fill in richer phrases over time as organic traffic
+accumulates.
 
 ```js
-// @name Catalog Mapper
-// @description Maps REST API product fields. Also extracts suggestion phrases.
-
-function transform(doc) { /* ... existing field mapping ... */ }
+// @name Device Suggestions
+// @description Generates typeahead search suggestions from ISP catalog device documents.
+// Assign to Phones, Tablets, or Smartwatches indexes.
 
 function extractSuggestions(doc) {
-  var mfr   = doc.manufacturer || "";
-  var cat   = doc.category || doc.source_type || "";
-  var title = doc.title || "";
-  var phrases = [];
+  var results = [];
+  var seen = {};
 
-  if (cat)             phrases.push({ query: cat,             category: null });
-  if (mfr)             phrases.push({ query: mfr,             category: null });
-  if (mfr && cat)      phrases.push({ query: mfr + " " + cat, category: cat  });
-
-  // Model-family keyword from title — "Apple iPhone 15 Pro" → "iphone"
-  if (title && mfr) {
-    var idx  = title.toLowerCase().indexOf(mfr.toLowerCase());
-    var rest = idx >= 0 ? title.slice(idx + mfr.length).trim() : title.trim();
-    var word = rest.split(" ")[0].replace(/[^a-zA-Z0-9]/g, "");
-    if (word.length >= 3 && word.toLowerCase() !== mfr.toLowerCase())
-      phrases.push({ query: word.toLowerCase(), category: cat || null });
+  function add(query) {
+    var q = String(query || '').trim().toLowerCase();
+    if (q && !seen[q]) { seen[q] = true; results.push({ query: q }); }
   }
-  return phrases;
+
+  add(doc.title);
+
+  var meta = {};
+  try { meta = JSON.parse(doc.metadata || '{}'); } catch (e) {}
+  (meta.aliases || []).forEach(function(a) { add(a); });
+
+  return results;
 }
 ```
+
+Sample output for "iPhone 17 Pro Max" (alias: "apple iphone 17 pro max"):
+
+| query | scoped to |
+|---|---|
+| `iphone 17 pro max` | `intent_label` |
+| `apple iphone 17 pro max` | `intent_label` |
 
 ### Example — Furniture catalog (different data shape)
 
@@ -145,9 +162,9 @@ function extractSuggestions(doc) {
   var brand = doc.brand || "";
   var phrases = [];
 
-  if (room)              phrases.push({ query: room,                category: null  });
-  if (style && room)     phrases.push({ query: style + " " + room,  category: room  });
-  if (brand && room)     phrases.push({ query: brand + " " + room,  category: room  });
+  if (room)          phrases.push({ query: room });
+  if (style && room) phrases.push({ query: style + " " + room });
+  if (brand && room) phrases.push({ query: brand + " " + room });
   return phrases;
 }
 ```
@@ -161,40 +178,23 @@ extension in the UI and the next rebuild picks it up.
 
 ### Execution at seeding time
 
-The seeder (`suggestion_service.py`) at rebuild time:
+Python (`suggestion_service.py`) is pure orchestration — no phrase logic lives here:
 
-1. Resolves the index's `intent_label` from the `indexes` table — this is the
-   category scope used for all suggestions from this index.
-2. Fetches all extensions assigned to the index via `extension_service`.
-3. Filters to those whose JS code defines `extractSuggestions`
-   (detected via `typeof extractSuggestions == "function"`, same pattern as `filterUrl`).
-4. Executes each function on every document using `py_mini_racer` (V8, already used
-   by the existing extension runner — no new dependency).
-5. Falls back to the title-only baseline if no extension fires.
+1. Fetches all documents from the index's Typesense collection (paginated, 250/page).
+2. Resolves the index's `intent_label` from the `indexes` table.
+3. Loads assigned extensions via `extension_service` and filters to those that define
+   `extractSuggestions` (detected via `typeof extractSuggestions == "function"`).
+4. Executes each function on every document using `py_mini_racer` (V8).
+   **If no extension defines `extractSuggestions`, seeding stops here — nothing is upserted.**
+5. For each returned phrase: if `category` is `null` or omitted, substitutes
+   `intent_label` so the suggestion is correctly scoped for the refresh cycle.
 6. Reads existing boost values for the index category before touching anything.
-7. Deletes all `type=catalog` suggestions scoped to the index's `intent_label`.
+7. Deletes stale `type=catalog` entries scoped to both `intent_label` and any raw
+   document category slugs (catches legacy entries from older extractors).
 8. Re-upserts the fresh phrase set with preserved boost values.
 
-### Baseline fallback
-
-If no assigned extension defines `extractSuggestions`, the seeder falls back to
-a minimal baseline: the document's `title` field, lowercased, scoped to the
-index's `intent_label`.
-
-| Field | Suggestion written | Category scoped to |
-|---|---|---|
-| `title` | full title, lowercased | index `intent_label` (e.g. `"device"`) |
-
-**Important:** the baseline uses `intent_label`, not `doc.category`.  A document's
-own category field (e.g. `"handset"`) may differ from the index's `intent_label`
-(e.g. `"device"`).  Using the document field would scope suggestions to the wrong
-category and they would never appear in the Suggestions tab.
-
-`category` values are intentionally excluded — terms like `"device"` or
-`"accessory"` are too generic on their own. Category-level phrases belong in a
-custom `extractSuggestions` extension.
-
-Once an extension defines `extractSuggestions`, the baseline is bypassed entirely.
+> **No Python fallback.** If an index has no extension with `extractSuggestions`,
+> that index produces no catalog suggestions.  All phrase decisions live in JS.
 
 ---
 
@@ -221,6 +221,17 @@ in place — their popularity rises as users search for them.
 
 **Schedule:** nightly at 02:00.  Can be triggered manually via
 `POST /v1/admin/suggestions/rebuild` (JWT-protected operator endpoint).
+
+To re-seed catalog suggestions for a single index without a full data rebuild
+(e.g. after editing an `extractSuggestions` extension), use:
+
+```
+POST /v1/admin/suggestions/seed/{index_id}
+```
+
+This runs the same 8-step refresh as the post-rebuild hook — reads existing
+Typesense documents, runs JS extractors, preserves boost, deletes stale entries,
+re-upserts — but without touching connector config or re-fetching from the source API.
 
 > **Dependency:** the `category_hint` column needs to be added to `search_events`
 > and populated by the PLP when logging search events.  Until it exists, the nightly
@@ -570,6 +581,86 @@ and operate on the shared `search_suggestions` Typesense collection.
 
 - Real-time popularity increment on the search hot path
 - Personalised suggestions using customer action history
+
+---
+
+## Future: LLM-assisted suggestion enrichment (Phase 3)
+
+### Motivation
+
+The JS extension system extracts phrases that are explicitly present in document
+fields — manufacturer, OS, category slug, "for X" device targets.  It cannot
+infer terms that are semantically implied but not literally present:
+
+| Document title | What JS extracts | What an LLM would add |
+|---|---|---|
+| `"Powerstation Mini 5K w/ Stand"` | `"charger"`, `"mophie charger"` | `"power bank"`, `"portable charger"`, `"travel charger"` |
+| `"Qi2 Mini Wireless Charging Car Vent Mount"` | `"wireless charger"`, `"car mount"` | `"phone holder for car"`, `"qi2 charger"`, `"magnetic car mount"` |
+| `"ZAGG XTR5 Screen Protector"` | `"screen protector"`, `"zagg screen protector"` | `"tempered glass"`, `"premium screen protector"`, `"shatterproof glass"` |
+
+An LLM understands product taxonomy and real user vocabulary in a way that
+rule-based extraction cannot match.
+
+### Proposed design
+
+Add an optional `_run_llm_enrichment(docs, intent_label)` step in
+`suggestion_service.py` that runs **after** JS extraction, before deduplication.
+It is skipped entirely when no LLM API key is configured — so it is opt-in and
+never breaks environments without external API access.
+
+```
+JS extension
+    ↓ phrase_pairs
+LLM enrichment  ← opt-in, runs only if ANTHROPIC_API_KEY or OPENAI_API_KEY set
+    ↓ additional phrase_pairs
+Deduplicate → delete stale → upsert
+```
+
+### Batching strategy
+
+Calling the LLM once per document would be slow and expensive.  Instead, batch
+10–20 documents per call:
+
+- 542 accessories ÷ 15 per batch = ~37 API calls per rebuild
+- ~200 tokens per batch in + ~150 tokens out ≈ ~13 K tokens total
+- Cost at Claude Haiku pricing: **~$0.02 per full accessories rebuild**
+- Latency: ~30–60 seconds total (parallelisable with `asyncio.gather`)
+
+### Prompt contract
+
+```
+You are a search suggestion generator for a telecom accessory catalog.
+Given the following product documents, return a JSON array of search phrases
+a customer might type to find these products. Phrases should be 2–5 words,
+lowercase, generic enough to match multiple products.
+
+Documents:
+[{ "title": "...", "category": "...", "manufacturer": "..." }, ...]
+
+Return only: ["phrase 1", "phrase 2", ...]
+No explanation.
+```
+
+### Implementation notes
+
+- Use the API key already stored in ISP settings (`ANTHROPIC_API_KEY` or
+  `OPENAI_API_KEY`) — no new credential management needed.
+- Recommended model: **Claude Haiku** or **GPT-4o-mini** — fast and cheap,
+  sufficient for structured phrase generation.
+- LLM-generated phrases get `type="catalog"` like JS-extracted ones — they
+  participate in the same boost and refresh cycle.
+- The LLM step is additive: it supplements JS extraction, never replaces it.
+  If the LLM call fails, the seeder continues with JS-only results.
+- Cap LLM suggestions per document at 5–8 to avoid flooding the collection
+  with low-quality phrases.
+
+### Files to add or modify
+
+| File | Change |
+|---|---|
+| `backend/src/isp/services/domain/suggestion_service.py` | Add `_run_llm_enrichment(docs, intent_label)` — batches docs, calls LLM API, parses response |
+| `backend/src/isp/services/infra/llm_client.py` | New — thin wrapper around Anthropic/OpenAI SDK, reads key from settings |
+| `backend/src/isp/routers/admin.py` | Expose `llm_enrichment_enabled` flag in settings so operators can toggle it per environment |
 
 ---
 
