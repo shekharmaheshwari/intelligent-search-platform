@@ -18,6 +18,8 @@ export interface Index {
   embedModel?: string;
   /** When true, newer product generations receive a small relevance boost at search time. */
   versionBoost?: boolean;
+  /** Inferred intent category label; null when the backend has not yet classified the index. */
+  intentLabel?: string | null;
 }
 
 export type { IngestStatus, SearchResult, DocumentItem };

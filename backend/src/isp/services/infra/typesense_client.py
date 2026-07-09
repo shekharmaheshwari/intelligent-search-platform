@@ -533,3 +533,177 @@ def count_external(col: str, filter_by: str) -> int:
         return get_client().collections[col].documents.search(params).get("found", 0)
     except Exception:
         return 0
+
+
+# ── Search suggestions collection ────────────────────────────────────────────
+
+def ensure_suggestions_collection() -> None:
+    """
+    Create the ``search_suggestions`` Typesense collection if it does not already exist.
+
+    Called once at startup.  Idempotent — swallows ObjectAlreadyExists so repeated
+    restarts are safe.  ``popularity`` is the default sort so the most-searched terms
+    surface first before any boost overrides are applied.
+    """
+    import typesense.exceptions
+    try:
+        get_client().collections.create({
+            "name": "search_suggestions",
+            "fields": [
+                {"name": "id",         "type": "string"},
+                {"name": "query",      "type": "string"},
+                {"name": "popularity", "type": "int32"},
+                {"name": "boost",      "type": "int32"},
+                {"name": "type",       "type": "string"},
+                {"name": "category",   "type": "string", "optional": True},
+            ],
+            "default_sorting_field": "popularity",
+        })
+    except typesense.exceptions.ObjectAlreadyExists:
+        pass
+
+
+def upsert_suggestions(entries: list[dict]) -> int:
+    """
+    Batch-upsert suggestion dicts into the ``search_suggestions`` collection.
+
+    Each entry must include ``id``, ``query``, ``popularity`` (int), ``boost`` (int),
+    ``type`` (str), and optionally ``category`` (str).  Follows the same upsert pattern
+    as ``upsert_to_collection`` — full replacement on conflict keyed by ``id``.
+    Returns the count of entries reported as successful by Typesense.
+    """
+    if not entries:
+        return 0
+    results = get_client().collections["search_suggestions"].documents.import_(
+        entries, {"action": "upsert"}
+    )
+    return sum(1 for r in results if r.get("success"))
+
+
+def get_suggestions(q: str, category: str | None, limit: int) -> list[dict]:
+    """
+    Prefix-search the ``search_suggestions`` collection and return shaped results.
+
+    ``category`` triggers a tie-breaking eval expression so category-matched entries
+    float above generic results while still respecting boost and popularity signals.
+    Returns a list of dicts with ``text``, ``type``, ``popularity``, ``boosted``,
+    and optionally ``category``.
+    """
+    if category:
+        # Eval expression promotes entries whose category matches the active context
+        # without hard-filtering — unmatched entries still appear if limit is not met.
+        sort_by = f"boost:desc,_eval(category:={category}):desc,popularity:desc"
+    else:
+        sort_by = "boost:desc,popularity:desc"
+
+    params: dict = {
+        "q": q,
+        "query_by": "query",
+        "prefix": "true",
+        "num_typos": "1",
+        "per_page": str(limit),
+        "sort_by": sort_by,
+        "exclude_fields": "id",
+    }
+    try:
+        raw = get_client().collections["search_suggestions"].documents.search(params)
+    except Exception:
+        return []
+
+    out = []
+    for hit in raw.get("hits", []):
+        doc = hit.get("document", {})
+        entry: dict = {
+            "text":       doc.get("query", ""),
+            "type":       doc.get("type", ""),
+            "popularity": doc.get("popularity", 0),
+            # boost > 0 means an operator manually promoted this suggestion
+            "boosted":    (doc.get("boost") or 0) > 0,
+        }
+        if doc.get("category"):
+            entry["category"] = doc["category"]
+        out.append(entry)
+    return out
+
+
+def list_suggestions_by_category(category: str | None, q: str, page: int, per_page: int) -> dict:
+    """
+    Paginated suggestion listing for the admin UI.
+
+    Filters by category when provided; returns all suggestions otherwise.
+    Sorted by boost then popularity so high-priority entries always appear first.
+    Returns ``{"hits": [...], "found": int}``.
+    """
+    params: dict = {
+        "q": q or "*",
+        "query_by": "query",
+        "sort_by": "boost:desc,popularity:desc",
+        "page": page,
+        "per_page": per_page,
+    }
+    if category:
+        params["filter_by"] = f"category:={category}"
+    try:
+        raw = get_client().collections["search_suggestions"].documents.search(params)
+    except Exception:
+        return {"hits": [], "found": 0}
+    # Flatten to document dicts so callers iterate over plain field maps.
+    return {"hits": [h.get("document", {}) for h in raw.get("hits", [])],
+            "found": raw.get("found", 0)}
+
+
+def fetch_catalog_boost_map(category: str) -> dict[str, int]:
+    """
+    Return {suggestion_id: boost} for every type=catalog entry in a category.
+
+    Called by the seeder before it deletes and re-seeds catalog suggestions so that
+    operator boost values survive the refresh cycle.  Paginates until all entries
+    are collected (Typesense hard cap is 250 per page).
+    """
+    result: dict[str, int] = {}
+    page = 1
+    while True:
+        try:
+            raw = get_client().collections["search_suggestions"].documents.search({
+                "q": "*",
+                "query_by": "query",
+                "filter_by": f"type:=catalog && category:={category}",
+                "per_page": 250,
+                "page": page,
+                "include_fields": "id,boost",
+            })
+        except Exception:
+            break
+        hits = raw.get("hits", [])
+        for hit in hits:
+            doc = hit.get("document", {})
+            if doc.get("id"):
+                result[doc["id"]] = int(doc.get("boost") or 0)
+        if len(hits) < 250:
+            break
+        page += 1
+    return result
+
+
+def update_suggestion_boost(suggestion_id: str, boost: int) -> bool:
+    """
+    Partially update the ``boost`` field on a single suggestion without touching other fields.
+
+    Returns True on success, False if Typesense raises (e.g. document not found).
+    """
+    try:
+        get_client().collections["search_suggestions"].documents[suggestion_id].update(
+            {"boost": boost}
+        )
+        return True
+    except Exception:
+        return False
+
+
+def delete_suggestion(suggestion_id: str) -> bool:
+    """Hard-delete a suggestion by id. Returns True on success, False on exception."""
+    try:
+        get_client().collections["search_suggestions"].documents[suggestion_id].delete()
+        return True
+    except Exception:
+        return False

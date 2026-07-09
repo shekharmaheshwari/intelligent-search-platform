@@ -10,6 +10,7 @@ import type {
   IndexMeta, IngestStatus, SearchResult,
   RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig,
   ExtensionMeta, IndexExtension, AppSettings,
+  Suggestion, SuggestionsResponse,
 } from './types';
 
 const BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8001/v1';
@@ -52,6 +53,9 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
     const text = await res.text();
     throw new Error(`${res.status} ${text}`);
   }
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return undefined as T;
+  }
   return res.json() as Promise<T>;
 }
 
@@ -90,12 +94,9 @@ export const api = {
   /** Fetch the metadata for a single index by id. */
   getIndex: (id: string) => req<IndexMeta>(`/indexes/${id}`),
 
-  /**
-   * Delete an index and all its Typesense documents.
-   * Uses raw ``fetch`` (not ``req``) because 204 No Content has no JSON body.
-   */
+  /** Delete an index and all its Typesense documents. */
   deleteIndex: (id: string) =>
-    fetch(`${BASE}/indexes/${id}`, { method: 'DELETE' }),
+    req<void>(`/indexes/${id}`, { method: 'DELETE' }),
 
   /** Poll the current ingest/rebuild job state for an index. */
   getStatus: (id: string) => req<IngestStatus>(`/indexes/${id}/status`),
@@ -264,6 +265,54 @@ export const api = {
    */
   unassignExtension: (indexId: string, extensionId: string) =>
     fetch(`${BASE}/indexes/${indexId}/extensions/${extensionId}`, { method: 'DELETE' }),
+
+  // ── Suggestions ───────────────────────────────────────────────────────────
+
+  /**
+   * Paginated list of autocomplete suggestions for an index.
+   *
+   * @param indexId  The index whose suggestions to fetch.
+   * @param params   Optional filters: ``q`` (substring match), ``page``, ``per_page``.
+   */
+  listSuggestions: (indexId: string, params?: { q?: string; page?: number; per_page?: number }) => {
+    // Build query string only from params that were explicitly supplied.
+    const p = new URLSearchParams();
+    if (params?.q !== undefined && params.q !== '') p.set('q', params.q);
+    if (params?.page !== undefined) p.set('page', String(params.page));
+    if (params?.per_page !== undefined) p.set('per_page', String(params.per_page));
+    const qs = p.toString();
+    return req<SuggestionsResponse>(`/indexes/${indexId}/suggestions${qs ? `?${qs}` : ''}`);
+  },
+
+  /**
+   * Update the boost tier of an existing suggestion.
+   * Pass 1 to promote, 0 to normalise, -1 to suppress.
+   */
+  updateSuggestionBoost: (indexId: string, suggestionId: string, boost: number) =>
+    req<Suggestion>(`/indexes/${indexId}/suggestions/${suggestionId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ boost }),
+    }),
+
+  /**
+   * Create a new manual suggestion entry for an index.
+   *
+   * @param data.query     The autocomplete text shown to users.
+   * @param data.boost     Initial tier: 1 = promoted, 0 = organic, -1 = suppressed.
+   * @param data.category  Optional category the suggestion belongs to.
+   */
+  createSuggestion: (indexId: string, data: { query: string; boost: number; category?: string }) =>
+    req<Suggestion>(`/indexes/${indexId}/suggestions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Delete a suggestion permanently.
+   * Uses raw ``fetch`` (not ``req``) because the backend returns 204 No Content.
+   */
+  deleteSuggestion: (indexId: string, suggestionId: string) =>
+    fetch(`${BASE}/indexes/${indexId}/suggestions/${suggestionId}`, { method: 'DELETE' }),
 
   // ── Application settings ───────────────────────────────────────────────────
 
