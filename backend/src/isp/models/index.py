@@ -39,6 +39,22 @@ class RestConnectorConfig(BaseModel):
             "extra field on the document. Set a value to '' to drop that field entirely."
         ),
     )
+    value_map: dict[str, dict[str, str]] = Field(
+        default_factory=dict,
+        description=(
+            "Per-field value substitutions applied after field_map renames. "
+            "Outer key = field name, inner key = raw value, inner value = replacement. "
+            "Unmatched values pass through unchanged."
+        ),
+    )
+    static_fields: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Static key-value pairs stamped onto every document at ingest time. "
+            "Applied after field_map and value_map. Useful for injecting a category "
+            "field when the source data does not include one."
+        ),
+    )
 
 
 class SitemapConnectorConfig(BaseModel):
@@ -58,6 +74,14 @@ class SitemapConnectorConfig(BaseModel):
         ),
     )
     user_agent: Optional[str] = Field(default="", description="Override the default 'ISP-Crawler/1.0' User-Agent header sent with every crawl request. Use a browser UA string for sites that block automated crawlers.")
+    static_fields: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Static key-value pairs stamped onto every document at ingest time. "
+            "Applied after field_map and value_map. Useful for injecting a category "
+            "field when the source data does not include one."
+        ),
+    )
 
 
 class GSheetConnectorConfig(BaseModel):
@@ -86,6 +110,14 @@ class GSheetConnectorConfig(BaseModel):
     )
     skip_empty_rows: bool = True
     header_row: int = Field(default=1, ge=1, description="1-based row index containing column headers.")
+    static_fields: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Static key-value pairs stamped onto every document at ingest time. "
+            "Applied after field_map and value_map. Useful for injecting a category "
+            "field when the source data does not include one."
+        ),
+    )
 
 
 ConnectorConfig = Union[RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig]
@@ -142,3 +174,23 @@ class IngestStatus(BaseModel):
     total: int = 0
     indexed: int = 0
     error: str = ""
+
+
+class IntentLabelUpdate(BaseModel):
+    """Request body for setting or clearing the intent label on an index."""
+    intent_label: str
+
+
+class MappingConfig(BaseModel):
+    """
+    Request body for saving field renames, value overrides, and static fields onto a connector.
+
+    ``field_map`` and ``value_map`` are REST-specific; they are ignored for sitemap and gsheet
+    connectors.  ``static_fields`` applies to every connector type — constant key-value pairs
+    stamped onto every document at ingest time, overriding any same-named field from the source.
+
+    Sending empty dicts clears any previously saved entries.
+    """
+    field_map:     dict[str, str]            = {}
+    value_map:     dict[str, dict[str, str]] = {}
+    static_fields: dict[str, str]            = {}

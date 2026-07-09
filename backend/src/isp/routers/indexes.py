@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from isp.models import (
     IndexCreate, IndexMeta, IngestStatus,
     RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, ConnectorConfig,
+    IntentLabelUpdate, MappingConfig,
 )
 from isp.services.domain import index_service, extension_service, suggestion_service
 from isp.services.domain.settings_service import DIM_BY_MODEL, get_custom_config
@@ -489,6 +490,65 @@ async def set_version_boost(idx_id: str, body: VersionBoostUpdate):
     return meta
 
 
+@router.put("/{idx_id}/intent-label", response_model=IndexMeta, summary="Set intent label")
+async def update_intent_label(idx_id: str, body: IntentLabelUpdate):
+    """
+    Set or clear the intent label on an index.  No rebuild is required.
+
+    The intent label scopes typeahead suggestions and participates in the tab-intent
+    vote at query time.  Set to '' (empty string) to remove this index from intent
+    detection and suggestion scoping entirely.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    # Delegate to the targeted SQL UPDATE; avoid a full update_index call for a
+    # single-column change so concurrent ingest jobs cannot overwrite each other's
+    # connector state changes.
+    await index_service.set_intent_label(meta.id, body.intent_label)
+    meta.intent_label = body.intent_label
+    return meta
+
+
+@router.put("/{idx_id}/connectors/mapping", response_model=IndexMeta, summary="Save field renames and value overrides")
+async def save_connector_mapping(idx_id: str, body: MappingConfig):
+    """
+    Persist field renames (field_map), value overrides (value_map), and static key-value
+    pairs (static_fields) onto the index's connector config without triggering a rebuild.
+
+    ``field_map`` and ``value_map`` are only applied to REST connectors; ``static_fields``
+    is applied to every connector type.  All values are written as-is into the connector
+    JSONB — sending empty dicts clears previously saved entries.
+
+    Raises 404 if the index has no connector configured yet.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+
+    if not meta.connectors:
+        raise HTTPException(404, "No connector configured on this index — add one first")
+
+    # Patch every connector in-place: REST connectors receive field_map and value_map;
+    # all connector types receive static_fields so constant values can be stamped regardless
+    # of connector type. All other fields on each connector are preserved unchanged.
+    for i, conn in enumerate(meta.connectors):
+        cfg_dict = dict(conn) if not isinstance(conn, dict) else conn
+        ctype = cfg_dict.get("type", "")
+        new_cfg = {**cfg_dict}
+        if ctype == "rest":
+            # field_map and value_map are REST-specific — sitemap/gsheet rename at the
+            # column/header level inside their own connector logic, not via these maps.
+            new_cfg["field_map"] = body.field_map
+            new_cfg["value_map"] = body.value_map
+        # static_fields is connector-agnostic: constant pairs override any same-named field.
+        new_cfg["static_fields"] = body.static_fields
+        meta.connectors[i] = new_cfg
+
+    await index_service.update_index(meta)
+    return meta
+
+
 @router.get("/{idx_id}/status", response_model=IngestStatus, summary="Get ingest / rebuild status")
 async def get_status(idx_id: str):
     """
@@ -598,11 +658,20 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
                 s.total = len(raw)
                 await index_service.set_status(s)
                 raw = await apply_extensions(raw, ext_records)
+                # Stamp static_fields onto every item after extensions so static values win.
+                # **static_fields spreads last, overriding any same-named extension output.
+                static_fields = connector_cfg.get("static_fields", {})
+                if static_fields:
+                    raw = [{**item, **static_fields} for item in raw if isinstance(item, dict)]
                 docs = _ensure_isp_schema(raw)
             else:
                 docs = await rest_connector.fetch_and_parse(cfg)
                 s.total = len(docs)
                 await index_service.set_status(s)
+                # Stamp static_fields after field_map/value_map (already applied inside fetch_and_parse).
+                static_fields = connector_cfg.get("static_fields", {})
+                if static_fields:
+                    docs = [{**item, **static_fields} for item in docs if isinstance(item, dict)]
                 docs = _ensure_isp_schema(docs)
         elif ctype == "sitemap":
             cfg = SitemapConnectorConfig(**cfg_data)
@@ -610,6 +679,10 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
             s.total = len(docs)
             await index_service.set_status(s)
             docs = await apply_extensions(docs, ext_records)
+            # Stamp static_fields after the crawled page data and extensions have been processed.
+            static_fields = connector_cfg.get("static_fields", {})
+            if static_fields:
+                docs = [{**item, **static_fields} for item in docs if isinstance(item, dict)]
             docs = _ensure_isp_schema(docs)
         elif ctype == "gsheet":
             cfg = GSheetConnectorConfig(**cfg_data)
@@ -617,6 +690,10 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
             s.total = len(docs)
             await index_service.set_status(s)
             docs = await apply_extensions(docs, ext_records)
+            # Stamp static_fields after sheet data and extensions have been processed.
+            static_fields = connector_cfg.get("static_fields", {})
+            if static_fields:
+                docs = [{**item, **static_fields} for item in docs if isinstance(item, dict)]
             docs = _ensure_isp_schema(docs)
         else:
             raise ValueError(f"Unknown connector type: {ctype}")
@@ -675,11 +752,18 @@ async def ingest_rest(idx_id: str, cfg: RestConnectorConfig, bg: BackgroundTasks
     if existing and existing.state in ("running", "queued"):
         raise HTTPException(status.HTTP_409_CONFLICT,
                             detail="Ingest already in progress for this index")
-    # Persist connector immediately so Rebuild panel pre-populates even before ingest finishes
-    meta.connectors = [{"type": "rest", **cfg.model_dump()}]
+    # Persist connector immediately so Rebuild panel pre-populates even before ingest finishes.
+    # Merge mapping fields from the stored connector so static_fields/field_map/value_map
+    # set via the Mapping tab are never overwritten by the incoming request defaults.
+    existing_conn = meta.connectors[0] if meta.connectors else {}
+    new_cfg = {"type": "rest", **cfg.model_dump()}
+    for _f in ("static_fields", "field_map", "value_map"):
+        if _f in existing_conn:
+            new_cfg[_f] = existing_conn[_f]
+    meta.connectors = [new_cfg]
     await index_service.update_index(meta)
     # Pass meta.id (the resolved hex id) so the background task always operates on hex.
-    bg.add_task(_run_ingest, meta.id, {"type": "rest", **cfg.model_dump()})
+    bg.add_task(_run_ingest, meta.id, new_cfg)
     from isp.models import IngestStatus as IS
     s = IS(index_id=idx_id, state="queued")
     await index_service.set_status(s)
@@ -700,10 +784,15 @@ async def ingest_sitemap(idx_id: str, cfg: SitemapConnectorConfig, bg: Backgroun
     if existing and existing.state in ("running", "queued"):
         raise HTTPException(status.HTTP_409_CONFLICT,
                             detail="Ingest already in progress for this index")
-    meta.connectors = [{"type": "sitemap", **cfg.model_dump()}]
+    existing_conn = meta.connectors[0] if meta.connectors else {}
+    new_cfg = {"type": "sitemap", **cfg.model_dump()}
+    for _f in ("static_fields", "field_map", "value_map"):
+        if _f in existing_conn:
+            new_cfg[_f] = existing_conn[_f]
+    meta.connectors = [new_cfg]
     await index_service.update_index(meta)
     # Pass meta.id (the resolved hex id) so the background task always operates on hex.
-    bg.add_task(_run_ingest, meta.id, {"type": "sitemap", **cfg.model_dump()})
+    bg.add_task(_run_ingest, meta.id, new_cfg)
     from isp.models import IngestStatus as IS
     s = IS(index_id=idx_id, state="queued")
     await index_service.set_status(s)
@@ -727,10 +816,15 @@ async def ingest_gsheet(idx_id: str, cfg: GSheetConnectorConfig, bg: BackgroundT
         raise HTTPException(status.HTTP_409_CONFLICT,
                             detail="Ingest already in progress for this index")
     # Persist the connector so the UI can pre-populate the form on next visit.
-    meta.connectors = [{"type": "gsheet", **cfg.model_dump()}]
+    existing_conn = meta.connectors[0] if meta.connectors else {}
+    new_cfg = {"type": "gsheet", **cfg.model_dump()}
+    for _f in ("static_fields", "field_map", "value_map"):
+        if _f in existing_conn:
+            new_cfg[_f] = existing_conn[_f]
+    meta.connectors = [new_cfg]
     await index_service.update_index(meta)
     # Pass meta.id (the resolved hex id) so the background task always operates on hex.
-    bg.add_task(_run_ingest, meta.id, {"type": "gsheet", **cfg.model_dump()})
+    bg.add_task(_run_ingest, meta.id, new_cfg)
     from isp.models import IngestStatus as IS
     s = IS(index_id=idx_id, state="queued")
     await index_service.set_status(s)
@@ -774,6 +868,15 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         meta = await index_service.get_index(idx_id)
         if not meta:
             raise ValueError("Index not found")
+
+        # Preserve mapping fields (static_fields, field_map, value_map) set via the Mapping
+        # tab — the rebuild request cfg has empty defaults that would overwrite them.
+        _existing = meta.connectors[0] if meta.connectors else {}
+        _merged = dict(cfg_dict)
+        for _f in ("static_fields", "field_map", "value_map"):
+            if _f in _existing:
+                _merged[_f] = _existing[_f]
+        cfg_dict = _merged
 
         ctype = cfg_dict.get("type", "rest")
         cfg_data = {k: v for k, v in cfg_dict.items() if k != "type"}
@@ -829,6 +932,9 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             await index_service.set_status(s)
 
             docs = await apply_extensions(docs, ext_records)
+            _sf = cfg_dict.get("static_fields", {})
+            if _sf:
+                docs = [{**d, **_sf} for d in docs if isinstance(d, dict)]
             docs = _ensure_isp_schema(docs)
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
@@ -874,6 +980,9 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             await index_service.set_status(s)
 
             docs = await apply_extensions(docs, ext_records)
+            _sf = cfg_dict.get("static_fields", {})
+            if _sf:
+                docs = [{**d, **_sf} for d in docs if isinstance(d, dict)]
             docs = _ensure_isp_schema(docs)
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
@@ -922,11 +1031,16 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                 item.setdefault("_isp_type", isp_type_label)
 
             ext_records = await extension_service.list_index_extensions(idx_id)
+            _sf = cfg_dict.get("static_fields", {})
             if ext_records:
                 items_for_ext = await apply_extensions(list(raw_items), ext_records)
+                if _sf:
+                    items_for_ext = [{**d, **_sf} for d in items_for_ext if isinstance(d, dict)]
                 docs = _ensure_isp_schema(items_for_ext)
             else:
                 docs = await rest_connector.fetch_and_parse(rest_cfg)
+                if _sf:
+                    docs = [{**d, **_sf} for d in docs if isinstance(d, dict)]
                 docs = _ensure_isp_schema(docs)
 
             if not docs:
