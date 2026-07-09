@@ -21,6 +21,8 @@ export interface IndexMeta {
   embed_model?: string;
   /** When true, newer product generations receive a small relevance boost at search time. */
   version_boost?: boolean;
+  /** Inferred intent category label (e.g. "product_search") used to pre-fill the suggestions category field. */
+  intent_label?: string | null;
 }
 
 /** Connector configuration stored in the ``connectors`` JSONB column on an index. */

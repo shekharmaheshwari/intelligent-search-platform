@@ -13,13 +13,13 @@ Key design decisions:
 """
 from __future__ import annotations
 import asyncio, hashlib, json, re, time
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from pydantic import BaseModel
 from isp.models import (
     IndexCreate, IndexMeta, IngestStatus,
     RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, ConnectorConfig,
 )
-from isp.services.domain import index_service, extension_service
+from isp.services.domain import index_service, extension_service, suggestion_service
 from isp.services.domain.settings_service import DIM_BY_MODEL, get_custom_config
 from isp.services.infra import embedding_service, typesense_client as ts
 from isp.services.infra import rest_connector, sitemap_connector, gsheet_connector
@@ -963,6 +963,13 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             meta.connectors = [cfg_dict]
             await index_service.update_index(meta)
 
+        # Seed the search_suggestions collection from newly indexed documents.
+        # Non-critical: a failure here must never abort a successful rebuild.
+        try:
+            await suggestion_service.seed_suggestions_from_index(idx_id)
+        except Exception:
+            pass
+
     except Exception as exc:
         s.state = "error"
         s.error = str(exc)
@@ -1106,3 +1113,116 @@ async def update_document(idx_id: str, doc_id: str, patch: DocPatchRequest):
     if not ok:
         raise HTTPException(500, "Typesense update failed")
     return {"ok": True}
+
+
+# ── Per-index suggestion management ──────────────────────────────────────────
+
+
+@router.get("/{idx_id}/suggestions", summary="List suggestions for this index's category")
+async def list_index_suggestions(
+    idx_id:   str,
+    q:        str = Query(default=""),
+    page:     int = Query(default=1, ge=1),
+    per_page: int = Query(default=20, ge=1, le=100),
+):
+    """
+    Return paginated suggestions scoped to this index's intent_label (category).
+
+    Uses ``ts.list_suggestions_by_category`` so only entries whose ``category``
+    field matches the index label are returned.  Resolves the index first so both
+    slug and hex id forms work as ``idx_id``.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    # intent_label is the category that populates this index's suggestion scope.
+    category = meta.intent_label if hasattr(meta, "intent_label") else None
+    result = ts.list_suggestions_by_category(category, q, page, per_page)
+    hits  = result.get("hits", [])
+    found = result.get("found", 0)
+    suggestions = []
+    for h in hits:
+        # list_suggestions_by_category returns flattened document dicts (no wrapper key).
+        doc = h.get("document", h)
+        suggestions.append({
+            "id":         doc.get("id", ""),
+            "query":      doc.get("query", ""),
+            "popularity": doc.get("popularity", 0),
+            "boost":      doc.get("boost", 0),
+            "type":       doc.get("type", "catalog"),
+            "category":   doc.get("category"),
+            "boosted":    (doc.get("boost", 0) or 0) > 0,
+        })
+    return {"suggestions": suggestions, "total": found, "page": page, "per_page": per_page}
+
+
+@router.post("/{idx_id}/suggestions", summary="Create a manual suggestion for this index")
+async def create_index_suggestion(idx_id: str, body: dict):
+    """
+    Upsert a manually created suggestion entry scoped to this index's category.
+
+    ``query`` is required.  ``boost`` defaults to 1 so the new entry surfaces
+    above organic popularity-ranked suggestions by default.  The stable id is
+    derived from the query + category slug so repeated POSTs are idempotent.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    # Prefer the index's intent_label; fall back to a caller-supplied category.
+    category = (meta.intent_label if hasattr(meta, "intent_label") else None) or body.get("category")
+    query = body.get("query", "").strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="query is required")
+    boost = int(body.get("boost", 1))
+
+    def _slug(t: str) -> str:
+        """Convert text to a URL-safe slug for use in stable suggestion ids."""
+        s = re.sub(r"[ _]", "-", t.lower())
+        s = re.sub(r"[^a-z0-9-]", "", s)
+        s = re.sub(r"-{2,}", "-", s)
+        return s.strip("-")
+
+    # Produce a stable id so identical entries are merged, not duplicated.
+    sid = f"manual:{_slug(query)}:{_slug(category or 'global')}"
+    entry: dict = {"id": sid, "query": query.lower(), "popularity": 0, "boost": boost, "type": "query"}
+    if category:
+        entry["category"] = category
+    ts.upsert_suggestions([entry])
+    return {**entry, "boosted": boost > 0}
+
+
+@router.put("/{idx_id}/suggestions/{suggestion_id}", summary="Update boost on a suggestion")
+async def update_index_suggestion(idx_id: str, suggestion_id: str, body: dict):
+    """
+    Partially update the ``boost`` field on a suggestion without touching other fields.
+
+    Returns 404 when the suggestion does not exist in the ``search_suggestions``
+    collection.  ``idx_id`` is validated so the route is only reachable for known
+    indexes, but the boost update itself is applied regardless of category.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    boost = int(body.get("boost", 0))
+    ok = ts.update_suggestion_boost(suggestion_id, boost)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+    return {"id": suggestion_id, "boost": boost, "boosted": boost > 0}
+
+
+@router.delete("/{idx_id}/suggestions/{suggestion_id}", summary="Delete a suggestion")
+async def delete_index_suggestion(idx_id: str, suggestion_id: str):
+    """
+    Hard-delete a suggestion from the ``search_suggestions`` collection.
+
+    Returns 404 when the suggestion does not exist.  ``idx_id`` is validated so
+    the route is only reachable for known indexes, but the delete is unconditional
+    on category — an operator can remove any suggestion regardless of scope.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    ok = ts.delete_suggestion(suggestion_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+    return {"deleted": True}

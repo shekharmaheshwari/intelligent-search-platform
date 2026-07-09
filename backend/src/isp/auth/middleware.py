@@ -4,7 +4,7 @@ Auth middleware — active only when ``AUTH_ENABLED=true``.
 Route protection rules (evaluated in order):
   1. OPTIONS (preflight)                             → always open (CORS handles it)
   2. /health, /auth/*, /docs, /openapi.json, /redoc → always open
-  3. /v1/catalog/*, /v1/analytics/*, /v1/intent/*   → open (PLP-facing, no auth)
+  3. /v1/catalog/*, /v1/analytics/*, /v1/intent/*, /v1/suggest/* → open (PLP-facing, no auth)
   4. /v1/indexes/{id}/search/public                  → open (external search, no auth)
      /v1/indexes/{id}/facets                         → open (PLP-facing facet counts, no auth)
      Future: enforce X-Api-Key here when API key management UI is built.
@@ -30,6 +30,7 @@ _PUBLIC_API_PREFIXES = (
     "/v1/catalog",       # facets + catalog search
     "/v1/analytics",     # impression/click logging
     "/v1/intent",        # tab intent
+    "/v1/suggest",       # typeahead suggestions
 )
 _SEARCH_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/search/public$")
 _FACETS_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/facets$")

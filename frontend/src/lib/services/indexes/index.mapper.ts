@@ -24,6 +24,7 @@ export function mapIndexMetaToIndex(dto: IndexMeta): Index {
     externalUrlField: dto.external_url_field,
     embedModel: dto.embed_model ?? '',
     versionBoost: dto.version_boost ?? false,
+    intentLabel: dto.intent_label ?? null,
   };
 }
 
