@@ -14,6 +14,8 @@ from isp.models.index import (  # noqa: F401
     ConnectorAdd,
     IndexMeta,
     IngestStatus,
+    IntentLabelUpdate,
+    MappingConfig,
 )
 from isp.models.search import (  # noqa: F401
     SearchRequest,

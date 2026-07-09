@@ -11,6 +11,7 @@ import type {
   RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig,
   ExtensionMeta, IndexExtension, AppSettings,
   Suggestion, SuggestionsResponse,
+  MappingConfig,
 } from './types';
 
 const BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8001/v1';
@@ -214,6 +215,31 @@ export const api = {
     req<IndexMeta>(`/indexes/${id}/version-boost`, {
       method: 'PUT',
       body: JSON.stringify({ enabled }),
+    }),
+
+  /**
+   * Set or clear the intent label for an index.
+   *
+   * The intent label scopes typeahead suggestions and drives tab intent detection.
+   * No rebuild is required — the value is read at query time, not at ingest time.
+   */
+  saveIntentLabel: (id: string, intentLabel: string) =>
+    req<IndexMeta>(`/indexes/${id}/intent-label`, {
+      method: 'PUT',
+      body: JSON.stringify({ intent_label: intentLabel }),
+    }),
+
+  /**
+   * Save ``field_map`` and ``value_map`` onto the existing connector config.
+   *
+   * Both maps are persisted together in one call — the caller must include the
+   * current values of whichever map it is *not* editing so they are not clobbered.
+   * A rebuild is required for the changes to apply to already-indexed documents.
+   */
+  saveMapping: (id: string, cfg: MappingConfig) =>
+    req<IndexMeta>(`/indexes/${id}/connectors/mapping`, {
+      method: 'PUT',
+      body: JSON.stringify(cfg),
     }),
 
   // ── Extensions library ─────────────────────────────────────────────────────

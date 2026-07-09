@@ -107,3 +107,17 @@ export interface DocumentItem {
   metadata?: string;
   [key: string]: unknown;
 }
+
+/**
+ * Connector mapping config sent to ``PUT /v1/indexes/{id}/connectors/mapping``.
+ * ``field_map`` renames source keys before indexing; ``value_map`` rewrites field
+ * values after renaming; ``static_fields`` injects constant key→value pairs into
+ * every document regardless of source data.  All maps are applied at ingest time,
+ * not at query time.
+ */
+export interface MappingConfig {
+  field_map:     Record<string, string>;
+  value_map:     Record<string, Record<string, string>>;
+  /** Constant key→value pairs stamped onto every document at ingest time. */
+  static_fields: Record<string, string>;
+}

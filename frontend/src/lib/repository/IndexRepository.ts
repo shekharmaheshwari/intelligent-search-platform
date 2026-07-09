@@ -1,6 +1,7 @@
 import type {
   IndexMeta, IngestStatus, SearchResult,
   RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig,
+  MappingConfig,
 } from '../types';
 import { api } from '../api';
 
@@ -148,6 +149,26 @@ export class IndexRepository {
   /** Enable or disable the version recency boost for an index. */
   setVersionBoost(id: string, enabled: boolean): Promise<IndexMeta> {
     return api.setVersionBoost(id, enabled);
+  }
+
+  /**
+   * Set or clear the intent label for an index.
+   *
+   * @param intentLabel  Free-text label (e.g. ``"device"``, ``"accessory"``).
+   *                     Pass ``""`` to clear the label.
+   */
+  saveIntentLabel(indexId: string, intentLabel: string): Promise<IndexMeta> {
+    return api.saveIntentLabel(indexId, intentLabel);
+  }
+
+  /**
+   * Save field renames and value overrides onto the existing connector config.
+   *
+   * Both maps must be supplied together — the caller is responsible for including
+   * whichever map it is not editing so the other is not silently cleared.
+   */
+  saveMapping(indexId: string, cfg: MappingConfig): Promise<IndexMeta> {
+    return api.saveMapping(indexId, cfg);
   }
 }
 
