@@ -1,7 +1,7 @@
 import { indexRepository, type IndexRepository } from '../../repository/IndexRepository';
 import { mapIndexMetaToIndex, mapIndexesToDomain } from './index.mapper';
 import type { Index, IngestStatus, SearchResult } from './index.model';
-import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig } from '../../types';
+import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, MappingConfig } from '../../types';
 
 /**
  * Service for all index-domain operations.
@@ -155,6 +155,30 @@ export class IndexService {
   /** Enable or disable the version recency boost for an index. */
   async setVersionBoost(id: string, enabled: boolean): Promise<Index> {
     const dto = await this.repo.setVersionBoost(id, enabled);
+    return mapIndexMetaToIndex(dto);
+  }
+
+  /**
+   * Set or clear the intent label for an index and return the updated domain model.
+   *
+   * No rebuild is required — the label is consumed at query time and suggestion-seeding
+   * time, not at ingest time.
+   */
+  async saveIntentLabel(indexId: string, intentLabel: string): Promise<Index> {
+    const dto = await this.repo.saveIntentLabel(indexId, intentLabel);
+    return mapIndexMetaToIndex(dto);
+  }
+
+  /**
+   * Save field renames (``field_map``) and value overrides (``value_map``) and return
+   * the updated domain model.
+   *
+   * Both maps are sent in one request.  The caller must supply the full current state
+   * of both maps so neither is clobbered when only one section is being edited.
+   * A rebuild is required for changes to apply to already-indexed documents.
+   */
+  async saveMapping(indexId: string, cfg: MappingConfig): Promise<Index> {
+    const dto = await this.repo.saveMapping(indexId, cfg);
     return mapIndexMetaToIndex(dto);
   }
 }
