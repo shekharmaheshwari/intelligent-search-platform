@@ -86,6 +86,23 @@ def _apply_field_map(item: dict, field_map: dict[str, str]) -> dict:
     return result
 
 
+def _apply_value_map(doc: dict, value_map: dict[str, dict[str, str]]) -> dict:
+    """
+    Replace field values according to value_map after field_map renames have been applied.
+
+    Only fields that are present in the document and whose string representation
+    matches an inner map key are rewritten; everything else passes through unchanged.
+    This must be called *after* ``_apply_field_map`` so that the outer keys refer to
+    the already-renamed field names, not the original source names.
+    """
+    if not value_map:
+        return doc
+    for field, substitutions in value_map.items():
+        if field in doc and str(doc[field]) in substitutions:
+            doc[field] = substitutions[str(doc[field])]
+    return doc
+
+
 _CORE_FIELDS = {"id", "title", "content", "url", "source_type", "indexed_at"}
 
 
@@ -185,6 +202,13 @@ async def fetch_and_parse(cfg: RestConnectorConfig) -> list[dict]:
     # Apply field_map renames to every item first
     if cfg.field_map:
         items = [_apply_field_map(item, cfg.field_map) if isinstance(item, dict) else item
+                 for item in items]
+
+    # Apply value_map substitutions on the already-renamed field names.
+    # Runs after field_map so outer keys refer to the post-rename field names,
+    # matching the documented apply order (field_map → value_map → ISP extraction).
+    if cfg.value_map:
+        items = [_apply_value_map(item, cfg.value_map) if isinstance(item, dict) else item
                  for item in items]
 
     # Auto-detect field mapping when defaults haven't been overridden

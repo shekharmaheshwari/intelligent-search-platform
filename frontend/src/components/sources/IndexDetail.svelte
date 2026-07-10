@@ -14,12 +14,13 @@
   import SearchPanel        from './SearchPanel.svelte';
   import ApiPanel           from './ApiPanel.svelte';
   import SuggestionsTab     from './SuggestionsTab.svelte';
+  import MappingTab         from './MappingTab.svelte';
 
   export let indexId: string;
-  export let tab: 'overview' | 'connector' | 'documents' | 'search' | 'api' | 'suggestions' = 'overview';
+  export let tab: 'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' = 'overview';
 
-  const tabs: Array<'overview' | 'connector' | 'documents' | 'search' | 'api' | 'suggestions'> =
-    ['overview', 'connector', 'documents', 'search', 'api', 'suggestions'];
+  const tabs: Array<'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions'> =
+    ['overview', 'connector', 'mapping', 'documents', 'search', 'api', 'suggestions'];
 
   const dispatch = createEventDispatcher<{ back: void }>();
 
@@ -96,6 +97,13 @@
             <p class="no-connector">No connector configured for this index.</p>
           {/if}
         </div>
+
+      {:else if tab === 'mapping'}
+        <MappingTab
+          {indexId}
+          {connector}
+          intentLabel={meta.intentLabel ?? null}
+        />
 
       {:else if tab === 'documents'}
         <DocumentTable {indexId} />
