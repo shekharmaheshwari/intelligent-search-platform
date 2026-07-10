@@ -199,7 +199,8 @@ def _apply_lexical_hook(raw: dict, hook) -> dict:
 
 def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
                      exclude_vec: bool = False, post_rrf_hook=None,
-                     filter_by: str | None = None) -> dict:
+                     filter_by: str | None = None,
+                     pinned_hits: list[str] | None = None) -> dict:
     """
     Single-pass lexical search on an ISP-managed collection.
 
@@ -228,11 +229,12 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
         return _apply_lexical_hook(raw, post_rrf_hook) if post_rrf_hook else raw
 
     fb_params: dict = {"filter_by": filter_by} if filter_by else {}
+    pin_params: dict = {"pinned_hits": ",".join(f"{d}:{i+1}" for i, d in enumerate(pinned_hits))} if pinned_hits else {}
     base_params: dict = {
         "q": q, "query_by": "title,content",
         "query_by_weights": "2,1",
         "num_typos": 2,
-        "page": page, "per_page": per_page, **extra, **fb_params,
+        "page": page, "per_page": per_page, **extra, **fb_params, **pin_params,
     }
 
     def _search_with_sort(sort_by: str) -> dict:
@@ -259,6 +261,7 @@ def search_with_vec(
     exclude_vec: bool = False,
     post_rrf_hook=None,
     filter_by: str | None = None,
+    pinned_hits: list[str] | None = None,
 ) -> dict:
     """
     Hybrid search via Typesense multi_search + Reciprocal Rank Fusion.
@@ -327,6 +330,24 @@ def search_with_vec(
     # the page boundary can be promoted by personalization signals.
     if post_rrf_hook is not None:
         post_rrf_hook(scores, all_docs)
+
+    # Pinned hits: force specific docs to the top regardless of relevance.
+    # Fetch any pinned doc not already in the candidate set (e.g. a doc that is
+    # genuinely unrelated to the query and therefore absent from RRF candidates).
+    if pinned_hits:
+        for _pid in pinned_hits:
+            if _pid not in all_docs:
+                try:
+                    _fetched = client.collections[name].documents[_pid].retrieve()
+                    if _fetched:
+                        all_docs[_pid] = _fetched
+                        scores[_pid] = 0.0
+                except Exception:
+                    pass
+        _pin_base = max(scores.values(), default=0) + 10.0
+        for _pos, _pid in enumerate(pinned_hits):
+            if _pid in all_docs:
+                scores[_pid] = _pin_base + (len(pinned_hits) - _pos)
 
     ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
     start = (page - 1) * per_page
@@ -550,12 +571,16 @@ def ensure_suggestions_collection() -> None:
         get_client().collections.create({
             "name": "search_suggestions",
             "fields": [
-                {"name": "id",         "type": "string"},
-                {"name": "query",      "type": "string"},
-                {"name": "popularity", "type": "int32"},
-                {"name": "boost",      "type": "int32"},
-                {"name": "type",       "type": "string"},
-                {"name": "category",   "type": "string", "optional": True},
+                {"name": "id",             "type": "string"},
+                {"name": "query",          "type": "string"},
+                {"name": "popularity",     "type": "int32"},
+                {"name": "boost",          "type": "int32"},
+                {"name": "type",           "type": "string"},
+                {"name": "category",       "type": "string", "optional": True},
+                # Link-mode fields — all optional so existing documents are unaffected.
+                {"name": "mode",           "type": "string", "optional": True},
+                {"name": "url",            "type": "string", "optional": True},
+                {"name": "featured_doc_ids","type": "string[]", "optional": True},
             ],
             "default_sorting_field": "popularity",
         })
@@ -603,7 +628,7 @@ def get_suggestions(q: str, category: str | None, limit: int) -> list[dict]:
         "num_typos": "1",
         "per_page": str(limit),
         "sort_by": sort_by,
-        "exclude_fields": "id",
+        # id is included (no exclude_fields) so callers can use it for update calls.
     }
     try:
         raw = get_client().collections["search_suggestions"].documents.search(params)
@@ -614,6 +639,7 @@ def get_suggestions(q: str, category: str | None, limit: int) -> list[dict]:
     for hit in raw.get("hits", []):
         doc = hit.get("document", {})
         entry: dict = {
+            "id":         doc.get("id", ""),
             "text":       doc.get("query", ""),
             "type":       doc.get("type", ""),
             "popularity": doc.get("popularity", 0),
@@ -622,8 +648,37 @@ def get_suggestions(q: str, category: str | None, limit: int) -> list[dict]:
         }
         if doc.get("category"):
             entry["category"] = doc["category"]
+        # Forward link-mode fields when present — omitted keys mean "not set".
+        if doc.get("mode"):            entry["mode"] = doc["mode"]
+        if doc.get("url"):             entry["url"] = doc["url"]
+        if doc.get("featured_doc_ids"): entry["featured_doc_ids"] = doc["featured_doc_ids"]
         out.append(entry)
     return out
+
+
+def get_featured_doc_ids_for_query(q: str) -> list[str]:
+    """
+    Return featured_doc_ids for an exact query match in search_suggestions.
+
+    Used by the search endpoint to auto-pin docs when the user's search term
+    matches a suggestion that has featured_doc_ids configured.  Returns [] when
+    no match is found or the collection is unavailable.
+    """
+    try:
+        raw = get_client().collections["search_suggestions"].documents.search({
+            "q": q.lower().strip(),
+            "query_by": "query",
+            "num_typos": "0",
+            "per_page": "1",
+        })
+        hits = raw.get("hits", [])
+        if hits:
+            doc = hits[0].get("document", {})
+            if doc.get("query", "").strip().lower() == q.lower().strip():
+                return doc.get("featured_doc_ids") or []
+    except Exception:
+        pass
+    return []
 
 
 def list_suggestions_by_category(category: str | None, q: str, page: int, per_page: int) -> dict:
@@ -647,7 +702,8 @@ def list_suggestions_by_category(category: str | None, q: str, page: int, per_pa
         raw = get_client().collections["search_suggestions"].documents.search(params)
     except Exception:
         return {"hits": [], "found": 0}
-    # Flatten to document dicts so callers iterate over plain field maps.
+    # Flatten to plain document dicts — all fields (including mode, url,
+    # featured_doc_id) pass through automatically since they live on the document.
     return {"hits": [h.get("document", {}) for h in raw.get("hits", [])],
             "found": raw.get("found", 0)}
 
@@ -685,19 +741,28 @@ def fetch_catalog_boost_map(category: str) -> dict[str, int]:
     return result
 
 
-def update_suggestion_boost(suggestion_id: str, boost: int) -> bool:
+def update_suggestion(suggestion_id: str, fields: dict) -> bool:
     """
-    Partially update the ``boost`` field on a single suggestion without touching other fields.
+    Partially update arbitrary fields on a single suggestion document.
 
+    ``fields`` may include any combination of boost, mode, url, featured_doc_id.
+    Typesense partial-update semantics mean omitted keys are left unchanged.
     Returns True on success, False if Typesense raises (e.g. document not found).
     """
     try:
-        get_client().collections["search_suggestions"].documents[suggestion_id].update(
-            {"boost": boost}
-        )
+        get_client().collections["search_suggestions"].documents[suggestion_id].update(fields)
         return True
     except Exception:
         return False
+
+
+def update_suggestion_boost(suggestion_id: str, boost: int) -> bool:
+    """
+    Thin backwards-compatible wrapper around ``update_suggestion`` for boost-only updates.
+
+    Kept so existing callers that only need to change boost do not need to change.
+    """
+    return update_suggestion(suggestion_id, {"boost": boost})
 
 
 def delete_suggestion(suggestion_id: str) -> bool:

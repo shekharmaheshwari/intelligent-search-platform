@@ -48,6 +48,12 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     mode = req.mode or "hybrid"
     effective_model = meta.embed_model or embedding_service.get_current_model()
 
+    # Auto-apply pinned hits: if the caller didn't supply them and the query
+    # exactly matches a suggestion with featured_doc_ids, use those.
+    pinned = list(req.pinned_hits) if req.pinned_hits else []
+    if not pinned and req.q.strip():
+        pinned = ts.get_featured_doc_ids_for_query(req.q.strip())
+
     # Build customer context from action history.  The master switch must be on;
     # individual feature flags then gate vector blending, affinity boosts, and
     # the viewed-item penalty independently (useful for A/B testing).
@@ -170,15 +176,18 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
                 exclude_vec=exclude_vec,
                 post_rrf_hook=ctx_hook,
                 filter_by=ts_filter,
+                pinned_hits=pinned or None,
             )
         else:
             raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
                                       exclude_vec=exclude_vec, post_rrf_hook=ctx_hook,
-                                      filter_by=ts_filter)
+                                      filter_by=ts_filter,
+                                      pinned_hits=pinned or None)
     else:
         raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
                                   exclude_vec=exclude_vec, post_rrf_hook=ctx_hook,
-                                  filter_by=ts_filter)
+                                  filter_by=ts_filter,
+                                  pinned_hits=pinned or None)
 
     return raw
 
