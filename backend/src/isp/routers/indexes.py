@@ -1259,13 +1259,17 @@ async def list_index_suggestions(
         # list_suggestions_by_category returns flattened document dicts (no wrapper key).
         doc = h.get("document", h)
         suggestions.append({
-            "id":         doc.get("id", ""),
-            "query":      doc.get("query", ""),
-            "popularity": doc.get("popularity", 0),
-            "boost":      doc.get("boost", 0),
-            "type":       doc.get("type", "catalog"),
-            "category":   doc.get("category"),
-            "boosted":    (doc.get("boost", 0) or 0) > 0,
+            "id":              doc.get("id", ""),
+            "query":           doc.get("query", ""),
+            "popularity":      doc.get("popularity", 0),
+            "boost":           doc.get("boost", 0),
+            "type":            doc.get("type", "catalog"),
+            "category":        doc.get("category"),
+            "boosted":         (doc.get("boost", 0) or 0) > 0,
+            # Link-mode fields — present only when set; None means "not configured".
+            "mode":             doc.get("mode", "search"),
+            "url":              doc.get("url"),
+            "featured_doc_ids": doc.get("featured_doc_ids", []),
         })
     return {"suggestions": suggestions, "total": found, "page": page, "per_page": per_page}
 
@@ -1305,23 +1309,44 @@ async def create_index_suggestion(idx_id: str, body: dict):
     return {**entry, "boosted": boost > 0}
 
 
-@router.put("/{idx_id}/suggestions/{suggestion_id}", summary="Update boost on a suggestion")
+@router.put("/{idx_id}/suggestions/{suggestion_id}", summary="Update fields on a suggestion")
 async def update_index_suggestion(idx_id: str, suggestion_id: str, body: dict):
     """
-    Partially update the ``boost`` field on a suggestion without touching other fields.
+    Partially update one or more fields on a suggestion without touching omitted fields.
 
+    Accepted fields: ``boost`` (int), ``mode`` (str), ``url`` (str|None),
+    ``featured_doc_ids`` (list[str]).  At least one field must be present in the body.
     Returns 404 when the suggestion does not exist in the ``search_suggestions``
-    collection.  ``idx_id`` is validated so the route is only reachable for known
-    indexes, but the boost update itself is applied regardless of category.
+    collection.  ``idx_id`` is validated so the route is only reachable for known indexes.
     """
     meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
-    boost = int(body.get("boost", 0))
-    ok = ts.update_suggestion_boost(suggestion_id, boost)
+
+    # Build the partial-update dict from whichever fields the caller supplied.
+    fields: dict = {}
+    if "boost" in body:
+        fields["boost"] = int(body["boost"])
+    if "mode" in body:
+        fields["mode"] = str(body["mode"])
+    # url may be explicitly cleared by sending null/empty string.
+    if "url" in body:
+        fields["url"] = str(body["url"]).strip() if body["url"] else None
+    if "featured_doc_ids" in body:
+        raw_ids = body["featured_doc_ids"]
+        fields["featured_doc_ids"] = [str(i).strip() for i in raw_ids if str(i).strip()] if isinstance(raw_ids, list) else []
+
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Typesense partial-update preserves omitted keys; exclude None string fields
+    # (can't be stored), but keep empty lists (featured_doc_ids = [] clears the array).
+    update_payload = {k: v for k, v in fields.items() if v is not None}
+
+    ok = ts.update_suggestion(suggestion_id, update_payload)
     if not ok:
         raise HTTPException(status_code=404, detail="Suggestion not found")
-    return {"id": suggestion_id, "boost": boost, "boosted": boost > 0}
+    return {"id": suggestion_id, **fields, "boosted": (fields.get("boost", 0) or 0) > 0}
 
 
 @router.delete("/{idx_id}/suggestions/{suggestion_id}", summary="Delete a suggestion")
