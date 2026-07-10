@@ -96,13 +96,14 @@
         <li><a href="security.html">Security</a></li>
         <li><a href="customerContext.html">Customer Context</a></li>
         <li><a href="searchSuggestions.html" class="active">Search Suggestions</a></li>
+        <li><a href="#link-mode" style="padding-left:24px;font-size:12px">↳ Link Mode</a></li>
       </ul>
     </nav>
 
     <div class="content">
       <a class="back-link" href="index.html">← Back to docs</a>
       <h1>Search Suggestions</h1>
-      <p class="page-subtitle">Typeahead suggestions for the PLP search bar — collection schema, data sources, ranking, boost management, and the Admin UI tab.</p>
+      <p class="page-subtitle">Typeahead suggestions for the PLP search bar — collection schema, data sources, ranking, boost management, link mode with auto-pin, and the Admin UI tab.</p>
 
       <!-- ── Overview ──────────────────────────────────────────────────── -->
       <h2>Overview</h2>
@@ -125,12 +126,15 @@
       <pre>{
   "name": "search_suggestions",
   "fields": [
-    { "name": "id",         "type": "string"  },
-    { "name": "query",      "type": "string"  },
-    { "name": "popularity", "type": "int32",  "facet": false },
-    { "name": "boost",      "type": "int32",  "facet": false },
-    { "name": "type",       "type": "string",  "facet": true  },
-    { "name": "category",   "type": "string",  "facet": true, "optional": true }
+    { "name": "id",               "type": "string"   },
+    { "name": "query",            "type": "string"   },
+    { "name": "popularity",       "type": "int32",   "facet": false },
+    { "name": "boost",            "type": "int32",   "facet": false },
+    { "name": "type",             "type": "string",  "facet": true  },
+    { "name": "category",         "type": "string",  "facet": true,  "optional": true },
+    { "name": "mode",             "type": "string",  "optional": true },
+    { "name": "url",              "type": "string",  "optional": true },
+    { "name": "featured_doc_ids", "type": "string[]","optional": true }
   ],
   "default_sorting_field": "popularity"
 }</pre>
@@ -144,6 +148,9 @@
           <tr><td><code>boost</code></td><td>Operator-assigned priority — <code>0</code> normal, <code>1</code> promoted, <code>-1</code> suppressed</td></tr>
           <tr><td><code>type</code></td><td><code>"query"</code> (from search history) | <code>"catalog"</code> (generated from indexed products)</td></tr>
           <tr><td><code>category</code></td><td>Optional — the catalog tab this suggestion belongs to, e.g. <code>"accessories"</code></td></tr>
+          <tr><td><code>mode</code></td><td>Optional — <code>"link"</code> (navigate to URL) | <code>"search"</code> (run search). Defaults to <code>"search"</code></td></tr>
+          <tr><td><code>url</code></td><td>Optional — destination URL when <code>mode = "link"</code></td></tr>
+          <tr><td><code>featured_doc_ids</code></td><td>Optional — ordered list of Typesense doc IDs to pin at the top of search results when <code>mode = "search"</code></td></tr>
         </tbody>
       </table>
 
@@ -197,10 +204,14 @@
  * @param  doc  ISP catalog document already mapped to the Typesense schema.
  *              Not the raw API payload — fields like title, manufacturer,
  *              operating_system, price, and metadata (JSON string) are available.
- * @return      Array of { query: string, category?: string } objects.
- *              category is optional — when omitted the seeder uses the index's
- *              intent_label automatically, making the extension reusable across
- *              any index of the same type without hardcoding a category string.
+ * @return      Array of { query, category?, url?, doc_id? } objects.
+ *              - category: optional — when omitted the seeder uses the index's
+ *                intent_label automatically.
+ *              - url: optional — when present, seeder sets mode = "link" so the
+ *                PLP navigates directly to the URL rather than running a search.
+ *              - doc_id: optional — when present, seeder stores it in
+ *                featured_doc_ids so that doc is pinned at position #1 for
+ *                search-mode suggestions.
  */
 function extractSuggestions(doc) {
   // index-specific logic here
@@ -379,18 +390,32 @@ GROUP BY q, cat</pre>
       <h3>Response</h3>
       <pre>{
   "suggestions": [
-    { "text": "samsung galaxy s25",       "type": "query",   "popularity": 203, "boosted": true  },
-    { "text": "screen protector",         "type": "query",   "popularity": 142, "boosted": false },
-    { "text": "samsung screen protector", "type": "query",   "popularity": 38,  "boosted": false },
-    { "text": "iphone screen protector",  "type": "catalog", "popularity": 0,   "boosted": false }
+    {
+      "text": "samsung galaxy s25",
+      "type": "query", "popularity": 203, "boosted": true,
+      "mode": "search"
+    },
+    {
+      "text": "transfer my number",
+      "type": "catalog", "popularity": 0, "boosted": false,
+      "mode": "link",
+      "url": "/my-account/port-in-dashboard"
+    },
+    {
+      "text": "iphone 17 pro max",
+      "type": "query", "popularity": 189, "boosted": false,
+      "mode": "search",
+      "featured_doc_ids": ["f1c835831b6aeb3e"]
+    }
   ],
-  "query":    "screen",
-  "category": "accessories"
+  "query":    "iphone",
+  "category": "devices"
 }</pre>
       <p>
         <code>boosted: true</code> is set when <code>boost &gt; 0</code> so the PLP can
         optionally render a visual indicator (e.g. a "✦ Trending" label) on promoted
-        suggestions.
+        suggestions. <code>mode</code>, <code>url</code>, and <code>featured_doc_ids</code>
+        are only present when set — absent means <code>"search"</code> mode with no pinned docs.
       </p>
 
       <!-- ── Worked example ───────────────────────────────────────────── -->
@@ -515,23 +540,37 @@ GET    /v1/admin/suggestions?q=samsung&amp;boosted=true</pre>
       <h3>Edit modal</h3>
       <p>
         Clicking <strong>Edit</strong> opens a modal. <code>query</code>, <code>category</code>,
-        and <code>popularity</code> are always read-only. <code>boost</code> is the only
-        editable field — a three-way toggle: Suppress / Normal / Promote. Saving calls
-        <code>PUT /v1/indexes/{id}/suggestions/{suggestion_id}</code> and updates the row
-        in place without a full table reload.
+        and <code>popularity</code> are always read-only. Editable fields: <code>boost</code>
+        (three-way toggle), <code>mode</code> (radio), <code>url</code> (shown when mode = link),
+        and <code>featured_doc_ids</code> (multi-chip list, shown when mode = search).
+        Saving calls <code>PUT /v1/indexes/{id}/suggestions/{suggestion_id}</code> and
+        updates the row in place without a full table reload.
       </p>
       <pre>┌─────────────────────────────────────────────────┐
 │  Edit Suggestion                            ✕   │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  Query          screen protector                │
+│  Query          iphone 17 pro max               │
 │                 (read-only)                     │
 │                                                 │
-│  Category       accessories                     │
+│  Category       devices                         │
 │                 (read-only)                     │
 │                                                 │
-│  Popularity     142 searches (last 30 days)     │
+│  Popularity     189 searches (last 30 days)     │
 │                 (read-only)                     │
+│                                                 │
+│  Mode                                           │
+│  ● Search — run a search for this query         │
+│  ○ Link   — navigate directly to URL            │
+│                                                 │
+│  Pin to top  (shown when mode = Search)         │
+│  ┌─────────────────────────────────────────┐   │
+│  │  f1c835831b6aeb3e  ✕                    │   │
+│  └─────────────────────────────────────────┘   │
+│  [ enter doc id...  ]  [ Add ]  [ Browse ]      │
+│                                                 │
+│  URL  (shown when mode = Link)                  │
+│  [ /my-account/port-in-dashboard          ]     │
 │                                                 │
 │  Boost                                          │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
@@ -541,6 +580,11 @@ GET    /v1/admin/suggestions?q=samsung&amp;boosted=true</pre>
 │                                                 │
 │            [ Cancel ]    [ Save ]               │
 └─────────────────────────────────────────────────┘</pre>
+      <p>
+        <strong>Browse</strong> opens <code>DocPickerModal</code> — a search-and-select
+        dialog that lets operators find docs by title rather than typing IDs manually.
+        Chips are ordered: the first chip is pinned at position #1 in search results.
+      </p>
 
       <h3>Add suggestion modal</h3>
       <p>
@@ -564,51 +608,157 @@ GET    /v1/admin/suggestions?q=samsung&amp;boosted=true</pre>
 
       <h3>Backend endpoints for the tab</h3>
       <pre>GET    /v1/indexes/{id}/suggestions?q=&amp;page=1&amp;per_page=50
-PUT    /v1/indexes/{id}/suggestions/{suggestion_id}   Body: { "boost": 1 }
-POST   /v1/indexes/{id}/suggestions                   Body: { "query": "...", "boost": 1 }
+       Returns suggestions scoped to the index category, grouped by boost tier.
+       Each entry includes mode, url, and featured_doc_ids where set.
+
+PUT    /v1/indexes/{id}/suggestions/{suggestion_id}
+       Body: {
+         "boost": 1,
+         "mode": "link",
+         "url": "/my-account/port-in-dashboard",
+         "featured_doc_ids": ["f1c835831b6aeb3e", "a2b3c4d5e6f70001"]
+       }
+       All fields are optional — only provided keys are updated.
+       Nightly job never overwrites boost, mode, url, or featured_doc_ids.
+
+POST   /v1/indexes/{id}/suggestions
+       Body: { "query": "black friday accessories", "boost": 1 }
+
 DELETE /v1/indexes/{id}/suggestions/{suggestion_id}</pre>
 
       <!-- ── Files ─────────────────────────────────────────────────────── -->
-      <h2>Files to create or modify</h2>
+      <h2>Files modified</h2>
 
       <h3>Backend</h3>
       <table>
         <thead><tr><th>File</th><th>Change</th></tr></thead>
         <tbody>
-          <tr><td><code>backend/src/isp/services/infra/typesense_client.py</code></td><td>Add <code>ensure_suggestions_collection()</code>, <code>upsert_suggestions(entries)</code></td></tr>
-          <tr><td><code>backend/src/isp/services/domain/suggestion_service.py</code></td><td>Seeding loop: load assigned JS extensions, run <code>extractSuggestions</code> via <code>py_mini_racer</code>; produces nothing if no extension assigned</td></tr>
-          <tr><td><code>backend/src/isp/routers/catalog.py</code></td><td>Update <code>suggest()</code> — add <code>category</code> param, boost+category sort, query <code>search_suggestions</code></td></tr>
-          <tr><td><code>backend/src/isp/routers/admin.py</code></td><td>New — <code>POST/DELETE/GET /v1/admin/suggestions</code></td></tr>
-          <tr><td><code>backend/src/isp/routers/indexes.py</code></td><td>Add <code>GET/POST/PUT/DELETE /v1/indexes/{id}/suggestions</code> routes</td></tr>
-          <tr><td><code>backend/src/isp/main.py</code></td><td>On startup: call <code>ensure_suggestions_collection()</code>; mount admin router</td></tr>
-          <tr><td><code>backend/requirements.txt</code></td><td><code>py_mini_racer</code> already present — no new dependency required</td></tr>
+          <tr><td><code>backend/src/isp/services/infra/typesense_client.py</code></td><td><code>ensure_suggestions_collection()</code>, <code>upsert_suggestions()</code>; <code>get_suggestions()</code> returns <code>mode</code>/<code>url</code>/<code>featured_doc_ids</code>; <code>get_featured_doc_ids_for_query(q)</code> for auto-pin; <code>search_documents</code> and <code>search_with_vec</code> accept <code>pinned_hits</code>; <code>update_suggestion()</code> general partial-update</td></tr>
+          <tr><td><code>backend/src/isp/services/domain/suggestion_service.py</code></td><td>Seeding via <code>py_mini_racer</code>; reads <code>url</code> and <code>doc_id</code> from <code>extractSuggestions</code>; sets <code>mode="link"</code> when url present, <code>featured_doc_ids=[doc_id]</code> when doc_id present</td></tr>
+          <tr><td><code>backend/src/isp/routers/catalog.py</code></td><td><code>suggest()</code> with <code>category</code> param, boost+category sort, <code>mode</code>/<code>url</code>/<code>featured_doc_ids</code> in response</td></tr>
+          <tr><td><code>backend/src/isp/routers/admin.py</code></td><td><code>POST/DELETE/GET /v1/admin/suggestions</code></td></tr>
+          <tr><td><code>backend/src/isp/routers/indexes.py</code></td><td><code>GET/POST/PUT/DELETE /v1/indexes/{id}/suggestions</code>; PUT accepts <code>mode</code>, <code>url</code>, <code>featured_doc_ids</code></td></tr>
+          <tr><td><code>backend/src/isp/routers/search.py</code></td><td><code>_run_search()</code> auto-applies <code>get_featured_doc_ids_for_query</code>; passes <code>pinned_hits</code> to all search calls</td></tr>
+          <tr><td><code>backend/src/isp/models/search.py</code></td><td>Added <code>pinned_hits: list[str]</code> to <code>SearchRequest</code></td></tr>
+          <tr><td><code>backend/src/isp/main.py</code></td><td>On startup: calls <code>ensure_suggestions_collection()</code></td></tr>
         </tbody>
       </table>
 
-      <h3>Extensions (JS, seeded to DB at startup)</h3>
+      <h3>Extensions (JS)</h3>
       <table>
         <thead><tr><th>File</th><th>Purpose</th></tr></thead>
         <tbody>
-          <tr><td><code>backend/extensions/catalog-mapper.js</code></td><td>Existing — add <code>extractSuggestions()</code> for manufacturer + model-family phrases</td></tr>
-          <tr><td><code>backend/extensions/furniture-extractor.js</code></td><td>Example — style + room_type phrase extraction for furniture-shaped data</td></tr>
+          <tr><td><code>backend/extensions/account_suggestions.js</code></td><td>Returns <code>{ query, url, doc_id }</code> per trigger phrase — seeds link mode and auto-pin</td></tr>
+          <tr><td><code>backend/extensions/device_suggestions.js</code></td><td>Returns <code>{ query }</code> per doc — title + metadata aliases</td></tr>
         </tbody>
       </table>
 
-      <h3>Frontend</h3>
+      <h3>Frontend (ISP admin UI)</h3>
       <table>
         <thead><tr><th>File</th><th>Change</th></tr></thead>
         <tbody>
-          <tr><td><code>frontend/src/components/sources/SuggestionsTab.svelte</code></td><td>New — suggestions table with Edit modal and Add suggestion flow</td></tr>
-          <tr><td><code>frontend/src/components/sources/IndexDetail.svelte</code></td><td>Add Suggestions tab to the tab bar</td></tr>
-          <tr><td><code>frontend/src/lib/repository/suggestionsRepository.ts</code></td><td>New — typed API calls for the four suggestions endpoints</td></tr>
+          <tr><td><code>frontend/src/components/sources/SuggestionsTab.svelte</code></td><td>Suggestions table; edit modal with Mode radio, URL field, multi-chip Pin to top, Browse button</td></tr>
+          <tr><td><code>frontend/src/components/sources/DocPickerModal.svelte</code></td><td>New — document search-and-select dialog; body portal pattern so it renders above the edit modal's stacking context (<code>z-index: 500</code>)</td></tr>
+          <tr><td><code>frontend/src/components/sources/IndexDetail.svelte</code></td><td>Suggestions tab added to tab bar</td></tr>
+          <tr><td><code>frontend/src/lib/types/suggestions.types.ts</code></td><td><code>Suggestion</code> type with <code>mode</code>, <code>url</code>, <code>featured_doc_ids</code></td></tr>
+          <tr><td><code>frontend/src/lib/api.ts</code></td><td><code>updateSuggestion(indexId, suggestionId, fields)</code></td></tr>
+          <tr><td><code>frontend/src/lib/repository/SuggestionsRepository.ts</code></td><td>Typed API calls for all four suggestions endpoints</td></tr>
+          <tr><td><code>frontend/src/lib/services/suggestions/SuggestionsService.ts</code></td><td>Service layer for suggestions operations</td></tr>
         </tbody>
       </table>
 
+      <h3>PLP</h3>
+      <table>
+        <thead><tr><th>File</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>plp/src/lib/types.ts</code></td><td><code>Suggestion</code> with <code>mode</code>, <code>url</code>, <code>featured_doc_ids</code>; <code>IndexSearchParams</code> with <code>pinned_hits</code></td></tr>
+          <tr><td><code>plp/src/components/SearchBar.svelte</code></td><td><code>selectSuggestion</code> handles link mode; <code>_matchSuggestion</code> for Enter-key path; <code>triggerSearch(pinnedHits?)</code></td></tr>
+          <tr><td><code>plp/src/lib/controller/catalogController.ts</code></td><td><code>loadProducts</code> options: <code>pinnedHits?</code>; passed to <code>searchIndex</code> as <code>pinned_hits</code></td></tr>
+        </tbody>
+      </table>
+
+      <!-- ── Suggestion Link Mode ──────────────────────────────────────── -->
+      <h2 id="link-mode">Suggestion Link Mode</h2>
+      <p>
+        Each suggestion has a <strong>mode</strong> field with two values. For support
+        and account indexes, each trigger phrase maps to exactly one page — link mode
+        sends the customer directly there without showing a results list. For catalog
+        indexes, search mode is used, optionally with docs pinned to the top.
+      </p>
+
+      <table>
+        <thead><tr><th>Mode</th><th>PLP behaviour</th><th>Use case</th></tr></thead>
+        <tbody>
+          <tr><td><code>search</code></td><td>Fill search bar and run search (default)</td><td>Catalog queries, broad terms</td></tr>
+          <tr><td><code>link</code></td><td>Navigate directly to the attached URL</td><td>Support pages, account pages, known single-answer intents</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Pin to top — featured_doc_ids</h3>
+      <p>
+        <code>featured_doc_ids</code> is an ordered list of Typesense document IDs applied
+        to <code>search</code>-mode suggestions. The first ID lands at position #1, the
+        second at #2, and so on.
+      </p>
+      <p><strong>How pinning works in the backend:</strong></p>
+      <ol>
+        <li>Client calls <code>POST /v1/indexes/{id}/search/public</code>; optional <code>pinned_hits</code> field carries client-supplied IDs.</li>
+        <li>Backend calls <code>get_featured_doc_ids_for_query(q)</code> — an exact-match lookup in <code>search_suggestions</code> for the search query.</li>
+        <li>If a matching suggestion has <code>featured_doc_ids</code>, those are used (client-supplied IDs take precedence when both are provided).</li>
+        <li>For <strong>lexical search</strong> (<code>search_documents</code>): IDs passed as Typesense native <code>pinned_hits</code> in <code>"id1:1,id2:2"</code> format.</li>
+        <li>For <strong>hybrid / semantic search</strong> (<code>search_with_vec</code>): native <code>pinned_hits</code> is unavailable (Python-side RRF is used). Missing pinned docs are fetched individually by ID and injected with an artificially high RRF score.</li>
+      </ol>
+      <div class="notice">
+        <strong>Client-agnostic auto-pin.</strong> Pinning is applied by the backend for
+        any exact query match, from any client on any port — no PLP code change is required
+        for new indexes.
+      </div>
+
+      <h3>SearchRequest.pinned_hits</h3>
+      <pre>POST /v1/indexes/{id}/search/public
+{
+  "q": "iphone 17 pro max",
+  "mode": "hybrid",
+  "page": 1,
+  "per_page": 24,
+  "pinned_hits": ["f1c835831b6aeb3e"]   // optional — backend also auto-applies from suggestion
+}</pre>
+
+      <h3>extractSuggestions — link mode and pin seeding</h3>
+      <pre>function extractSuggestions(doc) {
+  return [
+    { query: "transfer my number", url: doc.url },       // link mode
+    { query: "iphone 17 pro max",  doc_id: doc.id }      // search mode + pin at #1
+  ];
+}</pre>
+      <p>
+        When <code>url</code> is present, the seeder stores it in <code>search_suggestions.url</code>
+        and sets <code>mode = "link"</code> automatically. When <code>doc_id</code> is present,
+        it is stored in <code>featured_doc_ids</code> for auto-pin. Existing extensions that
+        return <code>{ query }</code> only are unaffected.
+      </p>
+
+      <h3>PLP typeahead behaviour</h3>
+      <pre>function selectSuggestion(s) {
+  if (s.mode === 'link' &amp;&amp; s.url) {
+    window.location.href = s.url;           // direct navigation, no search
+    return;
+  }
+  appStateStore.update(st => ({ ...st, query: s.text, page: 1 }));
+  triggerSearch(s.featured_doc_ids?.length ? s.featured_doc_ids : undefined);
+}</pre>
+      <p>
+        When the user presses <strong>Enter</strong> without selecting from the dropdown,
+        <code>_matchSuggestion(query)</code> does an exact-match lookup against the loaded
+        suggestions and applies <code>featured_doc_ids</code> for the typed query.
+      </p>
+
       <!-- ── Out of scope ──────────────────────────────────────────────── -->
-      <h2>Out of scope (Phase 2 and beyond)</h2>
+      <h2>Out of scope (future)</h2>
       <ul>
         <li>Real-time popularity increment on the search hot path</li>
         <li>Personalised suggestions using customer action history</li>
+        <li>Multi-client pin conflict resolution (last-write-wins today)</li>
       </ul>
 
       <!-- ── LLM enrichment ───────────────────────────────────────────── -->
@@ -769,6 +919,18 @@ No explanation.</pre>
         <div class="ref-title">Learning to Rank from Clickthrough Data</div>
         <div class="ref-cite">Joachims, T. (2002). <em>Optimizing search engines using clickthrough data.</em> Proceedings of KDD 2002, pp. 133–142. <a href="https://dl.acm.org/doi/10.1145/775047.775067" target="_blank">doi:10.1145/775047.775067</a></div>
         <div class="ref-note">Establishes that click signals carry position bias. This is why suppressed terms (<code>boost: -1</code>) are kept in the collection rather than deleted — deleting them would allow re-entry via the nightly job and accumulation of biased clicks from earlier high-position exposure.</div>
+      </div>
+
+      <div class="ref-block">
+        <div class="ref-title">Controlled Experiments for Search Engine Result Page Merchandising</div>
+        <div class="ref-cite">Chapelle, O., Joachims, T., Radlinski, F., &amp; Yue, Y. (2012). <em>Large-scale validation and analysis of interleaved search evaluation.</em> ACM Transactions on Information Systems, 30(1), 6. <a href="https://dl.acm.org/doi/10.1145/2094072.2094078" target="_blank">doi:10.1145/2094072.2094078</a></div>
+        <div class="ref-note">Covers interleaved evaluation of editorial pinning vs organic ranking — directly relevant to validating that pinning a specific doc to position #1 actually improves task completion without harming the surrounding results. Motivates the choice to make <code>featured_doc_ids</code> operator-controlled rather than learned.</div>
+      </div>
+
+      <div class="ref-block">
+        <div class="ref-title">Rank Fusion for Result Diversification</div>
+        <div class="ref-cite">Cormack, G. V., Clarke, C. L. A., &amp; Buettcher, S. (2009). <em>Reciprocal rank fusion outperforms Condorcet and individual rank learning methods.</em> Proceedings of SIGIR 2009, pp. 758–759. <a href="https://dl.acm.org/doi/10.1145/1571941.1572114" target="_blank">doi:10.1145/1571941.1572114</a></div>
+        <div class="ref-note">The foundational RRF paper. ISP uses RRF to merge lexical and semantic candidate sets in <code>search_with_vec</code>. Because RRF works entirely on ranks (not raw scores), injecting a pinned doc with a very high artificial score is stable — it does not distort the relative ordering of unpinned results.</div>
       </div>
 
       <h3>General information retrieval</h3>

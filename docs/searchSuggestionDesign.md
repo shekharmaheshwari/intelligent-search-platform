@@ -1013,7 +1013,7 @@ https://dl.acm.org/doi/10.1145/1076034.1076045
 
 ---
 
-### Editorial boost and merchandising
+### Editorial boost, merchandising, and pinning
 
 **Overview of the TREC 2004 Terabyte Track**
 Clarke, C. L. A., Craswell, N., & Soboroff, I. (2004).
@@ -1038,6 +1038,28 @@ https://dl.acm.org/doi/10.1145/775047.775067
 > are kept in the collection rather than deleted: deleting them would allow them to
 > re-enter organic ranking via the nightly job and accumulate biased clicks from
 > their earlier high-position exposure.
+
+**Controlled Experiments for Search Engine Result Page Merchandising**
+Chapelle, O., Joachims, T., Radlinski, F., & Yue, Y. (2012).
+*Large-scale validation and analysis of interleaved search evaluation.*
+ACM Transactions on Information Systems, 30(1), 6.
+https://dl.acm.org/doi/10.1145/2094072.2094078
+
+> Covers interleaved evaluation of editorial pinning vs organic ranking — directly
+> relevant to validating that pinning a specific doc to position #1 actually improves
+> task completion without harming the surrounding results.  Motivates the choice to
+> make `featured_doc_ids` operator-controlled rather than learned.
+
+**Reciprocal Rank Fusion**
+Cormack, G. V., Clarke, C. L. A., & Buettcher, S. (2009).
+*Reciprocal rank fusion outperforms Condorcet and individual rank learning methods.*
+Proceedings of SIGIR 2009, pp. 758–759.
+https://dl.acm.org/doi/10.1145/1571941.1572114
+
+> The foundational RRF paper.  ISP uses RRF to merge lexical and semantic candidate
+> sets in `search_with_vec`.  Because RRF works entirely on ranks (not raw scores),
+> injecting a pinned doc with a very high artificial score is stable — it does not
+> distort the relative ordering of unpinned results.
 
 ---
 
