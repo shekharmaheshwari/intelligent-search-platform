@@ -23,12 +23,15 @@ the top without filtering out global results.
 {
   "name": "search_suggestions",
   "fields": [
-    { "name": "id",         "type": "string"  },
-    { "name": "query",      "type": "string"  },
-    { "name": "popularity", "type": "int32",  "facet": false },
-    { "name": "boost",      "type": "int32",  "facet": false },
-    { "name": "type",       "type": "string",  "facet": true  },
-    { "name": "category",   "type": "string",  "facet": true, "optional": true }
+    { "name": "id",               "type": "string"   },
+    { "name": "query",            "type": "string"   },
+    { "name": "popularity",       "type": "int32",   "facet": false },
+    { "name": "boost",            "type": "int32",   "facet": false },
+    { "name": "type",             "type": "string",  "facet": true  },
+    { "name": "category",         "type": "string",  "facet": true,  "optional": true },
+    { "name": "mode",             "type": "string",  "optional": true },
+    { "name": "url",              "type": "string",  "optional": true },
+    { "name": "featured_doc_ids", "type": "string[]","optional": true }
   ],
   "default_sorting_field": "popularity"
 }
@@ -42,6 +45,9 @@ the top without filtering out global results.
 | `boost` | Operator-assigned priority — `0` normal, `1` promoted, `-1` suppressed |
 | `type` | `"query"` (sourced from search history) \| `"catalog"` (generated from indexed products) |
 | `category` | Optional — the catalog tab this suggestion belongs to, e.g. `"accessories"` |
+| `mode` | Optional — `"link"` (navigate to URL) \| `"search"` (run search). Defaults to `"search"` |
+| `url` | Optional — destination URL when `mode = "link"` |
+| `featured_doc_ids` | Optional — ordered list of Typesense doc IDs to pin at the top of search results when `mode = "search"` |
 
 The `search_suggestions` collection is a **platform-level** collection, like `catalog`.
 It is never dropped and recreated — only upserted into.  Multiple indexes contribute
@@ -88,10 +94,14 @@ every document in the index and collects the phrase tuples it returns.
  * @param  doc     ISP catalog document already mapped to the Typesense schema.
  *                 Not the raw API payload — fields like title, manufacturer,
  *                 operating_system, price, and metadata (JSON string) are available.
- * @return         Array of { query: string, category?: string } objects.
- *                 category is optional — when omitted the seeder uses the index's
- *                 intent_label automatically, making the extension reusable across
- *                 any index of the same type without hardcoding a category string.
+ * @return         Array of { query, category?, url?, doc_id? } objects.
+ *                 - category: optional — when omitted the seeder uses the index's
+ *                   intent_label automatically.
+ *                 - url: optional — when present, seeder sets mode = "link" on the
+ *                   suggestion so the PLP navigates directly rather than searching.
+ *                 - doc_id: optional — when present, seeder stores it in
+ *                   featured_doc_ids so that doc is pinned at position #1 for
+ *                   search-mode suggestions.
  */
 function extractSuggestions(doc) {
   // index-specific logic here
@@ -100,7 +110,7 @@ function extractSuggestions(doc) {
 ```
 
 The function receives the **already-mapped Typesense document** (not the raw API
-payload) and returns an array of `{ query, category? }` objects.
+payload) and returns an array of `{ query, category?, url?, doc_id? }` objects.
 
 **`category` is optional.** When omitted or `null`, the seeder automatically scopes
 the suggestion to the index's `intent_label` (read from the `indexes` table).  This
@@ -293,18 +303,40 @@ This means:
 ```json
 {
   "suggestions": [
-    { "text": "samsung galaxy s25",        "type": "query",   "popularity": 203, "boosted": true  },
-    { "text": "screen protector",          "type": "query",   "popularity": 142, "boosted": false },
-    { "text": "samsung screen protector",  "type": "query",   "popularity": 38,  "boosted": false },
-    { "text": "iphone screen protector",   "type": "catalog", "popularity": 0,   "boosted": false }
+    {
+      "text": "samsung galaxy s25",
+      "type": "query",
+      "popularity": 203,
+      "boosted": true,
+      "mode": "search"
+    },
+    {
+      "text": "transfer my number",
+      "type": "catalog",
+      "popularity": 0,
+      "boosted": false,
+      "mode": "link",
+      "url": "/my-account/port-in-dashboard"
+    },
+    {
+      "text": "iphone 17 pro max",
+      "type": "query",
+      "popularity": 189,
+      "boosted": false,
+      "mode": "search",
+      "featured_doc_ids": ["f1c835831b6aeb3e"]
+    }
   ],
-  "query":    "screen",
-  "category": "accessories"
+  "query":    "iphone",
+  "category": "devices"
 }
 ```
 
 `boosted: true` is set when `boost > 0` so the PLP can optionally render a visual
 indicator (e.g. a "✦ Trending" label) on promoted suggestions.
+
+`mode`, `url`, and `featured_doc_ids` are only present when set — absent means
+`"search"` mode with no pinned docs.
 
 ---
 
@@ -451,21 +483,35 @@ Accessories  /  Suggestions
 ### Edit modal
 
 Clicking **Edit** on any row opens a modal with the suggestion's current values.
-The operator can change the boost and save — no page reload required.
+The operator can change boost, mode, URL, and pinned docs — no page reload required.
 
 ```
 ┌─────────────────────────────────────────────────┐
 │  Edit Suggestion                            ✕   │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  Query          screen protector                │
+│  Query          iphone 17 pro max               │
 │                 (read-only — set by system)     │
 │                                                 │
-│  Category       accessories                     │
+│  Category       devices                         │
 │                 (read-only — set by system)     │
 │                                                 │
-│  Popularity     142 searches (last 30 days)     │
+│  Popularity     189 searches (last 30 days)     │
 │                 (read-only — updated nightly)   │
+│                                                 │
+│  Mode                                           │
+│  ● Search — run a search for this query         │
+│  ○ Link   — navigate directly to URL            │
+│                                                 │
+│  Pin to top  (shown when mode = Search)         │
+│  ┌─────────────────────────────────────────┐   │
+│  │  f1c835831b6aeb3e  ✕                    │   │
+│  └─────────────────────────────────────────┘   │
+│  [ enter doc id...  ]  [ Add ]  [ Browse ]      │
+│  (ordered list — first id appears at position 1)│
+│                                                 │
+│  URL  (shown when mode = Link)                  │
+│  [ /my-account/port-in-dashboard          ]     │
 │                                                 │
 │  Boost                                          │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
@@ -479,10 +525,15 @@ The operator can change the boost and save — no page reload required.
 
 - **Query** and **Category** are always read-only for system-generated entries
 - **Popularity** is always read-only — updated by the nightly job only
-- **Boost** is the only editable field — three-way toggle: Suppress / Normal / Promote
-- Saving calls `PUT /v1/indexes/{id}/suggestions/{suggestion_id}` with `{ "boost": value }`
-- The row updates in place after save — section it appears in (Promoted / Organic /
-  Suppressed) updates immediately without a full table reload
+- **Mode** radio toggles between `search` (default) and `link`
+- **Pin to top** is a multi-chip input (search mode only) — each chip is a Typesense
+  doc ID; chips are ordered and the first ID is pinned at position #1 in search results.
+  **Browse** opens `DocPickerModal` — a search dialog to find and select docs by title
+  instead of typing IDs manually.
+- **URL** field is shown only when mode is `link`
+- **Boost** three-way toggle: Suppress / Normal / Promote
+- Saving calls `PUT /v1/indexes/{id}/suggestions/{suggestion_id}` with the changed fields
+- The row updates in place after save
 
 ### Add suggestion modal
 
@@ -528,10 +579,17 @@ term that does not yet exist in search history — e.g. a campaign term before l
 ```
 GET  /v1/indexes/{id}/suggestions?q=&page=1&per_page=50
      Returns suggestions scoped to the index category, grouped by boost tier.
+     Each entry includes mode, url, and featured_doc_ids where set.
 
 PUT  /v1/indexes/{id}/suggestions/{suggestion_id}
-     Body: { "boost": 1 }
-     Updates the boost value.  Nightly job never overwrites this field.
+     Body: {
+       "boost": 1,
+       "mode": "link",
+       "url": "/my-account/port-in-dashboard",
+       "featured_doc_ids": ["f1c835831b6aeb3e", "a2b3c4d5e6f70001"]
+     }
+     All fields are optional — only provided keys are updated.
+     Nightly job never overwrites boost, mode, url, or featured_doc_ids.
 
 POST /v1/indexes/{id}/suggestions
      Body: { "query": "black friday accessories", "boost": 1 }
@@ -546,41 +604,200 @@ and operate on the shared `search_suggestions` Typesense collection.
 
 ---
 
-## Files to create or modify
+## Files modified
 
 ### Backend
 
 | File | Change |
 |---|---|
-| `backend/src/isp/services/infra/typesense_client.py` | Add `ensure_suggestions_collection()`, `upsert_suggestions(entries)` |
-| `backend/src/isp/services/domain/suggestion_service.py` | Seeding loop: load assigned JS extensions, run `extractSuggestions` via `py_mini_racer`; no extraction if no extension assigned |
-| `backend/src/isp/routers/catalog.py` | Update `suggest()` — add `category` param, boost+category sort, query `search_suggestions` |
-| `backend/src/isp/routers/admin.py` | New — `POST /v1/admin/suggestions`, `DELETE /v1/admin/suggestions/{id}`, `GET /v1/admin/suggestions` |
-| `backend/src/isp/routers/indexes.py` | Add `GET/POST/PUT/DELETE /v1/indexes/{id}/suggestions` routes |
-| `backend/src/isp/main.py` | On startup: call `ensure_suggestions_collection()`; mount admin router |
-| `backend/requirements.txt` | `py_mini_racer` already present — no new dependency |
+| `backend/src/isp/services/infra/typesense_client.py` | `ensure_suggestions_collection()`, `upsert_suggestions()`; `get_suggestions()`, `update_suggestion()`; `get_featured_doc_ids_for_query()`; `pinned_hits` param on `search_documents` and `search_with_vec` |
+| `backend/src/isp/services/domain/suggestion_service.py` | Seeding loop via `py_mini_racer`; reads `url` and `doc_id` from `extractSuggestions` output; sets `mode` and `featured_doc_ids` |
+| `backend/src/isp/routers/catalog.py` | `suggest()` with `category` param, boost+category sort, `mode`/`url`/`featured_doc_ids` in response |
+| `backend/src/isp/routers/indexes.py` | `GET/POST/PUT/DELETE /v1/indexes/{id}/suggestions`; PUT accepts `mode`, `url`, `featured_doc_ids` |
+| `backend/src/isp/routers/search.py` | `_run_search()` auto-applies `get_featured_doc_ids_for_query`; passes `pinned_hits` to all search calls |
+| `backend/src/isp/models/search.py` | Added `pinned_hits: list[str]` to `SearchRequest` |
+| `backend/src/isp/main.py` | On startup: calls `ensure_suggestions_collection()` |
 
-### Extensions (JS, seeded to DB at startup)
+### Extensions (JS)
 
 | File | Purpose |
 |---|---|
-| `backend/extensions/catalog-mapper.js` | Existing — add `extractSuggestions()` for manufacturer + model-family phrases |
-| `backend/extensions/furniture-extractor.js` | Example — style + room_type phrase extraction for furniture-shaped data |
+| `backend/extensions/account_suggestions.js` | Returns `{ query, url, doc_id }` per trigger phrase — seeds link mode + auto-pin |
+| `backend/extensions/device_suggestions.js` | Returns `{ query }` per doc — title + metadata aliases |
 
-### Frontend
+### Frontend (ISP admin UI)
 
 | File | Change |
 |---|---|
-| `frontend/src/components/sources/SuggestionsTab.svelte` | New — suggestions table with promote/suppress/restore actions |
-| `frontend/src/components/sources/IndexDetail.svelte` | Add Suggestions tab to the tab bar |
-| `frontend/src/lib/repository/suggestionsRepository.ts` | New — typed API calls for the four suggestions endpoints |
+| `frontend/src/components/sources/SuggestionsTab.svelte` | Suggestions table; edit modal with Mode radio, URL field, multi-chip Pin to top, Browse button |
+| `frontend/src/components/sources/DocPickerModal.svelte` | New — document search-and-select dialog with body portal for correct z-index stacking |
+| `frontend/src/components/sources/IndexDetail.svelte` | Suggestions tab added to tab bar |
+| `frontend/src/lib/types/suggestions.types.ts` | `Suggestion` type with `mode`, `url`, `featured_doc_ids` |
+| `frontend/src/lib/api.ts` | `updateSuggestion(indexId, suggestionId, fields)` |
+| `frontend/src/lib/repository/SuggestionsRepository.ts` | Typed calls for all four suggestions endpoints |
+| `frontend/src/lib/services/suggestions/SuggestionsService.ts` | Service layer for suggestions operations |
+
+### PLP
+
+| File | Change |
+|---|---|
+| `plp/src/lib/types.ts` | `Suggestion` with `mode`, `url`, `featured_doc_ids`; `IndexSearchParams` with `pinned_hits` |
+| `plp/src/components/SearchBar.svelte` | `selectSuggestion` handles link mode; `_matchSuggestion` for Enter-key path; `triggerSearch(pinnedHits?)` |
+| `plp/src/lib/controller/catalogController.ts` | `loadProducts` options: `pinnedHits?`; passed to `searchIndex` as `pinned_hits` |
 
 ---
 
-## Out of scope (Phase 2 and beyond)
+## Suggestion Link Mode
+
+### Motivation
+
+For support and account indexes (e.g. the Account GSheet index), each trigger phrase maps to exactly one page.  "Transfer my number" has one right answer — the Port-In Dashboard.  Sending the customer directly to that page is faster and clearer than showing a results list.
+
+For catalog indexes (Phones, Accessories), suggestions trigger a search — "samsung galaxy s25" benefits from a results page.  Some queries benefit further from having a specific product pinned to the top of results: "iphone 17 pro max" can pin the exact model to position #1 so the customer sees it immediately.
+
+---
+
+### Concept
+
+Each suggestion has a **mode** field:
+
+| Mode | PLP behavior | Use case |
+|---|---|---|
+| `search` | Fill search bar and run search (default) | Catalog queries, broad terms |
+| `link` | Navigate directly to the attached URL | Support pages, account pages, known single-answer intents |
+
+Additionally, `search`-mode suggestions can carry a `featured_doc_ids` list — Typesense document IDs that are forced to the top positions of the search results, in order.
+
+The operator configures mode per suggestion in the edit modal.  For account indexes, suggestions auto-populate as `link` because `extractSuggestions` returns a `url`.
+
+---
+
+### Pin to top — featured_doc_ids
+
+`featured_doc_ids` is an ordered list of Typesense document IDs applied to `search`-mode suggestions.  The first ID lands at position #1, the second at #2, and so on.
+
+**How pinning works in the backend (`search.py` + `typesense_client.py`):**
+
+1. When the client calls `/v1/indexes/{id}/search/public`, `SearchRequest.pinned_hits` carries any client-supplied IDs.
+2. Regardless of what the client sends, the backend also calls `get_featured_doc_ids_for_query(q)` — an exact-match lookup in `search_suggestions` for the search query.
+3. If a matching suggestion is found with `featured_doc_ids`, those IDs are used (client-supplied IDs take precedence if both are provided).
+4. For **lexical search** (`search_documents`), the IDs are passed as Typesense's native `pinned_hits` parameter in `"id1:1,id2:2"` format.
+5. For **hybrid/semantic search** (`search_with_vec`), Typesense's native pinned_hits is not available (Python-side RRF is used).  Instead, any pinned docs missing from the candidate set are fetched individually by ID and injected with an artificially high RRF score to force them to the top.
+
+**Effect:** pinning works from any search client on any port — no PLP code change is required.
+
+---
+
+### SearchRequest.pinned_hits
+
+`POST /v1/indexes/{id}/search/public` (and `/search`) accept an optional `pinned_hits` field:
+
+```json
+{
+  "q": "iphone 17 pro max",
+  "mode": "hybrid",
+  "page": 1,
+  "per_page": 24,
+  "pinned_hits": ["f1c835831b6aeb3e"]
+}
+```
+
+When absent or empty, the backend auto-applies pinned IDs from the matching suggestion in `search_suggestions` (if any).
+
+---
+
+### extractSuggestions contract
+
+The JS contract supports optional `url` and `doc_id` fields alongside `query`:
+
+```js
+/**
+ * @returns {Array<{ query: string, category?: string, url?: string, doc_id?: string }>}
+ *
+ * url:    present → seeder sets mode = "link" on the suggestion
+ * doc_id: present → seeder stores [doc_id] in featured_doc_ids for auto-pin
+ */
+function extractSuggestions(doc) {
+  return [
+    { query: "transfer my number", url: doc.url },            // link mode
+    { query: "iphone 17 pro max",  doc_id: doc.id }           // search mode + pin
+  ];
+}
+```
+
+Backwards-compatible — existing extensions returning `{ query }` only are unaffected.
+
+---
+
+### account_suggestions.js
+
+```js
+function extractSuggestions(doc) {
+  var results = [];
+  var seen = {};
+  var meta = {};
+  try { meta = JSON.parse(doc.metadata || '{}'); } catch (e) {}
+
+  var triggers = String(meta.Triggers || meta.triggers || '').trim();
+  triggers.split(',').forEach(function(phrase) {
+    var q = phrase.trim().toLowerCase();
+    if (q && q.length >= 3 && !seen[q]) {
+      seen[q] = true;
+      results.push({ query: q, url: doc.url, doc_id: doc.id });
+    }
+  });
+  return results;
+}
+```
+
+Every trigger phrase carries both the page URL (sets `mode = "link"`) and the source doc ID (stored in `featured_doc_ids` for search fallback).
+
+---
+
+### PLP typeahead behavior
+
+```typescript
+function selectSuggestion(s: Suggestion) {
+  if (s.mode === 'link' && s.url) {
+    window.location.href = s.url;           // direct navigation, no search
+    return;
+  }
+  appStateStore.update(st => ({ ...st, query: s.text, page: 1 }));
+  triggerSearch(s.featured_doc_ids?.length ? s.featured_doc_ids : undefined);
+}
+```
+
+When the user presses **Enter** without selecting from the dropdown, the PLP does an exact-match lookup against the loaded suggestions (`_matchSuggestion`) to find and apply `featured_doc_ids` for the typed query.
+
+---
+
+### Files modified
+
+| File | Change |
+|---|---|
+| `backend/src/isp/services/infra/typesense_client.py` | Added `mode`, `url`, `featured_doc_ids` to schema; `get_suggestions()` returns them; `get_featured_doc_ids_for_query(q)` for auto-pin lookup; `search_documents` and `search_with_vec` accept `pinned_hits`; `update_suggestion()` general partial-update |
+| `backend/src/isp/services/domain/suggestion_service.py` | `_run_extraction_sync` returns `(query, category, url, doc_id)`; `seed_suggestions_from_index` sets `mode="link"` when url present, `featured_doc_ids=[doc_id]` when doc_id present |
+| `backend/src/isp/routers/indexes.py` | `list_index_suggestions` returns `featured_doc_ids`; `update_index_suggestion` accepts `featured_doc_ids` array |
+| `backend/src/isp/routers/search.py` | `_run_search()` auto-applies `get_featured_doc_ids_for_query`; passes `pinned_hits` to all search calls |
+| `backend/src/isp/models/search.py` | Added `pinned_hits: list[str]` to `SearchRequest` |
+| `backend/extensions/account_suggestions.js` | Returns `{ query, url: doc.url, doc_id: doc.id }` for each trigger phrase |
+| `frontend/src/lib/types/suggestions.types.ts` | Added `mode`, `url`, `featured_doc_ids` to `Suggestion` type |
+| `frontend/src/lib/api.ts` | Added `updateSuggestion(indexId, suggestionId, fields)` |
+| `frontend/src/lib/repository/SuggestionsRepository.ts` | Added `updateSuggestion` delegating to `api.updateSuggestion` |
+| `frontend/src/lib/services/suggestions/SuggestionsService.ts` | Added `updateSuggestion` delegating to repository |
+| `frontend/src/components/sources/SuggestionsTab.svelte` | Edit modal: Mode radio, URL field, multi-chip Pin to top input, Browse button; `saveEdit()` sends `featured_doc_ids` and `mode` |
+| `frontend/src/components/sources/DocPickerModal.svelte` | New — search-and-select dialog for choosing pinned doc IDs; uses body portal (`onMount` + `onDestroy`) so it renders above the edit modal's stacking context; `z-index: 500` |
+| `plp/src/lib/types.ts` | Added `mode`, `url`, `featured_doc_ids` to `Suggestion`; added `pinned_hits` to `IndexSearchParams` |
+| `plp/src/components/SearchBar.svelte` | `selectSuggestion` handles `link` mode and passes `featured_doc_ids`; `_matchSuggestion` for Enter-key path; `triggerSearch` accepts `pinnedHits` |
+| `plp/src/lib/controller/catalogController.ts` | `loadProducts` accepts `pinnedHits` option; passes to `searchIndex` as `pinned_hits` |
+
+---
+
+## Out of scope (future)
 
 - Real-time popularity increment on the search hot path
 - Personalised suggestions using customer action history
+- Multi-client pin conflict resolution (last-write-wins today)
 
 ---
 
