@@ -53,6 +53,10 @@ class SearchRequest(BaseModel):
             "category and manufacturer signals boost matching documents after RRF."
         ),
     )
+    pinned_hits: list[str] = Field(
+        default_factory=list,
+        description="Doc IDs to force to the top of results in order (position 1, 2, …).",
+    )
 
 
 class DocumentItem(BaseModel):

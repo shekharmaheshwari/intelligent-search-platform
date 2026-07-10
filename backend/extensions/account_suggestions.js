@@ -8,8 +8,12 @@
  * Uses only the Triggers column — comma-separated search phrases hand-curated
  * per page (e.g. "transfer my number, port-in, port number").
  *
+ * Each suggestion carries the source document's url and id so the seeder can
+ * create link-mode suggestions (navigate directly) and pin the originating
+ * document at position #1 for search-mode suggestions respectively.
+ *
  * @param {Object} doc - ISP document from Typesense.
- * @returns {Array<{query: string}>}
+ * @returns {Array<{query: string, url: string|undefined, doc_id: string|undefined}>}
  */
 function extractSuggestions(doc) {
   var results = [];
@@ -19,7 +23,9 @@ function extractSuggestions(doc) {
     var q = String(query || '').trim().toLowerCase();
     if (q && q.length >= 3 && !seen[q]) {
       seen[q] = true;
-      results.push({ query: q });
+      // url enables link-mode (navigate directly); doc_id pins this document at
+      // position #1 when the suggestion is used in search-mode.
+      results.push({ query: q, url: doc.url, doc_id: doc.id });
     }
   }
 
