@@ -460,4 +460,16 @@ export const api = {
     req<{ dimensions: import('./types').AffinityDimension[]; viewed_item_policy: import('./types').ViewedItemPolicy }>(`/indexes/${indexId}/affinity-dimensions/discover`, {
       method: 'POST',
     }),
+
+  getBoostRules: (indexId: string) =>
+    req<{ rules: import('./types').BoostRule[] }>(`/indexes/${indexId}/boost-rules`),
+
+  updateBoostRules: (indexId: string, rules: import('./types').BoostRule[]) =>
+    req<{ rules: import('./types').BoostRule[] }>(`/indexes/${indexId}/boost-rules`, {
+      method: 'PUT',
+      body: JSON.stringify({ rules }),
+    }),
+
+  getBoostRuleFields: (indexId: string) =>
+    req<{ fields: string[] }>(`/indexes/${indexId}/boost-rules/fields`),
 };

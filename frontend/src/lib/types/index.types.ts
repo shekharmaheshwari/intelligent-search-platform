@@ -29,6 +29,29 @@ export interface AffinityDimension {
   derived_from: string | null;
 }
 
+/** One criterion in a boost rule — field + operator + value. */
+export interface BoostCriterion {
+  field:    string;
+  operator: 'equals' | 'contains' | 'regex';
+  value:    string;
+}
+
+/**
+ * One operator-defined merchandising boost rule.
+ * trigger: ALL must match (AND) — activates the rule. Supports __search_term__ field.
+ * targets: ANY one must match (OR) — selects which documents get the boost.
+ * Rules without a __search_term__ trigger fire on browse; those with one fire on search.
+ * Stored in ``indexes.boost_rules``.
+ */
+export interface BoostRule {
+  id:       string;
+  label:    string;
+  enabled:  boolean;
+  boost:    number;       // 0.00–1.00 (clamped server-side)
+  trigger:  BoostCriterion[];
+  targets:  BoostCriterion[];
+}
+
 /**
  * Full metadata for one ISP source, mirroring the backend ``IndexMeta`` Pydantic model.
  * ``is_external=true`` means ISP reads/writes a pre-existing Typesense collection;

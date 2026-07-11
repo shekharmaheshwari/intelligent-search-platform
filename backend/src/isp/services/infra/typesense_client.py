@@ -393,6 +393,116 @@ def get_facets(index_id: str, facet_fields: list[str]) -> dict:
     return facets
 
 
+def get_boost_rule_fields(index_id: str) -> list[str]:
+    """
+    Return a filtered list of field names from the Typesense collection schema
+    suitable for use in boost rule criteria.
+
+    Strips internal/system fields that have no merchandising meaning.
+    """
+    _SKIP = {
+        "id", "vec", "indexed_at", "metadata", "content", "url",
+        "is_featured", "popularity", "version_score", "in_stock", "price",
+        "boost_queries_equal", "boost_queries_contains",
+        "images", "skus", "color_options", "aliases", "tags",
+    }
+    name = collection_name(index_id)
+    try:
+        schema = get_client().collections[name].retrieve()
+    except Exception:
+        return []
+    fields = []
+    for f in schema.get("fields", []):
+        fname = f.get("name", "")
+        ftype = f.get("type", "")
+        if fname in _SKIP or fname.startswith(".") or ftype.startswith("float"):
+            continue
+        fields.append(fname)
+    return sorted(fields)
+
+
+_SEARCH_TERM_FIELD = "__search_term__"
+
+
+def _check_criterion(c: dict, doc: dict, doc_meta: dict, query: str) -> bool:
+    """Return True when a single criterion matches the document or query."""
+    import re as _re
+    field    = c.get("field", "")
+    operator = c.get("operator", "equals")
+    value    = c.get("value", "")
+
+    if field == _SEARCH_TERM_FIELD:
+        raw = query
+    else:
+        raw = doc.get(field)
+        if raw is None:
+            raw = doc_meta.get(field)
+        if raw is None:
+            return False
+
+    doc_val = str(raw).lower()
+    val     = value.lower()
+    if operator == "equals":
+        return doc_val == val
+    elif operator == "contains":
+        return val in doc_val
+    elif operator == "regex":
+        try:
+            return bool(_re.search(value, str(raw), _re.IGNORECASE))
+        except _re.error:
+            return False
+    return False
+
+
+def _parse_meta(doc: dict) -> dict:
+    import json as _json
+    raw = doc.get("metadata")
+    if isinstance(raw, str):
+        try:
+            return _json.loads(raw)
+        except Exception:
+            return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def apply_boost_rules(scores: dict, all_docs: dict, rules: list[dict], query: str = "") -> None:
+    """
+    Apply operator-defined boost rules to the scored candidate set.
+
+    Each rule has two sections:
+    - ``trigger``: ALL criteria must match (AND). May include ``__search_term__``.
+    - ``targets``: ANY criterion must match (OR). Selects which documents get boosted.
+
+    Rules whose trigger contains ``__search_term__`` only fire when there is an
+    active search query; rules without it only fire during browse (empty query).
+
+    If ``targets`` is empty, all documents passing the trigger receive the boost.
+    Boost values are clamped to +1.00 regardless of the stored value.
+    """
+    is_search = bool(query.strip())
+    for rule in rules:
+        if not rule.get("enabled", True):
+            continue
+        boost   = min(float(rule.get("boost", 0.0)), 1.0)
+        trigger = rule.get("trigger", [])
+        targets = rule.get("targets", [])
+        if not trigger or boost == 0.0:
+            continue
+        has_query_criterion = any(c.get("field") == _SEARCH_TERM_FIELD for c in trigger)
+        # Search-term rules fire on search only; field-only rules fire on browse only.
+        if has_query_criterion != is_search:
+            continue
+        for did, doc in all_docs.items():
+            meta = _parse_meta(doc)
+            # All trigger criteria must match (AND).
+            if not all(_check_criterion(c, doc, meta, query) for c in trigger):
+                continue
+            # At least one target must match (OR); empty targets = boost everything.
+            if targets and not any(_check_criterion(c, doc, meta, query) for c in targets):
+                continue
+            scores[did] = scores.get(did, 0.0) + boost
+
+
 def list_documents(index_id: str, page: int, per_page: int,
                    exclude_vec: bool = False) -> dict:
     """Paginated document listing for an ISP-managed collection, sorted by most recently indexed."""
