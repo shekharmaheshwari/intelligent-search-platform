@@ -16,12 +16,6 @@
   import SuggestionsTab           from './SuggestionsTab.svelte';
   import MappingTab               from './MappingTab.svelte';
   import AffinityDimensionsPanel  from './AffinityDimensionsPanel.svelte';
-
-  export let indexId: string;
-  export let tab: 'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' = 'overview';
-
-  const tabs: Array<'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation'> =
-    ['overview', 'connector', 'mapping', 'documents', 'search', 'api', 'suggestions', 'personalisation'];
   import BoostRulesTab            from './BoostRulesTab.svelte';
 
   export let indexId: string;

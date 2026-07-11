@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '../../lib/api';
   import type { BoostRule, BoostCriterion } from '../../lib/types';
+  import DocPickerModal from './DocPickerModal.svelte';
 
   export let indexId: string;
 
@@ -19,6 +20,12 @@
   let saving   = false;
   let error    = '';
   let saveMsg  = '';
+
+  // Doc picker state — tracks which (ruleId, targetIdx) is being browsed.
+  let pickerRuleId: string | null  = null;
+  let pickerTargetIdx: number | null = null;
+  // title lookup: ruleId → targetIdx → title (populated when a doc is picked via Browse)
+  let pickerTitles: Record<string, Record<number, string>> = {};
 
   onMount(async () => {
     try {
@@ -44,7 +51,7 @@
   }
 
   function blankCriterion(forTrigger: boolean): BoostCriterion {
-    return { field: forTrigger ? '__search_term__' : (fields[0] ?? ''), operator: 'equals', value: '' };
+    return { field: forTrigger ? '__search_term__' : 'id', operator: 'equals', value: '' };
   }
 
   function addRule(): void {
@@ -89,6 +96,32 @@
 
   function updateOperator(ruleId: string, section: 'trigger' | 'targets', idx: number, value: string): void {
     updateCriterion(ruleId, section, idx, { operator: value as BoostCriterion['operator'] });
+  }
+
+  function openPicker(ruleId: string, idx: number): void {
+    pickerRuleId    = ruleId;
+    pickerTargetIdx = idx;
+  }
+
+  function onPickerSelect(e: CustomEvent<{ id: string; title: string }>): void {
+    if (pickerRuleId === null || pickerTargetIdx === null) return;
+    const { id, title } = e.detail;
+    updateCriterion(pickerRuleId, 'targets', pickerTargetIdx, { value: id });
+    pickerTitles = {
+      ...pickerTitles,
+      [pickerRuleId]: { ...(pickerTitles[pickerRuleId] ?? {}), [pickerTargetIdx]: title },
+    };
+    pickerRuleId    = null;
+    pickerTargetIdx = null;
+  }
+
+  function onPickerClose(): void {
+    pickerRuleId    = null;
+    pickerTargetIdx = null;
+  }
+
+  function getPickedTitle(ruleId: string, idx: number): string | null {
+    return pickerTitles[ruleId]?.[idx] ?? null;
   }
 
   function ruleMode(rule: BoostRule): 'search' | 'browse' {
@@ -235,10 +268,9 @@
                     value={c.field}
                     on:change={(e) => updateCriterion(rule.id, 'targets', idx, { field: e.currentTarget.value })}
                   >
+                    <option value="id">id (Browse to pick)</option>
                     {#each fields as f}
                       <option value={f}>{f}</option>
-                    {:else}
-                      <option value={c.field}>{c.field || 'field'}</option>
                     {/each}
                   </select>
                   <select
@@ -250,13 +282,32 @@
                       <option value={op.value}>{op.label}</option>
                     {/each}
                   </select>
-                  <input
-                    class="crit-value"
-                    type="text"
-                    value={c.value}
-                    placeholder={c.operator === 'regex' ? '^PROD-\\d{4}$' : 'Enter value…'}
-                    on:input={(e) => updateCriterion(rule.id, 'targets', idx, { value: e.currentTarget.value })}
-                  />
+                  {#if c.field === 'id'}
+                    <div class="id-picker-row">
+                      {#if c.value}
+                        <span class="id-chip">
+                          <span class="id-chip-inner">
+                            {#if getPickedTitle(rule.id, idx)}
+                              <span class="id-chip-title">{getPickedTitle(rule.id, idx)}</span>
+                            {/if}
+                            <span class="id-chip-id">{c.value}</span>
+                          </span>
+                          <button class="id-chip-clear" on:click={() => updateCriterion(rule.id, 'targets', idx, { value: '' })}>✕</button>
+                        </span>
+                      {:else}
+                        <span class="id-chip-empty">No document selected</span>
+                      {/if}
+                      <button class="browse-btn" on:click={() => openPicker(rule.id, idx)}>Browse</button>
+                    </div>
+                  {:else}
+                    <input
+                      class="crit-value"
+                      type="text"
+                      value={c.value}
+                      placeholder={c.operator === 'regex' ? '^PROD-\\d{4}$' : 'Enter value…'}
+                      on:input={(e) => updateCriterion(rule.id, 'targets', idx, { value: e.currentTarget.value })}
+                    />
+                  {/if}
                   <button class="crit-remove" on:click={() => removeCriterion(rule.id, 'targets', idx)}>✕</button>
                 </div>
               {/each}
@@ -297,6 +348,15 @@
     <button class="add-rule-btn" on:click={addRule}>+ Add rule block</button>
   {/if}
 </div>
+
+{#if pickerRuleId !== null}
+  <DocPickerModal
+    {indexId}
+    selectedIds={[]}
+    on:select={onPickerSelect}
+    on:close={onPickerClose}
+  />
+{/if}
 
 <style>
   .boost-tab { display: flex; flex-direction: column; gap: 20px; }
@@ -476,4 +536,33 @@
     color: var(--text-5); font-size: 13px; padding: 8px 16px; cursor: pointer;
   }
   .add-rule-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ID picker */
+  .id-picker-row { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+
+  .id-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg-3); border: 1px solid var(--border);
+    border-radius: 4px; padding: 3px 6px 3px 8px; min-width: 0; flex: 1;
+  }
+  .id-chip-inner { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; overflow: hidden; }
+  .id-chip-title {
+    font-size: 11px; font-weight: 500; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .id-chip-id { font-size: 10px; color: var(--text-5); font-family: monospace; }
+  .id-chip-clear {
+    background: none; border: none; color: var(--text-5); cursor: pointer;
+    font-size: 11px; padding: 1px 2px; flex-shrink: 0; line-height: 1;
+  }
+  .id-chip-clear:hover { color: #f87171; }
+
+  .id-chip-empty { font-size: 12px; color: var(--text-5); flex: 1; }
+
+  .browse-btn {
+    flex-shrink: 0; background: var(--bg-3); border: 1px solid var(--border);
+    border-radius: 4px; padding: 5px 10px; font-size: 12px; color: var(--text-4);
+    cursor: pointer; white-space: nowrap;
+  }
+  .browse-btn:hover { border-color: var(--accent); color: var(--accent); }
 </style>
