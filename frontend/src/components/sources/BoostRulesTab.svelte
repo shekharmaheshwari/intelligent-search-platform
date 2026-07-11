@@ -3,16 +3,12 @@
   import { api } from '../../lib/api';
   import type { BoostRule, BoostCriterion } from '../../lib/types';
   import DocPickerModal from './DocPickerModal.svelte';
+  import {
+    OPERATORS, DANGER_THRESHOLD,
+    nanoid, blankCriterion, ruleMode, formatBoost, boostZone,
+  } from './BoostRulesTab.helpers';
 
   export let indexId: string;
-
-  const OPERATORS = [
-    { value: 'equals',   label: 'Equals' },
-    { value: 'contains', label: 'Contains' },
-    { value: 'regex',    label: 'Matches Regex' },
-  ] as const;
-
-  const DANGER_THRESHOLD = 0.5;
 
   let rules: BoostRule[] = [];
   let fields: string[]   = [];
@@ -49,14 +45,6 @@
       loading = false;
     }
   });
-
-  function nanoid(): string {
-    return Math.random().toString(36).slice(2, 10);
-  }
-
-  function blankCriterion(forTrigger: boolean): BoostCriterion {
-    return { field: forTrigger ? '__search_term__' : 'id', operator: 'equals', value: '' };
-  }
 
   function addRule(): void {
     rules = [...rules, {
@@ -131,18 +119,6 @@
 
   function commitLabel(id: string): void {
     if (editingLabelId === id) editingLabelId = null;
-  }
-
-  function ruleMode(rule: BoostRule): 'search' | 'browse' {
-    return rule.trigger.some(c => c.field === '__search_term__') ? 'search' : 'browse';
-  }
-
-  function formatBoost(v: number): string {
-    return `+${v.toFixed(2)}`;
-  }
-
-  function boostZone(v: number): 'normal' | 'danger' {
-    return v >= DANGER_THRESHOLD ? 'danger' : 'normal';
   }
 
   async function save(): Promise<void> {

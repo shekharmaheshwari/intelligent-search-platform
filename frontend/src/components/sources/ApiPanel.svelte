@@ -7,33 +7,21 @@
    * The base URL is derived at runtime from ``window.location`` so examples
    * point at the correct host in both local and deployed environments.
    */
+  import { getApiBase, buildApiCurls } from './ApiPanel.helpers';
+
   export let indexId: string;
 
-  const base = typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:8001/v1`
-    : 'http://localhost:8001/v1';
+  const base  = getApiBase();
+  const curls = buildApiCurls(base, indexId);
 
-  // ── Public endpoints ──────────────────────────────────────────────────────
-  const curlPublicSearch = `curl -X POST "${base}/indexes/${indexId}/search/public" \\
-  -H "Content-Type: application/json" \\
-  -d '{"q": "your query", "mode": "hybrid", "page": 1, "per_page": 10}'`;
-
-  const curlPublicDocs = `curl "${base}/indexes/${indexId}/documents/public?page=1&per_page=20"`;
-
-  // ── Internal endpoints ────────────────────────────────────────────────────
-  const curlHybrid = `curl -X POST "${base}/indexes/${indexId}/search" \\
-  -H "Content-Type: application/json" \\
-  -d '{"q": "your query", "mode": "hybrid", "page": 1, "per_page": 10}'`;
-
-  const curlLexical = `curl -X POST "${base}/indexes/${indexId}/search" \\
-  -H "Content-Type: application/json" \\
-  -d '{"q": "your query", "mode": "lexical", "page": 1, "per_page": 10}'`;
-
-  const curlDocs = `curl "${base}/indexes/${indexId}/documents?page=1&per_page=20"`;
+  const curlPublicSearch = curls.publicSearch;
+  const curlPublicDocs   = curls.publicDocs;
+  const curlHybrid       = curls.hybrid;
+  const curlLexical      = curls.lexical;
+  const curlDocs         = curls.docs;
 
   let copied = '';
 
-  /** Copy ``text`` to the clipboard and show a brief confirmation badge identified by ``key``. */
   function copy(text: string, key: string) {
     navigator.clipboard.writeText(text);
     copied = key;

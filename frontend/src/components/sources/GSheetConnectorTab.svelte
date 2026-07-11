@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { indexService } from '../../lib/services/indexes/IndexService';
-  import type { GSheetConnectorConfig } from '../../lib/types';
+  import type { MappingRow } from './GSheetConnectorTab.helpers';
+  import { initGsheetFromConnector, initGsheetMappings, buildGsheetConfig } from './GSheetConnectorTab.helpers';
 
   export let indexId: string;
   export let connector: Record<string, unknown> = {};
@@ -14,22 +15,23 @@
   let contentCol    = '';
   let urlCol        = '';
   let skipEmpty     = true;
-  let mappings: { key: string; value: string }[] = [];
+  let mappings: MappingRow[] = [];
 
   let saving = false;
   let err    = '';
   let saved  = false;
 
   onMount(() => {
-    spreadsheetId = String(connector.spreadsheet_id  ?? '');
-    sheetName     = String(connector.sheet_name      ?? 'Sheet1');
-    headerRow     = Number(connector.header_row      ?? 1);
-    idCol         = String(connector.id_column       ?? '');
-    titleCol      = String(connector.title_column    ?? '');
-    contentCol    = String(connector.content_column  ?? '');
-    urlCol        = String(connector.url_column      ?? '');
-    skipEmpty     = Boolean(connector.skip_empty_rows ?? true);
-    mappings      = Object.entries((connector.field_map ?? {}) as Record<string, string>).map(([k, v]) => ({ key: k, value: v }));
+    const s   = initGsheetFromConnector(connector);
+    spreadsheetId = s.spreadsheetId;
+    sheetName     = s.sheetName;
+    headerRow     = s.headerRow;
+    idCol         = s.idCol;
+    titleCol      = s.titleCol;
+    contentCol    = s.contentCol;
+    urlCol        = s.urlCol;
+    skipEmpty     = s.skipEmpty;
+    mappings      = initGsheetMappings(connector);
   });
 
   function addMapping()             { mappings = [...mappings, { key: '', value: '' }]; }
@@ -38,18 +40,10 @@
   async function save() {
     saving = true; err = ''; saved = false;
     try {
-      const cfg: GSheetConnectorConfig = {
-        type:            'gsheet',
-        spreadsheet_id:  spreadsheetId.trim(),
-        sheet_name:      sheetName.trim() || 'Sheet1',
-        header_row:      headerRow,
-        id_column:       idCol.trim(),
-        title_column:    titleCol.trim(),
-        content_column:  contentCol.trim(),
-        url_column:      urlCol.trim(),
-        skip_empty_rows: skipEmpty,
-        field_map:       Object.fromEntries(mappings.filter(r => r.key.trim() && r.value.trim()).map(r => [r.key.trim(), r.value.trim()])),
-      };
+      const cfg = buildGsheetConfig(
+        { spreadsheetId, sheetName, headerRow, idCol, titleCol, contentCol, urlCol, skipEmpty },
+        mappings,
+      );
       await indexService.saveGsheetConnector(indexId, cfg);
       saved = true;
       setTimeout(() => { saved = false; }, 2000);
