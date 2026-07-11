@@ -83,6 +83,21 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
                         viewed_item_policy=_viewed_policy,
                     )
 
+    # Boost rules — per-rule gate inside apply_boost_rules:
+    # rules with __search_term__ criterion fire on search; field-only rules fire on browse.
+    _boost_rules = meta.boost_rules or []
+    if _boost_rules:
+        _rules = _boost_rules
+        _query = req.q
+        _prev_hook = ctx_hook
+        if _prev_hook:
+            def ctx_hook(scores: dict, all_docs: dict) -> None:  # noqa: F811
+                _prev_hook(scores, all_docs)
+                ts.apply_boost_rules(scores, all_docs, _rules, query=_query)
+        else:
+            def ctx_hook(scores: dict, all_docs: dict) -> None:  # noqa: F811
+                ts.apply_boost_rules(scores, all_docs, _rules, query=_query)
+
     # Build native Typesense filter string — works after schema migration promotes
     # category and manufacturer to top-level fields.  External collections skip
     # this path and rely on their own filter_by via search_external.

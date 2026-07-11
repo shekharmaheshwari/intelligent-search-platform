@@ -360,6 +360,7 @@ async def search_catalog(req: CatalogSearchRequest):
 
     # Load per-index affinity dimension configs once — used to apply the right
     # dims to each doc in the ctx_hook based on which index the doc came from.
+    # Load per-index configs once — affinity dims and boost rules keyed by index id.
     from isp.services.domain.index_service import list_indexes
     _all_metas   = await list_indexes()
     _dims_by_idx: dict[str, list[dict]] = {
@@ -367,6 +368,14 @@ async def search_catalog(req: CatalogSearchRequest):
         for m in _all_metas
         if not m.is_external
     }
+    # Merge all boost rules across indexes — catalog applies all active rules.
+    _all_boost_rules: list[dict] = [
+        rule
+        for m in _all_metas
+        if not m.is_external
+        for rule in (m.boost_rules or [])
+        if rule.get("enabled", True)
+    ]
     # Union of all dims across indexes — used to build ctx.affinities so the
     # affinity map covers every field any index might need during the hook.
     _seen: set[str] = set()
@@ -402,6 +411,20 @@ async def search_catalog(req: CatalogSearchRequest):
                         apply_viewed_penalty=_apply_penalty,
                     )
 
+    # Boost rules — per-rule gate inside apply_boost_rules:
+    # rules with __search_term__ criterion fire on search; field-only rules fire on browse.
+    if _all_boost_rules:
+        _rules = _all_boost_rules
+        _query = req.q
+        _prev_hook = ctx_hook
+        if _prev_hook:
+            def ctx_hook(scores: dict, all_docs: dict) -> None:  # noqa: F811
+                _prev_hook(scores, all_docs)
+                ts.apply_boost_rules(scores, all_docs, _rules, query=_query)
+        else:
+            def ctx_hook(scores: dict, all_docs: dict) -> None:  # noqa: F811
+                ts.apply_boost_rules(scores, all_docs, _rules, query=_query)
+
     vec = None
     if req.search_mode in ("semantic", "hybrid") and req.q.strip():
         vec = await embedding_service.embed_query(req.q)
@@ -436,6 +459,8 @@ async def search_catalog(req: CatalogSearchRequest):
             context_actions.append("affinity_boost")
         if ctx.viewed_ids or ctx.purchased_ids:
             context_actions.append("viewed_penalty")
+    if _all_boost_rules:
+        context_actions.append("boost_rules")
 
     return {
         "items":                items,
