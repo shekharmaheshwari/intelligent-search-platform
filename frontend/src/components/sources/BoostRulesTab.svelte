@@ -16,16 +16,20 @@
 
   let rules: BoostRule[] = [];
   let fields: string[]   = [];
-  let loading  = true;
-  let saving   = false;
-  let error    = '';
-  let saveMsg  = '';
+  let loading   = true;
+  let saving    = false;
+  let error     = '';
+  let saveMsg   = '';
+  let searchQ   = '';
+  let editingLabelId: string | null = null;
+
+  $: filteredRules = searchQ.trim()
+    ? rules.filter(r => r.label.toLowerCase().includes(searchQ.toLowerCase()))
+    : rules;
 
   // Doc picker state — tracks which (ruleId, targetIdx) is being browsed.
   let pickerRuleId: string | null  = null;
   let pickerTargetIdx: number | null = null;
-  // title lookup: ruleId → targetIdx → title (populated when a doc is picked via Browse)
-  let pickerTitles: Record<string, Record<number, string>> = {};
 
   onMount(async () => {
     try {
@@ -106,11 +110,7 @@
   function onPickerSelect(e: CustomEvent<{ id: string; title: string }>): void {
     if (pickerRuleId === null || pickerTargetIdx === null) return;
     const { id, title } = e.detail;
-    updateCriterion(pickerRuleId, 'targets', pickerTargetIdx, { value: id });
-    pickerTitles = {
-      ...pickerTitles,
-      [pickerRuleId]: { ...(pickerTitles[pickerRuleId] ?? {}), [pickerTargetIdx]: title },
-    };
+    updateCriterion(pickerRuleId, 'targets', pickerTargetIdx, { value: id, _title: title });
     pickerRuleId    = null;
     pickerTargetIdx = null;
   }
@@ -120,8 +120,17 @@
     pickerTargetIdx = null;
   }
 
-  function getPickedTitle(ruleId: string, idx: number): string | null {
-    return pickerTitles[ruleId]?.[idx] ?? null;
+  function focusOnMount(node: HTMLElement): void {
+    node.focus();
+    (node as HTMLInputElement).select?.();
+  }
+
+  function startEditLabel(id: string): void {
+    editingLabelId = id;
+  }
+
+  function commitLabel(id: string): void {
+    if (editingLabelId === id) editingLabelId = null;
   }
 
   function ruleMode(rule: BoostRule): 'search' | 'browse' {
@@ -164,6 +173,21 @@
     </button>
   </div>
 
+  {#if !loading && rules.length > 0}
+    <div class="search-bar">
+      <span class="search-icon">⌕</span>
+      <input
+        class="search-input"
+        type="text"
+        placeholder="Search rules by name…"
+        bind:value={searchQ}
+      />
+      {#if searchQ}
+        <button class="search-clear" on:click={() => searchQ = ''}>✕</button>
+      {/if}
+    </div>
+  {/if}
+
   {#if error}
     <div class="alert-error">{error}</div>
   {/if}
@@ -176,19 +200,31 @@
       <button class="add-rule-btn" on:click={addRule}>+ Add rule block</button>
     </div>
   {:else}
+    {#if filteredRules.length === 0}
+      <p class="search-empty">No rules match "<strong>{searchQ}</strong>".</p>
+    {/if}
     <div class="rules-list">
-      {#each rules as rule (rule.id)}
+      {#each filteredRules as rule (rule.id)}
         <div class="rule-card" class:rule-disabled={!rule.enabled}>
 
           <!-- Rule header -->
           <div class="rule-head">
-            <input
-              class="rule-label-input"
-              type="text"
-              bind:value={rule.label}
-              placeholder="Rule name…"
-              on:input={() => updateRule(rule.id, { label: rule.label })}
-            />
+            {#if editingLabelId === rule.id}
+              <input
+                class="rule-label-input editing"
+                type="text"
+                bind:value={rule.label}
+                placeholder="Rule name…"
+                on:blur={() => commitLabel(rule.id)}
+                on:keydown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') commitLabel(rule.id); }}
+                use:focusOnMount
+              />
+            {:else}
+              <button class="rule-label-display" on:click={() => startEditLabel(rule.id)} title="Click to rename">
+                <span class="rule-label-text">{rule.label || 'Untitled rule'}</span>
+                <span class="rule-label-edit-icon">✎</span>
+              </button>
+            {/if}
             <span class="mode-badge" class:mode-search={ruleMode(rule) === 'search'}>
               {ruleMode(rule) === 'search' ? 'On search' : 'On browse'}
             </span>
@@ -287,12 +323,12 @@
                       {#if c.value}
                         <span class="id-chip">
                           <span class="id-chip-inner">
-                            {#if getPickedTitle(rule.id, idx)}
-                              <span class="id-chip-title">{getPickedTitle(rule.id, idx)}</span>
+                            {#if c._title}
+                              <span class="id-chip-title">{c._title}</span>
                             {/if}
                             <span class="id-chip-id">{c.value}</span>
                           </span>
-                          <button class="id-chip-clear" on:click={() => updateCriterion(rule.id, 'targets', idx, { value: '' })}>✕</button>
+                          <button class="id-chip-clear" on:click={() => updateCriterion(rule.id, 'targets', idx, { value: '', _title: undefined })}>✕</button>
                         </span>
                       {:else}
                         <span class="id-chip-empty">No document selected</span>
@@ -400,8 +436,48 @@
     padding: 10px 14px; border-bottom: 1px solid var(--border);
     background: var(--bg-3);
   }
-  .rule-label-input {
+  /* Search bar */
+  .search-bar {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px;
+  }
+  .search-icon { color: var(--text-5); font-size: 15px; flex-shrink: 0; }
+  .search-input {
     flex: 1; background: transparent; border: none; font-size: 13px;
+    color: var(--text); font-family: inherit;
+  }
+  .search-input:focus { outline: none; }
+  .search-input::placeholder { color: var(--text-5); }
+  .search-clear {
+    background: none; border: none; color: var(--text-5); cursor: pointer;
+    font-size: 11px; padding: 2px 4px; flex-shrink: 0; line-height: 1;
+  }
+  .search-clear:hover { color: var(--text); }
+  .search-empty { font-size: 13px; color: var(--text-5); }
+  .search-empty strong { color: var(--text-4); }
+
+  /* Rule label — click to edit */
+  .rule-label-display {
+    flex: 1; background: none; border: none; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    padding: 2px 4px; border-radius: 4px; min-width: 0;
+    text-align: left;
+  }
+  .rule-label-display:hover { background: rgba(124,108,244,.08); }
+  .rule-label-text {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .rule-label-edit-icon {
+    font-size: 11px; color: var(--text-5); opacity: 0; flex-shrink: 0;
+    transition: opacity 0.1s;
+  }
+  .rule-label-display:hover .rule-label-edit-icon { opacity: 1; }
+
+  .rule-label-input {
+    flex: 1; background: var(--bg-2); border: 1px solid var(--accent);
+    border-radius: 4px; padding: 3px 7px; font-size: 13px;
     font-weight: 600; color: var(--text); font-family: inherit;
   }
   .rule-label-input:focus { outline: none; }
