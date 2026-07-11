@@ -144,24 +144,34 @@ def _rrf_search(
     all_docs: dict[str, dict] = {}
 
     if vec:
-        # Results alternate: lex, sem, lex, sem, …
+        # Results alternate: lex, sem, lex, sem, … — pairs map to collections[i // 2]
         for i in range(0, len(results), 2):
-            lex_res = results[i] if i < len(results) else {}
-            sem_res = results[i + 1] if i + 1 < len(results) else {}
+            col_idx  = i // 2
+            index_id = collections[col_idx][4:] if col_idx < len(collections) else ""
+            lex_res  = results[i] if i < len(results) else {}
+            sem_res  = results[i + 1] if i + 1 < len(results) else {}
             for rank, h in enumerate(lex_res.get("hits", [])):
                 did = h["document"]["id"]
                 scores[did] = scores.get(did, 0) + 0.7 / (K + rank + 1)
-                all_docs[did] = h["document"]
+                doc = h["document"]
+                doc["_index_id"] = index_id
+                all_docs[did] = doc
             for rank, h in enumerate(sem_res.get("hits", [])):
                 did = h["document"]["id"]
                 scores[did] = scores.get(did, 0) + 0.3 / (K + rank + 1)
-                all_docs[did] = h["document"]
+                doc = h["document"]
+                doc.setdefault("_index_id", index_id)
+                all_docs[did] = doc
     else:
-        for res in results:
+        # One result per collection in the same order as collections list
+        for col_idx, res in enumerate(results):
+            index_id = collections[col_idx][4:] if col_idx < len(collections) else ""
             for rank, h in enumerate(res.get("hits", [])):
                 did = h["document"]["id"]
                 scores[did] = scores.get(did, 0) + 0.7 / (K + rank + 1)
-                all_docs[did] = h["document"]
+                doc = h["document"]
+                doc.setdefault("_index_id", index_id)
+                all_docs[did] = doc
 
     # Editorial boosts applied after RRF merge.
     # is_featured: large fixed bonus that overrides pure relevance order.
@@ -348,29 +358,54 @@ async def search_catalog(req: CatalogSearchRequest):
 
     collections = _get_isp_collections()
 
+    # Load per-index affinity dimension configs once — used to apply the right
+    # dims to each doc in the ctx_hook based on which index the doc came from.
+    from isp.services.domain.index_service import list_indexes
+    _all_metas   = await list_indexes()
+    _dims_by_idx: dict[str, list[dict]] = {
+        m.id: m.affinity_dimensions or []
+        for m in _all_metas
+        if not m.is_external
+    }
+    # Union of all dims across indexes — used to build ctx.affinities so the
+    # affinity map covers every field any index might need during the hook.
+    _seen: set[str] = set()
+    _union_dims: list[dict] = []
+    for _dims in _dims_by_idx.values():
+        for _d in _dims:
+            if _d["field"] not in _seen and _d.get("enabled", True):
+                _seen.add(_d["field"])
+                _union_dims.append(_d)
+
     # Build customer context from action history — each feature can be toggled
     # independently for A/B testing via Settings → Customer Context.
     ctx: SearchContext | None = None
     ctx_hook = None
     if req.action_history and get_customer_context_enabled():
-        ctx = build_context([a.model_dump() for a in req.action_history])
+        ctx = build_context(
+            [a.model_dump() for a in req.action_history],
+            affinity_dims=_union_dims or None,
+        )
 
-        _apply_affinity = get_cc_affinity_boost_enabled()
-        _apply_penalty  = get_cc_viewed_penalty_enabled()
+        # All personalisation signals apply only when browsing (no query).
+        # Explicit search expresses intent that must not be overridden by prior behaviour.
+        _apply_affinity = get_cc_affinity_boost_enabled() and not req.q.strip()
+        _apply_penalty  = get_cc_viewed_penalty_enabled()  and not req.q.strip()
 
         if _apply_affinity or _apply_penalty:
             def ctx_hook(scores: dict, all_docs: dict) -> None:
                 for did, doc in all_docs.items():
+                    index_dims = _dims_by_idx.get(doc.get("_index_id", ""), []) if _apply_affinity else []
                     scores[did] = scores.get(did, 0.0) + context_boost(
                         doc, ctx,
-                        apply_affinity=_apply_affinity,
+                        affinity_dims=index_dims,
                         apply_viewed_penalty=_apply_penalty,
                     )
 
     vec = None
     if req.search_mode in ("semantic", "hybrid") and req.q.strip():
         vec = await embedding_service.embed_query(req.q)
-        if ctx and ctx.vector_seed_ids and vec and get_cc_vector_blending_enabled():
+        if ctx and ctx.vector_seed_ids and vec and get_cc_vector_blending_enabled() and not req.q.strip():
             vec = await fetch_preference_vector(ctx, collections, vec)
 
     result = _rrf_search(collections, req.q, vec, filter_by, req.page, req.per_page,
@@ -397,8 +432,10 @@ async def search_catalog(req: CatalogSearchRequest):
     if ctx:
         if ctx.vector_seed_ids:
             context_actions.append("preference_vector_blend")
-        if ctx.category_affinity or ctx.manufacturer_affinity:
+        if ctx.affinities:
             context_actions.append("affinity_boost")
+        if ctx.viewed_ids or ctx.purchased_ids:
+            context_actions.append("viewed_penalty")
 
     return {
         "items":                items,

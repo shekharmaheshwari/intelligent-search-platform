@@ -6,7 +6,7 @@ and the public content API.  ``SearchRequest`` is the POST body accepted by
 every ``/search`` endpoint.
 """
 from __future__ import annotations
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CustomerAction(BaseModel):
@@ -24,7 +24,13 @@ class CustomerAction(BaseModel):
       - ``view``     (1×) — browsing signal
       - ``search``   (0.5×) — query intent (no product chosen yet)
       - ``category`` (0.3×) — broad interest signal
+
+    Extra fields beyond the declared ones are preserved so any index-specific
+    affinity dimension (e.g. form_factor, os_family, price_tier) passes through
+    to ``build_context`` without requiring schema changes here.
     """
+    model_config = ConfigDict(extra="allow")
+
     type:         str         = "view"
     item_id:      str | None  = None   # Typesense doc id — used for vector blending
     item_type:    str | None  = None   # "device" | "accessory"

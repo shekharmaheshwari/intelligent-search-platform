@@ -82,6 +82,17 @@ function transform(doc) {
   var manufacturer = slugify(doc.manufacturer || doc.brand || '');
   var osName       = doc.operatingSystem || '';
   var display      = doc.familyName || doc.name || doc.title || doc.display || '';
+
+  // Derive form_factor from display name (devices only).
+  // Source APIs rarely expose this field directly so we infer it from keywords.
+  // fold checked before flip/razr so "razr fold" resolves to fold, not flip.
+  var form_factor = '';
+  if (type === 'device') {
+    var tl = display.toLowerCase();
+    if      (tl.indexOf('fold') >= 0)                               form_factor = 'fold';
+    else if (tl.indexOf('flip') >= 0 || tl.indexOf('razr') >= 0)   form_factor = 'flip';
+    else                                                             form_factor = 'standard';
+  }
   var rank         = parseInt(doc.deviceRank || doc.rank || '999', 10);
   var rawId        = doc.familyCode || doc.sku || doc.id || '';
   var urlSlug      = doc.urlEncodedFamilyName || doc.urlName || doc.url_name || '';
@@ -124,6 +135,7 @@ function transform(doc) {
     url_name:         urlSlug,
     manufacturer:     manufacturer,
     operating_system: osName,
+    form_factor:      form_factor,
     category:         category,
     price:            price,
     in_stock:         inStock,
