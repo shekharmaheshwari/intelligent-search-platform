@@ -24,7 +24,7 @@
   const tabs: Array<'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules'> =
     ['overview', 'connector', 'mapping', 'documents', 'search', 'api', 'suggestions', 'personalisation', 'boost-rules'];
 
-  const dispatch = createEventDispatcher<{ back: void }>();
+  const dispatch = createEventDispatcher<{ back: void; tabchange: typeof tab }>();
 
   let meta: Index | null             = null;
   let status: IngestStatus | null    = null;
@@ -77,7 +77,7 @@
 
     <div class="tabs">
       {#each tabs as t}
-        <button class:active={tab === t} on:click={() => tab = t}>
+        <button class:active={tab === t} on:click={() => { tab = t; dispatch('tabchange', t); }}>
           {t === 'boost-rules' ? 'Boost Rules' : t.charAt(0).toUpperCase() + t.slice(1)}
         </button>
       {/each}
