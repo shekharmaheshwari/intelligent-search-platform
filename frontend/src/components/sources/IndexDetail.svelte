@@ -6,21 +6,22 @@
   import type { EmbedModelOption } from '../../lib/types';
   import { fmtDate } from './IndexDetail.helpers';
 
-  import OverviewTab        from './OverviewTab.svelte';
-  import RestConnectorTab   from './RestConnectorTab.svelte';
-  import SitemapConnectorTab from './SitemapConnectorTab.svelte';
-  import GSheetConnectorTab from './GSheetConnectorTab.svelte';
-  import DocumentTable      from './DocumentTable.svelte';
-  import SearchPanel        from './SearchPanel.svelte';
-  import ApiPanel           from './ApiPanel.svelte';
-  import SuggestionsTab     from './SuggestionsTab.svelte';
-  import MappingTab         from './MappingTab.svelte';
+  import OverviewTab              from './OverviewTab.svelte';
+  import RestConnectorTab         from './RestConnectorTab.svelte';
+  import SitemapConnectorTab      from './SitemapConnectorTab.svelte';
+  import GSheetConnectorTab       from './GSheetConnectorTab.svelte';
+  import DocumentTable            from './DocumentTable.svelte';
+  import SearchPanel              from './SearchPanel.svelte';
+  import ApiPanel                 from './ApiPanel.svelte';
+  import SuggestionsTab           from './SuggestionsTab.svelte';
+  import MappingTab               from './MappingTab.svelte';
+  import AffinityDimensionsPanel  from './AffinityDimensionsPanel.svelte';
 
   export let indexId: string;
-  export let tab: 'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' = 'overview';
+  export let tab: 'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' = 'overview';
 
-  const tabs: Array<'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions'> =
-    ['overview', 'connector', 'mapping', 'documents', 'search', 'api', 'suggestions'];
+  const tabs: Array<'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation'> =
+    ['overview', 'connector', 'mapping', 'documents', 'search', 'api', 'suggestions', 'personalisation'];
 
   const dispatch = createEventDispatcher<{ back: void }>();
 
@@ -116,6 +117,9 @@
 
       {:else if tab === 'suggestions'}
         <SuggestionsTab {indexId} category={meta.intentLabel ?? undefined} />
+
+      {:else if tab === 'personalisation'}
+        <AffinityDimensionsPanel {indexId} />
       {/if}
     </div>
   {/if}

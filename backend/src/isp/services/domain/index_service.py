@@ -10,6 +10,7 @@ from __future__ import annotations
 import json, re, time, uuid
 from isp.models import IndexMeta, IngestStatus
 from isp.services.infra.database import get_pool
+from isp.services.domain.viewed_item_policy import migrate as _migrate_policy
 
 
 def _slugify(name: str) -> str:
@@ -72,11 +73,19 @@ def _row_to_meta(row: dict) -> IndexMeta:
         external_query_by=row["external_query_by"] or "display",
         external_title_field=row["external_title_field"] or "display",
         external_url_field=row["external_url_field"] or "",
-        # embed_model / version_boost / intent_label / slug added via ALTER TABLE; older rows may be NULL
+        # embed_model / version_boost / intent_label / slug / affinity_dimensions added via ALTER TABLE; older rows may be NULL
         embed_model=row.get("embed_model") or "",
         version_boost=bool(row.get("version_boost") or False),
         intent_label=row.get("intent_label") or "",
         slug=row.get("slug") or "",
+        affinity_dimensions=json.loads(row["affinity_dimensions"])
+            if isinstance(row.get("affinity_dimensions"), str)
+            else (row.get("affinity_dimensions") or []),
+        viewed_item_policy=_migrate_policy(
+            json.loads(row["viewed_item_policy"])
+            if isinstance(row.get("viewed_item_policy"), str)
+            else row.get("viewed_item_policy")
+        ),
     )
 
 
@@ -219,6 +228,26 @@ async def set_version_boost(idx_id: str, enabled: bool) -> None:
         await conn.execute(
             "UPDATE indexes SET version_boost = $1 WHERE id = $2",
             enabled, idx_id,
+        )
+
+
+async def set_affinity_dimensions(idx_id: str, dims: list[dict]) -> None:
+    """Persist the affinity dimension config for an index."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET affinity_dimensions = $1 WHERE id = $2",
+            json.dumps(dims), idx_id,
+        )
+
+
+async def set_viewed_item_policy(idx_id: str, policy: dict) -> None:
+    """Persist the viewed item policy for an index."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET viewed_item_policy = $1 WHERE id = $2",
+            json.dumps(policy), idx_id,
         )
 
 

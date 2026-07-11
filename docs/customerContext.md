@@ -37,14 +37,15 @@ ISP Public Search API  (POST /v1/indexes/{id}/search/public  or  POST /v1/catalo
   │       RRF (BM25 0.7  +  semantic 0.3)
   │       editorial boosts: is_featured, popularity, boost_queries
   │       post_rrf_hook: context affinity boosts
-  │             ├── +0.20 × category affinity
-  │             ├── +0.15 × manufacturer affinity
-  │             ├── +0.10 × source_type affinity
-  │             └── -0.05  already-viewed demotion
+  │             ├── per-index affinity dimensions (cardinality-scaled boost × affinity score)
+  │             │       e.g. manufacturer +0.14, form_factor +0.10, os_family +0.09
+  │             └── viewed item sub-policy (configurable per index, per interaction type)
+  │                     viewed-not-purchased: penalise | neutral | boost  (default −0.05)
+  │                     purchased (durable):  penalise | neutral | boost  (default −0.30)
   │
   └── typesense_client.search_documents()       (lexical — empty query / browse)
-          fetch 250-item batch, rank-score each hit (1 / K+rank)
-          post_rrf_hook: same affinity boosts as above
+          fetch up to 4×250=1000 docs when affinity context present
+          post_rrf_hook: same per-index affinity boosts + viewed item sub-policy
           re-paginate to requested page after hook re-sorts
 ```
 
@@ -56,14 +57,28 @@ Every customer interaction is represented as a `CustomerAction` object.
 
 ```typescript
 interface CustomerAction {
-  type:          'view' | 'cart' | 'purchase' | 'search' | 'category';
+  // ── Core fields (all index types) ──────────────────────────────────
+  type:          'view' | 'click' | 'cart' | 'purchase' | 'search'
+               | 'category' | 'filter_apply' | 'dwell' | 'wishlist'
+               | 'scroll_past' | 'page_view' | 'task_success';
   item_id?:      string;   // Typesense doc id — used for preference vector seeding
-  item_type?:    string;   // "device" | "accessory"
-  category?:     string;   // product category (e.g. "smartphones")
-  manufacturer?: string;   // brand (e.g. "Samsung")
+  item_type?:    string;   // "device" | "accessory" | "sitemap"
   query?:        string;   // past search query (type="search" only)
   timestamp?:    number;   // Unix ms — used for time-decay weighting
   weight?:       number;   // caller-supplied multiplier (default 1.0)
+
+  // ── Product catalog fields (Phones, Accessories, Tablets, Watches) ──
+  category?:     string;   // product category (e.g. "smartphones", "cases-&-covers")
+  manufacturer?: string;   // brand (e.g. "Samsung", "Apple")
+  form_factor?:  string;   // "standard" | "fold" | "flip" | "tablet" | "watch"
+  price_tier?:   string;   // "budget" (<$30) | "mid" ($30–$80) | "premium" (>$80)
+  compatible_device?: string; // e.g. "iphone-17-pro-max" — from metadata.compatible_devices
+  os_family?:    string;   // "ios" | "android" — derived from compatible_device
+
+  // ── Content / sitemap fields (Account, Support, Help) ──────────────
+  page_section?: string;   // topic extracted from URL path (e.g. "billing", "network")
+  content_type?: string;   // "faq" | "guide" | "policy" | "tool" | "contact"
+  topic?:        string;   // fine-grained topic tag (e.g. "port-in", "roaming", "esim")
 }
 ```
 
@@ -75,17 +90,113 @@ interface CustomerAction {
 | `search` | Submitting a search query | `query`, `timestamp` |
 | `category` | Clicking a tab (Phones / Accessories / …) | `category`, `timestamp` |
 
-### Planned event sources
+### Planned event sources — product catalog
 
-| Event | Trigger point | Extra value |
+| Event | Payload | Signal strength | Trigger point | What it tells you |
+|---|---|---|---|---|
+| `click` | `item_id`, `query`, `rank` | ★★★★ | Selecting a search result | Strong intent — user chose this result; position bias correctable |
+| `add_to_cart` | `item_id`, `price` | ★★★★★ | Add-to-cart button | Purchase intent |
+| `purchase` | `item_id`, `price` | ★★★★★ | Order confirmation | Ground truth — strongest preference signal |
+| `wishlist` | `item_id` | ★★★ | Save / favourite | Durable long-term interest |
+| `dwell` | `item_id`, `seconds` | ★★★ | Time-on-modal > 15 s | Engagement depth — genuine interest vs accidental click |
+| `filter_apply` | `filter_type`, `value` | ★★★ | User sets a filter | Explicit preference ("filter by Samsung") |
+| `tab_switch` | `from_tab`, `to_tab`, `query` | ★★ | Tab change mid-session | Cross-category intent (phones → accessories) |
+| `scroll_past` | `item_id` | ★ (negative) | Item visible < 2 s | Mild negative — suppress similar items |
+| `price_filter` | `price_tier` | ★★ | Price range filter applied | Infers budget segment |
+| `oos_skip` | — | ★ | Out-of-stock item ignored | Informs stock-sensitivity |
+
+### Planned event sources — product catalog: richer `view` fields
+
+The `view` event already works. Enriching it with five more fields adds high-value dimensions without a new event type:
+
+| New field | Example values | How to derive | New affinity dimension |
+|---|---|---|---|
+| `form_factor` | `"fold"`, `"flip"`, `"standard"`, `"tablet"`, `"watch"` | `metadata.form_factor` already in Typesense doc | `form_factor_affinity` — boost fold accessories when user views fold phones |
+| `price_tier` | `"budget"`, `"mid"`, `"premium"` | Derived at log time: <$30 / $30–$80 / >$80 | `price_tier_affinity` — soft budget personalisation without hard filters |
+| `sub_category` | `"folio-case"`, `"wallet-case"`, `"rugged-case"` | `metadata.sub_category` or title NLP | Sub-category affinity within broad category |
+| `compatible_device` | `"iphone-17-pro-max"` | First entry of `metadata.compatible_devices[]` | `compatible_device_affinity` — boost accessories for most-viewed device |
+| `os_family` | `"ios"`, `"android"` | Derived from `compatible_device` slug | Folds into `compatible_device_affinity` |
+
+### Planned event sources — account and support (sitemap indexes)
+
+Content indexes (Account GSheet, Support sitemap) are fundamentally different from product catalogs: the user has a **task to complete**, not a purchase to make. The right signals are task-topic affinity and task success, not manufacturer or price tier.
+
+| Event | Trigger point | Key fields | What it tells you |
+|---|---|---|---|
+| `page_view` | Opening an account/support page | `item_id`, `item_type: "sitemap"`, `page_section`, `content_type`, `topic`, `timestamp` | Which topic/task domain the user needs help with |
+| `task_success` | User does not return to search within 90 s of opening a page | `item_id`, `page_section` | The page resolved their need — positive reinforcement for topic affinity |
+| `search` | Query submitted on account/support tab | `query`, `timestamp` | Same as catalog; also feeds query classification |
+| `scroll_past` | Help page visible < 3 s | `item_id`, `page_section` | Page didn't match — mild negative signal for that topic/content type |
+
+`page_section` is extracted from the URL path at log time:
+
+```typescript
+// e.g. /support/billing/pay-bill  →  "billing"
+//      /account/network/roaming   →  "network"
+//      /help/esim-setup           →  "esim"
+function extractSection(url: string): string {
+  const parts = new URL(url).pathname.split('/').filter(Boolean);
+  return parts[1] ?? parts[0] ?? 'general';
+}
+```
+
+`content_type` is inferred from URL patterns or the `og:type` meta tag (promotable via `meta_fields` in sitemap connector config):
+
+| URL pattern | `content_type` |
+|---|---|
+| `/faq/…`, `?type=faq` | `"faq"` |
+| `/how-to/…`, `/guide/…` | `"guide"` |
+| `/legal/…`, `/terms/…`, `/privacy/…` | `"policy"` |
+| `/my-account/…`, `/dashboard/…` | `"tool"` |
+| `/contact/…`, `/chat/…` | `"contact"` |
+
+### How account/support affinity differs from product affinity
+
+| Dimension | Product catalog | Account / Support |
 |---|---|---|
-| `cart` | Add-to-cart button | Stronger purchase intent than view |
-| `purchase` | Order confirmation page | Strongest signal; suppresses re-showing same item |
-| `wishlist` | Save / favourite action | Durable long-term interest |
-| `dwell` | Time-on-page > threshold | Differentiates genuine interest from accidental click |
-| `scroll_past` | Item visible but scrolled away quickly | Negative signal — mild demotion |
-| `price_filter` | User applies a price range filter | Infers budget segment |
-| `oos_skip` | Out-of-stock item ignored | Informs stock-sensitivity |
+| Primary affinity key | `category` (e.g. "cases-&-covers") | `page_section` (e.g. "billing") |
+| Secondary affinity key | `manufacturer` (e.g. "Samsung") | `content_type` (e.g. "guide") |
+| Tertiary key | `form_factor` | `topic` (e.g. "port-in") |
+| Preference vector seeding | Viewed-item embeddings → steers to similar products | Viewed-page embeddings → steers to semantically related help pages |
+| Negative signal | Already-viewed products (demotion) | Already-resolved tasks (soft demotion — don't resurface closed problems) |
+| No analogue | price_tier, compatible_device, os_family | — |
+
+The `context_service.build_context()` function would need a branch on `item_type` to route `page_section`/`content_type` into a separate affinity map rather than mixing them into `category_affinity` alongside product categories.
+
+### Derived / computed signals (server-side, all indexes)
+
+These are not logged as events — computed from `action_history` inside `context_service.build_context()` at query time:
+
+| Signal | How | Use |
+|---|---|---|
+| **Price sensitivity** | Mean price of viewed / clicked items | Boost cheaper or pricier results proportionally |
+| **Brand affinity** | Frequency of `manufacturer` in views + clicks | `context_boost()` already does this — extend to sub-brand level |
+| **Form factor preference** | Most-viewed `form_factor` value | Boost fold accessories when user repeatedly views fold phones |
+| **Recency decay** | `score × exp(−λ × age_hours)` | Recent actions matter more than a 2-week-old view |
+| **Cross-category intent** | `tab_switch` from phones → accessories within same session | Infer "shopping for accessories for a phone they just browsed" |
+
+### Session-level context (in-memory, not persisted)
+
+Derived within a single session from the raw event stream — no `localStorage` write, cleared when session ends:
+
+| Signal | What it captures |
+|---|---|
+| `session_query_chain` | All queries in this session — detect refinement ("iphone case" → "iphone 17 pro max folio case") |
+| `device_candidate` | If user viewed a specific phone model, infer they need accessories for it |
+| `category_pivot` | Sequence of tab switches to infer current shopping mode |
+
+### Query classification (all index types, future)
+
+Classifying the search query intent before applying personalisation lets the system scale context boosts appropriately:
+
+| Intent class | Example queries | Context response |
+|---|---|---|
+| `navigational` | "my account", "port-in dashboard", "pay bill" | Link-mode suggestions; skip product affinity boosts |
+| `informational` | "how do i set up esim", "what is roaming" | Boost guide/faq `content_type`; prefer `task_success` history |
+| `transactional` | "iphone 17 case", "buy samsung charger" | Full product affinity + preference vector blend |
+| `support` | "my phone won't connect", "network outage" | Boost `page_section: "network"` and `content_type: "tool"` or `"contact"` |
+
+Classification can be rule-based (keyword lists) initially and replaced with a lightweight classifier later.
 
 ---
 
@@ -444,12 +555,97 @@ Applied **after** RRF merge and editorial boosts, before final page slice.  Thes
 
 | Signal | Boost | Applied when |
 |---|---|---|
-| Category match | +0.20 × affinity | `metadata.category` matches a category in `category_affinity` |
-| Manufacturer match | +0.15 × affinity | `metadata.manufacturer` matches `manufacturer_affinity` |
-| Source type match | +0.10 × affinity | `source_type` matches `type_affinity` (device/accessory) |
-| Already viewed | −0.05 | Doc id is in `viewed_ids` — surfaces variety |
+| Per-index affinity dimension | `dim.boost × affinity_score` | Doc's value for `dim.field` appears in the customer's affinity map; `dim.boost` is derived from cardinality at rebuild time |
+| Viewed (not purchased) | configurable — penalise / neutral / boost (default −0.05) | Doc id is in `viewed_ids` but not `purchased_ids` — active interest, need unfulfilled |
+| Purchased (durable good) | configurable — penalise / neutral / boost (default −0.30) | Doc id is in `purchased_ids` — need fulfilled; purchase supersedes view |
 
-All affinity values are normalised to [0,1] so maximum total boost is `+0.45`.  Editorial boosts (`is_featured` +0.5, `popularity` ≤ +0.5) are larger — a featured item stays featured even for a customer with no category affinity.
+Affinity values are normalised to [0, 1] so the top affinity value in each dimension always equals 1.0 and everything else is proportional.  Dimension boost magnitudes are derived automatically from cardinality at rebuild time (see Affinity Dimension Discovery below).  Editorial boosts (`is_featured` +0.5, `popularity` ≤ +0.5) are larger — a featured item stays featured even for a customer with no category affinity.
+
+---
+
+## Per-index affinity dimension discovery
+
+ISP automatically discovers which document fields are useful for personalisation at rebuild time.  Rather than hard-coding `category`, `manufacturer`, and `source_type`, the system scans a sample of indexed documents for every ISP-managed (non-external) index and identifies **low-cardinality string fields** — fields with 2–50 distinct values — that can meaningfully differentiate customer preferences.
+
+### Discovery algorithm
+
+After every rebuild, `_discover_affinity_dimensions()` in `index_service.py`:
+
+1. Fetches a random sample of up to 500 documents from the Typesense collection.
+2. Iterates over every top-level string field on each document (excluding `id`, `title`, `content`, `url`, and `metadata`).
+3. Counts distinct values per field.  Fields with fewer than 2 or more than 50 distinct values are excluded — too few means no differentiation, too many means near-unique identifiers.
+4. Assigns an automatic boost weight using the cardinality formula:
+
+```
+boost = round( max(0.05, min(0.20, 0.28 / sqrt(num_distinct))), 2 )
+```
+
+| Distinct values | `sqrt(n)` | Raw `0.28/√n` | Clamped boost |
+|---|---|---|---|
+| 2 (e.g. os_family: ios/android) | 1.41 | 0.198 | **+0.20** |
+| 4 (e.g. form_factor: standard/fold/flip/handset) | 2.00 | 0.140 | **+0.14** |
+| 8 (e.g. manufacturer: 8 brands) | 2.83 | 0.099 | **+0.10** |
+| 16 (e.g. price_tier + sub-categories) | 4.00 | 0.070 | **+0.07** |
+| 50 (maximum) | 7.07 | 0.040 | **+0.05** (floor) |
+
+> *Rationale:* a field with 2 values (e.g. `os_family: ios/android`) divides the product space almost in half — knowing the customer prefers iOS is highly discriminating.  A field with 50 values carries weaker per-value signal.  The `1/√n` shape is borrowed from IDF's logarithmic damping principle (**Robertson & Spärck Jones, 1976**): rare distinctions are more informative than common ones, so lower-cardinality dimensions earn a larger boost coefficient.
+
+### Persistence and UI
+
+Discovered dimensions are stored in the `indexes.affinity_dimensions` JSONB column and exposed via:
+
+- **API:** `GET /v1/indexes/{id}/affinity-dimensions` — returns `{ dimensions, viewed_item_policy }`
+- **UI:** Personalisation tab in Index Detail view — each dimension shown with its field name, inferred label, boost value, enabled/disabled toggle, and sample values.  Dimensions can be individually disabled without triggering a rebuild; the change takes effect on the next search request.
+
+### `CustomerAction` extra fields
+
+For affinity dimensions to work end-to-end the PLP must pass the relevant field values in each action.  The backend `CustomerAction` Pydantic model uses `model_config = ConfigDict(extra="allow")` so arbitrary field names (e.g. `form_factor`, `os_family`, `price_tier`) pass through without being stripped — any field present in both the action and the index's discovered dimensions contributes to the affinity map.
+
+---
+
+## Viewed item sub-policy
+
+### Why purchased and viewed-not-purchased need different treatment
+
+Naively applying the same score adjustment to every previously-seen item ignores a critical distinction in user intent:
+
+- **Viewed, not purchased** — the customer showed active interest but has not yet converted.  The need is *unfulfilled*.  Re-surfacing this item in subsequent results is likely to accelerate conversion.  Boosting (or at least not penalising) it is the right default.
+- **Purchased (durable good)** — the customer completed a transaction.  The need is *fulfilled*.  For durable goods (phones, headphones, cases), re-showing the same item repeatedly creates a poor experience and wastes ranking budget on a zero-conversion candidate.  A stronger penalisation is appropriate.
+
+> *Research backing — three converging perspectives:*
+>
+> **Hu, Koren & Volinsky (2008)** differentiate implicit feedback by confidence level: purchase is a near-certain preference signal; a view is a lower-confidence proxy.  Treating them identically discards this confidence information.  The split sub-policy directly encodes their finding that signals of different strengths require different weighting.
+>
+> **Linden, Smith & York (2003)** describe Amazon's item-to-item collaborative filtering, which uses *purchase* as the primary interaction signal and treats browsing as a secondary, weaker signal.  Amazon's operational recommendation system separates the two precisely because a purchase closes the loop — the recommendation objective switches from "help them find it" to "help them discover what's next."
+>
+> **Covington, Adams & Sargin (2016)** (YouTube's production recommender) introduce the concept of *impression satiation*: items the user has already been served (but not engaged with) are explicitly suppressed in subsequent ranking passes, while items the user *did* engage with deeply are positively reinforced.  For durable goods, a completed purchase is the strongest satiation signal; the high purchased-penalisation (−0.30 default) operationalises their satiation penalty.
+
+### Implementation
+
+Configured per index as a JSONB object in `indexes.viewed_item_policy`:
+
+```json
+{
+  "viewed":    { "mode": "boost",    "value": 0.05 },
+  "purchased": { "mode": "penalise", "value": 0.30 }
+}
+```
+
+Each sub-policy has three modes:
+
+| Mode | Score delta | When to use |
+|---|---|---|
+| `penalise` | `−value` | Suppress re-surfacing (default for purchased; optional for viewed) |
+| `neutral` | `0` | No adjustment — use when repetition is harmless (e.g. consumables) |
+| `boost` | `+value` | Surface viewed-not-purchased items more aggressively to drive conversion |
+
+**Purchase supersedes view:** if the same `item_id` appears in both view and purchase actions, `build_context()` moves it out of `viewed_ids` into `purchased_ids`.  Only the `purchased` sub-policy fires.
+
+**Backward compatibility:** old flat format rows (`{"mode": "penalise", "value": 0.05}`) are transparently migrated to the nested format by `viewed_item_policy.migrate()` at read time — no SQL migration required.
+
+### Configuring the sub-policy
+
+In the ISP UI: open the index's **Personalisation tab** → "Item Interaction Behaviour" panel.  Each sub-policy has a 3-radio mode selector (Penalise / Neutral / Boost) and a numeric value input.  Save writes to `PUT /v1/indexes/{id}/affinity-dimensions` with the updated `viewed_item_policy` payload.
 
 ---
 
@@ -518,25 +714,27 @@ type_affinity = {
 For each document in the result set, `context_boost()` looks up the document's `metadata.manufacturer`, `metadata.category`, and `source_type` in the affinity maps and adds:
 
 ```
-boost = 0.20 × category_affinity.get(doc_cat,  0)
-      + 0.15 × manufacturer_affinity.get(doc_mfr, 0)
-      + 0.10 × type_affinity.get(doc_type, 0)
-      − 0.05  (if doc.id is in viewed_ids)
+boost = Σ ( dim.boost × affinity[dim.field].get(doc_value, 0) )
+          for each enabled dim in index.affinity_dimensions
+      + viewed_sub_policy.adjustment   (if doc.id ∈ viewed_ids but not purchased_ids)
+      + purchased_sub_policy.adjustment (if doc.id ∈ purchased_ids)
 ```
 
-> *Mathematical basis:* additive score combination after a primary retrieval pass is the standard field-boosting pattern in IR; the coefficients (0.20, 0.15, 0.10) are analogous to **field weights** in BM25F (**Robertson et al., 2004**).  The viewed-item demotion (−0.05) follows the **novelty / diversity** principle formalised in **Clarke et al. (2008)** — surfacing variety in ranked lists is beneficial when the user has already seen an item.
+Where `adjustment = +value` (boost mode), `−value` (penalise mode), or `0` (neutral mode).
 
-**Example scores for documents in the result set:**
+> *Mathematical basis:* additive score combination after a primary retrieval pass is the standard field-boosting pattern in IR; the per-dimension coefficients derived from cardinality are analogous to **field weights** in BM25F (**Robertson et al., 2004**).  The viewed-item and purchased-item adjustments follow the **novelty / diversity** principle formalised in **Clarke et al. (2008)** — surfacing variety in ranked lists is beneficial when the user has already seen an item — extended to separately model fulfillment state per **Hu, Koren & Volinsky (2008)**, **Linden, Smith & York (2003)**, and **Covington, Adams & Sargin (2016)**.
 
-| Document | category_boost | manufacturer_boost | type_boost | total |
-|---|---|---|---|---|
-| Samsung Galaxy Buds 3 (earbuds, Samsung, accessory) | 0.20×1.00 = +0.20 | 0.15×1.00 = +0.15 | 0.10×1.00 = +0.10 | **+0.45** |
-| Apple AirPods 4 (earbuds, Apple, accessory) | 0.20×1.00 = +0.20 | 0.15×0.00 = 0 | 0.10×1.00 = +0.10 | **+0.30** |
-| Samsung Galaxy S25 (smartphones, Samsung, device) | 0.20×0.33 = +0.07 | 0.15×1.00 = +0.15 | 0.10×0.67 = +0.07 | **+0.29** |
-| Sony WH-1000XM6 (headphones, Sony, accessory) | 0.20×0.00 = 0 | 0.15×0.00 = 0 | 0.10×1.00 = +0.10 | **+0.10** |
-| Samsung Galaxy Buds 3 (if already viewed) | +0.20 + 0.15 + 0.10 − 0.05 | | | **+0.40** |
+**Example scores for documents in the result set** (Phones index — manufacturer boost 0.14, form_factor boost 0.10, os_family boost 0.20; viewed sub-policy: boost +0.05, purchased sub-policy: penalise −0.30):
 
-The boost is added to the RRF score (which is typically 0.02–0.06 range).  +0.45 is large enough to move an item 5–10 positions up a page but cannot beat an `is_featured` item (+0.5 fixed).
+| Document | manufacturer | form_factor | os_family | viewed/purchased | total |
+|---|---|---|---|---|---|
+| Samsung Galaxy S25 (Samsung, standard, android) | 0.14×1.00 = +0.14 | 0.10×1.00 = +0.10 | 0.20×1.00 = +0.20 | — | **+0.44** |
+| Samsung Galaxy Z Flip (Samsung, flip, android) | +0.14 | 0.10×1.00 = +0.10 | +0.20 | — | **+0.44** |
+| iPhone Air (Apple, standard, ios) | 0.14×0.33 = +0.05 | +0.10 | 0.20×0.33 = +0.07 | viewed: +0.05 | **+0.27** |
+| iPhone Air (viewed again — viewed sub-policy boost) | +0.05 | +0.10 | +0.07 | viewed: **+0.05** | **+0.27** |
+| iPhone 17 (purchased) | +0.05 | +0.10 | +0.07 | purchased: **−0.30** | **−0.08** |
+
+The boost is added to the RRF base score (typically 0.01–0.06).  A viewed Apple phone rises above unviewed Apple phones by the viewed sub-policy value; a purchased iPhone sinks below unviewed ones by the purchased sub-policy penalty.
 
 ### What affinity is NOT
 
@@ -551,14 +749,16 @@ The algorithm is deliberately simple — a weighted frequency table — because 
 
 ## Operator controls
 
-ISP exposes four independent feature flags in **Settings → Personalisation tab**.  All flags are cached in memory at module level — there is no database round-trip per search request.
+### Global flags (Settings → Personalisation tab)
+
+ISP exposes four independent feature flags.  All flags are cached in memory at module level — there is no database round-trip per search request.
 
 | Flag | Default | Effect when off |
 |---|---|---|
 | Personalisation (master) | On | `action_history` is completely ignored; no context is built and no hooks fire. All three sub-flags become inert. |
 | Preference Vector Blending | On | Viewed-item vectors are not blended into the query embedding. ANN retrieval is guided by the raw query vector only. |
-| Affinity Score Boosts | On | Category (+0.20), manufacturer (+0.15), and product-type (+0.10) post-RRF adjustments are skipped. |
-| Viewed Item Penalty | On | Already-viewed items are not demoted (−0.05). Variety suppression is disabled. |
+| Affinity Score Boosts | On | Per-index affinity dimension boosts are skipped. |
+| Viewed Item Penalty | On | Viewed item sub-policy is not applied; items are treated as unseen regardless of action history. |
 
 The master toggle is a hard gate: when it is off the other three flags have no effect regardless of their individual state.
 
@@ -569,6 +769,19 @@ The master toggle is a hard gate: when it is off the other three flags have no e
 - Flags are stored in the `app_settings` PostgreSQL table (keys: `customer_context_enabled`, `cc_vector_blending_enabled`, `cc_affinity_boost_enabled`, `cc_viewed_penalty_enabled`).
 - Module-level variables in `settings_service.py` are loaded at startup and updated in place on every `PUT /settings/customer-context` call — no DB read on the hot search path.
 - The Settings API accepts partial updates: sending only `{"affinity_boost_enabled": false}` leaves the other three flags unchanged.
+
+### Per-index controls (Index Detail → Personalisation tab)
+
+Each index has its own Personalisation tab that exposes the dimensions and sub-policy for that index specifically.
+
+| Control | Where | What it does |
+|---|---|---|
+| Affinity dimensions list | Index Detail → Personalisation | Shows all auto-discovered fields with boost, enabled toggle, and sample values. Disable a dimension to exclude it from `context_boost()` without rebuilding. |
+| Rediscover dimensions | Index Detail → Personalisation → Rediscover button | Re-scans the live Typesense collection without a full rebuild. Useful after a partial ingest that changed the field distribution. |
+| Viewed (not purchased) sub-policy | Item Interaction Behaviour panel | Mode selector (Penalise / Neutral / Boost) + value input. Controls score adjustment for items the customer viewed but has not yet purchased. |
+| Purchased sub-policy | Item Interaction Behaviour panel | Same controls for items the customer has completed a transaction on. Default: penalise −0.30 (durable goods satiation). |
+
+Changes to the sub-policy take effect immediately on the next search — no rebuild required.  Changes to which dimensions are enabled also take effect immediately.
 
 ---
 
@@ -848,23 +1061,36 @@ Same `action_history` field.  Additional context signals in the response:
 | Feature | Status |
 |---|---|
 | `CustomerAction` model (frontend + backend) | Done |
+| `CustomerAction` extra fields (`form_factor`, `os_family`, `price_tier`) via `extra="allow"` | Done |
 | `view`, `search`, `category` event recording | Done |
 | `action_history` sent on every search | Done |
-| Affinity boosts (category, manufacturer, type) | Done |
+| Affinity boosts (per-index auto-discovered dimensions, cardinality-scaled boost) | Done |
 | Preference vector blending (equal weight) | Done |
-| Viewed-item demotion | Done |
 | Operator controls — 4-flag Settings panel (master, vector blend, affinity, penalty) | Done |
-| Personalisation on empty-query browse (affinity + penalty via lexical path) | Done — `_apply_lexical_hook` + 250-item batch fetch |
+| Personalisation on empty-query browse (affinity via lexical path, up to 4×250=1000 doc batch) | Done — `_apply_lexical_hook` + large batch fetch |
 | Server-side brand/category filter (`manufacturer` / `category` in `SearchRequest`) | Done |
+| Per-index affinity dimension auto-discovery at rebuild time (cardinality-based boost formula) | Done |
+| Personalisation tab in Index Detail view (dimension list, enable/disable, rediscover) | Done |
+| Viewed item sub-policy — viewed-not-purchased / purchased split, configurable per index | Done |
+| `purchased_ids` tracking; purchase supersedes view in `SearchContext` | Done |
+| Richer `view` fields: `form_factor`, `os_family`, `price_tier` captured in action history | Done |
 | Timestamps on actions | Planned — Phase 2 |
 | Time-decay in `build_context()` | Planned — Phase 2 |
 | Decay-weighted preference vector | Planned — Phase 3 |
 | `localStorage` visitor profile (returning customer) | Planned — Phase 3 |
 | `cart` and `purchase` events | Planned |
+| `click` event (stronger than view, position-correctable) | Planned |
+| `filter_apply` event (explicit preference signal) | Planned |
 | `dwell` time signal | Planned |
 | Negative signals (`scroll_past`, `quick_close`) | Planned |
 | Segment detection | Planned |
 | Price sensitivity | Planned |
+| **`compatible_device_affinity` boost** | **Planned** |
+| **Account/Support: `page_view` event with `page_section`, `content_type`, `topic`** | **Planned** |
+| **Account/Support: `task_success` implicit signal** | **Planned** |
+| **Account/Support: `page_section_affinity` + `content_type_affinity` maps** | **Planned** |
+| **Account/Support: `item_type`-based routing in `build_context()`** | **Planned** |
+| **Query classification (navigational / informational / transactional / support)** | **Planned** |
 | Server-side profile (Redis, cross-device) | Planned — Phase 4 |
 | Collaborative filtering | Future |
 | Geo / time-of-day context | Future |
@@ -1072,6 +1298,26 @@ Proceedings of SIGIR 2008, pp. 659–666.
 https://dl.acm.org/doi/10.1145/1390334.1390446
 
 > Establishes that re-showing items the user has already seen hurts perceived result quality, and introduces metrics that reward novelty.  Directly motivates the viewed-item demotion (−0.05) in `context_boost()`: once a customer has seen an item, its marginal value in subsequent result pages is lower.
+
+---
+
+### Viewed item sub-policy: viewed vs purchased distinction
+
+**Amazon Item-to-Item Collaborative Filtering**
+Linden, G., Smith, B., & York, J. (2003).
+*Amazon.com recommendations: Item-to-item collaborative filtering.*
+IEEE Internet Computing, 7(1), 76–80.
+https://doi.org/10.1109/MIC.2003.1167344
+
+> Describes Amazon's production recommendation system, which uses *purchase* as the primary interaction signal and treats page-view browsing as a secondary, weaker signal.  Amazon explicitly separates the two because a purchase closes the loop — the recommendation objective switches from "help them find it" to "help them discover what's next."  Directly motivates ISP's decision to keep `viewed_ids` and `purchased_ids` as separate sets in `SearchContext` and apply independent sub-policies to each.
+
+**Deep Neural Networks for YouTube Recommendations**
+Covington, P., Adams, J., & Sargin, E. (2016).
+*Deep neural networks for YouTube recommendations.*
+Proceedings of RecSys 2016, pp. 191–198.
+https://dl.acm.org/doi/10.1145/2959100.2959190
+
+> Describes YouTube's production two-stage recommendation system (candidate generation + ranking).  Introduces the concept of *impression satiation*: items the user has already been served (but not engaged with) are explicitly suppressed in subsequent ranking passes, while items the user engaged with deeply are positively reinforced.  For durable goods, a completed purchase is the strongest satiation signal — re-showing a phone the customer just bought is a poor experience.  The high purchased-penalisation default (−0.30) operationalises Covington et al.'s satiation penalty; the viewed-not-purchased boost operationalises their positive reinforcement for active but unconverted interest.
 
 ---
 

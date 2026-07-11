@@ -146,6 +146,15 @@ async def init_db() -> None:
             CREATE INDEX IF NOT EXISTS search_events_created
             ON search_events (created_at);
         """)
+        await conn.execute("""
+            ALTER TABLE indexes
+            ADD COLUMN IF NOT EXISTS affinity_dimensions JSONB DEFAULT '[]';
+        """)
+        await conn.execute("""
+            ALTER TABLE indexes
+            ADD COLUMN IF NOT EXISTS viewed_item_policy JSONB
+                DEFAULT '{"mode": "penalise", "value": 0.05}';
+        """)
         # Seed intent labels for the four known ISP indexes (idempotent).
         for col_name, label in [
             ("isp_22ffabfef4d1", "device"),
