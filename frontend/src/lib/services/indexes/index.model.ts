@@ -1,4 +1,4 @@
-import type { ConnectorConfig, IngestStatus, SearchResult, DocumentItem } from '../../types';
+import type { ConnectorConfig, IngestStatus, SearchResult, DocumentItem, AffinityDimension } from '../../types';
 
 export interface Index {
   id: string;
@@ -20,6 +20,10 @@ export interface Index {
   versionBoost?: boolean;
   /** Inferred intent category label; null when the backend has not yet classified the index. */
   intentLabel?: string | null;
+  /** Affinity dimensions discovered after the last rebuild. */
+  affinityDimensions?: AffinityDimension[];
 }
+
+export type { AffinityDimension };
 
 export type { IngestStatus, SearchResult, DocumentItem };

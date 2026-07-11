@@ -442,4 +442,22 @@ export const api = {
         viewed_penalty_enabled:  flags.viewedPenaltyEnabled,
       }),
     }),
+
+  getAffinityDimensions: (indexId: string) =>
+    req<{ dimensions: import('./types').AffinityDimension[]; viewed_item_policy: import('./types').ViewedItemPolicy }>(`/indexes/${indexId}/affinity-dimensions`),
+
+  updateAffinityDimensions: (
+    indexId: string,
+    dimensions: import('./types').AffinityDimension[],
+    viewed_item_policy: import('./types').ViewedItemPolicy,
+  ) =>
+    req<{ dimensions: import('./types').AffinityDimension[]; viewed_item_policy: import('./types').ViewedItemPolicy }>(`/indexes/${indexId}/affinity-dimensions`, {
+      method: 'PUT',
+      body: JSON.stringify({ dimensions, viewed_item_policy }),
+    }),
+
+  rediscoverAffinityDimensions: (indexId: string) =>
+    req<{ dimensions: import('./types').AffinityDimension[]; viewed_item_policy: import('./types').ViewedItemPolicy }>(`/indexes/${indexId}/affinity-dimensions/discover`, {
+      method: 'POST',
+    }),
 };
