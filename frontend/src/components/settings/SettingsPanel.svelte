@@ -173,7 +173,6 @@
   function onCCPenaltyChange(e: Event) {
     updateCC({ viewedPenaltyEnabled: (e.currentTarget as HTMLInputElement).checked }, 'penalty');
   }
-
   /**
    * Save the RexBERT endpoint and optional API key without changing the global model.
    * Used when the global is voyage/openai but per-index RexBERT overrides are needed.
@@ -609,16 +608,17 @@
 
         <div class="cc-row" class:cc-row-dim={!masterOn}>
           <div class="cc-info">
-            <span class="cc-label">Brand &amp; Category Preference Boost</span>
-            <span class="cc-desc">Ranks products higher when they match the brands, categories, or product types the shopper gravitates toward.</span>
+            <span class="cc-label">Product Affinity Boost</span>
+            <span class="cc-desc">Ranks products higher when they match the brands, categories, form factors, or price range the shopper gravitates toward.</span>
             <span class="cc-hint">
-              If a customer frequently browses Sony electronics, Sony products will rank slightly
-              higher in their results for the rest of the session. The same applies to product
-              categories (e.g. "headphones") and types (e.g. "wireless"). Boosts are intentionally
-              small — category +0.20, brand +0.15, type +0.10 — so they complement relevance
-              rather than override it. A shopper with no strong preference will see no difference.
-              Disable to rank purely on textual and semantic relevance with no session-based
-              brand or category weighting.
+              Tracks affinities across multiple product dimensions — manufacturer (e.g. Samsung),
+              category (e.g. accessories), form factor (fold / flip / standard / tablet), price tier
+              (budget / mid / premium), sub-category (e.g. wallet-case), and compatible device.
+              Boosts are intentionally small — category +0.20, brand +0.15, form factor +0.12,
+              price tier +0.10 — so they complement relevance rather than override it.
+              A shopper with no strong preference sees no difference.
+              <strong>Applies to product catalog indexes only</strong> — support and account content
+              use a separate affinity model (page section / content type) which is not yet enabled.
             </span>
           </div>
           <label class="toggle" class:toggle-disabled={ccSaving || !masterOn}>
@@ -956,6 +956,53 @@
   .cc-row-master { background: var(--bg); }
 
   .cc-row-dim { opacity: 0.4; }
+
+  .cc-row-dim-sub {
+    padding: 12px 18px 12px 36px;
+    background: var(--bg);
+    border-left: 2px solid var(--border-2);
+    margin-left: 0;
+  }
+
+  .cc-dim-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .cc-label-dim {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-3);
+  }
+
+  .cc-boost-badge {
+    font-size: 10px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  .toggle-sm .toggle-track {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+  }
+
+  .toggle-sm .toggle-thumb {
+    width: 14px;
+    height: 14px;
+    top: 3px;
+    left: 3px;
+  }
+
+  .toggle-sm input:checked + .toggle-track .toggle-thumb {
+    left: 19px;
+  }
 
   .cc-info {
     display: flex;

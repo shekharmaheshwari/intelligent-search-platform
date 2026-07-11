@@ -5,5 +5,5 @@ export type View = 'dashboard' | 'detail' | 'create' | 'configure' | 'extensions
 export interface AppState {
   view: View;
   selectedIndexId: string | null;
-  detailTab: 'overview' | 'documents' | 'search' | 'api';
+  detailTab: 'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation';
 }

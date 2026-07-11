@@ -1,3 +1,34 @@
+/** Mode + magnitude for one item-interaction sub-policy. */
+export interface ItemPolicy {
+  mode:  'penalise' | 'neutral' | 'boost';
+  value: number;
+}
+
+/**
+ * Per-index policy controlling how viewed and purchased items are scored.
+ * Stored in ``indexes.viewed_item_policy``.
+ *
+ * viewed:    item seen but not bought — active interest, need unfulfilled.
+ * purchased: item bought (durable good) — need satisfied, reduce re-surfacing.
+ */
+export interface ViewedItemPolicy {
+  viewed:    ItemPolicy;
+  purchased: ItemPolicy;
+}
+
+/**
+ * One discovered affinity dimension for an index.
+ * Stored in ``indexes.affinity_dimensions`` and used by the personalisation engine.
+ */
+export interface AffinityDimension {
+  field:        string;
+  label:        string;
+  boost:        number;
+  enabled:      boolean;
+  values:       string[];
+  derived_from: string | null;
+}
+
 /**
  * Full metadata for one ISP source, mirroring the backend ``IndexMeta`` Pydantic model.
  * ``is_external=true`` means ISP reads/writes a pre-existing Typesense collection;
@@ -23,6 +54,8 @@ export interface IndexMeta {
   version_boost?: boolean;
   /** Inferred intent category label (e.g. "product_search") used to pre-fill the suggestions category field. */
   intent_label?: string | null;
+  /** Affinity dimensions discovered after the last rebuild. Drives per-index personalisation. */
+  affinity_dimensions?: AffinityDimension[];
 }
 
 /** Connector configuration stored in the ``connectors`` JSONB column on an index. */
