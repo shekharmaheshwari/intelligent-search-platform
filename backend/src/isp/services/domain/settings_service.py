@@ -131,7 +131,7 @@ PROVIDER_BY_MODEL: dict[str, str] = {m["id"]: m["provider"] for m in AVAILABLE_M
 #   cc_vector_blending_enabled    — blend viewed-item vectors into the query vec
 #   cc_affinity_boost_enabled     — apply category/manufacturer/type score boosts
 #   cc_viewed_penalty_enabled     — apply -0.05 demotion for already-viewed items
-
+#
 _customer_context_enabled:   bool = True
 _cc_vector_blending_enabled: bool = True
 _cc_affinity_boost_enabled:  bool = True
@@ -139,22 +139,15 @@ _cc_viewed_penalty_enabled:  bool = True
 
 
 def get_customer_context_enabled() -> bool:
-    """Return whether the customer-context master switch is on."""
     return _customer_context_enabled
 
-
 def get_cc_vector_blending_enabled() -> bool:
-    """Return whether preference-vector blending is active."""
     return _cc_vector_blending_enabled
 
-
 def get_cc_affinity_boost_enabled() -> bool:
-    """Return whether category/manufacturer/type affinity boosts are active."""
     return _cc_affinity_boost_enabled
 
-
 def get_cc_viewed_penalty_enabled() -> bool:
-    """Return whether the viewed-item demotion penalty is active."""
     return _cc_viewed_penalty_enabled
 
 
@@ -169,34 +162,30 @@ async def set_customer_context_flags(
     Persist one or more customer-context flags and update the in-process cache.
 
     Only the fields that are not ``None`` are written — partial updates are safe.
+    Per-dimension affinity configuration is now stored per-index in the
+    ``affinity_dimensions`` column, not as global flags here.
     """
     global _customer_context_enabled, _cc_vector_blending_enabled
     global _cc_affinity_boost_enabled, _cc_viewed_penalty_enabled
 
+    async def _set_bool(key: str, val: bool) -> None:
+        await set_setting(key, "true" if val else "false")
+
     if enabled is not None:
         _customer_context_enabled = enabled
-        await set_setting("customer_context_enabled", "true" if enabled else "false")
+        await _set_bool("customer_context_enabled", enabled)
 
     if vector_blending_enabled is not None:
         _cc_vector_blending_enabled = vector_blending_enabled
-        await set_setting(
-            "cc_vector_blending_enabled",
-            "true" if vector_blending_enabled else "false",
-        )
+        await _set_bool("cc_vector_blending_enabled", vector_blending_enabled)
 
     if affinity_boost_enabled is not None:
         _cc_affinity_boost_enabled = affinity_boost_enabled
-        await set_setting(
-            "cc_affinity_boost_enabled",
-            "true" if affinity_boost_enabled else "false",
-        )
+        await _set_bool("cc_affinity_boost_enabled", affinity_boost_enabled)
 
     if viewed_penalty_enabled is not None:
         _cc_viewed_penalty_enabled = viewed_penalty_enabled
-        await set_setting(
-            "cc_viewed_penalty_enabled",
-            "true" if viewed_penalty_enabled else "false",
-        )
+        await _set_bool("cc_viewed_penalty_enabled", viewed_penalty_enabled)
 
 
 async def set_customer_context_enabled(enabled: bool) -> None:
@@ -445,24 +434,18 @@ async def load_embed_model() -> None:
                 api_key=rexbert_cfg.get("api_key", ""),
             )
 
-    # Restore all customer-context flags from ``app_settings`` on startup.
+    # Restore customer-context flags from ``app_settings`` on startup.
     global _customer_context_enabled, _cc_vector_blending_enabled
     global _cc_affinity_boost_enabled, _cc_viewed_penalty_enabled
 
     _bool = lambda v: v.lower() != "false"  # "false" → False, anything else → True
 
-    v = await get_setting("customer_context_enabled")
-    if v is not None:
-        _customer_context_enabled = _bool(v)
-
-    v = await get_setting("cc_vector_blending_enabled")
-    if v is not None:
-        _cc_vector_blending_enabled = _bool(v)
-
-    v = await get_setting("cc_affinity_boost_enabled")
-    if v is not None:
-        _cc_affinity_boost_enabled = _bool(v)
-
-    v = await get_setting("cc_viewed_penalty_enabled")
-    if v is not None:
-        _cc_viewed_penalty_enabled = _bool(v)
+    for _key, _var in {
+        "customer_context_enabled":   "_customer_context_enabled",
+        "cc_vector_blending_enabled": "_cc_vector_blending_enabled",
+        "cc_affinity_boost_enabled":  "_cc_affinity_boost_enabled",
+        "cc_viewed_penalty_enabled":  "_cc_viewed_penalty_enabled",
+    }.items():
+        _v = await get_setting(_key)
+        if _v is not None:
+            globals()[_var] = _bool(_v)

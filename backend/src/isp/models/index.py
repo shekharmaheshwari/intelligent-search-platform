@@ -165,6 +165,15 @@ class IndexMeta(BaseModel):
     version_boost: bool = False  # when True, newer product generations rank higher in search results
     intent_label: str = ""  # semantic category for intent detection (e.g. "device", "accessory", "smartwatch", "tablet")
     slug: str = ""  # URL-friendly identifier enabling /v1/indexes/{slug}/... resolution
+    # Affinity dimensions discovered at rebuild time — drives generic personalisation scoring.
+    # Each entry: {"field": str, "label": str, "boost": float, "enabled": bool, "values": list[str], "derived_from": str|None}
+    affinity_dimensions: list[dict] = []
+    # Controls how viewed/purchased items are scored per sub-policy.
+    # viewed: item seen but not bought (active interest); purchased: need fulfilled.
+    viewed_item_policy: dict = {
+        "viewed":    {"mode": "penalise", "value": 0.05},
+        "purchased": {"mode": "penalise", "value": 0.30},
+    }
 
 
 class IngestStatus(BaseModel):

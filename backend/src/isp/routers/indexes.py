@@ -510,6 +510,68 @@ async def update_intent_label(idx_id: str, body: IntentLabelUpdate):
     return meta
 
 
+class AffinityDimensionUpdate(BaseModel):
+    """Request body for updating the affinity dimension config for an index."""
+    dimensions: list[dict]
+    viewed_item_policy: dict | None = None
+
+
+@router.get("/{idx_id}/affinity-dimensions", summary="Get affinity dimensions for an index")
+async def get_affinity_dimensions(idx_id: str):
+    """
+    Return the current affinity dimension config for this index.
+
+    Dimensions are discovered automatically after every rebuild.  Each entry
+    describes one categorical metadata field and controls whether it contributes
+    to personalisation scoring and with what boost weight.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    return {
+        "dimensions": meta.affinity_dimensions,
+        "viewed_item_policy": meta.viewed_item_policy,
+    }
+
+
+@router.put("/{idx_id}/affinity-dimensions", summary="Update affinity dimension config")
+async def update_affinity_dimensions(idx_id: str, body: AffinityDimensionUpdate):
+    """
+    Persist an updated affinity dimension config for this index.
+
+    Operators can toggle individual dimensions on/off, tune boost weights,
+    and update the viewed item policy without triggering a rebuild.
+    Changes take effect immediately.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    await index_service.set_affinity_dimensions(meta.id, body.dimensions)
+    policy = body.viewed_item_policy
+    if policy is not None:
+        await index_service.set_viewed_item_policy(meta.id, policy)
+    else:
+        policy = meta.viewed_item_policy
+    return {"dimensions": body.dimensions, "viewed_item_policy": policy}
+
+
+@router.post("/{idx_id}/affinity-dimensions/discover", summary="Re-run affinity dimension discovery")
+async def rediscover_affinity_dimensions(idx_id: str):
+    """
+    Re-scan the index's documents and regenerate the affinity dimension config.
+
+    Useful after the catalog changes significantly without a full rebuild, or
+    when the operator wants to reset manual edits to the discovered defaults.
+    """
+    from isp.services.domain import affinity_service
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    dims = await affinity_service.discover_and_save(meta.id)
+    meta = await _resolve_index(idx_id)
+    return {"dimensions": dims, "viewed_item_policy": meta.viewed_item_policy}
+
+
 @router.put("/{idx_id}/connectors/mapping", response_model=IndexMeta, summary="Save field renames and value overrides")
 async def save_connector_mapping(idx_id: str, body: MappingConfig):
     """
@@ -1081,6 +1143,14 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         # Non-critical: a failure here must never abort a successful rebuild.
         try:
             await suggestion_service.seed_suggestions_from_index(idx_id)
+        except Exception:
+            pass
+
+        # Discover affinity dimensions from the newly indexed documents.
+        # Non-critical: runs after suggestions so a failure here never blocks rebuild.
+        try:
+            from isp.services.domain import affinity_service
+            await affinity_service.discover_and_save(idx_id)
         except Exception:
             pass
 

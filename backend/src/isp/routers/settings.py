@@ -106,6 +106,7 @@ class SettingsResponse(BaseModel):
     """When True, already-viewed items receive a -0.05 score demotion to surface variety."""
 
 
+
 class UpdateSettingsResponse(SettingsResponse):
     """Extended response returned by PUT /v1/settings, including a dimension-change flag."""
 
