@@ -94,11 +94,16 @@
         <li><a href="#why">Why context</a></li>
         <li><a href="#architecture">Architecture</a></li>
         <li><a href="#action-types">Action types</a></li>
+        <li><a href="#richer-view" style="padding-left:24px;font-size:12px">↳ Richer view fields</a></li>
+        <li><a href="#account-support" style="padding-left:24px;font-size:12px">↳ Account &amp; Support</a></li>
+        <li><a href="#query-classification" style="padding-left:24px;font-size:12px">↳ Query classification</a></li>
         <li><a href="#action-weights">Action weights</a></li>
         <li><a href="#time-decay">Time-decay</a></li>
         <li><a href="#storage">Storage tiers</a></li>
         <li><a href="#preference-vector">Preference vector</a></li>
         <li><a href="#affinity">Affinity boosts</a></li>
+        <li><a href="#affinity-discovery" style="padding-left:24px;font-size:12px">↳ Dimension discovery</a></li>
+        <li><a href="#viewed-policy" style="padding-left:24px;font-size:12px">↳ Viewed item policy</a></li>
         <li><a href="#controls">Operator controls</a></li>
         <li><a href="#browse">Browse personalisation</a></li>
         <li><a href="#other">Other options</a></li>
@@ -257,29 +262,44 @@ ISP Public Search API  (POST /v1/indexes/{id}/search/public  or  POST /v1/catalo
   │       RRF (BM25 0.7  +  semantic 0.3)
   │       editorial boosts: is_featured, popularity, boost_queries
   │       post_rrf_hook: context affinity boosts
-  │             ├── +0.20 × category affinity
-  │             ├── +0.15 × manufacturer affinity
-  │             ├── +0.10 × source_type affinity
-  │             └── -0.05  already-viewed demotion
+  │             ├── per-index affinity dimensions (cardinality-scaled boost × affinity score)
+  │             │       e.g. manufacturer +0.14, form_factor +0.10, os_family +0.20
+  │             └── viewed item sub-policy (configurable per index, per interaction type)
+  │                     viewed-not-purchased: penalise | neutral | boost  (default −0.05)
+  │                     purchased (durable):  penalise | neutral | boost  (default −0.30)
   │
   └── typesense_client.search_documents()       (lexical — empty query / browse)
-          fetch up to 4 × 250 = 1 000 items across _MAX_BROWSE_PAGES pages
+          fetch up to 4 × 250 = 1 000 items when affinity context present
           rank-score each hit: score = 1 / (K + position)  k=60, position 1-indexed
-          post_rrf_hook: same affinity boosts as above
+          post_rrf_hook: same per-index affinity boosts + viewed item sub-policy
           re-sort all hits by final score, re-paginate to requested page</pre>
 
       <!-- ACTION TYPES -->
       <h2 id="action-types">Action types</h2>
-      <p>Every customer interaction is represented as a <code>CustomerAction</code> object.</p>
+      <p>Every customer interaction is represented as a <code>CustomerAction</code> object. Fields are split into three groups: core fields shared by all index types, product catalog fields, and content/sitemap fields (Account, Support).</p>
       <pre>interface CustomerAction {
-  type:          'view' | 'cart' | 'purchase' | 'search' | 'category';
+  // ── Core fields (all index types) ────────────────────────────────
+  type:          'view' | 'click' | 'cart' | 'purchase' | 'search'
+               | 'category' | 'filter_apply' | 'dwell' | 'wishlist'
+               | 'scroll_past' | 'page_view' | 'task_success';
   item_id?:      string;   // Typesense doc id — used for preference vector seeding
-  item_type?:    string;   // "device" | "accessory"
-  category?:     string;   // product category (e.g. "smartphones")
-  manufacturer?: string;   // brand (e.g. "Samsung")
+  item_type?:    string;   // "device" | "accessory" | "sitemap"
   query?:        string;   // past search query (type="search" only)
   timestamp?:    number;   // Unix ms — used for time-decay weighting
   weight?:       number;   // caller-supplied multiplier (default 1.0)
+
+  // ── Product catalog fields (Phones, Accessories, Tablets, Watches) ─
+  category?:     string;   // product category (e.g. "smartphones", "cases-&amp;-covers")
+  manufacturer?: string;   // brand (e.g. "Samsung", "Apple")
+  form_factor?:  string;   // "standard" | "fold" | "flip" | "tablet" | "watch"
+  price_tier?:   string;   // "budget" (&lt;$30) | "mid" ($30–$80) | "premium" (&gt;$80)
+  compatible_device?: string; // e.g. "iphone-17-pro-max"
+  os_family?:    string;   // "ios" | "android" — derived from compatible_device
+
+  // ── Content / sitemap fields (Account, Support, Help) ─────────────
+  page_section?: string;   // topic from URL path (e.g. "billing", "network")
+  content_type?: string;   // "faq" | "guide" | "policy" | "tool" | "contact"
+  topic?:        string;   // fine-grained tag (e.g. "port-in", "roaming", "esim")
 }</pre>
 
       <h3>Implemented event sources</h3>
@@ -290,17 +310,123 @@ ISP Public Search API  (POST /v1/indexes/{id}/search/public  or  POST /v1/catalo
         <tr><td><code>category</code></td><td>Clicking a tab (Phones / Accessories / …)</td><td><code>category</code>, <code>timestamp</code></td></tr>
       </table>
 
-      <h3>Planned event sources</h3>
+      <h3>Planned event sources — product catalog</h3>
       <table>
-        <tr><th>Event</th><th>Trigger point</th><th>Extra value</th></tr>
-        <tr><td><code>cart</code></td><td>Add-to-cart button</td><td>Stronger purchase intent than view</td></tr>
-        <tr><td><code>purchase</code></td><td>Order confirmation page</td><td>Strongest signal; suppresses re-showing same item</td></tr>
-        <tr><td><code>wishlist</code></td><td>Save / favourite action</td><td>Durable long-term interest</td></tr>
-        <tr><td><code>dwell</code></td><td>Time-on-page &gt; threshold</td><td>Differentiates genuine interest from accidental click</td></tr>
-        <tr><td><code>scroll_past</code></td><td>Item visible but scrolled away quickly</td><td>Negative signal — mild demotion</td></tr>
-        <tr><td><code>price_filter</code></td><td>User applies a price range filter</td><td>Infers budget segment</td></tr>
-        <tr><td><code>oos_skip</code></td><td>Out-of-stock item ignored</td><td>Informs stock-sensitivity</td></tr>
+        <tr><th>Event</th><th>Payload</th><th>Signal strength</th><th>Trigger point</th><th>What it tells you</th></tr>
+        <tr><td><code>click</code></td><td><code>item_id</code>, <code>query</code>, <code>rank</code></td><td>★★★★</td><td>Selecting a search result</td><td>Strong intent — user chose this result; position bias correctable</td></tr>
+        <tr><td><code>add_to_cart</code></td><td><code>item_id</code>, <code>price</code></td><td>★★★★★</td><td>Add-to-cart button</td><td>Purchase intent</td></tr>
+        <tr><td><code>purchase</code></td><td><code>item_id</code>, <code>price</code></td><td>★★★★★</td><td>Order confirmation</td><td>Ground truth — strongest preference signal</td></tr>
+        <tr><td><code>wishlist</code></td><td><code>item_id</code></td><td>★★★</td><td>Save / favourite</td><td>Durable long-term interest</td></tr>
+        <tr><td><code>dwell</code></td><td><code>item_id</code>, <code>seconds</code></td><td>★★★</td><td>Time-on-modal &gt; 15 s</td><td>Engagement depth — genuine interest vs accidental click</td></tr>
+        <tr><td><code>filter_apply</code></td><td><code>filter_type</code>, <code>value</code></td><td>★★★</td><td>User sets a filter</td><td>Explicit preference ("filter by Samsung")</td></tr>
+        <tr><td><code>tab_switch</code></td><td><code>from_tab</code>, <code>to_tab</code>, <code>query</code></td><td>★★</td><td>Tab change mid-session</td><td>Cross-category intent (phones → accessories)</td></tr>
+        <tr><td><code>scroll_past</code></td><td><code>item_id</code></td><td>★ (negative)</td><td>Item visible &lt; 2 s</td><td>Mild negative — suppress similar items</td></tr>
+        <tr><td><code>price_filter</code></td><td><code>price_tier</code></td><td>★★</td><td>Price range filter applied</td><td>Infers budget segment</td></tr>
+        <tr><td><code>oos_skip</code></td><td>—</td><td>★</td><td>Out-of-stock item ignored</td><td>Informs stock-sensitivity</td></tr>
       </table>
+
+      <!-- RICHER VIEW FIELDS -->
+      <h3 id="richer-view">Richer <code>view</code> fields — product catalog</h3>
+      <p>The <code>view</code> event already works. Adding five fields unlocks new affinity dimensions without a new event type — all values are already present in the Typesense document at log time.</p>
+      <table>
+        <tr><th>New field</th><th>Example values</th><th>How to derive</th><th>New affinity dimension</th></tr>
+        <tr><td><code>form_factor</code></td><td><code>"fold"</code>, <code>"flip"</code>, <code>"standard"</code>, <code>"tablet"</code>, <code>"watch"</code></td><td><code>metadata.form_factor</code> already in Typesense doc</td><td><code>form_factor_affinity</code> — boosts fold accessories when user views fold phones</td></tr>
+        <tr><td><code>price_tier</code></td><td><code>"budget"</code>, <code>"mid"</code>, <code>"premium"</code></td><td>Derived at log time: &lt;$30 / $30–$80 / &gt;$80</td><td><code>price_tier_affinity</code> — soft budget personalisation without hard filters</td></tr>
+        <tr><td><code>sub_category</code></td><td><code>"folio-case"</code>, <code>"wallet-case"</code>, <code>"rugged-case"</code></td><td><code>metadata.sub_category</code> or title NLP</td><td>Sub-category affinity within broad category</td></tr>
+        <tr><td><code>compatible_device</code></td><td><code>"iphone-17-pro-max"</code></td><td>First entry of <code>metadata.compatible_devices[]</code></td><td><code>compatible_device_affinity</code> — boosts accessories for most-viewed device</td></tr>
+        <tr><td><code>os_family</code></td><td><code>"ios"</code>, <code>"android"</code></td><td>Derived from <code>compatible_device</code> slug</td><td>Folds into <code>compatible_device_affinity</code></td></tr>
+      </table>
+
+      <!-- DERIVED / COMPUTED SIGNALS -->
+      <h3>Derived / computed signals (server-side, all indexes)</h3>
+      <p>Not logged as events — computed from <code>action_history</code> inside <code>context_service.build_context()</code> at query time:</p>
+      <table>
+        <tr><th>Signal</th><th>How</th><th>Use</th></tr>
+        <tr><td><strong>Price sensitivity</strong></td><td>Mean price of viewed / clicked items</td><td>Boost cheaper or pricier results proportionally</td></tr>
+        <tr><td><strong>Brand affinity</strong></td><td>Frequency of <code>manufacturer</code> in views + clicks</td><td><code>context_boost()</code> already does this — extend to sub-brand level</td></tr>
+        <tr><td><strong>Form factor preference</strong></td><td>Most-viewed <code>form_factor</code> value</td><td>Boost fold accessories when user repeatedly views fold phones</td></tr>
+        <tr><td><strong>Recency decay</strong></td><td><code>score × exp(−λ × age_hours)</code></td><td>Recent actions matter more than a 2-week-old view</td></tr>
+        <tr><td><strong>Cross-category intent</strong></td><td><code>tab_switch</code> from phones → accessories within same session</td><td>Infer "shopping for accessories for a phone they just browsed"</td></tr>
+      </table>
+
+      <!-- SESSION-LEVEL CONTEXT -->
+      <h3>Session-level context (in-memory, not persisted)</h3>
+      <p>Derived within a single session from the raw event stream — no <code>localStorage</code> write, cleared when session ends:</p>
+      <table>
+        <tr><th>Signal</th><th>What it captures</th></tr>
+        <tr><td><code>session_query_chain</code></td><td>All queries in this session — detect refinement ("iphone case" → "iphone 17 pro max folio case")</td></tr>
+        <tr><td><code>device_candidate</code></td><td>If user viewed a specific phone model, infer they need accessories for it</td></tr>
+        <tr><td><code>category_pivot</code></td><td>Sequence of tab switches to infer current shopping mode</td></tr>
+      </table>
+
+      <!-- ACCOUNT AND SUPPORT -->
+      <h2 id="account-support">Account and Support content (sitemap indexes)</h2>
+      <p>
+        Content indexes — the Account GSheet index and any Support/Help sitemap indexes — have a fundamentally different interaction model from product catalogs.
+        The user has a <strong>task to complete</strong>, not a purchase to make.
+        Documents have <code>source_type: "sitemap"</code> and carry <code>title</code>, <code>content</code>, <code>url</code>, and crawled meta tags — but no <code>manufacturer</code>, no <code>price</code>, and no product <code>category</code>.
+        Personalisation here means surfacing related help topics faster, not cross-selling.
+      </p>
+
+      <h3>Planned event sources — account and support</h3>
+      <table>
+        <tr><th>Event</th><th>Trigger point</th><th>Key fields</th><th>What it tells you</th></tr>
+        <tr><td><code>page_view</code></td><td>Opening an account / support page</td><td><code>item_id</code>, <code>item_type: "sitemap"</code>, <code>page_section</code>, <code>content_type</code>, <code>topic</code>, <code>timestamp</code></td><td>Which topic / task domain the user needs help with</td></tr>
+        <tr><td><code>task_success</code></td><td>User does not return to search within 90 s of opening a page</td><td><code>item_id</code>, <code>page_section</code></td><td>The page resolved their need — positive reinforcement for topic affinity</td></tr>
+        <tr><td><code>search</code></td><td>Query submitted on account / support tab</td><td><code>query</code>, <code>timestamp</code></td><td>Same as catalog; also feeds query classification</td></tr>
+        <tr><td><code>scroll_past</code></td><td>Help page visible &lt; 3 s</td><td><code>item_id</code>, <code>page_section</code></td><td>Page didn't match — mild negative signal for that topic / content type</td></tr>
+      </table>
+
+      <h3>Extracting <code>page_section</code> from the URL</h3>
+      <p><code>page_section</code> is derived from the URL path at log time — zero back-end change required:</p>
+      <pre>// /support/billing/pay-bill  →  "billing"
+// /account/network/roaming   →  "network"
+// /help/esim-setup           →  "esim"
+function extractSection(url: string): string {
+  const parts = new URL(url).pathname.split('/').filter(Boolean);
+  return parts[1] ?? parts[0] ?? 'general';
+}</pre>
+
+      <h3>Inferring <code>content_type</code></h3>
+      <p>Derived from URL patterns or the <code>og:type</code> meta tag (promotable via <code>meta_fields</code> in sitemap connector config):</p>
+      <table>
+        <tr><th>URL pattern</th><th><code>content_type</code></th></tr>
+        <tr><td><code>/faq/…</code>, <code>?type=faq</code></td><td><code>"faq"</code></td></tr>
+        <tr><td><code>/how-to/…</code>, <code>/guide/…</code></td><td><code>"guide"</code></td></tr>
+        <tr><td><code>/legal/…</code>, <code>/terms/…</code>, <code>/privacy/…</code></td><td><code>"policy"</code></td></tr>
+        <tr><td><code>/my-account/…</code>, <code>/dashboard/…</code></td><td><code>"tool"</code></td></tr>
+        <tr><td><code>/contact/…</code>, <code>/chat/…</code></td><td><code>"contact"</code></td></tr>
+      </table>
+
+      <h3>How account / support affinity differs from product affinity</h3>
+      <table>
+        <tr><th>Dimension</th><th>Product catalog</th><th>Account / Support</th></tr>
+        <tr><td>Primary affinity key</td><td><code>category</code> (e.g. "cases-&amp;-covers")</td><td><code>page_section</code> (e.g. "billing")</td></tr>
+        <tr><td>Secondary affinity key</td><td><code>manufacturer</code> (e.g. "Samsung")</td><td><code>content_type</code> (e.g. "guide")</td></tr>
+        <tr><td>Tertiary key</td><td><code>form_factor</code></td><td><code>topic</code> (e.g. "port-in")</td></tr>
+        <tr><td>Preference vector seeding</td><td>Viewed-item embeddings → steers toward similar products</td><td>Viewed-page embeddings → steers toward semantically related help pages</td></tr>
+        <tr><td>Negative signal</td><td>Already-viewed products (demotion)</td><td>Already-resolved tasks (soft demotion — don't resurface closed problems)</td></tr>
+        <tr><td>No analogue</td><td><code>price_tier</code>, <code>compatible_device</code>, <code>os_family</code></td><td>—</td></tr>
+      </table>
+      <div class="notice" style="background:var(--accent-dim);border:1px solid var(--accent-border);border-radius:7px;padding:14px 16px;font-size:13px;color:var(--code-fg);line-height:1.6;margin-bottom:20px;">
+        <strong>Required code change:</strong> <code>context_service.build_context()</code> needs a branch on <code>item_type</code> so that <code>page_section</code> / <code>content_type</code> route into a separate <code>page_section_affinity</code> map rather than mixing with product <code>category_affinity</code>.
+      </div>
+
+      <!-- QUERY CLASSIFICATION -->
+      <h2 id="query-classification">Query classification</h2>
+      <p>
+        Classifying the search query intent before applying personalisation lets the system scale context boosts and suggestion modes appropriately.
+        A <code>"navigational"</code> query ("pay bill", "my account") should bypass product affinity entirely;
+        a <code>"support"</code> query ("my phone won't connect") should boost <code>content_type: "tool"</code> and <code>"contact"</code>.
+      </p>
+      <table>
+        <tr><th>Intent class</th><th>Example queries</th><th>Context response</th></tr>
+        <tr><td><code>navigational</code></td><td>"my account", "port-in dashboard", "pay bill"</td><td>Link-mode suggestions; skip product affinity boosts</td></tr>
+        <tr><td><code>informational</code></td><td>"how do i set up esim", "what is roaming"</td><td>Boost <code>guide</code> / <code>faq</code> <code>content_type</code>; prefer <code>task_success</code> history</td></tr>
+        <tr><td><code>transactional</code></td><td>"iphone 17 case", "buy samsung charger"</td><td>Full product affinity + preference vector blend</td></tr>
+        <tr><td><code>support</code></td><td>"my phone won't connect", "network outage"</td><td>Boost <code>page_section: "network"</code> and <code>content_type: "tool"</code> or <code>"contact"</code></td></tr>
+      </table>
+      <p>Classification can be rule-based (keyword / URL pattern lists) initially and replaced with a lightweight classifier later. No model training is required for the first version.</p>
 
       <h3>Session timeline — worked example</h3>
       <p>Alex browses a phone store for 4 minutes. Five events are captured in <code>sessionStorage</code> and bundled with the next search request.</p>
@@ -541,31 +667,76 @@ Recency can override action type when signals are sufficiently spread in time.</
       <p>Applied <strong>after</strong> RRF merge and editorial boosts, before final page slice. These are additive score adjustments that nudge results toward the customer's demonstrated interests.</p>
       <table>
         <tr><th>Signal</th><th>Boost</th><th>Applied when</th></tr>
-        <tr><td>Category match</td><td>+0.20 × affinity</td><td><code>metadata.category</code> matches a category in <code>category_affinity</code></td></tr>
-        <tr><td>Manufacturer match</td><td>+0.15 × affinity</td><td><code>metadata.manufacturer</code> matches <code>manufacturer_affinity</code></td></tr>
-        <tr><td>Source type match</td><td>+0.10 × affinity</td><td><code>source_type</code> matches <code>type_affinity</code></td></tr>
-        <tr><td>Already viewed</td><td>−0.05</td><td>Doc id is in <code>viewed_ids</code></td></tr>
+        <tr><td>Per-index affinity dimension</td><td><code>dim.boost × affinity_score</code></td><td>Doc's value for <code>dim.field</code> is in the customer's affinity map; boost scales with cardinality (see Dimension Discovery below)</td></tr>
+        <tr><td>Viewed (not purchased)</td><td>configurable — penalise / neutral / boost (default −0.05)</td><td>Doc id is in <code>viewed_ids</code> but not <code>purchased_ids</code> — active interest, need unfulfilled</td></tr>
+        <tr><td>Purchased (durable good)</td><td>configurable — penalise / neutral / boost (default −0.30)</td><td>Doc id is in <code>purchased_ids</code> — need fulfilled; purchase supersedes view</td></tr>
       </table>
-      <p>All affinity values are normalised to [0,1] so maximum total boost is <code>+0.45</code>. Editorial boosts (<code>is_featured</code> +0.5, <code>popularity</code> ≤ +0.5) are larger — a featured item stays featured even for a customer with no category affinity.</p>
+      <p>Affinity values are normalised to [0, 1] so the top value in each dimension always equals 1.0. Dimension boost magnitudes are assigned automatically from cardinality at rebuild time. Editorial boosts (<code>is_featured</code> +0.5, <code>popularity</code> ≤ +0.5) are larger — a featured item stays featured even for a customer with no category affinity.</p>
 
       <h3>How affinity is calculated</h3>
-      <p><strong>Step 1 — Accumulate weighted counts.</strong> For every action in <code>action_history</code>, compute <code>w = type_weight × caller_weight</code> and add to running sums keyed by <code>category</code>, <code>manufacturer</code>, and <code>item_type</code>.</p>
+      <p><strong>Step 1 — Accumulate weighted counts.</strong> For every action in <code>action_history</code>, compute <code>w = type_weight × caller_weight</code> and add to running sums keyed by the value of each discovered affinity dimension field (e.g. <code>manufacturer</code>, <code>form_factor</code>, <code>os_family</code>).</p>
       <p><strong>Step 2 — Max-normalise to [0, 1].</strong></p>
       <pre>affinity[k] = raw[k] / max(raw.values())</pre>
       <p><strong>Step 3 — Apply as additive score boost per document.</strong></p>
-      <pre>boost = 0.20 × category_affinity.get(doc_cat,  0)
-      + 0.15 × manufacturer_affinity.get(doc_mfr, 0)
-      + 0.10 × type_affinity.get(doc_type, 0)
-      − 0.05  (if doc.id is in viewed_ids)</pre>
+      <pre>boost = Σ ( dim.boost × affinity[dim.field].get(doc_value, 0) )
+          for each enabled dim in index.affinity_dimensions
+      + viewed_sub_policy.adjustment   (if doc.id ∈ viewed_ids but not purchased_ids)
+      + purchased_sub_policy.adjustment (if doc.id ∈ purchased_ids)</pre>
+      <p>Where <code>adjustment = +value</code> (boost mode), <code>−value</code> (penalise mode), or <code>0</code> (neutral mode).</p>
 
-      <h3>Example scores</h3>
+      <h3>Example scores — Phones index (viewed iPhone Air, purchased iPhone 17)</h3>
       <table>
-        <tr><th>Document</th><th>Category</th><th>Manufacturer</th><th>Type</th><th>Total</th></tr>
-        <tr><td>Samsung Galaxy Buds 3</td><td>+0.20</td><td>+0.15</td><td>+0.10</td><td><strong>+0.45</strong></td></tr>
-        <tr><td>Apple AirPods 4</td><td>+0.20</td><td>0</td><td>+0.10</td><td><strong>+0.30</strong></td></tr>
-        <tr><td>Samsung Galaxy S25</td><td>+0.07</td><td>+0.15</td><td>+0.07</td><td><strong>+0.29</strong></td></tr>
-        <tr><td>Sony WH-1000XM6</td><td>0</td><td>0</td><td>+0.10</td><td><strong>+0.10</strong></td></tr>
+        <tr><th>Document</th><th>Manufacturer (+0.14)</th><th>Form factor (+0.10)</th><th>OS family (+0.20)</th><th>Viewed/Purchased</th><th>Total</th></tr>
+        <tr><td>Samsung Galaxy S25 (android, standard)</td><td>0.14×1.00 = +0.14</td><td>+0.10</td><td>0.20×1.00 = +0.20</td><td>—</td><td><strong>+0.44</strong></td></tr>
+        <tr><td>iPhone Air (apple, standard, ios) — <em>viewed</em></td><td>0.14×0.33 = +0.05</td><td>+0.10</td><td>0.20×0.33 = +0.07</td><td>viewed: <strong>+0.05</strong></td><td><strong>+0.27</strong></td></tr>
+        <tr><td>iPhone 17 (apple, standard, ios) — <em>purchased</em></td><td>+0.05</td><td>+0.10</td><td>+0.07</td><td>purchased: <strong>−0.30</strong></td><td><strong>−0.08</strong></td></tr>
+        <tr><td>Other iPhones (apple, standard, ios) — not viewed</td><td>+0.05</td><td>+0.10</td><td>+0.07</td><td>—</td><td><strong>+0.22</strong></td></tr>
       </table>
+
+      <!-- AFFINITY DIMENSION DISCOVERY -->
+      <h2 id="affinity-discovery">Per-index affinity dimension discovery</h2>
+      <p>Rather than hard-coding <code>category</code>, <code>manufacturer</code>, and <code>source_type</code>, ISP automatically discovers which document fields are useful for personalisation at rebuild time. After every rebuild, the system scans a sample of indexed documents and identifies <strong>low-cardinality string fields</strong> (2–50 distinct values) that can meaningfully differentiate customer preferences.</p>
+
+      <h3>Cardinality-based boost formula</h3>
+      <p>Each discovered field is assigned a boost weight based on how many distinct values it has:</p>
+      <pre>boost = round( max(0.05,  min(0.20,  0.28 / sqrt(num_distinct))),  2 )</pre>
+      <table>
+        <tr><th>Distinct values</th><th>Example field</th><th>√n</th><th>0.28/√n</th><th>Clamped boost</th></tr>
+        <tr><td>2</td><td><code>os_family</code> (ios / android)</td><td>1.41</td><td>0.198</td><td><strong>+0.20</strong></td></tr>
+        <tr><td>4</td><td><code>form_factor</code> (standard / fold / flip / handset)</td><td>2.00</td><td>0.140</td><td><strong>+0.14</strong></td></tr>
+        <tr><td>8</td><td><code>manufacturer</code> (8 brands)</td><td>2.83</td><td>0.099</td><td><strong>+0.10</strong></td></tr>
+        <tr><td>16</td><td><code>price_tier</code> + sub-categories</td><td>4.00</td><td>0.070</td><td><strong>+0.07</strong></td></tr>
+        <tr><td>50</td><td>maximum, floor applied</td><td>7.07</td><td>0.040</td><td><strong>+0.05</strong></td></tr>
+      </table>
+      <p>A field with 2 values (e.g. <code>os_family: ios/android</code>) divides the product space in half — knowing the customer prefers iOS is highly discriminating. A field with 50 values carries weaker per-value signal. The <code>1/√n</code> shape follows the same principle as IDF's logarithmic damping: rarer distinctions are more informative.</p>
+
+      <h3>UI controls</h3>
+      <p>Discovered dimensions are shown in the <strong>Personalisation tab</strong> of each Index Detail view. Each dimension shows its field name, label, boost value, enabled/disabled toggle, and sample values. Disabling a dimension excludes it from <code>context_boost()</code> immediately — no rebuild required.</p>
+
+      <!-- VIEWED ITEM POLICY -->
+      <h2 id="viewed-policy">Viewed item sub-policy</h2>
+      <p>The viewed item sub-policy controls how items a customer has previously interacted with are scored in subsequent results. It distinguishes two fundamentally different cases:</p>
+      <table>
+        <tr><th>State</th><th>What it means</th><th>Recommended mode</th></tr>
+        <tr><td><strong>Viewed (not purchased)</strong></td><td>Active interest — customer saw this item but has not yet converted. The need is unfulfilled.</td><td>Boost or Neutral — re-surfacing may accelerate conversion</td></tr>
+        <tr><td><strong>Purchased (durable good)</strong></td><td>Need fulfilled — customer completed a transaction. Re-showing the same phone they just bought creates a poor experience.</td><td>Penalise — strong suppression (default −0.30)</td></tr>
+      </table>
+
+      <h3>Research backing</h3>
+      <blockquote><p><strong>Hu, Koren &amp; Volinsky (2008)</strong> differentiate implicit feedback by confidence level: purchase is a near-certain preference signal; a view is a lower-confidence proxy. Treating them identically discards this confidence information and applies the wrong adjustment magnitude.</p></blockquote>
+      <blockquote><p><strong>Linden, Smith &amp; York (2003)</strong> (Amazon's item-to-item CF) use <em>purchase</em> as the primary interaction signal, treating browsing as secondary. Amazon separates the two because a purchase closes the loop — the recommendation objective switches from "help them find it" to "help them discover what's next."</p></blockquote>
+      <blockquote><p><strong>Covington, Adams &amp; Sargin (2016)</strong> (YouTube DNN recommendations) introduce <em>impression satiation</em>: items the user has already been served (but not engaged with) are suppressed in subsequent passes, while items the user engaged with deeply are positively reinforced. For durable goods, a completed purchase is the strongest satiation signal. The default purchased-penalty (−0.30) operationalises this; the viewed-not-purchased boost operationalises positive reinforcement for unconverted interest.</p></blockquote>
+
+      <h3>Configuration</h3>
+      <p>Each sub-policy has three modes:</p>
+      <table>
+        <tr><th>Mode</th><th>Score delta</th><th>When to use</th></tr>
+        <tr><td><code>penalise</code></td><td><code>−value</code></td><td>Suppress re-surfacing (default for purchased durable goods; optional for viewed)</td></tr>
+        <tr><td><code>neutral</code></td><td><code>0</code></td><td>No adjustment — use for consumables or when repetition is harmless</td></tr>
+        <tr><td><code>boost</code></td><td><code>+value</code></td><td>Surface viewed-not-purchased items more aggressively to drive conversion</td></tr>
+      </table>
+      <p><strong>Purchase supersedes view:</strong> if the same <code>item_id</code> appears in both view and purchase actions, <code>build_context()</code> moves it out of <code>viewed_ids</code> into <code>purchased_ids</code>. Only the purchased sub-policy fires.</p>
+      <p><strong>Where to configure:</strong> Index Detail → <strong>Personalisation tab</strong> → "Item Interaction Behaviour" panel. Each sub-policy has a 3-radio mode selector (Penalise / Neutral / Boost) and a numeric value input. Changes take effect immediately on the next search request — no rebuild required.</p>
 
       <div class="chart-wrap">
         <div class="chart-label">Fig 8 — Affinity score breakdown per product (Samsung earbuds customer)</div>
@@ -593,16 +764,26 @@ Recency can override action type when signals are sufficiently spread in time.</
 
       <!-- OPERATOR CONTROLS -->
       <h2 id="controls">Operator controls</h2>
-      <p>ISP exposes four independent feature flags in <strong>Settings → Personalisation tab</strong>. All flags are cached in memory — there is no database round-trip per search request.</p>
+      <h3>Global flags (Settings → Personalisation tab)</h3>
+      <p>Four independent feature flags apply across all indexes. All flags are cached in memory — there is no database round-trip per search request.</p>
       <table>
         <tr><th>Flag</th><th>Default</th><th>Effect when off</th></tr>
         <tr><td>Personalisation (master)</td><td>On</td><td><code>action_history</code> is completely ignored; no context is built. All sub-flags become inert.</td></tr>
         <tr><td>Preference Vector Blending</td><td>On</td><td>Viewed-item vectors are not blended into the query. ANN uses raw query vector only.</td></tr>
-        <tr><td>Affinity Score Boosts</td><td>On</td><td>Category (+0.20), manufacturer (+0.15), and product-type (+0.10) adjustments are skipped.</td></tr>
-        <tr><td>Viewed Item Penalty</td><td>On</td><td>Already-viewed items are not demoted (−0.05). Variety suppression is disabled.</td></tr>
+        <tr><td>Affinity Score Boosts</td><td>On</td><td>Per-index affinity dimension boosts are skipped entirely.</td></tr>
+        <tr><td>Viewed Item Penalty</td><td>On</td><td>The viewed item sub-policy is not applied; items are treated as unseen regardless of action history.</td></tr>
       </table>
       <p>The master toggle is a hard gate. <strong>A/B testing use:</strong> because each flag can be turned off independently, you can isolate the contribution of each personalisation signal.</p>
       <p>Flags are stored in the <code>app_settings</code> PostgreSQL table and updated in place on every <code>PUT /settings/customer-context</code> call — no DB read on the hot search path.</p>
+
+      <h3>Per-index controls (Index Detail → Personalisation tab)</h3>
+      <table>
+        <tr><th>Control</th><th>What it does</th></tr>
+        <tr><td>Affinity dimensions list</td><td>Shows all auto-discovered fields with boost value, enabled toggle, and sample values. Disable a dimension to exclude it from <code>context_boost()</code> without rebuilding.</td></tr>
+        <tr><td>Rediscover button</td><td>Re-scans the live Typesense collection without a full rebuild — useful after a partial ingest that changed the field distribution.</td></tr>
+        <tr><td>Viewed (not purchased) sub-policy</td><td>Mode selector (Penalise / Neutral / Boost) + value. Controls adjustment for items viewed but not yet purchased. Default: penalise −0.05.</td></tr>
+        <tr><td>Purchased sub-policy</td><td>Same controls for completed transactions. Default: penalise −0.30 (durable goods satiation).</td></tr>
+      </table>
 
       <h3>Flag precedence</h3>
       <div class="math-block"><span class="dim">── master flag = OFF ─────────────────────────────────────────────────────────</span>
@@ -612,7 +793,7 @@ Recency can override action type when signals are sufficiently spread in time.</
     → context_service.build_context()  →  empty context  { }
     → preference_vector_blend  =  N/A   (no context to blend)
     → affinity_boosts          =  N/A
-    → viewed_item_penalty      =  N/A
+    → viewed_item_policy       =  N/A
 
 <span class="dim">── master = ON, sub-flags evaluated independently ────────────────────────────</span>
 
@@ -621,12 +802,13 @@ Recency can override action type when signals are sufficiently spread in time.</
     OFF → ANN query  =  query_vec  (raw, no personalisation in retrieval)
 
   affinity_boosts
-    ON  → doc.score  +=  0.20×cat  +  0.15×mfr  +  0.10×type
-    OFF → doc.score  unchanged  (re-ranking is skipped entirely)
+    ON  → doc.score  +=  Σ( dim.boost × affinity[dim.field][doc_value] )
+    OFF → doc.score  unchanged  (re-ranking skipped entirely)
 
-  viewed_item_penalty
-    ON  → doc.score  −= 0.05  if doc.id ∈ viewed_ids
-    OFF → all items treated equally regardless of prior views</div>
+  viewed_item_policy
+    ON  → doc.score  += viewed_policy.adjustment   (if doc.id ∈ viewed_ids)
+          doc.score  += purchased_policy.adjustment (if doc.id ∈ purchased_ids)
+    OFF → all items treated equally regardless of prior interaction</div>
       <div class="chart-wrap">
         <div class="chart-label">Fig 9 — A/B variant flag matrix (✓ = flag on, · = flag off)</div>
         <canvas id="chart-flags" width="520" height="170"></canvas>
@@ -793,22 +975,34 @@ if (dwellMs > 5000) {
       <table>
         <tr><th>Feature</th><th>Status</th></tr>
         <tr><td><code>CustomerAction</code> model (frontend + backend)</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td><code>CustomerAction</code> extra fields (<code>form_factor</code>, <code>os_family</code>, <code>price_tier</code>) via <code>extra="allow"</code></td><td><span class="badge badge-done">Done</span></td></tr>
         <tr><td><code>view</code>, <code>search</code>, <code>category</code> event recording</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Richer <code>view</code> fields: <code>form_factor</code>, <code>os_family</code>, <code>price_tier</code> captured in action history</td><td><span class="badge badge-done">Done</span></td></tr>
         <tr><td><code>action_history</code> sent on every search</td><td><span class="badge badge-done">Done</span></td></tr>
-        <tr><td>Affinity boosts (category, manufacturer, type)</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Per-index affinity dimension auto-discovery at rebuild time (cardinality-based boost)</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Personalisation tab in Index Detail view (dimension list, enable/disable, rediscover)</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Viewed item sub-policy — viewed-not-purchased / purchased split, configurable per index</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td><code>purchased_ids</code> tracking; purchase supersedes view in <code>SearchContext</code></td><td><span class="badge badge-done">Done</span></td></tr>
         <tr><td>Preference vector blending (equal weight)</td><td><span class="badge badge-done">Done</span></td></tr>
-        <tr><td>Viewed-item demotion</td><td><span class="badge badge-done">Done</span></td></tr>
-        <tr><td>Operator controls — 4-flag Settings panel</td><td><span class="badge badge-done">Done</span></td></tr>
-        <tr><td>Personalisation on empty-query browse</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Operator controls — 4-flag Settings panel (master, vector blend, affinity, penalty)</td><td><span class="badge badge-done">Done</span></td></tr>
+        <tr><td>Personalisation on empty-query browse (up to 4×250=1 000 doc batch)</td><td><span class="badge badge-done">Done</span></td></tr>
         <tr><td>Native category/manufacturer filter (<code>filter_by</code>)</td><td><span class="badge badge-done">Done</span></td></tr>
         <tr><td>Timestamps on actions</td><td><span class="badge badge-planned">Planned — Phase 2</span></td></tr>
         <tr><td>Time-decay in <code>build_context()</code></td><td><span class="badge badge-planned">Planned — Phase 2</span></td></tr>
         <tr><td>Decay-weighted preference vector</td><td><span class="badge badge-planned">Planned — Phase 3</span></td></tr>
         <tr><td><code>localStorage</code> visitor profile (returning customer)</td><td><span class="badge badge-planned">Planned — Phase 3</span></td></tr>
         <tr><td><code>cart</code> and <code>purchase</code> events</td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td><code>click</code> event (stronger than view; position-correctable)</td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td><code>filter_apply</code> event (explicit preference signal)</td><td><span class="badge badge-planned">Planned</span></td></tr>
         <tr><td><code>dwell</code> time signal</td><td><span class="badge badge-planned">Planned</span></td></tr>
         <tr><td>Negative signals (<code>scroll_past</code>, <code>quick_close</code>)</td><td><span class="badge badge-planned">Planned</span></td></tr>
         <tr><td>Segment detection</td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td><code>compatible_device_affinity</code> boost</td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td>Account/Support: <code>page_view</code> event with <code>page_section</code>, <code>content_type</code>, <code>topic</code></td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td>Account/Support: <code>task_success</code> implicit signal</td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td>Account/Support: <code>page_section_affinity</code> + <code>content_type_affinity</code> maps</td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td>Account/Support: <code>item_type</code>-based routing in <code>build_context()</code></td><td><span class="badge badge-planned">Planned</span></td></tr>
+        <tr><td>Query classification (navigational / informational / transactional / support)</td><td><span class="badge badge-planned">Planned</span></td></tr>
         <tr><td>Server-side profile (Redis, cross-device)</td><td><span class="badge badge-planned">Planned — Phase 4</span></td></tr>
         <tr><td>Collaborative filtering</td><td><span class="badge badge-future">Future</span></td></tr>
         <tr><td>Geo / time-of-day context</td><td><span class="badge badge-future">Future</span></td></tr>
@@ -893,20 +1087,36 @@ if (dwellMs > 5000) {
         <div class="ref-note">Confirms cosine similarity in embedding space is the correct metric and L2 normalisation is required before blending. The L2 normalisation worked example (Fig 7) verifies ‖final‖ ≈ 1.0 following this requirement.</div>
       </div>
 
-      <h3>Affinity scoring and behavioural signals</h3>
+      <h3>Viewed item policy — viewed vs purchased distinction</h3>
       <div class="ref-block">
         <div class="ref-title">Collaborative filtering for implicit feedback datasets</div>
         <div class="ref-authors">Hu, Y., Koren, Y., &amp; Volinsky, C. (2008)</div>
         <div class="ref-venue">ICDM 2008, pp. 263–272</div>
         <a class="ref-link" href="https://doi.org/10.1109/ICDM.2008.22" target="_blank">doi.org/10.1109/ICDM.2008.22</a>
-        <div class="ref-note">Foundational paper for treating implicit signals as confidence-weighted preferences. The <code>weight</code> multiplier field on <code>CustomerAction</code> implements this directly.</div>
+        <div class="ref-note">Foundational paper for treating implicit signals as confidence-weighted preferences. Purchase is near-certain preference evidence; a view is lower-confidence. Treating them identically discards this confidence difference. Motivates the independent viewed/purchased sub-policy split and differential default magnitudes (−0.05 viewed vs −0.30 purchased).</div>
       </div>
+      <div class="ref-block">
+        <div class="ref-title">Amazon.com recommendations: Item-to-item collaborative filtering</div>
+        <div class="ref-authors">Linden, G., Smith, B., &amp; York, J. (2003)</div>
+        <div class="ref-venue">IEEE Internet Computing, 7(1), 76–80</div>
+        <a class="ref-link" href="https://doi.org/10.1109/MIC.2003.1167344" target="_blank">doi.org/10.1109/MIC.2003.1167344</a>
+        <div class="ref-note">Describes Amazon's production recommendation system, which uses purchase as the primary signal and treats page-view browsing as secondary. A purchase closes the loop — the recommendation objective switches from "help them find it" to "help them discover what's next." Directly motivates keeping <code>viewed_ids</code> and <code>purchased_ids</code> as separate sets in <code>SearchContext</code> with independent policies.</div>
+      </div>
+      <div class="ref-block">
+        <div class="ref-title">Deep neural networks for YouTube recommendations</div>
+        <div class="ref-authors">Covington, P., Adams, J., &amp; Sargin, E. (2016)</div>
+        <div class="ref-venue">RecSys 2016, pp. 191–198</div>
+        <a class="ref-link" href="https://dl.acm.org/doi/10.1145/2959100.2959190" target="_blank">dl.acm.org/doi/10.1145/2959100.2959190</a>
+        <div class="ref-note">Introduces <em>impression satiation</em>: items the user has already been served (but not engaged with) are suppressed in subsequent ranking passes; items the user engaged with deeply are positively reinforced. For durable goods, a completed purchase is the strongest satiation signal. The purchased sub-policy default (−0.30) operationalises satiation; the viewed-not-purchased boost mode operationalises positive reinforcement for unconverted interest.</div>
+      </div>
+
+      <h3>Affinity scoring and behavioural signals</h3>
       <div class="ref-block">
         <div class="ref-title">Novelty and diversity in information retrieval evaluation</div>
         <div class="ref-authors">Clarke, C. L. A., et al. (2008)</div>
         <div class="ref-venue">SIGIR 2008, pp. 659–666</div>
         <a class="ref-link" href="https://dl.acm.org/doi/10.1145/1390334.1390446" target="_blank">dl.acm.org/doi/10.1145/1390334.1390446</a>
-        <div class="ref-note">Motivates the viewed-item demotion (−0.05): once a customer has seen an item, its marginal value in subsequent pages is lower.</div>
+        <div class="ref-note">Establishes that re-showing items the user has already seen hurts perceived result quality and introduces metrics that reward novelty. Directly motivates the viewed/purchased score adjustments in <code>context_boost()</code>.</div>
       </div>
       <div class="ref-block">
         <div class="ref-title">Beyond clicks: Dwell time for personalization</div>

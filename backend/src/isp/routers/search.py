@@ -60,18 +60,27 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     ctx: SearchContext | None = None
     ctx_hook = None
     if req.action_history and get_customer_context_enabled():
-        ctx = build_context([a.model_dump() for a in req.action_history])
+        ctx = build_context(
+            [a.model_dump() for a in req.action_history],
+            affinity_dims=meta.affinity_dimensions or None,
+        )
 
-        _apply_affinity = get_cc_affinity_boost_enabled()
-        _apply_penalty  = get_cc_viewed_penalty_enabled()
+        # All personalisation signals apply only when browsing (no query).
+        # Explicit search expresses intent that must not be overridden by prior behaviour.
+        _apply_affinity = get_cc_affinity_boost_enabled() and not req.q.strip()
+        _apply_penalty  = get_cc_viewed_penalty_enabled()  and not req.q.strip()
 
         if _apply_affinity or _apply_penalty:
+            _affinity_dims  = meta.affinity_dimensions if _apply_affinity else []
+            _viewed_policy  = meta.viewed_item_policy
+
             def ctx_hook(scores: dict, all_docs: dict) -> None:
                 for did, doc in all_docs.items():
                     scores[did] = scores.get(did, 0.0) + context_boost(
                         doc, ctx,
-                        apply_affinity=_apply_affinity,
+                        affinity_dims=_affinity_dims,
                         apply_viewed_penalty=_apply_penalty,
+                        viewed_item_policy=_viewed_policy,
                     )
 
     # Build native Typesense filter string — works after schema migration promotes
@@ -151,7 +160,7 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
         vec = None
         if mode in ("hybrid", "semantic") and req.q.strip():
             vec = await embedding_service.embed_query(req.q, model=effective_model)
-            if ctx and ctx.vector_seed_ids and vec and get_cc_vector_blending_enabled():
+            if ctx and ctx.vector_seed_ids and vec and get_cc_vector_blending_enabled() and not req.q.strip():
                 vec = await fetch_preference_vector(ctx, [meta.external_collection], vec)
         raw = ts.search_external(
             meta.external_collection,
@@ -168,7 +177,7 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     elif mode in ("hybrid", "semantic"):
         vec = await embedding_service.embed_query(req.q, model=effective_model)
         if vec:
-            if ctx and ctx.vector_seed_ids and get_cc_vector_blending_enabled():
+            if ctx and ctx.vector_seed_ids and get_cc_vector_blending_enabled() and not req.q.strip():
                 vec = await fetch_preference_vector(ctx, [ts.collection_name(meta.id)], vec)
             raw = ts.search_with_vec(
                 meta.id, req.q, vec, req.page, req.per_page,

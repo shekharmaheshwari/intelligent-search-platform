@@ -194,7 +194,13 @@ def _apply_lexical_hook(raw: dict, hook) -> dict:
     hook(scores, all_docs)
     hit_by_id = {hit["document"]["id"]: hit for hit in hits if "document" in hit}
     ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
-    return {**raw, "hits": [hit_by_id[d] for d in ranked if d in hit_by_id]}
+    # Stamp text_match from the hook-adjusted score so PLP clients that sort by
+    # hit.text_match preserve the backend's ranking rather than reverting to the
+    # original Typesense text-match order.
+    return {**raw, "hits": [
+        {**hit_by_id[d], "text_match": int(scores[d] * 100_000)}
+        for d in ranked if d in hit_by_id
+    ]}
 
 
 def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
@@ -352,7 +358,8 @@ def search_with_vec(
     ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
     start = (page - 1) * per_page
     page_ids = ranked[start:start + per_page]
-    return {"hits": [{"document": all_docs[d], "score": scores[d]} for d in page_ids],
+    return {"hits": [{"document": all_docs[d], "score": scores[d],
+                      "text_match": int(scores[d] * 100_000)} for d in page_ids],
             "found": len(ranked),
             "page": page}
 
@@ -495,7 +502,8 @@ def search_external(
         ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
         start = (page - 1) * per_page
         page_docs = [all_docs[d] for d in ranked[start:start + per_page]]
-        return {"hits": [{"document": d, "score": scores[d]} for d in page_docs],
+        return {"hits": [{"document": d, "score": scores[d],
+                          "text_match": int(scores[d] * 100_000)} for d in page_docs],
                 "found": len(ranked), "page": page}
     return get_client().collections[col].documents.search(params)
 

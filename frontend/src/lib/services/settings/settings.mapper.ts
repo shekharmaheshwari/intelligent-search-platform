@@ -17,9 +17,9 @@ export function mapAppSettingsToSettings(dto: AppSettings): Settings {
     customEndpoint: dto.custom_endpoint,
     customModelName: dto.custom_model_name,
     customNumDim: dto.custom_num_dim,
-    customerContextEnabled:   dto.customer_context_enabled   ?? true,
-    ccVectorBlendingEnabled:  dto.cc_vector_blending_enabled ?? true,
-    ccAffinityBoostEnabled:   dto.cc_affinity_boost_enabled  ?? true,
-    ccViewedPenaltyEnabled:   dto.cc_viewed_penalty_enabled  ?? true,
+    customerContextEnabled:  dto.customer_context_enabled   ?? true,
+    ccVectorBlendingEnabled: dto.cc_vector_blending_enabled ?? true,
+    ccAffinityBoostEnabled:  dto.cc_affinity_boost_enabled  ?? true,
+    ccViewedPenaltyEnabled:  dto.cc_viewed_penalty_enabled  ?? true,
   };
 }
