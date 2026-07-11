@@ -29,23 +29,25 @@ ISP Public Search API  (POST /v1/indexes/{id}/search/public  or  POST /v1/catalo
   │       vector seed list (most-recent view / cart / purchase items)
   │
   ├── embedding_service.embed_query()  →  query vector
-  │       + context_service.fetch_preference_vector()
+  │       + context_service.fetch_preference_vector()   [BROWSE ONLY — fires when q is empty]
   │           weighted centroid of viewed-item vectors
   │           blended at 80 % query intent / 20 % preference
   │
   ├── typesense_client.search_with_vec()        (hybrid / semantic — query present)
   │       RRF (BM25 0.7  +  semantic 0.3)
   │       editorial boosts: is_featured, popularity, boost_queries
-  │       post_rrf_hook: context affinity boosts
+  │       post_rrf_hook: context affinity boosts   [BROWSE ONLY — fires when q is empty]
   │             ├── per-index affinity dimensions (cardinality-scaled boost × affinity score)
   │             │       e.g. manufacturer +0.14, form_factor +0.10, os_family +0.09
   │             └── viewed item sub-policy (configurable per index, per interaction type)
-  │                     viewed-not-purchased: penalise | neutral | boost  (default −0.05)
-  │                     purchased (durable):  penalise | neutral | boost  (default −0.30)
+  │                     viewed-not-purchased: boost  (default +0.05)
+  │                     purchased (durable):  penalise (default −0.30)
+  │       stamps text_match = int(score × 100 000) on every hit for PLP sort stability
   │
   └── typesense_client.search_documents()       (lexical — empty query / browse)
           fetch up to 4×250=1000 docs when affinity context present
-          post_rrf_hook: same per-index affinity boosts + viewed item sub-policy
+          post_rrf_hook: per-index affinity boosts + viewed item sub-policy
+          stamps text_match = int(score × 100 000) on every hit
           re-paginate to requested page after hook re-sorts
 ```
 
@@ -521,7 +523,7 @@ These two mechanisms are complementary and operate at different stages of the se
 | **What it uses** | Weighted action counts | Stored embedding vectors |
 | **Effect** | Nudges score of already-retrieved items | Steers which items are retrieved at all |
 | **Requires query?** | No | Yes (needs a query vector to blend with) |
-| **Affected by empty search?** | Previously not applied; fixed — see Browse personalisation section | N/A — cannot blend without a query |
+| **Active on** | Browse only — gated on `not req.q.strip()` | Browse only — gated on `not req.q.strip()` (cannot blend without a query anyway) |
 
 ### Current (Phase 1 — equal blend)
 
@@ -555,9 +557,9 @@ Applied **after** RRF merge and editorial boosts, before final page slice.  Thes
 
 | Signal | Boost | Applied when |
 |---|---|---|
-| Per-index affinity dimension | `dim.boost × affinity_score` | Doc's value for `dim.field` appears in the customer's affinity map; `dim.boost` is derived from cardinality at rebuild time |
-| Viewed (not purchased) | configurable — penalise / neutral / boost (default −0.05) | Doc id is in `viewed_ids` but not `purchased_ids` — active interest, need unfulfilled |
-| Purchased (durable good) | configurable — penalise / neutral / boost (default −0.30) | Doc id is in `purchased_ids` — need fulfilled; purchase supersedes view |
+| Per-index affinity dimension | `dim.boost × affinity_score` | **Browse only** (empty query). Doc's value for `dim.field` appears in the customer's affinity map; `dim.boost` is derived from cardinality at rebuild time |
+| Viewed (not purchased) | configurable — penalise / neutral / boost (default **+0.05**) | **Browse only** (empty query). Doc id is in `viewed_ids` but not `purchased_ids` — active interest, need unfulfilled |
+| Purchased (durable good) | configurable — penalise / neutral / boost (default −0.30) | **Browse only** (empty query). Doc id is in `purchased_ids` — need fulfilled; purchase supersedes view |
 
 Affinity values are normalised to [0, 1] so the top affinity value in each dimension always equals 1.0 and everything else is proportional.  Dimension boost magnitudes are derived automatically from cardinality at rebuild time (see Affinity Dimension Discovery below).  Editorial boosts (`is_featured` +0.5, `popularity` ≤ +0.5) are larger — a featured item stays featured even for a customer with no category affinity.
 
@@ -596,6 +598,33 @@ Discovered dimensions are stored in the `indexes.affinity_dimensions` JSONB colu
 
 - **API:** `GET /v1/indexes/{id}/affinity-dimensions` — returns `{ dimensions, viewed_item_policy }`
 - **UI:** Personalisation tab in Index Detail view — each dimension shown with its field name, inferred label, boost value, enabled/disabled toggle, and sample values.  Dimensions can be individually disabled without triggering a rebuild; the change takes effect on the next search request.
+
+### Catalog search — per-index affinity
+
+The catalog endpoint (`POST /v1/catalog`) merges results from multiple indexes (phones, accessories, tablets, smartwatches) using RRF.  Each index has its own discovered affinity dimensions — phones has `[category, form_factor, operating_system, manufacturer, price_tier]`; accessories has `[category, price_tier, manufacturer]`.  Applying one index's dims to another index's documents would be meaningless (accessories have no `form_factor` equivalent).
+
+**Union dims for `build_context`:**  The catalog builds the union of all active index dimensions before calling `build_context()`, so the affinity maps contain scores for every dimension any index might use.
+
+**Per-doc dims in the hook:**  During RRF merge each document is tagged with its source index id:
+
+```python
+doc["_index_id"] = col[4:]   # strips the "isp_" prefix from the Typesense collection name
+```
+
+The `ctx_hook` then applies only the *source index's own dimensions* when scoring each document — a phone document is boosted by the phones index dims, an accessory by the accessories index dims:
+
+```python
+def ctx_hook(scores: dict, all_docs: dict) -> None:
+    for did, doc in all_docs.items():
+        index_dims = _dims_by_idx.get(doc.get("_index_id", ""), []) if _apply_affinity else []
+        scores[did] = scores.get(did, 0.0) + context_boost(
+            doc, ctx,
+            affinity_dims=index_dims,
+            apply_viewed_penalty=_apply_penalty,
+        )
+```
+
+Like all other personalisation signals, the catalog hook is gated on `not req.q.strip()` — browse only.
 
 ### `CustomerAction` extra fields
 
@@ -785,7 +814,27 @@ Changes to the sub-policy take effect immediately on the next search — no rebu
 
 ---
 
-## Browse personalisation (empty-query)
+## Browse-only personalisation gate
+
+### Design decision
+
+All personalisation signals — affinity boosts, viewed/purchased policy, and preference vector blending — fire **only when the search query is empty** (browse mode).  When a customer submits an explicit search query, pure relevance applies and no personalisation signals are injected.
+
+**Why:** An explicit query expresses unambiguous intent.  If a customer who previously browsed iPhones then searches "Samsung Galaxy S25", the search result must reflect the query.  Injecting iPhone affinity boosts into that ranked list — or blending the query vector toward iPhone embeddings — would override the expressed intent and surface iPhones first, which is a confusing and incorrect experience.  During browse (no query), the customer has no expressed intent, so personalisation signals are the most useful steering available.
+
+**Implementation** — all call sites gate on `not req.q.strip()`:
+
+```python
+# search.py and catalog.py
+_apply_affinity = get_cc_affinity_boost_enabled() and not req.q.strip()
+_apply_penalty  = get_cc_viewed_penalty_enabled()  and not req.q.strip()
+
+# vector blending (search.py — 3 call sites, one per search path)
+if ctx and ctx.vector_seed_ids and vec and get_cc_vector_blending_enabled() and not req.q.strip():
+    vec = await fetch_preference_vector(...)
+```
+
+### Browse mechanics (empty-query path)
 
 When the search query is empty (page load with no search text, or after clearing the search box), the PLP frontend forces `mode: 'lexical'` to avoid embedding an empty string:
 
@@ -794,7 +843,7 @@ When the search query is empty (page load with no search text, or after clearing
 mode: q ? effectiveState.searchMode : 'lexical',
 ```
 
-Because there is no query vector, preference vector blending cannot run.  However, affinity boosts and the viewed-item penalty operate purely on document metadata and do not need a query — so they can and should apply to browse.
+Because there is no query vector, preference vector blending cannot run (and the gate above prevents it anyway).  Affinity boosts and the viewed-item policy operate purely on document metadata and do not need a query — so they apply on browse.
 
 ### How browse personalisation works
 
@@ -843,17 +892,38 @@ start = (req.page - 1) * req.per_page
 return {**raw, "hits": hits[start:start + req.per_page], "found": total, "page": req.page}
 ```
 
-### Signal status after the fix
+### Signal status
 
-| Signal | Empty-query browse |
-|---|---|
-| Preference vector blending | N/A — no query vector to blend with; expected |
-| Affinity boosts (category / manufacturer / type) | ✅ Applied via `_apply_lexical_hook` over 250-item batch |
-| Viewed-item penalty | ✅ Applied — same hook |
+| Signal | Browse (empty query) | Search (non-empty query) |
+|---|---|---|
+| Preference vector blending | N/A — no query vector to blend | ✗ Gated off — pure relevance |
+| Affinity boosts | ✅ Applied via lexical hook over up to 1 000-doc batch | ✗ Gated off — pure relevance |
+| Viewed / purchased policy | ✅ Applied — same hook | ✗ Gated off — pure relevance |
 
 ### Verified behaviour
 
-A session with Samsung `view` + `purchase` actions and an empty search query returns Samsung accessories at the top of the browse grid.  A session with no action history returns the default `is_featured:desc, _text_match:desc` order unchanged.
+A session with Samsung `view` + `purchase` actions and an empty search query returns Samsung accessories at the top of the browse grid.  The same session searching "Samsung Galaxy S25" returns results ranked purely on relevance — no iPhone affinity boosts, no vector blending toward viewed items.  A session with no action history returns the default `is_featured:desc, _text_match:desc` order unchanged.
+
+---
+
+## PLP sort stability — `text_match` stamping
+
+The PLP sorts results using `hit.text_match / 100` as a floating-point score.  Before this was implemented, when `search_with_vec` or `search_external` returned hits from the RRF hook path, the `text_match` field was absent or zero, producing `NaN` scores and an unstable sort order that did not reflect the backend ranking.
+
+**Fix:** the backend now stamps `text_match = int(score × 100_000)` on every hit across all three response paths:
+
+```python
+# search_with_vec — hybrid / semantic result
+{"document": doc, "score": scores[d], "text_match": int(scores[d] * 100_000)}
+
+# _apply_lexical_hook — browse / lexical result
+{**hit, "text_match": int(scores[d] * 100_000)}
+
+# search_external — external index result
+{"document": d, "score": scores[d], "text_match": int(scores[d] * 100_000)}
+```
+
+The PLP then recovers the ranking order via `score = hit.text_match / 100` and `sortItems` sorts descending.  The `× 100_000` scale factor means a backend score of `0.06` becomes `text_match = 6000`, and dividing by 100 gives `60` — a stable relative ordering that is consistent across all search modes.
 
 ---
 
@@ -1074,6 +1144,9 @@ Same `action_history` field.  Additional context signals in the response:
 | Viewed item sub-policy — viewed-not-purchased / purchased split, configurable per index | Done |
 | `purchased_ids` tracking; purchase supersedes view in `SearchContext` | Done |
 | Richer `view` fields: `form_factor`, `os_family`, `price_tier` captured in action history | Done |
+| **Browse-only personalisation gate** — all signals (affinity, viewed/purchased policy, vector blending) gated on `not req.q.strip()`; explicit search = pure relevance | **Done** |
+| **Per-index affinity in catalog search** — union dims for `build_context`, `_index_id` tag on each doc, per-doc dims applied in `ctx_hook` | **Done** |
+| **`text_match` stamping** — backend stamps `int(score × 100 000)` on all hits so PLP sort preserves backend ranking | **Done** |
 | Timestamps on actions | Planned — Phase 2 |
 | Time-decay in `build_context()` | Planned — Phase 2 |
 | Decay-weighted preference vector | Planned — Phase 3 |
