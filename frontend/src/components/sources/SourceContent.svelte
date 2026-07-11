@@ -9,9 +9,9 @@
    * the selected index changes.  Dispatches ``configure`` when the user clicks
    * "Configure →" so App.svelte can navigate to the configure view.
    */
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
-  import { indexService } from '../../lib/services/indexes/IndexService';
+  import { documentsStore } from '../../lib/stores/documents-store';
   import type { IndexMeta, DocumentItem } from '../../lib/types';
   import RebuildPanel from './RebuildPanel.svelte';
   import IndexExtensionsPanel from '../extensions/IndexExtensionsPanel.svelte';
@@ -28,11 +28,12 @@
   let showRebuild = false;
   let showExtensions = false;
 
-  let docs: DocumentItem[] = [];
-  let found = 0;
-  let page = 1;
   const perPage = 20;
-  let loadingDocs = false;
+  let page = 1;
+
+  $: docs        = $documentsStore.docs;
+  $: found       = $documentsStore.found;
+  $: loadingDocs = $documentsStore.loading;
 
   let q = '';
   let searchMode: 'hybrid' | 'lexical' | 'semantic' = 'hybrid';
@@ -40,27 +41,15 @@
   let searching = false;
   let searched = false;
 
-  async function loadDocs() {
-    loadingDocs = true;
-    try {
-      const res = await indexService.listDocuments(index.id, page, perPage);
-      docs = res.hits.map(h => h.document);
-      found = res.found;
-    } finally {
-      loadingDocs = false;
-    }
+  function loadDocs() {
+    documentsStore.load(index.id, { page, perPage });
   }
 
   async function search() {
     if (!q.trim()) { searched = false; loadDocs(); return; }
     searching = true; searched = true;
-    try {
-      const res = await indexService.search(index.id, q.trim(), searchMode);
-      docs = res.hits.map(h => h.document);
-      found = res.found;
-    } finally {
-      searching = false;
-    }
+    await documentsStore.search(index.id, q.trim(), { mode: searchMode, page, perPage: 10 });
+    searching = false;
   }
 
   /** Submit a search on Enter key press in the search input. */
@@ -84,8 +73,11 @@
   let _loadedIndexId = '';
   $: if (index && index.id !== _loadedIndexId) {
     _loadedIndexId = index.id;
-    page = 1; q = ''; searched = false; loadDocs();
+    page = 1; q = ''; searched = false;
+    documentsStore.reset();
+    loadDocs();
   }
+  onDestroy(() => documentsStore.reset());
 
   let expandedIds = new Set<string>();
   function toggleExpand(id: string) {
@@ -160,7 +152,7 @@
     }
     editSaving = true; editErr = '';
     try {
-      await indexService.updateDocument(
+      await documentsStore.updateDocument(
         index.id, editDoc.id,
         editPopularity, editIsFeatured,
         editBoostEqual, editBoostContains,

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { api } from '../../lib/api';
+  import { onMount, onDestroy } from 'svelte';
+  import { boostRulesStore } from '../../lib/stores/boost-rules-store';
   import type { BoostRule, BoostCriterion } from '../../lib/types';
   import DocPickerModal from './DocPickerModal.svelte';
   import {
@@ -12,10 +12,11 @@
 
   let rules: BoostRule[] = [];
   let fields: string[]   = [];
-  let loading   = true;
-  let saving    = false;
-  let error     = '';
-  let saveMsg   = '';
+  let saveMsg = '';
+
+  $: loading = $boostRulesStore.loading;
+  $: saving  = $boostRulesStore.saving;
+  $: error   = $boostRulesStore.error;
   let searchQ   = '';
   let editingLabelId: string | null = null;
 
@@ -28,23 +29,16 @@
   let pickerTargetIdx: number | null = null;
 
   onMount(async () => {
-    try {
-      const [rRes, fRes] = await Promise.all([
-        api.getBoostRules(indexId),
-        api.getBoostRuleFields(indexId),
-      ]);
-      rules  = (rRes.rules ?? []).map((r: any) => ({
-        ...r,
-        trigger: r.trigger ?? r.criteria ?? [],
-        targets: r.targets ?? [],
-      }));
-      fields = fRes.fields ?? [];
-    } catch (e) {
-      error = String(e);
-    } finally {
-      loading = false;
-    }
+    await boostRulesStore.load(indexId);
+    const s = boostRulesStore.getValue();
+    rules  = (s.rules ?? []).map((r: any) => ({
+      ...r,
+      trigger: r.trigger ?? r.criteria ?? [],
+      targets: r.targets ?? [],
+    }));
+    fields = s.fields ?? [];
   });
+  onDestroy(() => boostRulesStore.reset());
 
   function addRule(): void {
     rules = [...rules, {
@@ -122,18 +116,17 @@
   }
 
   async function save(): Promise<void> {
-    saving  = true;
-    error   = '';
     saveMsg = '';
-    try {
-      const res = await api.updateBoostRules(indexId, rules);
-      rules   = res.rules;
+    await boostRulesStore.save(indexId, rules);
+    const s = boostRulesStore.getValue();
+    if (!s.error) {
+      rules   = (s.rules ?? []).map((r: any) => ({
+        ...r,
+        trigger: r.trigger ?? r.criteria ?? [],
+        targets: r.targets ?? [],
+      }));
       saveMsg = 'Saved';
       setTimeout(() => (saveMsg = ''), 2000);
-    } catch (e) {
-      error = String(e);
-    } finally {
-      saving = false;
     }
   }
 </script>

@@ -4,7 +4,7 @@
   // indexService directly.  Does not read from any store; parent passes connector and intentLabel as props.
 
   import { onMount } from 'svelte';
-  import { indexService } from '../../lib/services/indexes/IndexService';
+  import { mappingStore } from '../../lib/stores/mapping-store';
   import type { MappingConfig } from '../../lib/types';
   import type { FieldRow, ValueRow } from './MappingTab.helpers';
   import {
@@ -81,16 +81,10 @@
   /** Save intent label only; does not touch field_map or value_map. */
   async function saveIntentLabel() {
     savingLabel = true; errLabel = ''; savedLabel = false;
-    try {
-      await indexService.saveIntentLabel(indexId, labelValue.trim());
-      savedLabel = true;
-      // Auto-clear the success indicator after 2 s so it does not persist indefinitely.
-      setTimeout(() => { savedLabel = false; }, 2000);
-    } catch (e) {
-      errLabel = String(e);
-    } finally {
-      savingLabel = false;
-    }
+    await mappingStore.saveIntentLabel(indexId, labelValue.trim());
+    errLabel = mappingStore.getValue().errors.label;
+    if (!errLabel) { savedLabel = true; setTimeout(() => { savedLabel = false; }, 2000); }
+    savingLabel = false;
   }
 
   /**
@@ -99,20 +93,15 @@
    */
   async function saveFieldRenames() {
     savingFields = true; errFields = ''; savedFields = false;
-    try {
-      const cfg: MappingConfig = {
-        field_map:     buildFieldMap(fieldRows),
-        value_map:     buildValueMap(valueRows),     // preserve value overrides when saving only renames
-        static_fields: buildStaticFields(staticFields), // preserve static fields when saving only renames
-      };
-      await indexService.saveMapping(indexId, cfg);
-      savedFields = true;
-      setTimeout(() => { savedFields = false; }, 2000);
-    } catch (e) {
-      errFields = String(e);
-    } finally {
-      savingFields = false;
-    }
+    const cfg: MappingConfig = {
+      field_map:     buildFieldMap(fieldRows),
+      value_map:     buildValueMap(valueRows),
+      static_fields: buildStaticFields(staticFields),
+    };
+    await mappingStore.saveMapping(indexId, cfg);
+    errFields = mappingStore.getValue().errors.mapping;
+    if (!errFields) { savedFields = true; setTimeout(() => { savedFields = false; }, 2000); }
+    savingFields = false;
   }
 
   /**
@@ -121,20 +110,15 @@
    */
   async function saveValueOverrides() {
     savingValues = true; errValues = ''; savedValues = false;
-    try {
-      const cfg: MappingConfig = {
-        field_map:     buildFieldMap(fieldRows),     // preserve field renames when saving only overrides
-        value_map:     buildValueMap(valueRows),
-        static_fields: buildStaticFields(staticFields), // preserve static fields when saving only overrides
-      };
-      await indexService.saveMapping(indexId, cfg);
-      savedValues = true;
-      setTimeout(() => { savedValues = false; }, 2000);
-    } catch (e) {
-      errValues = String(e);
-    } finally {
-      savingValues = false;
-    }
+    const cfg: MappingConfig = {
+      field_map:     buildFieldMap(fieldRows),
+      value_map:     buildValueMap(valueRows),
+      static_fields: buildStaticFields(staticFields),
+    };
+    await mappingStore.saveMapping(indexId, cfg);
+    errValues = mappingStore.getValue().errors.mapping;
+    if (!errValues) { savedValues = true; setTimeout(() => { savedValues = false; }, 2000); }
+    savingValues = false;
   }
 
   /**
@@ -143,21 +127,15 @@
    */
   async function saveStaticFields() {
     staticSaving = true; staticErr = ''; staticSaved = false;
-    try {
-      const cfg: MappingConfig = {
-        field_map:     buildFieldMap(fieldRows),     // preserve field renames when saving only static fields
-        value_map:     buildValueMap(valueRows),     // preserve value overrides when saving only static fields
-        static_fields: buildStaticFields(staticFields),
-      };
-      await indexService.saveMapping(indexId, cfg);
-      staticSaved = true;
-      // Auto-clear the success indicator after 2 s so it does not persist indefinitely.
-      setTimeout(() => { staticSaved = false; }, 2000);
-    } catch (e) {
-      staticErr = String(e);
-    } finally {
-      staticSaving = false;
-    }
+    const cfg: MappingConfig = {
+      field_map:     buildFieldMap(fieldRows),
+      value_map:     buildValueMap(valueRows),
+      static_fields: buildStaticFields(staticFields),
+    };
+    await mappingStore.saveMapping(indexId, cfg);
+    staticErr = mappingStore.getValue().errors.mapping;
+    if (!staticErr) { staticSaved = true; setTimeout(() => { staticSaved = false; }, 2000); }
+    staticSaving = false;
   }
 </script>
 
