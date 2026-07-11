@@ -3,10 +3,14 @@
   // an index, grouped into PROMOTED / ORGANIC / SUPPRESSED tiers.
   // Reads data via suggestionsService (transient, not shared globally).
 
-  import { onMount } from 'svelte';
-  import { suggestionsService } from '../../lib/services/suggestions/SuggestionsService';
+  import { onMount, onDestroy } from 'svelte';
+  import { suggestionsStore } from '../../lib/stores/suggestions-store';
   import DocPickerModal from './DocPickerModal.svelte';
   import type { Suggestion } from '../../lib/types';
+  import {
+    filterByBoostTier, canPrev, canNext,
+    buildSavePayload, addFeaturedId, removeFeaturedId,
+  } from './SuggestionsTab.helpers';
 
   /** Id of the index whose suggestions this tab manages. */
   export let indexId: string;
@@ -14,14 +18,15 @@
   /** Pre-fill for the category field in the Add modal; derived from the index intent label. */
   export let category: string | undefined;
 
-  // ── Data state ───────────────────────────────────────────────────────────────
+  // ── Data state (from store) ───────────────────────────────────────────────────
 
-  let suggestions: Suggestion[] = [];
-  let total = 0;
   let page = 1;
   const perPage = 20;
-  let loading = false;
-  let error = '';
+
+  $: suggestions = $suggestionsStore.suggestions;
+  $: total       = $suggestionsStore.total;
+  $: loading     = $suggestionsStore.loading;
+  $: error       = $suggestionsStore.error;
 
   // ── Search state ─────────────────────────────────────────────────────────────
 
@@ -31,10 +36,9 @@
 
   // ── Tier-grouped reactive derivations ────────────────────────────────────────
 
-  // Split the flat suggestions array into the three display tiers.
-  $: promoted   = suggestions.filter(s => s.boost ===  1);
-  $: organic    = suggestions.filter(s => s.boost ===  0);
-  $: suppressed = suggestions.filter(s => s.boost === -1);
+  $: promoted   = filterByBoostTier(suggestions,  1);
+  $: organic    = filterByBoostTier(suggestions,  0);
+  $: suppressed = filterByBoostTier(suggestions, -1);
 
   // ── Edit modal state ─────────────────────────────────────────────────────────
 
@@ -68,27 +72,13 @@
   // ── Data loading ─────────────────────────────────────────────────────────────
 
   /** Fetch the current page of suggestions, respecting the active search query. */
-  async function load(): Promise<void> {
+  function load(): void {
     if (!category) return;
-    loading = true;
-    error = '';
-    try {
-      const res = await suggestionsService.listSuggestions(indexId, {
-        // Omit q entirely when blank so the backend returns all suggestions.
-        q: q.trim() || undefined,
-        page,
-        per_page: perPage,
-      });
-      suggestions = res.suggestions;
-      total       = res.total;
-    } catch (e) {
-      error = String(e);
-    } finally {
-      loading = false;
-    }
+    suggestionsStore.load(indexId, { q: q.trim() || undefined, page, per_page: perPage });
   }
 
   onMount(load);
+  onDestroy(() => suggestionsStore.reset());
 
   /** Handle search input with a 300 ms debounce to avoid hammering the API. */
   function onSearchInput(): void {
@@ -101,8 +91,8 @@
 
   // ── Pagination ───────────────────────────────────────────────────────────────
 
-  function prev(): void { if (page > 1) { page--; load(); } }
-  function next(): void { if (page * perPage < total) { page++; load(); } }
+  function prev(): void { if (canPrev(page)) { page--; load(); } }
+  function next(): void { if (canNext(page, perPage, total)) { page++; load(); } }
 
   // ── Edit modal ───────────────────────────────────────────────────────────────
 
@@ -135,17 +125,14 @@
   }
 
   function addFeaturedDocId(): void {
-    const id = editFeaturedDocIdInput.trim();
-    if (id && !editFeaturedDocIds.includes(id)) {
-      editFeaturedDocIds = [...editFeaturedDocIds, id];
-    }
+    editFeaturedDocIds     = addFeaturedId(editFeaturedDocIds, editFeaturedDocIdInput);
     editFeaturedDocIdInput = '';
   }
 
   function removeFeaturedDocId(id: string): void {
-    editFeaturedDocIds = editFeaturedDocIds.filter(d => d !== id);
-    const { [id]: _, ...rest } = editFeaturedDocTitles;
-    editFeaturedDocTitles = rest;
+    const result           = removeFeaturedId(editFeaturedDocIds, editFeaturedDocTitles, id);
+    editFeaturedDocIds     = result.ids;
+    editFeaturedDocTitles  = result.titles;
   }
 
   let showDocPicker = false;
@@ -164,15 +151,10 @@
     editSaving = true;
     editErr    = '';
     try {
-      await suggestionsService.updateSuggestion(indexId, editingItem.id, {
-        boost:            editBoost,
-        mode:             editMode,
-        // Only send url when mode is "link"; omit it entirely for search mode.
-        url:              editMode === 'link' ? editUrl.trim() || undefined : undefined,
-        // Only send featured_doc_ids when mode is "search"; omit for link mode.
-        featured_doc_ids: editMode === 'search' ? editFeaturedDocIds : undefined,
-      });
-      await load();
+      await suggestionsStore.updateSuggestion(indexId, editingItem.id,
+        buildSavePayload(editBoost, editMode, editUrl, editFeaturedDocIds),
+      );
+      load();
       closeEdit();
     } catch (e) {
       editErr = String(e);
@@ -192,8 +174,8 @@
     editSaving = true;
     editErr    = '';
     try {
-      await suggestionsService.deleteSuggestion(indexId, editingItem.id);
-      await load();
+      await suggestionsStore.delete(indexId, editingItem.id);
+      load();
       closeEdit();
     } catch (e) {
       editErr = String(e);
@@ -225,13 +207,12 @@
     addSaving = true;
     addErr    = '';
     try {
-      await suggestionsService.createSuggestion(indexId, {
+      await suggestionsStore.create(indexId, {
         query:    addQuery.trim(),
         boost:    addBoost,
-        // Omit category entirely when blank — the backend treats absence as no category.
         category: addCategory.trim() || undefined,
       });
-      await load();
+      load();
       closeAdd();
     } catch (e) {
       addErr = String(e);

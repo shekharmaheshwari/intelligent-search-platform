@@ -1,14 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { IndexMeta } from '../../lib/types';
+  import { fmtDate } from './IndexCard.helpers';
 
   export let index: IndexMeta;
 
   const dispatch = createEventDispatcher<{ open: string; delete: string }>();
-
-  function fmtDate(iso: string) {
-    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  }
 </script>
 
 <div class="card" on:click={() => dispatch('open', index.id)} role="button" tabindex="0"
