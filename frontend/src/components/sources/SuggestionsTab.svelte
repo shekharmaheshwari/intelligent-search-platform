@@ -51,6 +51,8 @@
   let editUrl = '';
   /** Document IDs to pin at the top positions when editMode is "search". */
   let editFeaturedDocIds: string[] = [];
+  /** Title lookup keyed by doc id — populated when doc is chosen via Browse. */
+  let editFeaturedDocTitles: Record<string, string> = {};
   /** Staging input for adding another doc ID to the list. */
   let editFeaturedDocIdInput = '';
 
@@ -112,6 +114,7 @@
     editMode             = (s.mode ?? 'search') as 'link' | 'search';
     editUrl              = s.url ?? '';
     editFeaturedDocIds   = s.featured_doc_ids ?? [];
+    editFeaturedDocTitles = {};
     editFeaturedDocIdInput = '';
     editErr           = '';
     confirmDelete     = false;
@@ -127,6 +130,7 @@
     editMode               = 'search';
     editUrl                = '';
     editFeaturedDocIds     = [];
+    editFeaturedDocTitles  = {};
     editFeaturedDocIdInput = '';
   }
 
@@ -140,6 +144,8 @@
 
   function removeFeaturedDocId(id: string): void {
     editFeaturedDocIds = editFeaturedDocIds.filter(d => d !== id);
+    const { [id]: _, ...rest } = editFeaturedDocTitles;
+    editFeaturedDocTitles = rest;
   }
 
   let showDocPicker = false;
@@ -147,6 +153,7 @@
   function selectPickerDoc(doc: { id: string; title: string }): void {
     if (!editFeaturedDocIds.includes(doc.id)) {
       editFeaturedDocIds = [...editFeaturedDocIds, doc.id];
+      editFeaturedDocTitles = { ...editFeaturedDocTitles, [doc.id]: doc.title };
     }
     showDocPicker = false;
   }
@@ -408,7 +415,14 @@
           <div class="pin-chips">
             {#each editFeaturedDocIds as docId}
               <span class="pin-chip">
-                <span class="pin-chip-text">{docId}</span>
+                <span class="pin-chip-label">
+                  {#if editFeaturedDocTitles[docId]}
+                    <span class="pin-chip-name">{editFeaturedDocTitles[docId]}</span>
+                    <span class="pin-chip-id">{docId}</span>
+                  {:else}
+                    <span class="pin-chip-name">{docId}</span>
+                  {/if}
+                </span>
                 <button class="pin-chip-remove" on:click={() => removeFeaturedDocId(docId)}>✕</button>
               </span>
             {/each}
@@ -840,12 +854,20 @@
   /* Pin-to-top multi-value chip input */
   .pin-chips { display: flex; flex-direction: column; gap: 6px; }
   .pin-chip {
-    display: inline-flex; align-items: center; gap: 6px;
+    display: flex; align-items: center; gap: 6px;
     background: var(--bg-3); border: 1px solid var(--border);
-    border-radius: 4px; padding: 3px 8px; font-size: 12px;
+    border-radius: 4px; padding: 5px 8px; font-size: 12px;
     color: var(--text-3); max-width: 100%; overflow: hidden;
   }
-  .pin-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .pin-chip-label { display: flex; flex-direction: column; gap: 1px; flex: 1; overflow: hidden; }
+  .pin-chip-name {
+    font-size: 12px; color: var(--text); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .pin-chip-id {
+    font-size: 10px; color: var(--text-5); font-family: monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .pin-chip-remove {
     background: none; border: none; cursor: pointer; color: var(--text-5);
     font-size: 10px; padding: 0; line-height: 1; flex-shrink: 0;
