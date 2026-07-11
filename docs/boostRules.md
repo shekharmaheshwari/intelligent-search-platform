@@ -6,266 +6,273 @@ A complete design reference for the Boost Rules feature: how merchandising teams
 
 ## What it is
 
-Boost Rules let operators apply additive score boosts to product subsets using conditional field matching. Rather than boosting a single named document (which Suggestions / Pin-to-top handles), Boost Rules target a *class* of products — every Samsung device, every item whose title contains "clearance", every product whose SKU matches a regex pattern.
+Boost Rules let operators apply additive score boosts to product subsets using two-part conditional logic:
 
-Each rule block is:
+- **Trigger** — *when* the rule fires (all conditions AND-ed)
+- **Boost targets** — *which products* are boosted (any condition OR-ed)
 
-```
-[ Select Field ▼ ]  [ Operator ▼ ]  [ Enter Value… ]
-[ Select Field ▼ ]  [ Operator ▼ ]  [ Enter Value… ]   ← AND chained
-─────────────────────────────────────────────────────
-Boost value:  [━━━━━━●─────────]  +0.20
-```
-
-Multiple rule blocks = OR (each block is evaluated independently; matching any block applies that block's boost).
+Rather than boosting a single named document (which Suggestions / Pin-to-top handles), Boost Rules target a *class* of products: every Apple device when someone searches "iphone", every item whose title contains "clearance" on the browse page, or a specific product ID when a particular search term is used.
 
 ---
 
 ## Data model
 
-### Single criterion
+### Criterion
+
+A single field-match condition used in both trigger and targets:
 
 ```json
-{
-  "field":    "manufacturer",
-  "operator": "equals",
-  "value":    "Samsung"
-}
+{ "field": "manufacturer", "operator": "equals", "value": "apple" }
 ```
 
 | Field | Type | Values |
 |---|---|---|
-| `field` | string | Any filterable schema field (from filtered live schema) |
+| `field` | string | Any filterable schema field, `"id"`, or `"__search_term__"` (trigger only) |
 | `operator` | enum | `"equals"` / `"contains"` / `"regex"` |
 | `value` | string | The match target |
 
-### Rule block
+The special field `__search_term__` matches against the live search query string rather than any document field. It is only meaningful in the `trigger` section.
 
-A named group of AND-chained criteria with a single boost value:
+### Rule block
 
 ```json
 {
-  "id":       "rule_abc123",
-  "label":    "Holiday Samsung Push",
-  "enabled":  true,
-  "criteria": [
-    { "field": "manufacturer", "operator": "equals",   "value": "Samsung" },
-    { "field": "title",        "operator": "contains", "value": "Galaxy" }
+  "id":      "rule_abc123",
+  "label":   "Apple search boost",
+  "enabled": true,
+  "boost":   0.40,
+  "trigger": [
+    { "field": "__search_term__", "operator": "contains", "value": "apple" }
   ],
-  "boost": 0.30
+  "targets": [
+    { "field": "id",           "operator": "equals",   "value": "PROD-001" },
+    { "field": "manufacturer", "operator": "equals",   "value": "apple"    },
+    { "field": "title",        "operator": "contains", "value": "iPhone"   }
+  ]
 }
 ```
 
 | Field | Type | Notes |
 |---|---|---|
 | `id` | string | Generated on creation (nanoid) |
-| `label` | string | Human-readable name for the rule block |
+| `label` | string | Human-readable name shown in the rule card header |
 | `enabled` | bool | Toggle without deleting — takes effect immediately |
-| `criteria` | list | All must match (AND). Empty criteria list matches nothing. |
-| `boost` | float | Additive score delta. Range 0.00–1.00. See zones below. |
+| `boost` | float | Additive score delta. Range 0.00–1.00, clamped server-side. |
+| `trigger` | list | ALL must match (AND). Supports `__search_term__`. Empty = matches nothing. |
+| `targets` | list | ANY must match (OR). Empty = all documents passing the trigger are boosted. |
+
+### Browse vs search gating (per-rule)
+
+The rule fires in different modes depending on whether the trigger references the search term:
+
+| Trigger contains `__search_term__`? | Fires when |
+|---|---|
+| Yes | Active query is non-empty AND the query matches the trigger |
+| No | Browse only (empty query) |
+
+This is evaluated per-rule inside `apply_boost_rules` — different rules in the same index can mix search-mode and browse-mode.
 
 ### Index-level storage
 
-Rules are stored in a new `boost_rules` JSONB column on the `indexes` table — one list of rule blocks per index:
+Rules are stored in a `boost_rules` JSONB column on the `indexes` table — one list of rule blocks per index:
 
 ```json
 [
   {
     "id": "rule_abc123",
-    "label": "Holiday Samsung Push",
+    "label": "Apple search boost",
     "enabled": true,
-    "criteria": [
-      { "field": "manufacturer", "operator": "equals", "value": "Samsung" }
+    "boost": 0.40,
+    "trigger": [
+      { "field": "__search_term__", "operator": "contains", "value": "apple" }
     ],
-    "boost": 0.30
+    "targets": [
+      { "field": "manufacturer", "operator": "equals", "value": "apple" }
+    ]
   },
   {
     "id": "rule_def456",
-    "label": "Clearance Nudge",
+    "label": "Clearance browse nudge",
     "enabled": true,
-    "criteria": [
+    "boost": 0.10,
+    "trigger": [
       { "field": "title", "operator": "contains", "value": "clearance" }
     ],
-    "boost": 0.10
+    "targets": []
   }
 ]
 ```
 
-Migration: `ALTER TABLE indexes ADD COLUMN boost_rules JSONB NOT NULL DEFAULT '[]'`.
+Migration: `ALTER TABLE indexes ADD COLUMN IF NOT EXISTS boost_rules JSONB DEFAULT '[]'`.
+
+Legacy rules with a flat `criteria` field are automatically migrated on load: `criteria` becomes `trigger`, `targets` defaults to `[]`.
 
 ---
 
 ## Boost value zones
 
-The boost value slider has two visually distinct zones that communicate risk to the operator.
-
 ### Normal zone — 0.00 to +0.45
 
-- **Track colour:** accent (blue/purple — matches the ISP theme)
+- **Track colour:** accent (blue/purple)
 - **Context text:** *"Applies a preference nudge. Natural search relevance remains intact."*
-- **Effect:** Products matching the rule move up in rankings but strong keyword-relevance matches still appear above weak matches.
+- **Effect:** Products move up in rankings but strong relevance matches still appear above weak ones.
 
 ### Danger zone — +0.50 to +1.00
 
-- **Track colour:** amber → red as value increases
+- **Track colour:** amber
 - **Warning icon:** ⚠ appears next to the value display
 - **Context text:** *"Boosts ≥ +0.50 aggressively override keyword and semantic relevance. Products matching this rule may jump to the top even for loosely related queries."*
-- **Hard UI cap:** +1.00. The backend also clamps any stored value to +1.00 regardless.
+- **Hard cap:** +1.00 in both UI and backend.
 
-**Why expose the danger zone rather than silently cap at +0.45?**
+**Why expose the danger zone rather than cap at +0.45?**
 
-Silently capping generates "why isn't my boost working?" support tickets and frustrates merchandising teams during high-stakes campaigns (e.g. a Black Friday sale where they genuinely need to surface a specific brand ahead of all others). Exposing the boundary with a warning gives operators full control while ensuring they explicitly acknowledge the trade-off. Merchants cannot claim "the algorithm is broken" when results look unusual — they chose to override natural ordering.
+Silently capping generates "why isn't my boost working?" support tickets during high-stakes campaigns (Black Friday, brand launches). Exposing the boundary with a warning gives full control while ensuring operators explicitly acknowledge the trade-off.
 
 ### Score context
 
-For reference, the ISP RRF score range for a typical product result is approximately:
-
-| RRF rank | Base score |
+| RRF rank | Approximate base score |
 |---|---|
 | Position 1 | ~0.061 |
 | Position 5 | ~0.055 |
 | Position 20 | ~0.043 |
 
-Editorial boosts: `is_featured` +0.50, `popularity` ≤ +0.50. A boost rule of +0.30 is roughly equivalent to being "featured" — it moves a product well up the page but doesn't guarantee position 1 unless the base score is also strong. A boost rule of +0.70 will override almost any relevance signal.
+A boost of +0.30 roughly matches the "featured" editorial boost — moves a product well up the page without guaranteeing position 1. A boost of +0.70 overrides almost any relevance signal.
 
 ---
 
-## AND within a block / OR across blocks
+## Trigger logic (AND) / Target logic (OR)
 
-### Strict AND (within one rule block)
+### Trigger — all must match
 
-All criteria in a block must match for the boost to apply.
-
-```
-Rule: "Sony Wireless"
-  [ manufacturer ] [ equals   ] [ Sony     ]
-  [ title        ] [ contains ] [ wireless ]
-
-→ Sony WH-1000XM5 matches both → boosted +0.25
-→ Sony Phone Case matches manufacturer but not title → not boosted
-→ JBL wireless headphones matches title but not manufacturer → not boosted
-```
-
-### OR across blocks
-
-Create separate rule blocks. Each block is evaluated independently and applies its own boost.
+All trigger criteria are evaluated with AND. If any criterion fails, the rule does not fire for any document.
 
 ```
-Block A: manufacturer = Sony      → +0.25
-Block B: manufacturer = Bose      → +0.20
+Trigger:
+  __search_term__  contains  "apple"
+  AND
+  (nothing else)
 
-→ Sony product: +0.25 applied (Block A matches)
-→ Bose product: +0.20 applied (Block B matches)
-→ JBL product:  no boost
+→ fires only when the search query contains "apple"
 ```
 
-A product that somehow matches two separate blocks receives both boosts (they stack). This is intentional and transparent — the operator created both blocks. The danger-zone warning handles the case where stacking pushes total boost into override territory.
+Mixed triggers (search term + field) are supported:
 
-### Why not AND/OR within a single block?
+```
+Trigger:
+  __search_term__  equals  "iphone"
+  manufacturer     equals  "apple"
 
-Nesting AND/OR logic within one rule block creates query-builder complexity (parenthesised groups, operator precedence) that confuses non-technical merchandising teams. The two-block pattern achieves the same result with a flat, scannable UI.
+→ fires only when searching "iphone" AND the document is made by Apple
+  (unusual — normally search-term trigger alone is enough)
+```
+
+### Targets — any must match (OR)
+
+Once the trigger fires, a document is boosted if it matches **any** target row. Empty targets = boost all documents.
+
+```
+Targets (OR):
+  id           equals    "PROD-001"
+  manufacturer equals    "apple"
+  title        contains  "iPhone"
+
+→ boosts PROD-001, or any Apple product, or any product with "iPhone" in the title
+```
+
+### OR across rules
+
+Create separate rule blocks. Each is evaluated independently and applies its own boost. A document matching two blocks receives both boosts (they stack additively).
+
+---
+
+## ID target — Browse picker
+
+When `id` is selected as the target field, the plain text input is replaced by a document picker:
+
+```
+┌─ Boost targets ─────────────────────────────────────────────────┐
+│  id ▼   Equals ▼   [iPhone 15 Pro          PROD-001    ✕]  Browse│
+│  [+ Add target condition]                                        │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+Clicking **Browse** opens the `DocPickerModal` — the same search-and-select modal used for Pin-to-top in Suggestions. The picked document's title is shown in the chip for readability; only the ID is saved in the criterion value.
+
+This makes it easy to pin an exact product at the top for a specific search query without needing to copy-paste doc IDs.
 
 ---
 
 ## Field list — filtered live schema
 
-Fields available in the "Select Field" dropdown are fetched dynamically from the Typesense collection schema, then filtered through a server-side blocklist that strips internal system fields.
+Fields in the target dropdown come from the live Typesense collection schema, filtered through a server-side blocklist:
 
-**Blocklist (never shown):**
+**Always-excluded fields (system internals):**
+`vec`, `indexed_at`, `metadata`, `content`, `url`, `is_featured`, `popularity`, `version_score`, `in_stock`, `price`, `boost_queries_equal`, `boost_queries_contains`, `images`, `skus`, `color_options`, `aliases`, `tags`
 
-```python
-_BOOST_RULE_SKIP_FIELDS = {
-    "id", "vec", "indexed_at", "metadata", "content",
-    "is_featured", "popularity", "in_stock", "price",
-    "images", "skus", "color_options", "url", "aliases", "tags",
-}
-```
+**`id` is excluded from the API field list** but hardcoded as the first option in the targets dropdown (with Browse picker behaviour).
+
+**`__search_term__`** is hardcoded as the first option in the trigger dropdown only.
 
 **What remains (example — phones index):**
 
-| Field | Operator options |
+| Field | Typical operators |
 |---|---|
-| `title` | Contains, Equals, Regex |
+| `title` | Contains, Regex |
 | `manufacturer` | Equals, Contains |
-| `category` | Equals, Contains |
+| `category` | Equals |
 | `form_factor` | Equals |
 | `operating_system` | Equals |
 | `source_type` | Equals |
 
-**Why live schema rather than affinity fields only?**
-
-Affinity dimensions are a curated subset (low-cardinality fields good for personalisation). Boost rules need broader reach — a merchandising team must be able to target by `title` keyword ("clearance"), by `sku` prefix pattern, or by any other indexable attribute. Restricting to affinity fields would prevent legitimate campaigns.
-
-**Why not raw Typesense schema?**
-
-Raw schema exposes `vec`, `indexed_at`, `temp_sync_id`, and other system fields that have no merchandising meaning. The filtered live schema gives the full business-relevant field set without internal clutter.
-
 ---
 
-## Operator options per field type
+## Operator options
 
-| Operator | UI label | Match logic | Field type |
-|---|---|---|---|
-| `equals` | Equals | Case-insensitive exact match: `doc[field].lower() == value.lower()` | String fields |
-| `contains` | Contains | Case-insensitive substring: `value.lower() in doc[field].lower()` | String fields, especially `title` |
-| `regex` | Matches Regex | Python `re.search(value, doc[field], re.IGNORECASE)` | SKU patterns, structured strings |
+| Operator | UI label | Match logic |
+|---|---|---|
+| `equals` | Equals | `doc[field].lower() == value.lower()` |
+| `contains` | Contains | `value.lower() in doc[field].lower()` |
+| `regex` | Matches Regex | `re.search(value, doc[field], IGNORECASE)` |
 
-Regex validation: the backend validates the pattern at save time (`re.compile(value)`) and returns a 400 error on invalid syntax. The UI shows an inline error before Save is called.
+Regex patterns are validated at save time (`re.compile`). Invalid patterns return HTTP 400 before saving.
 
 ---
 
 ## Backend application
 
-Boost rules run in the `post_rrf_hook` pipeline, after personalisation signals, before page slicing.
-
 ```python
-def _apply_boost_rules(scores: dict, all_docs: dict, rules: list[dict]) -> None:
-    import re
-    for rule in rules:
-        if not rule.get("enabled", True):
-            continue
-        boost = min(float(rule.get("boost", 0.0)), 1.0)   # hard server cap
-        criteria = rule.get("criteria", [])
-        if not criteria:
-            continue
-        for did, doc in all_docs.items():
-            if _rule_matches(doc, criteria):
-                scores[did] = scores.get(did, 0.0) + boost
+_SEARCH_TERM_FIELD = "__search_term__"
 
-def _rule_matches(doc: dict, criteria: list[dict]) -> bool:
-    """All criteria must match (AND)."""
-    import re
-    meta = json.loads(doc.get("metadata") or "{}") if isinstance(doc.get("metadata"), str) else (doc.get("metadata") or {})
-    for c in criteria:
-        field    = c.get("field", "")
-        operator = c.get("operator", "equals")
-        value    = c.get("value", "")
-        raw = doc.get(field) or meta.get(field)
-        if raw is None:
-            return False
-        doc_val = str(raw).lower()
-        val     = value.lower()
-        if operator == "equals":
-            if doc_val != val:
-                return False
-        elif operator == "contains":
-            if val not in doc_val:
-                return False
-        elif operator == "regex":
-            try:
-                if not re.search(value, str(raw), re.IGNORECASE):
-                    return False
-            except re.error:
-                return False
-    return True
+def apply_boost_rules(scores, all_docs, rules, query=""):
+    is_search = bool(query.strip())
+    for rule in rules:
+        if not rule.get("enabled", True): continue
+        boost   = min(float(rule.get("boost", 0.0)), 1.0)
+        trigger = rule.get("trigger", [])
+        targets = rule.get("targets", [])
+        if not trigger or boost == 0.0: continue
+
+        # Per-rule browse/search gate
+        has_query_criterion = any(c["field"] == _SEARCH_TERM_FIELD for c in trigger)
+        if has_query_criterion != is_search:
+            continue
+
+        for did, doc in all_docs.items():
+            meta = _parse_meta(doc)
+            # Trigger: ALL must match (AND)
+            if not all(_check_criterion(c, doc, meta, query) for c in trigger):
+                continue
+            # Targets: ANY must match (OR); empty = boost all
+            if targets and not any(_check_criterion(c, doc, meta, query) for c in targets):
+                continue
+            scores[did] = scores.get(did, 0.0) + boost
 ```
 
 ### Where it runs
 
-- `search_with_vec` — hybrid/semantic path: boost rules applied inside `post_rrf_hook` after personalisation, before page slice
-- `search_documents` browse path: same hook position
-- `catalog.py` — same, applied over merged RRF candidates from all indexes
-- Rules do **not** gate on empty query — unlike personalisation, boost rules are operator-intent and apply on both browse and search
+- **`search.py`** — single-index hybrid/semantic/lexical search: wired into `post_rrf_hook` after personalisation
+- **`catalog.py`** — cross-index catalog search: rules merged from all non-external indexes, same hook position
+- **Browse-only rules** (no `__search_term__` trigger) are skipped during search; **search-only rules** are skipped during browse — both determined per-rule inside `apply_boost_rules`
 
 ---
 
@@ -286,68 +293,71 @@ Body: { "rules": [...] }
 → { "rules": [...] }
 ```
 
-### Validate a rule block (optional, for inline regex check)
+Validates regex patterns server-side. Clamps boost to +1.00. Returns 400 on invalid regex.
+
+### Get available fields
 
 ```
-POST /v1/indexes/{id}/boost-rules/validate
-Body: { "criteria": [...] }
-→ { "valid": true } or { "valid": false, "error": "invalid regex: ..." }
+GET /v1/indexes/{id}/boost-rules/fields
+→ { "fields": ["title", "manufacturer", "category", ...] }
 ```
+
+Returns the filtered live schema field list (excludes system internals; `id` and `__search_term__` are hardcoded in the UI separately).
 
 ---
 
 ## UI layout
 
 ```
-┌─ Boost Rules ──────────────────────────────────────────────────────────────┐
-│  Apply score boosts to product subsets using conditional field matching.   │
-│  Each rule block is AND-chained. Create separate blocks for OR behaviour.  │
-│                                                                            │
-│  ┌─ Holiday Samsung Push ─────────────────────────────────── [enabled ●] ─┐│
-│  │  manufacturer   [Equals ▼]     Samsung                           [✕]  ││
-│  │  title          [Contains ▼]   Galaxy                            [✕]  ││
-│  │  [+ Add criterion]                                                     ││
-│  │                                                                        ││
-│  │  Boost  [━━━━━━━●──────]  +0.30                                       ││
-│  │  Applies a preference nudge. Natural relevance remains intact.         ││
-│  └────────────────────────────────────────────────────────────────────────┘│
-│                                                                            │
-│  ┌─ Clearance Nudge ──────────────────────────────────────── [enabled ●] ─┐│
-│  │  title          [Contains ▼]   clearance                        [✕]  ││
-│  │  [+ Add criterion]                                                     ││
-│  │                                                                        ││
-│  │  Boost  [━━━●─────────]  +0.10                                        ││
-│  │  Applies a preference nudge. Natural relevance remains intact.         ││
-│  └────────────────────────────────────────────────────────────────────────┘│
-│                                                                            │
-│  [+ Add rule block]                                          [Save rules]  │
-└────────────────────────────────────────────────────────────────────────────┘
+┌─ Boost Rules ──────────────────────────────────────────── [Save rules] ─┐
+│  Each rule has a Trigger (when it fires — all AND) and Boost targets     │
+│  (which products — any OR). Search-term trigger = fires on search.       │
+│                                                                          │
+│  ┌─ Apple search boost ──────────────── [ON SEARCH] [enabled ●]  [✕] ──┐│
+│  │                                                                      ││
+│  │  TRIGGER  ALL match (AND)              → boost   BOOST TARGETS  OR  ││
+│  │  ─────────────────────────────              ────────────────────── ││
+│  │  Search term  [Contains ▼]  apple           id ▼  [PROD-001  ✕] Browse││
+│  │  [+ Add trigger condition]                  manufacturer  [Equals ▼]  apple ││
+│  │                                             [+ Add target condition] ││
+│  │                                                                      ││
+│  │  Boost  [━━━━━━━━●──────]  ⚠ +0.50                                  ││
+│  │  Boosts ≥ +0.50 aggressively override relevance…                    ││
+│  └──────────────────────────────────────────────────────────────────────┘│
+│                                                                          │
+│  ┌─ Clearance browse nudge ────────────── [ON BROWSE] [enabled ●] [✕] ─┐│
+│  │  TRIGGER  ALL match (AND)              → boost   BOOST TARGETS  OR  ││
+│  │  title  [Contains ▼]  clearance             (empty — boosts all)   ││
+│  │  [+ Add trigger condition]                  [+ Add target condition] ││
+│  │                                                                      ││
+│  │  Boost  [━━━●─────────]  +0.10                                      ││
+│  │  Applies a preference nudge. Natural relevance remains intact.      ││
+│  └──────────────────────────────────────────────────────────────────────┘│
+│                                                                          │
+│  [+ Add rule block]                                                      │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
+
+The header badge ("ON SEARCH" / "ON BROWSE") is derived automatically from whether any trigger criterion uses `__search_term__`.
 
 ---
 
-## Implementation plan
+## Implementation status
 
-### Phase 1 — Storage and API (backend)
-
-1. DB migration: `ALTER TABLE indexes ADD COLUMN boost_rules JSONB NOT NULL DEFAULT '[]'`
-2. Update `Index` Pydantic model to include `boost_rules: list[dict] = []`
-3. Add `GET /v1/indexes/{id}/boost-rules` and `PUT /v1/indexes/{id}/boost-rules` endpoints in `indexes.py`
-4. Add `_apply_boost_rules` and `_rule_matches` helpers in `typesense_client.py`
-5. Wire into `search_with_vec`, `search_documents`, and `catalog.py` hooks
-
-### Phase 2 — Field list endpoint (backend)
-
-6. Add `GET /v1/indexes/{id}/boost-rules/fields` — returns filtered live schema field list for the dropdown
-
-### Phase 3 — UI (frontend)
-
-7. New `BoostRulesTab.svelte` component
-8. Add `'boost-rules'` tab to `IndexDetail.svelte`
-9. Slider with Normal/Danger zone colour split and warning text
-10. Criterion rows: field dropdown (fetched live), operator dropdown, value input, remove button
-11. Rule block: label input, enabled toggle, criteria list, boost slider, delete block button
-12. Save calls `PUT /v1/indexes/{id}/boost-rules`
+| Component | Status | Notes |
+|---|---|---|
+| `boost_rules` DB column | ✅ Done | `ALTER TABLE … ADD COLUMN IF NOT EXISTS` in `init_db()` |
+| `IndexMeta.boost_rules` model field | ✅ Done | `list[dict] = []` |
+| `_row_to_meta` mapping | ✅ Done | Includes legacy `criteria→trigger` migration |
+| `set_boost_rules` service | ✅ Done | `UPDATE indexes SET boost_rules = $1` |
+| GET/PUT endpoints | ✅ Done | `indexes.py` |
+| Fields endpoint | ✅ Done | Filtered live schema |
+| `apply_boost_rules` backend | ✅ Done | Trigger+targets, per-rule gate, `__search_term__` |
+| Hook wired in `search.py` | ✅ Done | After personalisation hook |
+| Hook wired in `catalog.py` | ✅ Done | Merged rules from all non-external indexes |
+| `BoostRulesTab.svelte` | ✅ Done | Trigger section + Boost targets section |
+| `IndexDetail.svelte` tab | ✅ Done | "Boost Rules" tab |
+| `DocPickerModal` for `id` target | ✅ Done | Browse button replaces text input when field = `id` |
 
 ---
 
@@ -355,19 +365,20 @@ Body: { "criteria": [...] }
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Boost value range | 0.00–1.00 with UI cap | Full operator control; danger zone warning prevents accidental overrides |
-| Danger zone threshold | +0.50 | Above ~0.50 a boost overrides even strong relevance signals at typical RRF score ranges |
-| Multiple criteria | Strict AND within a block | Cleanest evaluation; OR = separate blocks |
-| Field source | Filtered live Typesense schema | Future-proof (new schema fields auto-appear); blocklist hides internal fields |
-| Storage | `boost_rules` JSONB on `indexes` | Per-index, consistent with `affinity_dimensions` and `viewed_item_policy` patterns |
-| Query gate | No gate — fires on search and browse | Boost rules are operator-intent merchandising, not personalisation; they should apply always |
-| Stacking | Multiple matching blocks stack | Transparent; operator created both blocks and is accountable for the combined effect |
+| Rule structure | `trigger` (AND) + `targets` (OR) | Separates "when to fire" from "what to boost" — cleaner than flat AND-only criteria |
+| Browse vs search gate | Per-rule, based on `__search_term__` in trigger | Rules without it are browse-only; rules with it are search-only |
+| `__search_term__` field | Hardcoded in trigger dropdown | Not a real schema field; treated as a special token matching the query string |
+| `id` target | Hardcoded in targets dropdown + Browse picker | `id` is filtered out by the schema API; Browse reuses the existing `DocPickerModal` |
+| Multiple targets | OR-logic | Allows "boost this product OR this manufacturer OR this title keyword" without multiple rule blocks |
+| Boost range | 0.00–1.00, clamped server-side | Danger-zone warning at +0.50; operators retain full control with explicit acknowledgement |
+| Storage | `boost_rules` JSONB on `indexes` | Per-index, consistent with `affinity_dimensions` / `viewed_item_policy` patterns |
+| Stacking | Additive across matching rules | Transparent; operator created each rule and is accountable for combined effect |
 
 ---
 
 ## References
 
-> **Note on sourcing:** all citations below are real, verifiable sources. Where a free URL exists it is included; otherwise the standard academic citation is given so the paper can be found via Google Scholar, ACM DL, or arXiv.
+> **Note on sourcing:** all citations below are real, verifiable sources.
 
 ---
 
@@ -377,9 +388,9 @@ Body: { "criteria": [...] }
 Manning, C. D., Raghavan, P., & Schütze, H. (2008).
 *Introduction to information retrieval.*
 Cambridge University Press.
-Freely available: https://nlp.stanford.edu/IR-book/
+https://nlp.stanford.edu/IR-book/
 
-> Chapter 1 defines the Boolean retrieval model — the theoretical foundation for the AND-chained criterion evaluation in each rule block. `_rule_matches` is a direct implementation of a conjunctive Boolean query evaluated over document field values. Chapter 2 covers the inverted index structures that make field-level matching efficient.
+> Chapter 1 defines the Boolean retrieval model — the theoretical foundation for AND-chained trigger evaluation. `_check_criterion` with all-AND across `trigger` is a direct conjunctive Boolean query over document field values.
 
 ---
 
@@ -391,15 +402,14 @@ Robertson, S., Zaragoza, H., & Taylor, M. (2004).
 Proceedings of CIKM 2004, pp. 42–49.
 https://dl.acm.org/doi/10.1145/1031171.1031181
 
-> Extends BM25 to documents with multiple fields (title, body, metadata), each with its own weight coefficient. Directly motivates field-selective boosting: different fields carry different discriminating power (`title` is higher-signal than `source_type`), so a merchandising team boosting by `title` (Contains "clearance") vs `manufacturer` (Equals "Samsung") is applying the same principle of field-weighted relevance that BM25F formalises.
+> Motivates field-selective boosting: different fields carry different discriminating power. Targeting `title` (contains "clearance") vs `manufacturer` (equals "apple") applies the same principle of field-weighted relevance BM25F formalises.
 
 **The Probabilistic Relevance Framework: BM25 and Beyond**
 Robertson, S., & Zaragoza, H. (2009).
-*The probabilistic relevance framework: BM25 and beyond.*
-Foundations and Trends in Information Retrieval, 3(4), 333–389.
+*Foundations and Trends in Information Retrieval*, 3(4), 333–389.
 https://doi.org/10.1561/1500000019
 
-> Definitive survey on BM25 and its extensions. Sections on field weighting establish that additive per-field score contributions are both theoretically grounded and empirically effective — the same principle that makes additive boost rules predictable and composable.
+> Establishes that additive per-field score contributions are both theoretically grounded and empirically effective — the same principle that makes additive boost rules predictable and composable.
 
 ---
 
@@ -407,26 +417,17 @@ https://doi.org/10.1561/1500000019
 
 **Analyses of Multiple Evidence Combination**
 Lee, J. H. (1997).
-*Analyses of multiple evidence combination.*
-Proceedings of SIGIR 1997, pp. 267–276.
+*Proceedings of SIGIR 1997*, pp. 267–276.
 https://dl.acm.org/doi/10.1145/258525.258587
 
-> Classic study on combining scores from multiple retrieval sources. Demonstrates that linear additive combination of independent evidence signals is robust and predictable — the theoretical basis for stacking boost rules additively. Also shows that score normalisation before combination is important, which motivates the hard cap at +1.00.
-
-**Combination of Multiple Searches**
-Fox, E. A., & Shaw, J. A. (1994).
-*Combination of multiple searches.*
-The Second Text REtrieval Conference (TREC-2), NIST Special Publication 500-215, pp. 243–252.
-
-> Early systematic evaluation of score-combination methods (CombSUM, CombMNZ, CombMAX). CombSUM — summing scores from independent signals — is the method that boost rule stacking implements. Fox & Shaw found CombSUM consistently improves precision over individual signals, supporting the decision to let multiple matching rule blocks stack rather than take the maximum.
+> Demonstrates that linear additive combination of independent evidence signals is robust — the theoretical basis for stacking boost rules additively. Also motivates the hard cap at +1.00.
 
 **Reciprocal Rank Fusion**
 Cormack, G. V., Clarke, C. L. A., & Buettcher, S. (2009).
-*Reciprocal rank fusion outperforms Condorcet and individual rank learning methods.*
-Proceedings of SIGIR 2009, pp. 758–759.
+*Proceedings of SIGIR 2009*, pp. 758–759.
 https://dl.acm.org/doi/10.1145/1571941.1572114
 
-> Defines RRF and the score range context used to calibrate the danger zone threshold. At K=60, the top RRF position scores approximately 1/61 ≈ 0.016 per signal; with a 0.7/0.3 BM25/semantic weighting the combined top-document score is typically 0.043–0.061. A boost of +0.50 therefore matches or exceeds the entire base RRF score of a mid-ranked document — the quantitative basis for setting the danger zone boundary at +0.50.
+> Defines RRF and the score range context for calibrating the danger zone. At K=60, a +0.50 boost matches or exceeds the full base RRF score of a mid-ranked document — the quantitative basis for the +0.50 danger zone boundary.
 
 ---
 
@@ -434,19 +435,10 @@ https://dl.acm.org/doi/10.1145/1571941.1572114
 
 **On Application of Learning to Rank for E-Commerce Search**
 Karmaker Santu, S. K., Sondhi, P., & Zhai, C. (2017).
-*On application of learning to rank for e-commerce search.*
-Proceedings of SIGIR 2017, pp. 475–484.
+*Proceedings of SIGIR 2017*, pp. 475–484.
 https://dl.acm.org/doi/10.1145/3077136.3080838
 
-> Studies ranking in e-commerce search and identifies the tension between pure relevance and business objectives (margin, inventory, promotions). Finds that purely relevance-based ranking systematically under-serves business goals and that operator-defined boosts are a necessary complement. Directly motivates the Boost Rules feature as a first-class merchandising tool alongside ISP's relevance engine.
-
-**Improving Search Result Diversification Using Query-Specific Clusters**
-Agrawal, R., Gollapudi, S., Halverson, A., & Ieong, S. (2009).
-*Diversifying search results.*
-Proceedings of WSDM 2009, pp. 5–14.
-https://dl.acm.org/doi/10.1145/1498759.1498766
-
-> While focused on diversification, this paper establishes the principle that post-retrieval score adjustments must be bounded to avoid collapsing the diversity of the result set. Overly large boosts (the danger zone) reduce diversity by pulling a single subset to the top uniformly — the same risk the danger zone warning communicates to operators.
+> Identifies the tension between pure relevance and business objectives. Finds that purely relevance-based ranking systematically under-serves business goals and operator-defined boosts are a necessary complement — directly motivating Boost Rules as a first-class merchandising tool.
 
 ---
 
@@ -454,38 +446,34 @@ https://dl.acm.org/doi/10.1145/1498759.1498766
 
 **RETE: A Fast Algorithm for the Many Pattern / Many Object Pattern Match Problem**
 Forgy, C. L. (1982).
-*Rete: A fast algorithm for the many pattern/many object pattern match problem.*
-Artificial Intelligence, 19(1), 17–37.
+*Artificial Intelligence*, 19(1), 17–37.
 https://doi.org/10.1016/0004-3702(82)90020-0
 
-> The foundational paper for efficient rule-matching engines. The RETE algorithm evaluates many conditional rules against many objects by caching intermediate match results — the same computational problem that `_rule_matches` solves, though ISP's implementation is a simpler linear scan appropriate for the small number of rules (< 50) and result set sizes (< 1 000 documents in the hook). If rule counts or candidate set sizes grow, RETE-style partial match caching becomes the right optimisation.
+> The foundational rule-matching algorithm. ISP's linear scan is appropriate for < 50 rules and < 1 000 document candidate sets. If rule or candidate counts grow substantially, RETE-style partial match caching becomes the right optimisation.
 
 **Regular Expression Matching Can Be Simple and Fast**
 Cox, R. (2007).
-*Regular expression matching can be simple and fast.*
 https://swtch.com/~rsc/regexp/regexp1.html
 
-> Demonstrates that Thompson NFA-based regex engines achieve O(n) worst-case matching time, unlike backtracking engines (like Python's `re` module) which can exhibit O(2ⁿ) worst-case on adversarial patterns. Directly relevant to the `regex` operator: ISP should validate patterns at save time (`re.compile`) and consider timeouts or pattern complexity limits to prevent ReDoS (Regular Expression Denial of Service) when operator-supplied regex patterns are evaluated against every document in the hook.
+> Directly relevant to the `regex` operator: Python's `re` module can exhibit O(2ⁿ) worst-case on adversarial patterns. Regex patterns are validated at save time; consider complexity limits to prevent ReDoS if patterns are operator-supplied.
 
 ---
 
-### Relevance vs business objectives: the override tension
+### Relevance vs business objectives
 
 **Learning to Rank for Information Retrieval**
 Liu, T. Y. (2009).
-*Learning to rank for information retrieval.*
-Foundations and Trends in Information Retrieval, 3(3), 225–331.
+*Foundations and Trends in Information Retrieval*, 3(3), 225–331.
 https://doi.org/10.1561/1500000016
 
-> Comprehensive survey of learning-to-rank methods. Section 5 covers the "constrained ranking" problem — embedding hard business constraints (must boost promoted items, must not show out-of-stock) into a learned ranking model. The conclusion is that hard constraints are best handled as post-processing overrides rather than as training signals, exactly the architecture ISP uses: relevance ranking first, then editorial/boost-rule overrides.
+> Hard business constraints are best handled as post-processing overrides rather than training signals — exactly the architecture ISP uses: relevance ranking first, then boost-rule overrides.
 
 **Unbiased Learning to Rank with Biased Feedback**
 Joachims, T., Swaminathan, A., & Schnabel, T. (2017).
-*Unbiased learning-to-rank with biased feedback.*
-Proceedings of WSDM 2017, pp. 781–789.
+*Proceedings of WSDM 2017*, pp. 781–789.
 https://dl.acm.org/doi/10.1145/3018661.3018699
 
-> Formalises position bias: items shown at rank 1 receive more clicks regardless of relevance. When a boost rule forces a product to position 1 (danger-zone boost on a broad category), all CTR signals for that position become contaminated — clicks reflect position, not preference. This is the hidden cost of aggressive boosting that the danger-zone warning implicitly communicates: beyond the ranking distortion, it corrupts the CTR signal used by analytics and future learning systems.
+> When a boost rule forces a product to position 1, CTR signals for that position become contaminated — clicks reflect position, not preference. The hidden cost of aggressive boosting that the danger-zone warning implicitly communicates.
 
 ---
 
@@ -493,14 +481,12 @@ https://dl.acm.org/doi/10.1145/3018661.3018699
 
 **Retailing Management** (9th ed.)
 Levy, M., Weitz, B., & Grewal, D. (2019).
-McGraw-Hill Education.
-ISBN: 978-1260260786.
+McGraw-Hill Education. ISBN: 978-1260260786.
 
-> Standard retailing textbook. Chapter 17 (Store Layout, Design, and Visual Merchandising) establishes that physical merchandising — placing promoted items at eye level, end-caps for high-margin products — directly increases conversion of those items. Digital search boost rules are the online equivalent: placing promoted products at the top of the result set performs the same function as a physical end-cap. This framing justifies the Boost Rules feature as a core merchandising capability, not a search quality concern.
+> Digital search boost rules are the online equivalent of physical end-caps: placing promoted products at the top of the result set performs the same function as a physical promotional display.
 
 **The Long Tail: Why the Future of Business Is Selling Less of More**
 Anderson, C. (2006).
-Hyperion.
-ISBN: 978-1401302375.
+Hyperion. ISBN: 978-1401302375.
 
-> Documents the economics of catalogue-scale retail: the majority of revenue comes from a small number of hero SKUs but a significant proportion comes from the "long tail." Boost rules targeting specific manufacturers or categories during campaigns are a direct operational tool for shifting the revenue distribution temporarily — pushing clearance items or new launches into the head of the distribution during the campaign window, then removing the rules to let natural relevance reassert.
+> Boost rules targeting specific manufacturers or categories during campaigns are a direct tool for shifting the revenue distribution temporarily — pushing clearance items or new launches into the head of the distribution for the campaign window.
