@@ -155,6 +155,10 @@ async def init_db() -> None:
             ADD COLUMN IF NOT EXISTS viewed_item_policy JSONB
                 DEFAULT '{"mode": "penalise", "value": 0.05}';
         """)
+        await conn.execute("""
+            ALTER TABLE indexes
+            ADD COLUMN IF NOT EXISTS boost_rules JSONB DEFAULT '[]';
+        """)
         # Seed intent labels for the four known ISP indexes (idempotent).
         for col_name, label in [
             ("isp_22ffabfef4d1", "device"),

@@ -55,6 +55,16 @@ async def _unique_slug(name: str, idx_id: str, conn) -> str:
     return f"{base}-{idx_id[:4]}"
 
 
+def _migrate_boost_rule(rule: dict) -> dict:
+    """Migrate old flat-criteria rules to the trigger+targets shape."""
+    if "trigger" not in rule and "criteria" in rule:
+        return {**{k: v for k, v in rule.items() if k != "criteria"},
+                "trigger": rule["criteria"], "targets": []}
+    rule.setdefault("trigger", [])
+    rule.setdefault("targets", [])
+    return rule
+
+
 def _row_to_meta(row: dict) -> IndexMeta:
     """Convert a raw asyncpg row dict to an ``IndexMeta`` Pydantic model."""
     return IndexMeta(
@@ -86,6 +96,11 @@ def _row_to_meta(row: dict) -> IndexMeta:
             if isinstance(row.get("viewed_item_policy"), str)
             else row.get("viewed_item_policy")
         ),
+        boost_rules=[_migrate_boost_rule(r) for r in (
+            json.loads(row["boost_rules"])
+            if isinstance(row.get("boost_rules"), str)
+            else (row.get("boost_rules") or [])
+        )],
     )
 
 
@@ -248,6 +263,16 @@ async def set_viewed_item_policy(idx_id: str, policy: dict) -> None:
         await conn.execute(
             "UPDATE indexes SET viewed_item_policy = $1 WHERE id = $2",
             json.dumps(policy), idx_id,
+        )
+
+
+async def set_boost_rules(idx_id: str, rules: list[dict]) -> None:
+    """Persist the boost rules config for an index."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET boost_rules = $1 WHERE id = $2",
+            json.dumps(rules), idx_id,
         )
 
 

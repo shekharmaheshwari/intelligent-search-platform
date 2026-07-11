@@ -22,6 +22,13 @@
 
   const tabs: Array<'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation'> =
     ['overview', 'connector', 'mapping', 'documents', 'search', 'api', 'suggestions', 'personalisation'];
+  import BoostRulesTab            from './BoostRulesTab.svelte';
+
+  export let indexId: string;
+  export let tab: 'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' = 'overview';
+
+  const tabs: Array<'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules'> =
+    ['overview', 'connector', 'mapping', 'documents', 'search', 'api', 'suggestions', 'personalisation', 'boost-rules'];
 
   const dispatch = createEventDispatcher<{ back: void }>();
 
@@ -77,7 +84,7 @@
     <div class="tabs">
       {#each tabs as t}
         <button class:active={tab === t} on:click={() => tab = t}>
-          {t.charAt(0).toUpperCase() + t.slice(1)}
+          {t === 'boost-rules' ? 'Boost Rules' : t.charAt(0).toUpperCase() + t.slice(1)}
         </button>
       {/each}
     </div>
@@ -120,6 +127,9 @@
 
       {:else if tab === 'personalisation'}
         <AffinityDimensionsPanel {indexId} />
+
+      {:else if tab === 'boost-rules'}
+        <BoostRulesTab {indexId} />
       {/if}
     </div>
   {/if}
