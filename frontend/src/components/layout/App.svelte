@@ -12,8 +12,9 @@
    * Child components communicate upward via Svelte ``createEventDispatcher``
    * events; this component translates them into store mutations or API calls.
    */
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { appStateStore, indexesStore } from '../../lib/store';
+  import { stateToSearch, searchToState, isTabSwitch } from './App.helpers';
   import Header from './Header.svelte';
   import SourcesSidebar from '../sources/SourcesSidebar.svelte';
   import SourceContent from '../sources/SourceContent.svelte';
@@ -74,7 +75,21 @@
     } catch { /* ignore discovery errors */ }
   }
 
-  onMount(initLoad);
+  onMount(async () => {
+    window.addEventListener('popstate', onPopstate);
+    const fromUrl = searchToState(window.location.search);
+    await initLoad();
+    // URL-derived state overrides the auto-selected first index
+    if (fromUrl.view !== 'dashboard' || fromUrl.selectedIndexId) {
+      applyUrlState(fromUrl);
+    }
+    _prevSearch = stateToSearch(appStateStore.getValue());
+    _urlSyncEnabled = true;
+  });
+
+  onDestroy(() => {
+    if (typeof window !== 'undefined') window.removeEventListener('popstate', onPopstate);
+  });
 
   function selectSource(id: string) {
     appStateStore.selectIndex(id);
@@ -100,6 +115,46 @@
   }
 
   $: selectedIndex = idxState.indexes.find(i => i.id === state.selectedIndexId) ?? null;
+
+  // ── URL sync ─────────────────────────────────────────────────────────────────
+
+  let _urlSyncEnabled = false;
+  let _prevSearch = '';
+
+  // Runs only after onMount sets _urlSyncEnabled = true, so window/history are available.
+  $: if (_urlSyncEnabled) {
+    const next = stateToSearch(state);
+    if (next !== _prevSearch) {
+      if (isTabSwitch(_prevSearch, state)) {
+        history.replaceState(null, '', window.location.pathname + next);
+      } else {
+        history.pushState(null, '', window.location.pathname + next);
+      }
+      _prevSearch = next;
+    }
+  }
+
+  function applyUrlState(partial: ReturnType<typeof searchToState>): void {
+    if (partial.view === 'configure' && partial.selectedIndexId) {
+      appStateStore.configure(partial.selectedIndexId);
+      if (partial.detailTab && partial.detailTab !== 'overview') {
+        appStateStore.setDetailTab(partial.detailTab);
+      }
+    } else if (partial.view === 'extensions') {
+      appStateStore.navigateTo('extensions');
+    } else if (partial.view === 'settings') {
+      appStateStore.navigateTo('settings');
+    } else if (partial.selectedIndexId) {
+      appStateStore.selectIndex(partial.selectedIndexId);
+    } else {
+      appStateStore.navigateTo('dashboard', null);
+    }
+  }
+
+  function onPopstate(): void {
+    applyUrlState(searchToState(window.location.search));
+    _prevSearch = stateToSearch(appStateStore.getValue());
+  }
 </script>
 
 <svelte:window bind:innerWidth={windowWidth} />
@@ -141,6 +196,7 @@
             indexId={state.selectedIndexId}
             tab={state.detailTab}
             on:back={backToContent}
+            on:tabchange={e => appStateStore.setDetailTab(e.detail)}
           />
         </div>
       {:else if selectedIndex}
