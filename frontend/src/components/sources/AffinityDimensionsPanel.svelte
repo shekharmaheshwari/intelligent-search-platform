@@ -3,6 +3,7 @@
   import { api } from '../../lib/api';
   import type { AffinityDimension, ViewedItemPolicy } from '../../lib/types';
   import ViewedItemBehaviourPanel from './ViewedItemBehaviourPanel.svelte';
+  import { toggleDimension, setDimensionBoost } from './AffinityDimensionsPanel.helpers';
 
   export let indexId: string;
 
@@ -55,16 +56,13 @@
 
   function onToggle(i: number, e: Event) {
     const checked = (e.currentTarget as HTMLInputElement).checked;
-    dims = dims.map((d, j) => j === i ? { ...d, enabled: checked } : d);
+    dims  = toggleDimension(dims, i, checked);
     saved = false;
   }
 
   function onBoostInput(i: number, e: Event) {
-    const n = parseFloat((e.currentTarget as HTMLInputElement).value);
-    if (!isNaN(n) && n >= 0 && n <= 1) {
-      dims = dims.map((d, j) => j === i ? { ...d, boost: n } : d);
-      saved = false;
-    }
+    const updated = setDimensionBoost(dims, i, (e.currentTarget as HTMLInputElement).value);
+    if (updated) { dims = updated; saved = false; }
   }
 
 

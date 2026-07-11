@@ -7,6 +7,10 @@
   import { suggestionsService } from '../../lib/services/suggestions/SuggestionsService';
   import DocPickerModal from './DocPickerModal.svelte';
   import type { Suggestion } from '../../lib/types';
+  import {
+    filterByBoostTier, canPrev, canNext,
+    buildSavePayload, addFeaturedId, removeFeaturedId,
+  } from './SuggestionsTab.helpers';
 
   /** Id of the index whose suggestions this tab manages. */
   export let indexId: string;
@@ -31,10 +35,9 @@
 
   // ── Tier-grouped reactive derivations ────────────────────────────────────────
 
-  // Split the flat suggestions array into the three display tiers.
-  $: promoted   = suggestions.filter(s => s.boost ===  1);
-  $: organic    = suggestions.filter(s => s.boost ===  0);
-  $: suppressed = suggestions.filter(s => s.boost === -1);
+  $: promoted   = filterByBoostTier(suggestions,  1);
+  $: organic    = filterByBoostTier(suggestions,  0);
+  $: suppressed = filterByBoostTier(suggestions, -1);
 
   // ── Edit modal state ─────────────────────────────────────────────────────────
 
@@ -101,8 +104,8 @@
 
   // ── Pagination ───────────────────────────────────────────────────────────────
 
-  function prev(): void { if (page > 1) { page--; load(); } }
-  function next(): void { if (page * perPage < total) { page++; load(); } }
+  function prev(): void { if (canPrev(page)) { page--; load(); } }
+  function next(): void { if (canNext(page, perPage, total)) { page++; load(); } }
 
   // ── Edit modal ───────────────────────────────────────────────────────────────
 
@@ -135,17 +138,14 @@
   }
 
   function addFeaturedDocId(): void {
-    const id = editFeaturedDocIdInput.trim();
-    if (id && !editFeaturedDocIds.includes(id)) {
-      editFeaturedDocIds = [...editFeaturedDocIds, id];
-    }
+    editFeaturedDocIds     = addFeaturedId(editFeaturedDocIds, editFeaturedDocIdInput);
     editFeaturedDocIdInput = '';
   }
 
   function removeFeaturedDocId(id: string): void {
-    editFeaturedDocIds = editFeaturedDocIds.filter(d => d !== id);
-    const { [id]: _, ...rest } = editFeaturedDocTitles;
-    editFeaturedDocTitles = rest;
+    const result           = removeFeaturedId(editFeaturedDocIds, editFeaturedDocTitles, id);
+    editFeaturedDocIds     = result.ids;
+    editFeaturedDocTitles  = result.titles;
   }
 
   let showDocPicker = false;
@@ -164,14 +164,9 @@
     editSaving = true;
     editErr    = '';
     try {
-      await suggestionsService.updateSuggestion(indexId, editingItem.id, {
-        boost:            editBoost,
-        mode:             editMode,
-        // Only send url when mode is "link"; omit it entirely for search mode.
-        url:              editMode === 'link' ? editUrl.trim() || undefined : undefined,
-        // Only send featured_doc_ids when mode is "search"; omit for link mode.
-        featured_doc_ids: editMode === 'search' ? editFeaturedDocIds : undefined,
-      });
+      await suggestionsService.updateSuggestion(indexId, editingItem.id,
+        buildSavePayload(editBoost, editMode, editUrl, editFeaturedDocIds),
+      );
       await load();
       closeEdit();
     } catch (e) {
