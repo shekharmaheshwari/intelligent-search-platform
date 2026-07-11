@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boost Rules — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#141414;
+      --border:#222;--border2:#1a1a1a;
+      --text:#eee;--text-h2:#ccc;--text-h3:#aaa;--text-p:#777;--text-td:#888;
+      --text-muted:#555;--text-faint:#444;--text-ghost:#333;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#b4a4f8;--pre-fg:#bbb;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f0f0f8;
+      --border:#ddd;--border2:#e8e8ed;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#666;
+      --text-muted:#666;--text-faint:#888;--text-ghost:#aaa;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;--pre-fg:#444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1060px; margin: 0 auto; padding: 48px 32px 80px; gap: 48px; }
+    nav.sidebar { flex-shrink: 0; width: 190px; }
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 24px; }
+    nav.sidebar li a { display: block; padding: 7px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    nav.sidebar li a:hover { color: var(--text); background: var(--bg-hover); }
+    nav.sidebar li a.active { color: var(--accent); background: var(--accent-dim); }
+    .content { flex: 1; min-width: 0; }
+    h1 { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 17px; font-weight: 600; color: var(--text-h2); margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 22px 0 8px; }
+    h4 { font-size: 13px; font-weight: 600; color: var(--text-h3); margin: 18px 0 6px; }
+    p { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; }
+    ol, ul { font-size: 14px; color: var(--text-p); line-height: 1.8; margin-left: 20px; margin-bottom: 16px; }
+    li { margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th { text-align: left; padding: 9px 14px; background: var(--bg3); color: var(--text-h3); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border2); color: var(--text-td); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); overflow-x: auto; line-height: 1.6; margin-bottom: 20px; white-space: pre; }
+    .notice { background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 7px; padding: 14px 16px; font-size: 13px; color: var(--code-fg); line-height: 1.6; margin-bottom: 20px; }
+    .notice strong { color: var(--accent); }
+    .warn { background: #1a120a; border: 1px solid #3a2a10; border-radius: 7px; padding: 14px 16px; font-size: 13px; color: #c9903a; line-height: 1.6; margin-bottom: 20px; }
+    .warn strong { color: #e0aa55; }
+    .done-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle; background: #0d1f12; color: #4ade80; border: 1px solid #1a3d22; }
+    .ref-block { border-left: 2px solid var(--accent-border); padding: 10px 0 10px 16px; margin-bottom: 20px; }
+    .ref-title { font-size: 13px; font-weight: 600; color: var(--text-h3); margin-bottom: 4px; }
+    .ref-cite { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 6px; }
+    .ref-cite a { color: var(--accent); text-decoration: none; }
+    .ref-cite a:hover { text-decoration: underline; }
+    .ref-note { font-size: 12px; color: var(--text-p); line-height: 1.6; font-style: italic; }
+    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; display: inline-block; margin-bottom: 32px; }
+    .back-link:hover { text-decoration: underline; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .gate-table td:first-child { font-family: 'SF Mono','Fira Code',monospace; font-size: 12px; color: var(--code-fg); }
+    @media (max-width: 700px) { .layout { flex-direction: column; gap: 24px; } nav.sidebar { width: 100%; } nav.sidebar ul { flex-direction: row; flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+<header>
+  <span class="logo-icon">⬡</span>
+  <span class="logo-name">Intelligent Search Platform</span>
+  <div class="breadcrumb">
+    <a href="index.html">Docs</a>
+    <span>/</span>
+    <span>Boost Rules</span>
+    <button class="theme-btn" id="theme-toggle" title="Toggle theme">☀</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <ul>
+      <li><a href="#what-it-is">What it is</a></li>
+      <li><a href="#data-model">Data model</a></li>
+      <li><a href="#browse-search-gate">Browse vs search gate</a></li>
+      <li><a href="#boost-zones">Boost value zones</a></li>
+      <li><a href="#trigger-targets">Trigger / Targets logic</a></li>
+      <li><a href="#id-picker">ID target &amp; Browse picker</a></li>
+      <li><a href="#field-list">Field list</a></li>
+      <li><a href="#operators">Operators</a></li>
+      <li><a href="#backend">Backend application</a></li>
+      <li><a href="#api">API endpoints</a></li>
+      <li><a href="#ui">UI layout</a></li>
+      <li><a href="#status">Implementation status</a></li>
+      <li><a href="#decisions">Decisions</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+  </nav>
+
+  <div class="content">
+    <a href="index.html" class="back-link">← Back to docs</a>
+    <h1>Boost Rules</h1>
+    <p class="page-subtitle">Rule-based inventory boosting — operator-defined merchandising score adjustments applied post-RRF, with browse and search modes, trigger+targets logic, and a doc-picker for exact-ID targeting.</p>
+
+    <!-- WHAT IT IS -->
+    <h2 id="what-it-is">What it is</h2>
+    <p>Boost Rules let operators apply additive score boosts to product subsets using two-part conditional logic:</p>
+    <ul>
+      <li><strong>Trigger</strong> — <em>when</em> the rule fires (all conditions AND-ed)</li>
+      <li><strong>Boost targets</strong> — <em>which products</em> are boosted (any condition OR-ed)</li>
+    </ul>
+    <p>Rather than boosting a single named document (which Suggestions / Pin-to-top handles), Boost Rules target a <em>class</em> of products — every Apple device when someone searches "iphone", every item whose title contains "clearance" on the browse page, or a specific product ID when a particular search term is used.</p>
+
+    <!-- DATA MODEL -->
+    <h2 id="data-model">Data model</h2>
+
+    <h3>Criterion</h3>
+    <p>A single field-match condition used in both trigger and targets:</p>
+    <pre>{ "field": "manufacturer", "operator": "equals", "value": "apple" }</pre>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Values</th></tr></thead>
+      <tbody>
+        <tr><td><code>field</code></td><td>string</td><td>Any filterable schema field, <code>"id"</code>, or <code>"__search_term__"</code> (trigger only)</td></tr>
+        <tr><td><code>operator</code></td><td>enum</td><td><code>"equals"</code> / <code>"contains"</code> / <code>"regex"</code></td></tr>
+        <tr><td><code>value</code></td><td>string</td><td>The match target</td></tr>
+      </tbody>
+    </table>
+    <p>The special field <code>__search_term__</code> matches against the live search query string rather than any document field. It is only meaningful in the <code>trigger</code> section.</p>
+
+    <h3>Rule block</h3>
+    <pre>{
+  "id":      "rule_abc123",
+  "label":   "Apple search boost",
+  "enabled": true,
+  "boost":   0.40,
+  "trigger": [
+    { "field": "__search_term__", "operator": "contains", "value": "apple" }
+  ],
+  "targets": [
+    { "field": "id",           "operator": "equals",   "value": "PROD-001" },
+    { "field": "manufacturer", "operator": "equals",   "value": "apple"    },
+    { "field": "title",        "operator": "contains", "value": "iPhone"   }
+  ]
+}</pre>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>string</td><td>Generated on creation (nanoid)</td></tr>
+        <tr><td><code>label</code></td><td>string</td><td>Human-readable name shown in the rule card header</td></tr>
+        <tr><td><code>enabled</code></td><td>bool</td><td>Toggle without deleting — takes effect immediately</td></tr>
+        <tr><td><code>boost</code></td><td>float</td><td>Additive score delta. Range 0.00–1.00, clamped server-side.</td></tr>
+        <tr><td><code>trigger</code></td><td>list</td><td>ALL must match (AND). Supports <code>__search_term__</code>. Empty = matches nothing.</td></tr>
+        <tr><td><code>targets</code></td><td>list</td><td>ANY must match (OR). Empty = all documents passing the trigger are boosted.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Index-level storage</h3>
+    <p>Rules are stored in a <code>boost_rules</code> JSONB column on the <code>indexes</code> table — one list of rule blocks per index. Migration:</p>
+    <pre>ALTER TABLE indexes ADD COLUMN IF NOT EXISTS boost_rules JSONB DEFAULT '[]';</pre>
+    <p class="notice"><strong>Legacy migration:</strong> rules saved before the trigger+targets redesign (with a flat <code>criteria</code> key) are automatically upgraded on load — <code>criteria</code> becomes <code>trigger</code>, <code>targets</code> defaults to <code>[]</code>.</p>
+
+    <!-- BROWSE VS SEARCH GATE -->
+    <h2 id="browse-search-gate">Browse vs search gate</h2>
+    <p>The gate is evaluated <strong>per-rule</strong>, not globally. Whether a rule fires depends on the presence of <code>__search_term__</code> in its trigger:</p>
+    <table class="gate-table">
+      <thead><tr><th>Trigger contains <code>__search_term__</code>?</th><th>Fires when</th></tr></thead>
+      <tbody>
+        <tr><td>Yes</td><td>Active query is non-empty AND the query matches the trigger</td></tr>
+        <tr><td>No</td><td>Browse only (empty query)</td></tr>
+      </tbody>
+    </table>
+    <p>Different rules in the same index can mix modes — some search-mode, some browse-mode — evaluated independently.</p>
+
+    <!-- BOOST ZONES -->
+    <h2 id="boost-zones">Boost value zones</h2>
+
+    <h3>Normal zone — 0.00 to +0.45</h3>
+    <p>Track colour: accent (blue/purple). Products move up in rankings but strong relevance matches still appear above weak ones.</p>
+    <p><em>"Applies a preference nudge. Natural search relevance remains intact."</em></p>
+
+    <h3>Danger zone — +0.50 to +1.00</h3>
+    <div class="warn"><strong>⚠ Warning:</strong> Boosts ≥ +0.50 aggressively override keyword and semantic relevance. Products matching this rule may jump to the top even for loosely related queries. Hard cap: +1.00 in both UI and backend.</div>
+
+    <h3>Score context</h3>
+    <p>At K=60 RRF, a boost of +0.50 matches or exceeds the full base score of a mid-ranked document — the quantitative basis for the danger zone boundary.</p>
+    <table>
+      <thead><tr><th>RRF rank</th><th>Approximate base score</th></tr></thead>
+      <tbody>
+        <tr><td>Position 1</td><td>~0.061</td></tr>
+        <tr><td>Position 5</td><td>~0.055</td></tr>
+        <tr><td>Position 20</td><td>~0.043</td></tr>
+      </tbody>
+    </table>
+    <p>A boost of +0.30 roughly matches the "featured" editorial boost — moves a product well up the page without guaranteeing position 1. A boost of +0.70 overrides almost any relevance signal.</p>
+
+    <!-- TRIGGER / TARGETS -->
+    <h2 id="trigger-targets">Trigger / Targets logic</h2>
+
+    <h3>Trigger — ALL must match (AND)</h3>
+    <pre>Trigger:
+  __search_term__  contains  "apple"
+
+→ fires only when the search query contains "apple"</pre>
+
+    <p>Mixed triggers (search term + field) are supported but uncommon:</p>
+    <pre>Trigger:
+  __search_term__  equals    "iphone"
+  manufacturer     equals    "apple"
+
+→ fires only when searching "iphone" AND the document is made by Apple</pre>
+
+    <h3>Targets — ANY must match (OR)</h3>
+    <p>Once the trigger fires, a document is boosted if it matches <strong>any</strong> target row. Empty targets = boost all documents that passed the trigger.</p>
+    <pre>Targets (OR):
+  id           equals    "PROD-001"
+  manufacturer equals    "apple"
+  title        contains  "iPhone"
+
+→ boosts PROD-001, or any Apple product, or any product with "iPhone" in the title</pre>
+
+    <h3>OR across rules</h3>
+    <p>Create separate rule blocks. Each is evaluated independently and applies its own boost. A document matching two blocks receives both boosts (stacking additively).</p>
+
+    <!-- ID PICKER -->
+    <h2 id="id-picker">ID target &amp; Browse picker</h2>
+    <p>When <code>id</code> is selected as the target field, the plain text input is replaced by a document Browse picker — the same <code>DocPickerModal</code> used for Pin-to-top in Suggestions:</p>
+    <pre>┌─ Boost targets (OR) ───────────────────────────────────────────────┐
+│  id ▼   Equals ▼   [ iPhone 15 Pro          PROD-001    ✕ ]  Browse│
+│  [+ Add target condition]                                           │
+└─────────────────────────────────────────────────────────────────────┘</pre>
+    <p>Clicking <strong>Browse</strong> opens a search-and-select modal. The picked document's title is shown in the chip for readability; only the ID is saved in the criterion value. This makes it easy to pin an exact product for a specific search term without copy-pasting doc IDs.</p>
+
+    <!-- FIELD LIST -->
+    <h2 id="field-list">Field list — filtered live schema</h2>
+    <p>Target dropdown fields come from the live Typesense collection schema filtered through a server-side blocklist:</p>
+    <p><strong>Always excluded (system internals):</strong><br>
+    <code>vec</code>, <code>indexed_at</code>, <code>metadata</code>, <code>content</code>, <code>url</code>, <code>is_featured</code>, <code>popularity</code>, <code>version_score</code>, <code>in_stock</code>, <code>price</code>, <code>boost_queries_equal</code>, <code>boost_queries_contains</code>, <code>images</code>, <code>skus</code>, <code>color_options</code>, <code>aliases</code>, <code>tags</code></p>
+    <p><code>id</code> is excluded from the API field list but hardcoded as the first option in the targets dropdown (with Browse picker behaviour). <code>__search_term__</code> is hardcoded as the first option in the trigger dropdown only.</p>
+    <table>
+      <thead><tr><th>Field</th><th>Typical operators</th></tr></thead>
+      <tbody>
+        <tr><td><code>title</code></td><td>Contains, Regex</td></tr>
+        <tr><td><code>manufacturer</code></td><td>Equals, Contains</td></tr>
+        <tr><td><code>category</code></td><td>Equals</td></tr>
+        <tr><td><code>form_factor</code></td><td>Equals</td></tr>
+        <tr><td><code>operating_system</code></td><td>Equals</td></tr>
+        <tr><td><code>source_type</code></td><td>Equals</td></tr>
+      </tbody>
+    </table>
+
+    <!-- OPERATORS -->
+    <h2 id="operators">Operator options</h2>
+    <table>
+      <thead><tr><th>Operator</th><th>UI label</th><th>Match logic</th></tr></thead>
+      <tbody>
+        <tr><td><code>equals</code></td><td>Equals</td><td><code>doc[field].lower() == value.lower()</code></td></tr>
+        <tr><td><code>contains</code></td><td>Contains</td><td><code>value.lower() in doc[field].lower()</code></td></tr>
+        <tr><td><code>regex</code></td><td>Matches Regex</td><td><code>re.search(value, doc[field], IGNORECASE)</code></td></tr>
+      </tbody>
+    </table>
+    <p>Regex patterns are validated at save time (<code>re.compile</code>). Invalid patterns return HTTP 400 before saving.</p>
+
+    <!-- BACKEND -->
+    <h2 id="backend">Backend application</h2>
+    <pre>_SEARCH_TERM_FIELD = "__search_term__"
+
+def apply_boost_rules(scores, all_docs, rules, query=""):
+    is_search = bool(query.strip())
+    for rule in rules:
+        if not rule.get("enabled", True): continue
+        boost   = min(float(rule.get("boost", 0.0)), 1.0)
+        trigger = rule.get("trigger", [])
+        targets = rule.get("targets", [])
+        if not trigger or boost == 0.0: continue
+
+        # Per-rule browse/search gate
+        has_query_criterion = any(
+            c["field"] == _SEARCH_TERM_FIELD for c in trigger
+        )
+        if has_query_criterion != is_search:
+            continue
+
+        for did, doc in all_docs.items():
+            meta = _parse_meta(doc)
+            # Trigger: ALL must match (AND)
+            if not all(_check_criterion(c, doc, meta, query) for c in trigger):
+                continue
+            # Targets: ANY must match (OR); empty = boost all
+            if targets and not any(
+                _check_criterion(c, doc, meta, query) for c in targets
+            ):
+                continue
+            scores[did] = scores.get(did, 0.0) + boost</pre>
+
+    <h3>Where it runs</h3>
+    <ul>
+      <li><strong><code>search.py</code></strong> — single-index hybrid/semantic/lexical search: wired into <code>post_rrf_hook</code> after personalisation</li>
+      <li><strong><code>catalog.py</code></strong> — cross-index catalog search: rules merged from all non-external indexes, same hook position</li>
+      <li>Browse-only rules are skipped during search; search-only rules are skipped during browse — determined per-rule inside <code>apply_boost_rules</code></li>
+    </ul>
+
+    <!-- API -->
+    <h2 id="api">API endpoints</h2>
+
+    <h3>Get rules</h3>
+    <pre>GET /v1/indexes/{id}/boost-rules
+→ { "rules": [...] }</pre>
+
+    <h3>Save rules (full replace)</h3>
+    <pre>PUT /v1/indexes/{id}/boost-rules
+Body: { "rules": [...] }
+→ { "rules": [...] }</pre>
+    <p>Validates regex patterns server-side. Clamps boost to +1.00. Returns 400 on invalid regex.</p>
+
+    <h3>Get available fields</h3>
+    <pre>GET /v1/indexes/{id}/boost-rules/fields
+→ { "fields": ["title", "manufacturer", "category", ...] }</pre>
+    <p>Returns the filtered live schema field list. <code>id</code> and <code>__search_term__</code> are hardcoded in the UI separately.</p>
+
+    <!-- UI LAYOUT -->
+    <h2 id="ui">UI layout</h2>
+    <pre>┌─ Boost Rules ─────────────────────────────────────────── [Save rules] ─┐
+│  Each rule has a Trigger (when it fires — all AND) and Boost targets    │
+│  (which products — any OR). Search-term trigger = fires on search.      │
+│                                                                         │
+│  ┌─ Apple search boost ──────── [ON SEARCH] [enabled ●] [✕] ──────────┐│
+│  │                                                                     ││
+│  │  TRIGGER  ALL match (AND)    → boost   BOOST TARGETS  ANY match (OR)││
+│  │  ──────────────────────           ──────────────────────────────── ││
+│  │  Search term [Contains] apple      id ▼  [ iPhone 15   PROD-001 ✕] Browse ││
+│  │  [+ Add trigger condition]         manufacturer [Equals] apple      ││
+│  │                                    [+ Add target condition]         ││
+│  │                                                                     ││
+│  │  Boost  [━━━━━━━━●──────]  ⚠ +0.50                                 ││
+│  │  Boosts ≥ +0.50 aggressively override relevance…                   ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+│                                                                         │
+│  ┌─ Clearance browse nudge ───── [ON BROWSE] [enabled ●] [✕] ─────────┐│
+│  │  TRIGGER  ALL match (AND)    → boost   BOOST TARGETS  ANY match (OR)││
+│  │  title [Contains] clearance        (empty — boosts all matching)   ││
+│  │  [+ Add trigger condition]         [+ Add target condition]         ││
+│  │                                                                     ││
+│  │  Boost  [━━━●─────────]  +0.10                                     ││
+│  │  Applies a preference nudge. Natural relevance remains intact.     ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+│                                                                         │
+│  [+ Add rule block]                                                     │
+└─────────────────────────────────────────────────────────────────────────┘</pre>
+    <p>The header badge (<em>ON SEARCH</em> / <em>ON BROWSE</em>) is derived automatically from whether any trigger criterion uses <code>__search_term__</code>.</p>
+
+    <!-- STATUS -->
+    <h2 id="status">Implementation status</h2>
+    <table>
+      <thead><tr><th>Component</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>boost_rules</code> DB column</td><td><span class="done-badge">Done</span></td><td><code>ALTER TABLE … ADD COLUMN IF NOT EXISTS</code> in <code>init_db()</code></td></tr>
+        <tr><td><code>IndexMeta.boost_rules</code> model field</td><td><span class="done-badge">Done</span></td><td><code>list[dict] = []</code></td></tr>
+        <tr><td><code>_row_to_meta</code> mapping</td><td><span class="done-badge">Done</span></td><td>Includes legacy <code>criteria→trigger</code> migration</td></tr>
+        <tr><td><code>set_boost_rules</code> service</td><td><span class="done-badge">Done</span></td><td><code>UPDATE indexes SET boost_rules = $1</code></td></tr>
+        <tr><td>GET/PUT endpoints</td><td><span class="done-badge">Done</span></td><td><code>indexes.py</code></td></tr>
+        <tr><td>Fields endpoint</td><td><span class="done-badge">Done</span></td><td>Filtered live schema</td></tr>
+        <tr><td><code>apply_boost_rules</code> backend</td><td><span class="done-badge">Done</span></td><td>Trigger+targets, per-rule gate, <code>__search_term__</code></td></tr>
+        <tr><td>Hook wired in <code>search.py</code></td><td><span class="done-badge">Done</span></td><td>After personalisation hook</td></tr>
+        <tr><td>Hook wired in <code>catalog.py</code></td><td><span class="done-badge">Done</span></td><td>Merged rules from all non-external indexes</td></tr>
+        <tr><td><code>BoostRulesTab.svelte</code></td><td><span class="done-badge">Done</span></td><td>Trigger section + Boost targets section</td></tr>
+        <tr><td><code>IndexDetail.svelte</code> tab</td><td><span class="done-badge">Done</span></td><td>"Boost Rules" tab</td></tr>
+        <tr><td><code>DocPickerModal</code> for <code>id</code> target</td><td><span class="done-badge">Done</span></td><td>Browse button replaces text input when field = <code>id</code></td></tr>
+      </tbody>
+    </table>
+
+    <!-- DECISIONS -->
+    <h2 id="decisions">Decisions summary</h2>
+    <table>
+      <thead><tr><th>Decision</th><th>Choice</th><th>Rationale</th></tr></thead>
+      <tbody>
+        <tr><td>Rule structure</td><td><code>trigger</code> (AND) + <code>targets</code> (OR)</td><td>Separates "when to fire" from "what to boost" — cleaner than flat AND-only criteria</td></tr>
+        <tr><td>Browse vs search gate</td><td>Per-rule, based on <code>__search_term__</code> in trigger</td><td>Rules without it are browse-only; rules with it are search-only</td></tr>
+        <tr><td><code>__search_term__</code> field</td><td>Hardcoded in trigger dropdown</td><td>Not a real schema field; treated as a special token matching the query string</td></tr>
+        <tr><td><code>id</code> target</td><td>Hardcoded in targets dropdown + Browse picker</td><td><code>id</code> is filtered out by the schema API; Browse reuses the existing <code>DocPickerModal</code></td></tr>
+        <tr><td>Multiple targets</td><td>OR-logic</td><td>Allows "boost this product OR this manufacturer OR this title keyword" without multiple blocks</td></tr>
+        <tr><td>Boost range</td><td>0.00–1.00, clamped server-side</td><td>Danger-zone warning at +0.50; operators retain full control with explicit acknowledgement</td></tr>
+        <tr><td>Storage</td><td><code>boost_rules</code> JSONB on <code>indexes</code></td><td>Per-index, consistent with <code>affinity_dimensions</code> / <code>viewed_item_policy</code> patterns</td></tr>
+        <tr><td>Stacking</td><td>Additive across matching rules</td><td>Transparent; operator created each rule and is accountable for the combined effect</td></tr>
+      </tbody>
+    </table>
+
+    <!-- REFERENCES -->
+    <h2 id="references">References</h2>
+
+    <h3>Boolean retrieval and AND logic</h3>
+    <div class="ref-block">
+      <div class="ref-title">Introduction to Information Retrieval</div>
+      <div class="ref-cite">Manning, C. D., Raghavan, P., &amp; Schütze, H. (2008). Cambridge University Press. <a href="https://nlp.stanford.edu/IR-book/" target="_blank">nlp.stanford.edu/IR-book</a></div>
+      <div class="ref-note">Chapter 1 defines the Boolean retrieval model — the theoretical foundation for AND-chained trigger evaluation. <code>_check_criterion</code> with all-AND across <code>trigger</code> is a direct conjunctive Boolean query over document field values.</div>
+    </div>
+
+    <h3>Field-specific boosting (BM25F)</h3>
+    <div class="ref-block">
+      <div class="ref-title">BM25F — Simple BM25 Extension to Multiple Weighted Fields</div>
+      <div class="ref-cite">Robertson, S., Zaragoza, H., &amp; Taylor, M. (2004). CIKM 2004. <a href="https://dl.acm.org/doi/10.1145/1031171.1031181" target="_blank">dl.acm.org</a></div>
+      <div class="ref-note">Motivates field-selective boosting: different fields carry different discriminating power. Targeting <code>title</code> (contains "clearance") vs <code>manufacturer</code> (equals "apple") applies the same principle BM25F formalises.</div>
+    </div>
+    <div class="ref-block">
+      <div class="ref-title">The Probabilistic Relevance Framework: BM25 and Beyond</div>
+      <div class="ref-cite">Robertson, S., &amp; Zaragoza, H. (2009). Foundations and Trends in Information Retrieval, 3(4). <a href="https://doi.org/10.1561/1500000019" target="_blank">doi.org/10.1561/1500000019</a></div>
+      <div class="ref-note">Establishes that additive per-field score contributions are both theoretically grounded and empirically effective — the same principle that makes additive boost rules predictable and composable.</div>
+    </div>
+
+    <h3>Score combination and stacking</h3>
+    <div class="ref-block">
+      <div class="ref-title">Analyses of Multiple Evidence Combination</div>
+      <div class="ref-cite">Lee, J. H. (1997). SIGIR 1997. <a href="https://dl.acm.org/doi/10.1145/258525.258587" target="_blank">dl.acm.org</a></div>
+      <div class="ref-note">Demonstrates that linear additive combination of independent evidence signals is robust — the theoretical basis for stacking boost rules additively. Also motivates the hard cap at +1.00.</div>
+    </div>
+    <div class="ref-block">
+      <div class="ref-title">Reciprocal Rank Fusion</div>
+      <div class="ref-cite">Cormack, G. V., Clarke, C. L. A., &amp; Buettcher, S. (2009). SIGIR 2009. <a href="https://dl.acm.org/doi/10.1145/1571941.1572114" target="_blank">dl.acm.org</a></div>
+      <div class="ref-note">Defines RRF and the score range context for calibrating the danger zone. At K=60, a +0.50 boost matches or exceeds the full base RRF score of a mid-ranked document — the quantitative basis for the +0.50 boundary.</div>
+    </div>
+
+    <h3>E-commerce search and merchandising</h3>
+    <div class="ref-block">
+      <div class="ref-title">On Application of Learning to Rank for E-Commerce Search</div>
+      <div class="ref-cite">Karmaker Santu et al. (2017). SIGIR 2017. <a href="https://dl.acm.org/doi/10.1145/3077136.3080838" target="_blank">dl.acm.org</a></div>
+      <div class="ref-note">Identifies the tension between pure relevance and business objectives. Finds that purely relevance-based ranking systematically under-serves business goals — directly motivating Boost Rules as a first-class merchandising tool.</div>
+    </div>
+
+    <h3>Rule matching and pattern evaluation</h3>
+    <div class="ref-block">
+      <div class="ref-title">RETE: A Fast Algorithm for the Many Pattern / Many Object Pattern Match Problem</div>
+      <div class="ref-cite">Forgy, C. L. (1982). Artificial Intelligence, 19(1). <a href="https://doi.org/10.1016/0004-3702(82)90020-0" target="_blank">doi.org</a></div>
+      <div class="ref-note">The foundational rule-matching algorithm. ISP's linear scan is appropriate for &lt;50 rules and &lt;1 000 candidate documents. If rule or candidate counts grow, RETE-style partial match caching becomes the right optimisation.</div>
+    </div>
+    <div class="ref-block">
+      <div class="ref-title">Regular Expression Matching Can Be Simple and Fast</div>
+      <div class="ref-cite">Cox, R. (2007). <a href="https://swtch.com/~rsc/regexp/regexp1.html" target="_blank">swtch.com</a></div>
+      <div class="ref-note">Python's <code>re</code> module can exhibit O(2ⁿ) worst-case on adversarial patterns. Patterns are validated at save time; consider complexity limits to prevent ReDoS if patterns are operator-supplied.</div>
+    </div>
+
+    <h3>Relevance vs business objectives</h3>
+    <div class="ref-block">
+      <div class="ref-title">Learning to Rank for Information Retrieval</div>
+      <div class="ref-cite">Liu, T. Y. (2009). Foundations and Trends in Information Retrieval, 3(3). <a href="https://doi.org/10.1561/1500000016" target="_blank">doi.org</a></div>
+      <div class="ref-note">Hard business constraints are best handled as post-processing overrides rather than training signals — exactly the architecture ISP uses: relevance ranking first, then boost-rule overrides.</div>
+    </div>
+    <div class="ref-block">
+      <div class="ref-title">Unbiased Learning to Rank with Biased Feedback</div>
+      <div class="ref-cite">Joachims, T., Swaminathan, A., &amp; Schnabel, T. (2017). WSDM 2017. <a href="https://dl.acm.org/doi/10.1145/3018661.3018699" target="_blank">dl.acm.org</a></div>
+      <div class="ref-note">When a boost rule forces a product to position 1, CTR signals for that position become contaminated — clicks reflect position, not preference. The hidden cost of aggressive boosting that the danger-zone warning implicitly communicates.</div>
+    </div>
+
+    <h3>Merchandising and retailing</h3>
+    <div class="ref-block">
+      <div class="ref-title">Retailing Management (9th ed.)</div>
+      <div class="ref-cite">Levy, M., Weitz, B., &amp; Grewal, D. (2019). McGraw-Hill Education. ISBN: 978-1260260786.</div>
+      <div class="ref-note">Digital search boost rules are the online equivalent of physical end-caps: placing promoted products at the top of the result set performs the same function as a physical promotional display.</div>
+    </div>
+    <div class="ref-block">
+      <div class="ref-title">The Long Tail: Why the Future of Business Is Selling Less of More</div>
+      <div class="ref-cite">Anderson, C. (2006). Hyperion. ISBN: 978-1401302375.</div>
+      <div class="ref-note">Boost rules targeting specific manufacturers or categories during campaigns are a direct tool for shifting the revenue distribution temporarily — pushing clearance items or new launches into the head of the distribution for the campaign window.</div>
+    </div>
+
+  </div><!-- .content -->
+</div><!-- .layout -->
+
+<script>
+  (function(){
+    var btn = document.getElementById('theme-toggle');
+    function apply(t) {
+      if (t === 'light') { document.documentElement.setAttribute('data-theme','light'); btn.textContent = '☾'; }
+      else { document.documentElement.removeAttribute('data-theme'); btn.textContent = '☀'; }
+    }
+    apply(localStorage.getItem('isp-theme') || 'dark');
+    btn.addEventListener('click', function(){
+      var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      localStorage.setItem('isp-theme', next); apply(next);
+    });
+    // Sidebar active highlight on scroll
+    var sections = document.querySelectorAll('h2[id], h3[id]');
+    var links = document.querySelectorAll('nav.sidebar a');
+    window.addEventListener('scroll', function(){
+      var pos = window.scrollY + 80;
+      var cur = '';
+      sections.forEach(function(s){ if (s.offsetTop <= pos) cur = s.id; });
+      links.forEach(function(a){ a.classList.toggle('active', a.getAttribute('href') === '#'+cur); });
+    }, {passive:true});
+  })();
+</script>
+</body>
+</html>
