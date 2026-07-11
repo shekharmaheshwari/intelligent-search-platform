@@ -32,22 +32,9 @@ _ACTION_WEIGHT: dict[str, float] = {
 
 _VECTOR_ELIGIBLE = {"view", "cart", "purchase"}
 
-# Default dimensions used by catalog search (multi-index, no per-index config).
-# Each entry mirrors the affinity_service dimension shape and carries an
-# action_key when the PLP action dict key differs from the doc field name.
-_DEFAULT_DIMS: list[dict] = [
-    {"field": "category",         "boost": 0.10, "enabled": True, "derived_from": None},
-    {"field": "manufacturer",     "boost": 0.10, "enabled": True, "derived_from": None},
-    {"field": "source_type",      "boost": 0.10, "enabled": True, "derived_from": None,
-     "action_key": "item_type"},
-    {"field": "form_factor",      "boost": 0.10, "enabled": True, "derived_from": None},
-    {"field": "price_tier",       "boost": 0.10, "enabled": True, "derived_from": "price"},
-    {"field": "sub_category",     "boost": 0.10, "enabled": True, "derived_from": None},
-    {"field": "compatible_device","boost": 0.10, "enabled": True, "derived_from": None},
-    {"field": "os_family",        "boost": 0.10, "enabled": True, "derived_from": None},
-    {"field": "operating_system", "boost": 0.10, "enabled": True, "derived_from": None,
-     "action_key": "os_family"},
-]
+# Empty — callers must supply affinity_dims explicitly (from the per-index DB column).
+# Catalog search builds the union of all active index dims before calling build_context.
+_DEFAULT_DIMS: list[dict] = []
 
 
 @dataclass
@@ -90,7 +77,8 @@ def build_context(
 
     ``affinity_dims`` — the index's affinity dimension config list (each entry is a
     dict with at least ``field``, ``enabled``, and optionally ``action_key``).
-    Falls back to ``_DEFAULT_DIMS`` when not supplied (used by catalog search).
+    Falls back to ``_DEFAULT_DIMS`` (empty list) when not supplied — no affinity
+    boost applied.  Catalog search passes the union of all active index dims explicitly.
 
     ``action_key`` on a dimension overrides which key is read from the action dict.
     This handles mismatches between doc field names and PLP action dict keys
