@@ -34,6 +34,8 @@ export interface BoostCriterion {
   field:    string;
   operator: 'equals' | 'contains' | 'regex';
   value:    string;
+  /** Display title for id-field targets picked via Browse. Persisted so title survives page reload. Backend ignores it. */
+  _title?:  string;
 }
 
 /**
