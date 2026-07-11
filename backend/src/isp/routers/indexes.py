@@ -555,6 +555,64 @@ async def update_affinity_dimensions(idx_id: str, body: AffinityDimensionUpdate)
     return {"dimensions": body.dimensions, "viewed_item_policy": policy}
 
 
+@router.get("/{idx_id}/boost-rules", summary="Get boost rules for an index")
+async def get_boost_rules(idx_id: str):
+    """Return the current boost rules config for this index."""
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    return {"rules": meta.boost_rules}
+
+
+@router.put("/{idx_id}/boost-rules", summary="Save boost rules for an index")
+async def update_boost_rules(idx_id: str, body: dict):
+    """
+    Persist an updated boost rules list for this index.
+
+    Changes take effect immediately on the next search request — no rebuild required.
+    Each rule: {"id": str, "label": str, "enabled": bool, "boost": float,
+                "trigger": [{"field": str, "operator": str, "value": str}],
+                "targets": [{"field": str, "operator": str, "value": str}]}
+    trigger: ALL must match (AND). targets: ANY must match (OR). Empty targets = all docs.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    rules = body.get("rules", [])
+    if not isinstance(rules, list):
+        raise HTTPException(400, "rules must be a list")
+    # Clamp boost values server-side and validate regex patterns in trigger + targets.
+    import re as _re
+    for rule in rules:
+        rule["boost"] = min(float(rule.get("boost", 0.0)), 1.0)
+        for section in ("trigger", "targets"):
+            for c in rule.get(section, []):
+                if c.get("operator") == "regex":
+                    try:
+                        _re.compile(c.get("value", ""))
+                    except _re.error as exc:
+                        raise HTTPException(400, f"Invalid regex in rule '{rule.get('label', '')}' ({section}): {exc}")
+    await index_service.set_boost_rules(meta.id, rules)
+    return {"rules": rules}
+
+
+@router.get("/{idx_id}/boost-rules/fields", summary="Get available fields for boost rule criteria")
+async def get_boost_rule_fields(idx_id: str):
+    """
+    Return the filtered list of schema field names available for boost rule criteria.
+
+    Strips internal system fields (vec, indexed_at, metadata, etc.) so the
+    dropdown only shows business-meaningful fields like title, manufacturer, category.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    if meta.is_external:
+        raise HTTPException(400, "Boost rule field discovery is not available for external indexes")
+    fields = ts.get_boost_rule_fields(meta.id)
+    return {"fields": fields}
+
+
 @router.post("/{idx_id}/affinity-dimensions/discover", summary="Re-run affinity dimension discovery")
 async def rediscover_affinity_dimensions(idx_id: str):
     """

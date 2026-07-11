@@ -174,6 +174,10 @@ class IndexMeta(BaseModel):
         "viewed":    {"mode": "penalise", "value": 0.05},
         "purchased": {"mode": "penalise", "value": 0.30},
     }
+    # Operator-defined merchandising boost rules.
+    # Each entry: {"id": str, "label": str, "enabled": bool, "boost": float,
+    #              "criteria": [{"field": str, "operator": str, "value": str}, ...]}
+    boost_rules: list[dict] = []
 
 
 class IngestStatus(BaseModel):
