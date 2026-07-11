@@ -12,6 +12,13 @@
  *   1  → PROMOTED (appears first)
  *   0  → ORGANIC  (natural ranking)
  *  -1  → SUPPRESSED (hidden from users)
+ *
+ * ``mode`` controls what happens when the user selects the suggestion:
+ *   "search" (default) → run the query through ISP search
+ *   "link"             → navigate directly to ``url``
+ *
+ * ``url`` is required when mode is "link".
+ * ``featured_doc_ids`` pins one or more documents to the top positions when mode is "search".
  */
 export interface Suggestion {
   id: string;
@@ -21,6 +28,9 @@ export interface Suggestion {
   type: 'query' | 'catalog';
   category?: string;
   boosted?: boolean;
+  mode?: 'link' | 'search';
+  url?: string;
+  featured_doc_ids?: string[];
 }
 
 /**

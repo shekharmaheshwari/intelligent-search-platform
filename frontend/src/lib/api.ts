@@ -321,6 +321,23 @@ export const api = {
     }),
 
   /**
+   * Update any combination of editable suggestion fields in one PUT.
+   *
+   * Used by the edit modal to persist mode, url, featured_doc_ids, and boost
+   * in a single request.  Only the supplied keys are sent — the backend merges
+   * them onto the stored document.
+   */
+  updateSuggestion: (
+    indexId: string,
+    suggestionId: string,
+    fields: { boost?: number; mode?: string; url?: string; featured_doc_ids?: string[] },
+  ) =>
+    req<Suggestion>(`/indexes/${indexId}/suggestions/${suggestionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(fields),
+    }),
+
+  /**
    * Create a new manual suggestion entry for an index.
    *
    * @param data.query     The autocomplete text shown to users.

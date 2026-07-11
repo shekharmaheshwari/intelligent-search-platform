@@ -46,14 +46,16 @@ def _make_id(type_: str, query: str, category: str | None) -> str:
     return f"{type_}:{_slugify(query)}:{_slugify(category or 'global')}"
 
 
-def _run_extraction_sync(docs: list[dict], extension_records: list[dict]) -> list[tuple[str, str | None]]:
+def _run_extraction_sync(
+    docs: list[dict], extension_records: list[dict]
+) -> list[tuple[str, str | None, str | None, str | None]]:
     """
     Run extractSuggestions(doc) from each assigned extension that defines it.
 
     Mirrors the optional-function detection pattern used by extension_runner.py
     for filterUrl — compile once, check typeof, call per document.
 
-    Returns a flat list of (query_text, category_or_None) tuples.
+    Returns a flat list of (query_text, category_or_None, url_or_None, doc_id_or_None) tuples.
     Returns empty list if no extension defines extractSuggestions.
     """
     if not _MR_AVAILABLE or not docs or not extension_records:
@@ -76,7 +78,7 @@ def _run_extraction_sync(docs: list[dict], extension_records: list[dict]) -> lis
     if not contexts:
         return []
 
-    phrases: list[tuple[str, str | None]] = []
+    phrases: list[tuple[str, str | None, str | None, str | None]] = []
     for doc in docs:
         for name, ctx in contexts:
             try:
@@ -86,10 +88,14 @@ def _run_extraction_sync(docs: list[dict], extension_records: list[dict]) -> lis
                 for item in result:
                     if not isinstance(item, dict):
                         continue
-                    query = str(item.get("query") or "").strip().lower()
-                    cat   = item.get("category") or None
+                    query  = str(item.get("query") or "").strip().lower()
+                    cat    = item.get("category") or None
+                    # url and doc_id enable link-mode and pinned-result suggestions
+                    # respectively — both are optional extensions to the base query field.
+                    url    = str(item.get("url") or "").strip() or None
+                    doc_id = str(item.get("doc_id") or "").strip() or None
                     if query:
-                        phrases.append((query, cat))
+                        phrases.append((query, cat, url, doc_id))
             except Exception as exc:
                 log.error("Extension '%s' extractSuggestions error on doc '%s': %s",
                           name, doc.get("id", "?"), exc)
@@ -161,20 +167,29 @@ async def seed_suggestions_from_index(index_id: str) -> int:
     # suggestion is correctly scoped for the delete-and-reinsert cycle.
     seen_ids: set[str] = set()
     candidates: list[dict] = []
-    for query_text, cat in phrase_pairs:
+    for query_text, cat, url, doc_id in phrase_pairs:
         effective_cat = cat or intent_label or None
         entry_id = _make_id("catalog", query_text, effective_cat)
         if entry_id in seen_ids:
             continue
         seen_ids.add(entry_id)
-        candidates.append({
+        candidate: dict = {
             "id":         entry_id,
             "query":      query_text,
             "type":       "catalog",
             "popularity": 0,
             "boost":      0,
             **({"category": effective_cat} if effective_cat else {}),
-        })
+        }
+        # When the extension supplies a url, mark the suggestion as link-mode so
+        # the frontend navigates directly instead of running a search.
+        if url:
+            candidate["url"]  = url
+            candidate["mode"] = "link"
+        # featured_doc_ids pins results at the top positions for search-mode suggestions.
+        if doc_id:
+            candidate["featured_doc_ids"] = [doc_id]
+        candidates.append(candidate)
 
     if not candidates:
         return 0

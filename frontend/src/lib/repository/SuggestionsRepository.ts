@@ -30,6 +30,19 @@ export class SuggestionsRepository {
   }
 
   /**
+   * Update any combination of editable suggestion fields (boost, mode, url,
+   * featured_doc_ids) in one PUT.  Delegates to ``api.updateSuggestion``; the
+   * raw DTO is returned unchanged per repository contract.
+   */
+  updateSuggestion(
+    indexId: string,
+    suggestionId: string,
+    fields: { boost?: number; mode?: string; url?: string; featured_doc_ids?: string[] },
+  ): Promise<Suggestion> {
+    return api.updateSuggestion(indexId, suggestionId, fields);
+  }
+
+  /**
    * Create a new manual suggestion entry for an index.
    *
    * @param data.query     Text shown in the autocomplete dropdown.
