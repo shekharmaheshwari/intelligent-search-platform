@@ -3,8 +3,8 @@
   // an index, grouped into PROMOTED / ORGANIC / SUPPRESSED tiers.
   // Reads data via suggestionsService (transient, not shared globally).
 
-  import { onMount } from 'svelte';
-  import { suggestionsService } from '../../lib/services/suggestions/SuggestionsService';
+  import { onMount, onDestroy } from 'svelte';
+  import { suggestionsStore } from '../../lib/stores/suggestions-store';
   import DocPickerModal from './DocPickerModal.svelte';
   import type { Suggestion } from '../../lib/types';
   import {
@@ -18,14 +18,15 @@
   /** Pre-fill for the category field in the Add modal; derived from the index intent label. */
   export let category: string | undefined;
 
-  // ── Data state ───────────────────────────────────────────────────────────────
+  // ── Data state (from store) ───────────────────────────────────────────────────
 
-  let suggestions: Suggestion[] = [];
-  let total = 0;
   let page = 1;
   const perPage = 20;
-  let loading = false;
-  let error = '';
+
+  $: suggestions = $suggestionsStore.suggestions;
+  $: total       = $suggestionsStore.total;
+  $: loading     = $suggestionsStore.loading;
+  $: error       = $suggestionsStore.error;
 
   // ── Search state ─────────────────────────────────────────────────────────────
 
@@ -71,27 +72,13 @@
   // ── Data loading ─────────────────────────────────────────────────────────────
 
   /** Fetch the current page of suggestions, respecting the active search query. */
-  async function load(): Promise<void> {
+  function load(): void {
     if (!category) return;
-    loading = true;
-    error = '';
-    try {
-      const res = await suggestionsService.listSuggestions(indexId, {
-        // Omit q entirely when blank so the backend returns all suggestions.
-        q: q.trim() || undefined,
-        page,
-        per_page: perPage,
-      });
-      suggestions = res.suggestions;
-      total       = res.total;
-    } catch (e) {
-      error = String(e);
-    } finally {
-      loading = false;
-    }
+    suggestionsStore.load(indexId, { q: q.trim() || undefined, page, per_page: perPage });
   }
 
   onMount(load);
+  onDestroy(() => suggestionsStore.reset());
 
   /** Handle search input with a 300 ms debounce to avoid hammering the API. */
   function onSearchInput(): void {
@@ -164,10 +151,10 @@
     editSaving = true;
     editErr    = '';
     try {
-      await suggestionsService.updateSuggestion(indexId, editingItem.id,
+      await suggestionsStore.updateSuggestion(indexId, editingItem.id,
         buildSavePayload(editBoost, editMode, editUrl, editFeaturedDocIds),
       );
-      await load();
+      load();
       closeEdit();
     } catch (e) {
       editErr = String(e);
@@ -187,8 +174,8 @@
     editSaving = true;
     editErr    = '';
     try {
-      await suggestionsService.deleteSuggestion(indexId, editingItem.id);
-      await load();
+      await suggestionsStore.delete(indexId, editingItem.id);
+      load();
       closeEdit();
     } catch (e) {
       editErr = String(e);
@@ -220,13 +207,12 @@
     addSaving = true;
     addErr    = '';
     try {
-      await suggestionsService.createSuggestion(indexId, {
+      await suggestionsStore.create(indexId, {
         query:    addQuery.trim(),
         boost:    addBoost,
-        // Omit category entirely when blank — the backend treats absence as no category.
         category: addCategory.trim() || undefined,
       });
-      await load();
+      load();
       closeAdd();
     } catch (e) {
       addErr = String(e);
