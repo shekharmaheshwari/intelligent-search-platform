@@ -32,6 +32,21 @@ class SuggestionsService {
   }
 
   /**
+   * Persist any combination of editable suggestion fields in one call.
+   *
+   * Supply only the fields you want to change; the backend merges them onto
+   * the stored document.  ``url`` is only meaningful when ``mode`` is "link";
+   * ``featured_doc_ids`` is only meaningful when ``mode`` is "search".
+   */
+  updateSuggestion(
+    indexId: string,
+    suggestionId: string,
+    fields: { boost?: number; mode?: string; url?: string; featured_doc_ids?: string[] },
+  ): Promise<Suggestion> {
+    return suggestionsRepository.updateSuggestion(indexId, suggestionId, fields);
+  }
+
+  /**
    * Create a new manual suggestion entry for an index.
    *
    * @param data.query     Text shown in the autocomplete dropdown.

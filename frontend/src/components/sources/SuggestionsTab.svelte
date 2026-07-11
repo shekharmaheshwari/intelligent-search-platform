@@ -5,6 +5,7 @@
 
   import { onMount } from 'svelte';
   import { suggestionsService } from '../../lib/services/suggestions/SuggestionsService';
+  import DocPickerModal from './DocPickerModal.svelte';
   import type { Suggestion } from '../../lib/types';
 
   /** Id of the index whose suggestions this tab manages. */
@@ -44,6 +45,14 @@
   let editErr      = '';
   /** Two-step delete: first click reveals confirmation; second click fires the request. */
   let confirmDelete = false;
+  /** "link" navigates directly to editUrl; "search" runs the query through ISP. */
+  let editMode: 'link' | 'search' = 'search';
+  /** Destination URL, populated when editMode is "link". */
+  let editUrl = '';
+  /** Document IDs to pin at the top positions when editMode is "search". */
+  let editFeaturedDocIds: string[] = [];
+  /** Staging input for adding another doc ID to the list. */
+  let editFeaturedDocIdInput = '';
 
   // ── Add modal state ──────────────────────────────────────────────────────────
 
@@ -95,30 +104,67 @@
 
   // ── Edit modal ───────────────────────────────────────────────────────────────
 
-  /** Open the edit modal pre-filled with the suggestion's current boost. */
+  /** Open the edit modal pre-filled with the suggestion's current values. */
   function openEdit(s: Suggestion): void {
-    editingItem   = s;
-    editBoost     = s.boost;
-    editErr       = '';
-    confirmDelete = false;
-    editModal     = true;
+    editingItem       = s;
+    editBoost         = s.boost;
+    // Default to 'search' when the field is absent so existing rows behave correctly.
+    editMode             = (s.mode ?? 'search') as 'link' | 'search';
+    editUrl              = s.url ?? '';
+    editFeaturedDocIds   = s.featured_doc_ids ?? [];
+    editFeaturedDocIdInput = '';
+    editErr           = '';
+    confirmDelete     = false;
+    editModal         = true;
   }
 
   /** Close the edit modal and reset all edit state. */
   function closeEdit(): void {
-    editModal     = false;
-    editingItem   = null;
-    editErr       = '';
-    confirmDelete = false;
+    editModal         = false;
+    editingItem       = null;
+    editErr           = '';
+    confirmDelete     = false;
+    editMode               = 'search';
+    editUrl                = '';
+    editFeaturedDocIds     = [];
+    editFeaturedDocIdInput = '';
   }
 
-  /** Persist the edited boost value and reload the list. */
+  function addFeaturedDocId(): void {
+    const id = editFeaturedDocIdInput.trim();
+    if (id && !editFeaturedDocIds.includes(id)) {
+      editFeaturedDocIds = [...editFeaturedDocIds, id];
+    }
+    editFeaturedDocIdInput = '';
+  }
+
+  function removeFeaturedDocId(id: string): void {
+    editFeaturedDocIds = editFeaturedDocIds.filter(d => d !== id);
+  }
+
+  let showDocPicker = false;
+
+  function selectPickerDoc(doc: { id: string; title: string }): void {
+    if (!editFeaturedDocIds.includes(doc.id)) {
+      editFeaturedDocIds = [...editFeaturedDocIds, doc.id];
+    }
+    showDocPicker = false;
+  }
+
+  /** Persist boost, mode, url, and featured_doc_ids together and reload the list. */
   async function saveEdit(): Promise<void> {
     if (!editingItem) return;
     editSaving = true;
     editErr    = '';
     try {
-      await suggestionsService.updateSuggestionBoost(indexId, editingItem.id, editBoost);
+      await suggestionsService.updateSuggestion(indexId, editingItem.id, {
+        boost:            editBoost,
+        mode:             editMode,
+        // Only send url when mode is "link"; omit it entirely for search mode.
+        url:              editMode === 'link' ? editUrl.trim() || undefined : undefined,
+        // Only send featured_doc_ids when mode is "search"; omit for link mode.
+        featured_doc_ids: editMode === 'search' ? editFeaturedDocIds : undefined,
+      });
       await load();
       closeEdit();
     } catch (e) {
@@ -235,6 +281,9 @@
             {#if s.category}
               <span class="badge badge-cat">{s.category}</span>
             {/if}
+            {#if s.mode === 'link'}
+              <span class="badge badge-link">↗ link</span>
+            {/if}
             <span class="pop">{s.popularity.toLocaleString()} searches</span>
             <span class="badge badge-type">{s.type}</span>
             <button class="btn-edit" on:click={() => openEdit(s)}>Edit</button>
@@ -258,6 +307,9 @@
             {#if s.category}
               <span class="badge badge-cat">{s.category}</span>
             {/if}
+            {#if s.mode === 'link'}
+              <span class="badge badge-link">↗ link</span>
+            {/if}
             <span class="pop">{s.popularity.toLocaleString()} searches</span>
             <span class="badge badge-type">{s.type}</span>
             <button class="btn-edit" on:click={() => openEdit(s)}>Edit</button>
@@ -277,6 +329,9 @@
             <span class="query-text">{s.query}</span>
             {#if s.category}
               <span class="badge badge-cat">{s.category}</span>
+            {/if}
+            {#if s.mode === 'link'}
+              <span class="badge badge-link">↗ link</span>
             {/if}
             <span class="pop">{s.popularity.toLocaleString()} searches</span>
             <span class="badge badge-type">{s.type}</span>
@@ -320,6 +375,59 @@
         <span class="modal-label">Popularity</span>
         <span class="modal-val">{editingItem.popularity.toLocaleString()} searches</span>
       </div>
+
+      <!-- Mode toggle: "link" navigates to a URL; "search" runs ISP search -->
+      <div class="modal-field modal-field-col">
+        <span class="modal-label">Mode</span>
+        <div class="mode-radios">
+          <label class="mode-radio">
+            <input type="radio" name="edit-mode" value="link" bind:group={editMode} />
+            <span>Link — navigate directly to URL</span>
+          </label>
+          <label class="mode-radio">
+            <input type="radio" name="edit-mode" value="search" bind:group={editMode} />
+            <span>Search — run a search for this query</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Conditionally show URL input (link mode) or Pin-to-top input (search mode) -->
+      {#if editMode === 'link'}
+        <label class="modal-input-field">
+          <span class="modal-label">URL</span>
+          <input
+            class="modal-input"
+            type="text"
+            bind:value={editUrl}
+            placeholder="/my-account/port-in-dashboard"
+          />
+        </label>
+      {:else}
+        <div class="modal-input-field">
+          <span class="modal-label">Pin to top <span class="hint">(optional)</span></span>
+          <div class="pin-chips">
+            {#each editFeaturedDocIds as docId}
+              <span class="pin-chip">
+                <span class="pin-chip-text">{docId}</span>
+                <button class="pin-chip-remove" on:click={() => removeFeaturedDocId(docId)}>✕</button>
+              </span>
+            {/each}
+            <div class="pin-chip-add-row">
+              <input
+                class="pin-chip-input"
+                type="text"
+                bind:value={editFeaturedDocIdInput}
+                placeholder="Paste doc ID…"
+                on:keydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFeaturedDocId(); } }}
+              />
+              {#if editFeaturedDocIdInput.trim()}
+                <button class="pin-chip-add-btn" on:click={addFeaturedDocId}>Add</button>
+              {/if}
+              <button class="pin-browse-btn" on:click={() => showDocPicker = true}>Browse</button>
+            </div>
+          </div>
+        </div>
+      {/if}
 
       <!-- Boost tier toggle -->
       <div class="modal-field">
@@ -443,6 +551,15 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if showDocPicker}
+  <DocPickerModal
+    {indexId}
+    selectedIds={editFeaturedDocIds}
+    on:select={(e) => selectPickerDoc(e.detail)}
+    on:close={() => showDocPicker = false}
+  />
 {/if}
 
 <style>
@@ -602,6 +719,8 @@
   }
   .badge-cat  { background: var(--accent-dim); color: var(--accent); }
   .badge-type { background: var(--surface);    color: var(--text-4); }
+  /* Green tint badge for suggestions that navigate directly to a URL. */
+  .badge-link { background: #1a2a1a; color: #5cdb85; }
 
   /* ── Row edit button ──────────────────────────────────────────────────────── */
   .btn-edit {
@@ -709,6 +828,46 @@
   }
   .modal-input:focus { outline: none; border-color: var(--accent); }
   .req { color: var(--danger-text); font-size: 10px; }
+  /* Column-direction modal-field variant used for the mode radio group. */
+  .modal-field-col { align-items: flex-start; flex-direction: column; gap: 8px; }
+  /* Radio group container for the mode selector. */
+  .mode-radios { display: flex; flex-direction: column; gap: 6px; }
+  /* Individual radio option row. */
+  .mode-radio { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-3); cursor: pointer; }
+  .mode-radio input { accent-color: var(--accent); }
+  /* Dimmed label for optional field markers. */
+  .hint { font-size: 10px; color: var(--text-5); }
+  /* Pin-to-top multi-value chip input */
+  .pin-chips { display: flex; flex-direction: column; gap: 6px; }
+  .pin-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg-3); border: 1px solid var(--border);
+    border-radius: 4px; padding: 3px 8px; font-size: 12px;
+    color: var(--text-3); max-width: 100%; overflow: hidden;
+  }
+  .pin-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .pin-chip-remove {
+    background: none; border: none; cursor: pointer; color: var(--text-5);
+    font-size: 10px; padding: 0; line-height: 1; flex-shrink: 0;
+  }
+  .pin-chip-remove:hover { color: var(--danger-text); }
+  .pin-chip-add-row { display: flex; gap: 6px; align-items: center; }
+  .pin-chip-input {
+    flex: 1; background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 5px 8px; font-size: 12px; color: var(--text);
+    font-family: inherit;
+  }
+  .pin-chip-input:focus { outline: none; border-color: var(--accent); }
+  .pin-chip-add-btn {
+    background: var(--accent); border: none; border-radius: 4px; color: #fff;
+    font-size: 12px; padding: 5px 10px; cursor: pointer; flex-shrink: 0;
+  }
+  .pin-chip-add-btn:hover { opacity: 0.85; }
+  .pin-browse-btn {
+    background: var(--bg-3); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text-3); font-size: 12px; padding: 5px 10px; cursor: pointer; flex-shrink: 0;
+  }
+  .pin-browse-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   /* ── Boost tier toggle ────────────────────────────────────────────────────── */
   .boost-toggle {
