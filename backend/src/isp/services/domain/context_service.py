@@ -3,9 +3,11 @@ Customer action history → personalised search context.
 
 Two main outputs:
 
-1. ``SearchContext`` — affinity maps derived from action weights.
-   Applied as additive score boosts after RRF merge so they nudge rather
-   than dominate relevance.
+1. ``SearchContext`` — generic affinity maps derived from action weights.
+   ``affinities`` is a dict[field_name, dict[value, score]] so any set of
+   categorical metadata fields can drive personalisation without code changes.
+   Affinity dims come from each index's ``affinity_dimensions`` JSON column,
+   discovered automatically after every rebuild.
 
 2. Preference vector blending — embedding vectors of recently viewed items
    are fetched from Typesense and blended into the query vector before the
@@ -18,6 +20,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from isp.services.domain import viewed_item_policy as vip
 
 _ACTION_WEIGHT: dict[str, float] = {
     "purchase": 3.0,
@@ -29,17 +32,38 @@ _ACTION_WEIGHT: dict[str, float] = {
 
 _VECTOR_ELIGIBLE = {"view", "cart", "purchase"}
 
+# Default dimensions used by catalog search (multi-index, no per-index config).
+# Each entry mirrors the affinity_service dimension shape and carries an
+# action_key when the PLP action dict key differs from the doc field name.
+_DEFAULT_DIMS: list[dict] = [
+    {"field": "category",         "boost": 0.10, "enabled": True, "derived_from": None},
+    {"field": "manufacturer",     "boost": 0.10, "enabled": True, "derived_from": None},
+    {"field": "source_type",      "boost": 0.10, "enabled": True, "derived_from": None,
+     "action_key": "item_type"},
+    {"field": "form_factor",      "boost": 0.10, "enabled": True, "derived_from": None},
+    {"field": "price_tier",       "boost": 0.10, "enabled": True, "derived_from": "price"},
+    {"field": "sub_category",     "boost": 0.10, "enabled": True, "derived_from": None},
+    {"field": "compatible_device","boost": 0.10, "enabled": True, "derived_from": None},
+    {"field": "os_family",        "boost": 0.10, "enabled": True, "derived_from": None},
+    {"field": "operating_system", "boost": 0.10, "enabled": True, "derived_from": None,
+     "action_key": "os_family"},
+]
+
 
 @dataclass
 class SearchContext:
     """Pre-computed affinity context derived from a customer's action history."""
-    category_affinity:     dict[str, float] = field(default_factory=dict)
-    manufacturer_affinity: dict[str, float] = field(default_factory=dict)
-    type_affinity:         dict[str, float] = field(default_factory=dict)
-    viewed_ids:            set[str]         = field(default_factory=set)
+    # Generic map: metadata field name → {value → normalised affinity score [0,1]}
+    # e.g. {"category": {"phones": 0.8, "accessories": 0.2}, "form_factor": {"flip": 1.0}}
+    affinities:      dict[str, dict[str, float]] = field(default_factory=dict)
+    # Items viewed or carted but NOT (yet) purchased — active interest, need unfulfilled.
+    viewed_ids:      set[str]                    = field(default_factory=set)
+    # Items the customer completed a purchase for — need satisfied (durable goods).
+    # Purchase supersedes view: an item in purchased_ids is removed from viewed_ids.
+    purchased_ids:   set[str]                    = field(default_factory=set)
     # Ordered list of item ids whose vectors will seed preference blending.
     # Capped at 5 — retrieved synchronously from Typesense, so latency matters.
-    vector_seed_ids:       list[str]        = field(default_factory=list)
+    vector_seed_ids: list[str]                   = field(default_factory=list)
 
 
 def parse_meta(raw) -> dict:
@@ -56,19 +80,31 @@ def parse_meta(raw) -> dict:
     return {}
 
 
-def build_context(actions: list[dict], max_actions: int = 50) -> SearchContext:
+def build_context(
+    actions: list[dict],
+    affinity_dims: list[dict] | None = None,
+    max_actions: int = 50,
+) -> SearchContext:
     """
     Convert a flat list of customer action dicts into a ``SearchContext``.
+
+    ``affinity_dims`` — the index's affinity dimension config list (each entry is a
+    dict with at least ``field``, ``enabled``, and optionally ``action_key``).
+    Falls back to ``_DEFAULT_DIMS`` when not supplied (used by catalog search).
+
+    ``action_key`` on a dimension overrides which key is read from the action dict.
+    This handles mismatches between doc field names and PLP action dict keys
+    (e.g. doc: ``operating_system`` / action: ``os_family``).
 
     Each action is weighted by type (purchase > cart > view > search > category)
     and an optional caller-supplied ``weight`` multiplier.  All affinity scores
     are normalised to [0, 1] so boost magnitudes remain predictable regardless
     of how many actions are passed.
     """
+    dims = affinity_dims if affinity_dims is not None else _DEFAULT_DIMS
+    active_dims = [d for d in dims if d.get("enabled", True)]
     ctx = SearchContext()
-    cat_raw:  dict[str, float] = {}
-    mfr_raw:  dict[str, float] = {}
-    type_raw: dict[str, float] = {}
+    raw: dict[str, dict[str, float]] = {d["field"]: {} for d in active_dims}
 
     for action in actions[:max_actions]:
         action_type = action.get("type", "view")
@@ -76,77 +112,116 @@ def build_context(actions: list[dict], max_actions: int = 50) -> SearchContext:
         caller_w    = float(action.get("weight", 1.0))
         w           = base_w * max(caller_w, 0.0)
 
-        if action.get("category"):
-            k = action["category"].lower().strip()
-            if k:
-                cat_raw[k] = cat_raw.get(k, 0.0) + w
-
-        if action.get("manufacturer"):
-            k = action["manufacturer"].lower().strip()
-            if k:
-                mfr_raw[k] = mfr_raw.get(k, 0.0) + w
-
-        if action.get("item_type"):
-            k = action["item_type"].lower().strip()
-            if k:
-                type_raw[k] = type_raw.get(k, 0.0) + w
+        for dim in active_dims:
+            field_name = dim["field"]
+            action_key = dim.get("action_key") or field_name
+            val = action.get(action_key)
+            if val and isinstance(val, str):
+                k = val.lower().strip()
+                if k:
+                    raw[field_name][k] = raw[field_name].get(k, 0.0) + w
 
         if action.get("item_id") and action_type in _VECTOR_ELIGIBLE:
-            ctx.viewed_ids.add(action["item_id"])
+            iid = action["item_id"]
+            if action_type == "purchase":
+                ctx.purchased_ids.add(iid)
+                ctx.viewed_ids.discard(iid)   # purchase supersedes view
+            elif iid not in ctx.purchased_ids:
+                ctx.viewed_ids.add(iid)
             if len(ctx.vector_seed_ids) < 5:
-                ctx.vector_seed_ids.append(action["item_id"])
+                ctx.vector_seed_ids.append(iid)
 
-    def _norm(raw: dict[str, float]) -> dict[str, float]:
-        if not raw:
+    def _norm(d: dict[str, float]) -> dict[str, float]:
+        if not d:
             return {}
-        mx = max(raw.values())
-        return {k: round(v / mx, 4) for k, v in raw.items()} if mx > 0 else {}
+        mx = max(d.values())
+        return {k: round(v / mx, 4) for k, v in d.items()} if mx > 0 else {}
 
-    ctx.category_affinity     = _norm(cat_raw)
-    ctx.manufacturer_affinity = _norm(mfr_raw)
-    ctx.type_affinity         = _norm(type_raw)
+    ctx.affinities = {d["field"]: _norm(raw[d["field"]]) for d in active_dims}
     return ctx
 
 
 def context_boost(
     doc: dict,
     ctx: SearchContext,
-    *,
-    apply_affinity: bool = True,
+    affinity_dims: list[dict] | None = None,
     apply_viewed_penalty: bool = True,
+    viewed_item_policy: dict | None = None,
 ) -> float:
     """
     Compute the additive context score for a single document.
 
+    ``affinity_dims`` — the index's affinity dimension config list, each entry:
+      { "field": str, "boost": float, "enabled": bool, "derived_from": str|None }
+
+    ``viewed_item_policy`` — per-index config controlling how viewed items are scored:
+      { "mode": "penalise"|"neutral"|"boost", "value": float }
+      Falls back to the legacy -0.05 penalty when not supplied.
+
+    When ``affinity_dims`` is None the function falls back to a default set of
+    dimensions with preset weights (backward-compatible with the old hardcoded path).
+
     Boost magnitudes are kept small relative to editorial boosts
     (is_featured +0.5, popularity ≤ +0.5) so context nudges rather than
     overrides relevance.
-
-      +0.20 × category affinity       (when apply_affinity=True)
-      +0.15 × manufacturer affinity   (when apply_affinity=True)
-      +0.10 × source_type affinity    (when apply_affinity=True)
-      -0.05   demotion for viewed      (when apply_viewed_penalty=True)
     """
     meta  = parse_meta(doc.get("metadata"))
     boost = 0.0
 
-    if apply_affinity:
-        doc_type = (doc.get("source_type") or meta.get("type") or "").lower()
-        if doc_type and doc_type in ctx.type_affinity:
-            boost += 0.10 * ctx.type_affinity[doc_type]
+    dims = affinity_dims if affinity_dims is not None else _default_dims()
 
-        doc_cat = (meta.get("category") or "").lower()
-        if doc_cat and doc_cat in ctx.category_affinity:
-            boost += 0.20 * ctx.category_affinity[doc_cat]
+    for dim in dims:
+        if not dim.get("enabled", True):
+            continue
 
-        doc_mfr = (meta.get("manufacturer") or "").lower()
-        if doc_mfr and doc_mfr in ctx.manufacturer_affinity:
-            boost += 0.15 * ctx.manufacturer_affinity[doc_mfr]
+        field_name = dim["field"]
+        weight     = float(dim.get("boost", 0.10))
+        affinity   = ctx.affinities.get(field_name, {})
+        if not affinity:
+            continue
 
-    if apply_viewed_penalty and doc.get("id") in ctx.viewed_ids:
-        boost -= 0.05
+        derived = dim.get("derived_from")
+
+        if derived == "price":
+            # price_tier is derived from the raw price stored in metadata
+            raw_price = meta.get("price")
+            if raw_price is not None:
+                try:
+                    p = float(raw_price)
+                    doc_val = "budget" if p < 30 else ("mid" if p <= 80 else "premium")
+                except (TypeError, ValueError):
+                    doc_val = None
+            else:
+                doc_val = None
+
+        elif field_name == "type":
+            doc_val = (doc.get("source_type") or meta.get("type") or "").lower() or None
+
+        else:
+            # Check top-level doc fields first, then metadata
+            raw_val = doc.get(field_name) or meta.get(field_name)
+            if isinstance(raw_val, list):
+                # e.g. compatible_devices — any match counts
+                for v in raw_val:
+                    k = str(v).lower().strip()
+                    if k and k in affinity:
+                        boost += weight * affinity[k]
+                        break
+                continue
+            doc_val = str(raw_val).lower().strip() if raw_val else None
+
+        if doc_val and doc_val in affinity:
+            boost += weight * affinity[doc_val]
+
+    if apply_viewed_penalty:
+        boost += vip.apply(doc.get("id", ""), ctx.viewed_ids, ctx.purchased_ids, viewed_item_policy)
 
     return boost
+
+
+def _default_dims() -> list[dict]:
+    """Fallback dimension list used by context_boost when no per-index config is supplied."""
+    return _DEFAULT_DIMS
 
 
 def blend_preference_vector(
@@ -190,10 +265,6 @@ async def fetch_preference_vector(
     Scans each collection in order, stopping at the first match per seed id.
     Falls back to the original ``query_vec`` when no item vectors are found
     (e.g. items not yet indexed, or VOYAGE_API_KEY not set).
-
-    This is the primary personalisation mechanism: the ANN (approximate nearest
-    neighbour) pass in Typesense uses the blended vector, so semantically similar
-    items to what the customer has viewed naturally rank higher.
     """
     if not ctx.vector_seed_ids or not query_vec:
         return query_vec
@@ -206,6 +277,6 @@ async def fetch_preference_vector(
             doc = ts.retrieve_document(col, item_id)
             if doc and isinstance(doc.get("vec"), list) and doc["vec"]:
                 item_vecs.append(doc["vec"])
-                break  # found in this collection, skip others
+                break
 
     return blend_preference_vector(query_vec, item_vecs, blend_weight)
