@@ -5,34 +5,26 @@
    * Used in the IndexDetail "Documents" tab.  Renders a four-column table
    * (Title, Source, URL, Indexed) with prev/next pagination and a manual refresh button.
    */
-  import { onMount } from 'svelte';
-  import { indexService } from '../../lib/services/indexes/IndexService';
-  import type { DocumentItem } from '../../lib/types';
+  import { onMount, onDestroy } from 'svelte';
+  import { documentsStore } from '../../lib/stores/documents-store';
   import { fmtDate } from './DocumentTable.helpers';
 
   export let indexId: string;
 
-  let docs: DocumentItem[] = [];
-  let found = 0;
-  let page = 1;
   const perPage = 20;
-  let loading = false;
 
-  async function load() {
-    loading = true;
-    try {
-      const res = await indexService.listDocuments(indexId, page, perPage);
-      docs = res.hits.map(h => h.document);
-      found = res.found;
-    } finally {
-      loading = false;
-    }
-  }
+  $: docs    = $documentsStore.docs;
+  $: found   = $documentsStore.found;
+  $: page    = $documentsStore.page;
+  $: loading = $documentsStore.loading;
+
+  function load() { documentsStore.load(indexId, { page, perPage }); }
 
   onMount(load);
+  onDestroy(() => documentsStore.reset());
 
-  function prev() { if (page > 1) { page--; load(); } }
-  function next() { if (page * perPage < found) { page++; load(); } }
+  function prev() { if (page > 1) documentsStore.load(indexId, { page: page - 1, perPage }); }
+  function next() { if (page * perPage < found) documentsStore.load(indexId, { page: page + 1, perPage }); }
 </script>
 
 <div class="doc-table">

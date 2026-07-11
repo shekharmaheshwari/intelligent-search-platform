@@ -4,8 +4,13 @@
   // indexService directly.  Does not read from any store; parent passes connector and intentLabel as props.
 
   import { onMount } from 'svelte';
-  import { indexService } from '../../lib/services/indexes/IndexService';
+  import { mappingStore } from '../../lib/stores/mapping-store';
   import type { MappingConfig } from '../../lib/types';
+  import type { FieldRow, ValueRow } from './MappingTab.helpers';
+  import {
+    initFieldRows, initValueRows, initStaticFields,
+    buildFieldMap, buildValueMap, buildStaticFields,
+  } from './MappingTab.helpers';
 
   export let indexId:    string;
   export let connector:  Record<string, unknown> = {};
@@ -17,14 +22,14 @@
   let labelValue = '';
 
   /** Flat rows for the field_map section: source key → target key. */
-  let fieldRows: { key: string; value: string }[] = [];
+  let fieldRows: FieldRow[] = [];
 
   /**
    * Flat rows for the value_map section.
    * The nested ``{field: {from: to}}`` structure is flattened on mount and
    * re-nested before each save.
    */
-  let valueRows: { field: string; from: string; to: string }[] = [];
+  let valueRows: ValueRow[] = [];
 
   // ── Per-section save state (each section saves independently) ─────────────
 
@@ -41,7 +46,7 @@
   let savedValues  = false;
 
   /** Flat rows for the static_fields section: constant key stamped into every document. */
-  let staticFields: { key: string; value: string }[] = [];
+  let staticFields: FieldRow[] = [];
 
   let staticSaving = false;
   let staticErr    = '';
@@ -50,21 +55,10 @@
   // ── Initialise from props on mount ────────────────────────────────────────
 
   onMount(() => {
-    labelValue = intentLabel ?? '';
-
-    // field_map is a flat Record<string, string>; convert to editable rows.
-    const fieldMap = (connector.field_map ?? {}) as Record<string, string>;
-    fieldRows = Object.entries(fieldMap).map(([k, v]) => ({ key: k, value: v }));
-
-    // value_map is Record<string, Record<string, string>>; flatten to {field, from, to} rows.
-    const valueMap = (connector.value_map ?? {}) as Record<string, Record<string, string>>;
-    valueRows = Object.entries(valueMap).flatMap(([field, inner]) =>
-      Object.entries(inner).map(([from, to]) => ({ field, from, to }))
-    );
-
-    // static_fields is a flat Record<string, string>; convert to editable rows.
-    const staticMap = (connector.static_fields ?? {}) as Record<string, string>;
-    staticFields = Object.entries(staticMap).map(([k, v]) => ({ key: k, value: v }));
+    labelValue   = intentLabel ?? '';
+    fieldRows    = initFieldRows(connector);
+    valueRows    = initValueRows(connector);
+    staticFields = initStaticFields(connector);
   });
 
   // ── Field-rename row helpers ───────────────────────────────────────────────
@@ -82,63 +76,15 @@
   function addStatic()             { staticFields = [...staticFields, { key: '', value: '' }]; }
   function removeStatic(i: number) { staticFields = staticFields.filter((_, idx) => idx !== i); }
 
-  // ── Build maps from current rows ──────────────────────────────────────────
-
-  /**
-   * Build the ``field_map`` object from the current ``fieldRows`` state.
-   * Rows with an empty key are skipped; empty value means "drop the field".
-   */
-  function buildFieldMap(): Record<string, string> {
-    return Object.fromEntries(
-      fieldRows
-        .filter(r => r.key.trim())
-        .map(r => [r.key.trim(), r.value.trim()])
-    );
-  }
-
-  /**
-   * Build the nested ``value_map`` object from the current flat ``valueRows``.
-   * Rows with an empty field or from-value are skipped.
-   * Multiple rows with the same field are merged into one inner map.
-   */
-  function buildValueMap(): Record<string, Record<string, string>> {
-    const result: Record<string, Record<string, string>> = {};
-    for (const row of valueRows) {
-      if (!row.field.trim() || !row.from.trim()) continue;
-      const f = row.field.trim();
-      if (!result[f]) result[f] = {};
-      result[f][row.from.trim()] = row.to.trim();
-    }
-    return result;
-  }
-
-  /**
-   * Build the ``static_fields`` object from the current ``staticFields`` state.
-   * Rows with an empty key are skipped.
-   */
-  function buildStaticFields(): Record<string, string> {
-    return Object.fromEntries(
-      staticFields
-        .filter(r => r.key.trim())
-        .map(r => [r.key.trim(), r.value.trim()])
-    );
-  }
-
   // ── Save handlers ─────────────────────────────────────────────────────────
 
   /** Save intent label only; does not touch field_map or value_map. */
   async function saveIntentLabel() {
     savingLabel = true; errLabel = ''; savedLabel = false;
-    try {
-      await indexService.saveIntentLabel(indexId, labelValue.trim());
-      savedLabel = true;
-      // Auto-clear the success indicator after 2 s so it does not persist indefinitely.
-      setTimeout(() => { savedLabel = false; }, 2000);
-    } catch (e) {
-      errLabel = String(e);
-    } finally {
-      savingLabel = false;
-    }
+    await mappingStore.saveIntentLabel(indexId, labelValue.trim());
+    errLabel = mappingStore.getValue().errors.label;
+    if (!errLabel) { savedLabel = true; setTimeout(() => { savedLabel = false; }, 2000); }
+    savingLabel = false;
   }
 
   /**
@@ -147,20 +93,15 @@
    */
   async function saveFieldRenames() {
     savingFields = true; errFields = ''; savedFields = false;
-    try {
-      const cfg: MappingConfig = {
-        field_map:     buildFieldMap(),
-        value_map:     buildValueMap(),     // preserve value overrides when saving only renames
-        static_fields: buildStaticFields(), // preserve static fields when saving only renames
-      };
-      await indexService.saveMapping(indexId, cfg);
-      savedFields = true;
-      setTimeout(() => { savedFields = false; }, 2000);
-    } catch (e) {
-      errFields = String(e);
-    } finally {
-      savingFields = false;
-    }
+    const cfg: MappingConfig = {
+      field_map:     buildFieldMap(fieldRows),
+      value_map:     buildValueMap(valueRows),
+      static_fields: buildStaticFields(staticFields),
+    };
+    await mappingStore.saveMapping(indexId, cfg);
+    errFields = mappingStore.getValue().errors.mapping;
+    if (!errFields) { savedFields = true; setTimeout(() => { savedFields = false; }, 2000); }
+    savingFields = false;
   }
 
   /**
@@ -169,20 +110,15 @@
    */
   async function saveValueOverrides() {
     savingValues = true; errValues = ''; savedValues = false;
-    try {
-      const cfg: MappingConfig = {
-        field_map:     buildFieldMap(),     // preserve field renames when saving only overrides
-        value_map:     buildValueMap(),
-        static_fields: buildStaticFields(), // preserve static fields when saving only overrides
-      };
-      await indexService.saveMapping(indexId, cfg);
-      savedValues = true;
-      setTimeout(() => { savedValues = false; }, 2000);
-    } catch (e) {
-      errValues = String(e);
-    } finally {
-      savingValues = false;
-    }
+    const cfg: MappingConfig = {
+      field_map:     buildFieldMap(fieldRows),
+      value_map:     buildValueMap(valueRows),
+      static_fields: buildStaticFields(staticFields),
+    };
+    await mappingStore.saveMapping(indexId, cfg);
+    errValues = mappingStore.getValue().errors.mapping;
+    if (!errValues) { savedValues = true; setTimeout(() => { savedValues = false; }, 2000); }
+    savingValues = false;
   }
 
   /**
@@ -191,21 +127,15 @@
    */
   async function saveStaticFields() {
     staticSaving = true; staticErr = ''; staticSaved = false;
-    try {
-      const cfg: MappingConfig = {
-        field_map:     buildFieldMap(),     // preserve field renames when saving only static fields
-        value_map:     buildValueMap(),     // preserve value overrides when saving only static fields
-        static_fields: buildStaticFields(),
-      };
-      await indexService.saveMapping(indexId, cfg);
-      staticSaved = true;
-      // Auto-clear the success indicator after 2 s so it does not persist indefinitely.
-      setTimeout(() => { staticSaved = false; }, 2000);
-    } catch (e) {
-      staticErr = String(e);
-    } finally {
-      staticSaving = false;
-    }
+    const cfg: MappingConfig = {
+      field_map:     buildFieldMap(fieldRows),
+      value_map:     buildValueMap(valueRows),
+      static_fields: buildStaticFields(staticFields),
+    };
+    await mappingStore.saveMapping(indexId, cfg);
+    staticErr = mappingStore.getValue().errors.mapping;
+    if (!staticErr) { staticSaved = true; setTimeout(() => { staticSaved = false; }, 2000); }
+    staticSaving = false;
   }
 </script>
 

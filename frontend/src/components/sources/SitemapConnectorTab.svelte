@@ -1,7 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { indexService } from '../../lib/services/indexes/IndexService';
-  import type { SitemapConnectorConfig } from '../../lib/types';
+  import type { PatternRow, MetaRow } from './SitemapConnectorTab.helpers';
+  import {
+    initSitemapFromConnector, initIncludePatterns, initExcludePatterns,
+    initMetaFields, buildSitemapConfig,
+  } from './SitemapConnectorTab.helpers';
 
   export let indexId: string;
   export let connector: Record<string, unknown> = {};
@@ -10,22 +14,23 @@
   let maxPages        = 50;
   let selector        = '';
   let userAgent       = '';
-  let includePatterns: { value: string }[] = [];
-  let excludePatterns: { value: string }[] = [];
-  let metaFields:      { key: string; value: string }[] = [];
+  let includePatterns: PatternRow[] = [];
+  let excludePatterns: PatternRow[] = [];
+  let metaFields:      MetaRow[]    = [];
 
   let saving = false;
   let err    = '';
   let saved  = false;
 
   onMount(() => {
-    url             = String(connector.url              ?? '');
-    maxPages        = Number(connector.max_pages        ?? 50);
-    selector        = String(connector.content_selector ?? '');
-    userAgent       = String(connector.user_agent       ?? '');
-    includePatterns = ((connector.include_patterns ?? []) as string[]).map(v => ({ value: v }));
-    excludePatterns = ((connector.exclude_patterns ?? []) as string[]).map(v => ({ value: v }));
-    metaFields      = Object.entries((connector.meta_fields ?? {}) as Record<string, string>).map(([k, v]) => ({ key: k, value: v }));
+    const s     = initSitemapFromConnector(connector);
+    url         = s.url;
+    maxPages    = s.maxPages;
+    selector    = s.selector;
+    userAgent   = s.userAgent;
+    includePatterns = initIncludePatterns(connector);
+    excludePatterns = initExcludePatterns(connector);
+    metaFields      = initMetaFields(connector);
   });
 
   function addInclude()             { includePatterns = [...includePatterns, { value: '' }]; }
@@ -38,15 +43,10 @@
   async function save() {
     saving = true; err = ''; saved = false;
     try {
-      const cfg: SitemapConnectorConfig = {
-        url:              url.trim(),
-        max_pages:        maxPages,
-        content_selector: selector.trim(),
-        user_agent:       userAgent.trim(),
-        include_patterns: includePatterns.map(r => r.value.trim()).filter(Boolean),
-        exclude_patterns: excludePatterns.map(r => r.value.trim()).filter(Boolean),
-        meta_fields:      Object.fromEntries(metaFields.filter(r => r.key.trim() && r.value.trim()).map(r => [r.key.trim(), r.value.trim()])),
-      };
+      const cfg = buildSitemapConfig(
+        { url, maxPages, selector, userAgent },
+        includePatterns, excludePatterns, metaFields,
+      );
       await indexService.saveSitemapConnector(indexId, cfg);
       saved = true;
       setTimeout(() => { saved = false; }, 2000);
