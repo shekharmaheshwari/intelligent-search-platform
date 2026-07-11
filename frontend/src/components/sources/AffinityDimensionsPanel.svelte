@@ -1,70 +1,59 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { api } from '../../lib/api';
+  import { onMount, onDestroy } from 'svelte';
+  import { personalisationStore } from '../../lib/stores/personalisation-store';
   import type { AffinityDimension, ViewedItemPolicy } from '../../lib/types';
   import ViewedItemBehaviourPanel from './ViewedItemBehaviourPanel.svelte';
+  import { toggleDimension, setDimensionBoost } from './AffinityDimensionsPanel.helpers';
 
   export let indexId: string;
 
   let dims: AffinityDimension[] = [];
-  let policy: ViewedItemPolicy = { mode: 'penalise', value: 0.05 };
-  let loading = true;
-  let saving  = false;
-  let discovering = false;
-  let err     = '';
-  let saved   = false;
+  let policy: ViewedItemPolicy = { viewed: { mode: 'penalise', value: 0.05 }, purchased: { mode: 'penalise', value: 0.10 } };
+  let saved = false;
+
+  $: loading     = $personalisationStore.loading;
+  $: saving      = $personalisationStore.saving;
+  $: discovering = $personalisationStore.discovering;
+  $: err         = $personalisationStore.error;
 
   onMount(async () => {
-    try {
-      const res = await api.getAffinityDimensions(indexId);
-      dims   = res.dimensions ?? [];
-      policy = res.viewed_item_policy ?? { mode: 'penalise', value: 0.05 };
-    } catch (e) {
-      err = String(e);
-    } finally {
-      loading = false;
-    }
+    await personalisationStore.load(indexId);
+    const s = personalisationStore.getValue();
+    dims   = s.dims;
+    policy = s.policy;
   });
+  onDestroy(() => personalisationStore.reset());
 
   async function save() {
-    saving = true; err = ''; saved = false;
-    try {
-      const res = await api.updateAffinityDimensions(indexId, dims, policy);
-      dims   = res.dimensions;
-      policy = res.viewed_item_policy;
+    saved = false;
+    await personalisationStore.save(indexId, dims, policy);
+    const s = personalisationStore.getValue();
+    if (!s.error) {
+      dims   = s.dims;
+      policy = s.policy;
       saved  = true;
-    } catch (e) {
-      err = String(e);
-    } finally {
-      saving = false;
     }
   }
 
   async function rediscover() {
-    discovering = true; err = ''; saved = false;
-    try {
-      const res = await api.rediscoverAffinityDimensions(indexId);
-      dims   = res.dimensions;
-      policy = res.viewed_item_policy ?? policy;
-    } catch (e) {
-      err = String(e);
-    } finally {
-      discovering = false;
+    saved = false;
+    await personalisationStore.rediscover(indexId);
+    const s = personalisationStore.getValue();
+    if (!s.error) {
+      dims   = s.dims;
+      policy = s.policy;
     }
   }
 
   function onToggle(i: number, e: Event) {
     const checked = (e.currentTarget as HTMLInputElement).checked;
-    dims = dims.map((d, j) => j === i ? { ...d, enabled: checked } : d);
+    dims  = toggleDimension(dims, i, checked);
     saved = false;
   }
 
   function onBoostInput(i: number, e: Event) {
-    const n = parseFloat((e.currentTarget as HTMLInputElement).value);
-    if (!isNaN(n) && n >= 0 && n <= 1) {
-      dims = dims.map((d, j) => j === i ? { ...d, boost: n } : d);
-      saved = false;
-    }
+    const updated = setDimensionBoost(dims, i, (e.currentTarget as HTMLInputElement).value);
+    if (updated) { dims = updated; saved = false; }
   }
 
 
