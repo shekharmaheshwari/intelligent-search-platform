@@ -60,18 +60,26 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     ctx: SearchContext | None = None
     ctx_hook = None
     if req.action_history and get_customer_context_enabled():
-        ctx = build_context([a.model_dump() for a in req.action_history])
+        ctx = build_context(
+            [a.model_dump() for a in req.action_history],
+            affinity_dims=meta.affinity_dimensions or None,
+        )
 
         _apply_affinity = get_cc_affinity_boost_enabled()
         _apply_penalty  = get_cc_viewed_penalty_enabled()
 
         if _apply_affinity or _apply_penalty:
+            # Load per-index affinity dimension config (None = use defaults)
+            _affinity_dims  = meta.affinity_dimensions if _apply_affinity else None
+            _viewed_policy  = meta.viewed_item_policy
+
             def ctx_hook(scores: dict, all_docs: dict) -> None:
                 for did, doc in all_docs.items():
                     scores[did] = scores.get(did, 0.0) + context_boost(
                         doc, ctx,
-                        apply_affinity=_apply_affinity,
+                        affinity_dims=_affinity_dims,
                         apply_viewed_penalty=_apply_penalty,
+                        viewed_item_policy=_viewed_policy,
                     )
 
     # Build native Typesense filter string — works after schema migration promotes
