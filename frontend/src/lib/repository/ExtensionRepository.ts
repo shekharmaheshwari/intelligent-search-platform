@@ -19,8 +19,8 @@ export class ExtensionRepository {
    * @param description  Optional human-readable description.
    * @param code         JavaScript source; must define ``function transform(doc) { ... return doc; }``.
    */
-  createExtension(name: string, description: string, code: string): Promise<ExtensionMeta> {
-    return api.createExtension(name, description, code);
+  createExtension(name: string, description: string, code: string, ext_type: 'transform' | 'pre_processor' = 'transform'): Promise<ExtensionMeta> {
+    return api.createExtension(name, description, code, ext_type);
   }
 
   /**

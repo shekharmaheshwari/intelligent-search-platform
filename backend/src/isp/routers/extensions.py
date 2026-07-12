@@ -33,13 +33,15 @@ function transform(doc) {
 class ExtensionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str = ""
-    code: str = Field(default=_SAMPLE_CODE, description="JavaScript. Must define `function transform(doc) { ... return doc; }`")
+    code: str = Field(default=_SAMPLE_CODE, description="JavaScript. Must define `function transform(doc) { ... return doc; }` or `function pre_process(response) { ... return response; }`")
+    ext_type: str = Field(default="transform", pattern="^(transform|pre_processor)$")
 
 
 class ExtensionUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     code: Optional[str] = None
+    ext_type: Optional[str] = Field(default=None, pattern="^(transform|pre_processor)$")
 
 
 class IndexExtensionAssign(BaseModel):
@@ -74,7 +76,7 @@ async def create_extension(body: ExtensionCreate):
     The extension runs inside a PyMiniRacer V8 isolate with no access to the
     filesystem, network, or Node.js APIs — only plain JS built-ins.
     """
-    return await extension_service.create_extension(body.name, body.description, body.code)
+    return await extension_service.create_extension(body.name, body.description, body.code, body.ext_type)
 
 
 @router.get("/extensions/{ext_id}", summary="Get an extension")
@@ -89,7 +91,7 @@ async def get_extension(ext_id: str):
 @router.put("/extensions/{ext_id}", summary="Update an extension")
 async def update_extension(ext_id: str, body: ExtensionUpdate):
     """Update name, description, and/or code. Omit fields to leave them unchanged."""
-    ext = await extension_service.update_extension(ext_id, body.name, body.description, body.code)
+    ext = await extension_service.update_extension(ext_id, body.name, body.description, body.code, body.ext_type)
     if not ext:
         raise HTTPException(404, "Extension not found")
     return ext

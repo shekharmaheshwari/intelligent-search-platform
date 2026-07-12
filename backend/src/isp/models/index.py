@@ -55,6 +55,16 @@ class RestConnectorConfig(BaseModel):
             "field when the source data does not include one."
         ),
     )
+    pre_processor: str = Field(
+        default="",
+        description=(
+            "Optional JavaScript that runs on the full raw API response before "
+            "result_path extraction. Must define "
+            "``function pre_process(response) { ... return response; }``. "
+            "Use this to reshape non-standard response structures, cross-reference "
+            "sibling arrays, or inject computed fields before per-item extensions run."
+        ),
+    )
 
 
 class SitemapConnectorConfig(BaseModel):

@@ -766,18 +766,20 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
         cfg_data = {k: v for k, v in connector_cfg.items() if k != "type"}
 
         ext_records = await extension_service.list_index_extensions(idx_id)
+        pre_proc_exts  = [e for e in ext_records if e.get("type") == "pre_processor"]
+        transform_exts = [e for e in ext_records if e.get("type", "transform") == "transform"]
 
         if ctype == "rest":
             cfg = RestConnectorConfig(**cfg_data)
-            if ext_records:
+            if transform_exts:
                 # Run extensions on raw API items so they have access to all
                 # original fields (e.g. urlEncodedFamilyName, skus, manufacturer).
                 # Then _ensure_isp_schema recovers title/url/content from whatever
                 # schema the extension produced.
-                raw = await rest_connector.fetch_raw_items(cfg)
+                raw = await rest_connector.fetch_raw_items(cfg, pre_processor_exts=pre_proc_exts)
                 s.total = len(raw)
                 await index_service.set_status(s)
-                raw = await apply_extensions(raw, ext_records)
+                raw = await apply_extensions(raw, transform_exts)
                 # Stamp static_fields onto every item after extensions so static values win.
                 # **static_fields spreads last, overriding any same-named extension output.
                 static_fields = connector_cfg.get("static_fields", {})
@@ -785,7 +787,7 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
                     raw = [{**item, **static_fields} for item in raw if isinstance(item, dict)]
                 docs = _ensure_isp_schema(raw)
             else:
-                docs = await rest_connector.fetch_and_parse(cfg)
+                docs = await rest_connector.fetch_and_parse(cfg, pre_processor_exts=pre_proc_exts)
                 s.total = len(docs)
                 await index_service.set_status(s)
                 # Stamp static_fields after field_map/value_map (already applied inside fetch_and_parse).
@@ -798,7 +800,7 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
             docs = await sitemap_connector.crawl(cfg, on_progress=None, ext_records=ext_records)
             s.total = len(docs)
             await index_service.set_status(s)
-            docs = await apply_extensions(docs, ext_records)
+            docs = await apply_extensions(docs, transform_exts)
             # Stamp static_fields after the crawled page data and extensions have been processed.
             static_fields = connector_cfg.get("static_fields", {})
             if static_fields:
@@ -989,14 +991,19 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         if not meta:
             raise ValueError("Index not found")
 
-        # Preserve mapping fields (static_fields, field_map, value_map) set via the Mapping
-        # tab — the rebuild request cfg has empty defaults that would overwrite them.
+        # Start from the full saved connector config so fields set outside the
+        # rebuild form (result_path, id_field, title_field, content_field,
+        # url_field, static_fields, field_map, value_map) are preserved.
+        # The rebuild form only sends url/method/headers/body — overlay those.
         _existing = meta.connectors[0] if meta.connectors else {}
-        _merged = dict(cfg_dict)
-        for _f in ("static_fields", "field_map", "value_map"):
-            if _f in _existing:
-                _merged[_f] = _existing[_f]
+        _merged = dict(_existing)
+        _merged.update(cfg_dict)
         cfg_dict = _merged
+
+        # Persist the connector config immediately so headers/URL are saved
+        # even if the data fetch fails (e.g. 401, network error).
+        meta.connectors = [cfg_dict]
+        await index_service.update_index(meta)
 
         ctype = cfg_dict.get("type", "rest")
         cfg_data = {k: v for k, v in cfg_dict.items() if k != "type"}
@@ -1004,7 +1011,10 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         if meta.external_collection:
             # ── Write-back mode: catalog sources are always REST ──
             rest_cfg = RestConnectorConfig(**cfg_data)
-            raw_items = await rest_connector.fetch_raw_items(rest_cfg)
+            ext_records = await extension_service.list_index_extensions(idx_id)
+            pre_proc_exts  = [e for e in ext_records if e.get("type") == "pre_processor"]
+            transform_exts = [e for e in ext_records if e.get("type", "transform") == "transform"]
+            raw_items = await rest_connector.fetch_raw_items(rest_cfg, pre_processor_exts=pre_proc_exts)
             if not raw_items:
                 raise ValueError("0 items fetched — API returned no usable data.")
 
@@ -1015,8 +1025,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             for item in raw_items:
                 item.setdefault("_isp_type", type_label)
 
-            ext_records = await extension_service.list_index_extensions(idx_id)
-            raw_items = await apply_extensions(raw_items, ext_records)
+            raw_items = await apply_extensions(raw_items, transform_exts)
 
             catalog_docs = [_generic_catalog_mapper(item, i) for i, item in enumerate(raw_items)]
             catalog_docs = [d for d in catalog_docs if d]
@@ -1139,7 +1148,10 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         else:
             # ── ISP-managed REST path ──
             rest_cfg = RestConnectorConfig(**cfg_data)
-            raw_items = await rest_connector.fetch_raw_items(rest_cfg)
+            ext_records = await extension_service.list_index_extensions(idx_id)
+            pre_proc_exts  = [e for e in ext_records if e.get("type") == "pre_processor"]
+            transform_exts = [e for e in ext_records if e.get("type", "transform") == "transform"]
+            raw_items = await rest_connector.fetch_raw_items(rest_cfg, pre_processor_exts=pre_proc_exts)
             if not raw_items:
                 raise ValueError("0 items fetched — API returned no usable data.")
 
@@ -1150,15 +1162,14 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             for item in raw_items:
                 item.setdefault("_isp_type", isp_type_label)
 
-            ext_records = await extension_service.list_index_extensions(idx_id)
             _sf = cfg_dict.get("static_fields", {})
-            if ext_records:
-                items_for_ext = await apply_extensions(list(raw_items), ext_records)
+            if transform_exts:
+                items_for_ext = await apply_extensions(list(raw_items), transform_exts)
                 if _sf:
                     items_for_ext = [{**d, **_sf} for d in items_for_ext if isinstance(d, dict)]
                 docs = _ensure_isp_schema(items_for_ext)
             else:
-                docs = await rest_connector.fetch_and_parse(rest_cfg)
+                docs = await rest_connector.fetch_and_parse(rest_cfg, pre_processor_exts=pre_proc_exts)
                 if _sf:
                     docs = [{**d, **_sf} for d in docs if isinstance(d, dict)]
                 docs = _ensure_isp_schema(docs)

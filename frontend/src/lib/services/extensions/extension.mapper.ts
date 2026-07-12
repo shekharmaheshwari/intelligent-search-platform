@@ -11,6 +11,7 @@ export function mapExtensionMetaToExtension(dto: ExtensionMeta): Extension {
     name: dto.name,
     description: dto.description,
     code: dto.code,
+    type: dto.type ?? 'transform',
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
   };
@@ -35,6 +36,7 @@ export function mapIndexExtensionToModel(dto: IndexExtension): IndexExtensionMod
     name: dto.name,
     description: dto.description,
     code: dto.code,
+    type: dto.type ?? 'transform',
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
     runOrder: dto.run_order,

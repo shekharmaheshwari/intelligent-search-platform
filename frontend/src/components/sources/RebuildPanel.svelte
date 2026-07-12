@@ -23,10 +23,10 @@
 
   const pre = getExistingRest(index);
 
-  let url          = pre.url ?? '';
-  let method       = pre.method ?? 'GET';
-  let headersRaw   = pre.headers ? JSON.stringify(pre.headers, null, 2) : '{}';
-  let body         = pre.body ?? '';
+  let url            = pre.url ?? '';
+  let method         = pre.method ?? 'GET';
+  let headersRaw     = pre.headers ? JSON.stringify(pre.headers, null, 2) : '{}';
+  let body           = pre.body ?? '';
 
   // ── GSheet fields ─────────────────────────────────────────────────────────────
   const preGsheet = getExistingGsheet(index);
@@ -145,7 +145,9 @@
         if (!url.trim()) { errMsg = 'URL is required'; runState = 'idle'; return; }
         let headers: Record<string, string> = {};
         try { headers = JSON.parse(headersRaw || '{}'); } catch { errMsg = 'Invalid JSON in headers'; runState = 'idle'; return; }
-        const cfg: RestConnectorConfig = { url: url.trim(), method, headers, body: body.trim() };
+        const cfg: RestConnectorConfig = {
+          url: url.trim(), method, headers, body: body.trim(),
+        };
         await indexService.rebuild(index.id, cfg);
       }
       poll();
@@ -310,6 +312,7 @@
           <textarea bind:value={body} rows="3" spellcheck="false"
             placeholder={'{\n  "familyCategory": "CELLPHONES",\n  "pageNumber": "1"\n}'} />
         </label>
+
       </fieldset>
 
       <!-- Curl preview -->
