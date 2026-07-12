@@ -34,7 +34,7 @@ class ExtensionsStore extends StoreBase<ExtensionsState> {
       const exts = await extensionService.listExtensions();
       const dtos: ExtensionMeta[] = exts.map(e => ({
         id: e.id, name: e.name, description: e.description,
-        code: e.code, created_at: e.createdAt, updated_at: e.updatedAt,
+        code: e.code, type: e.type, created_at: e.createdAt, updated_at: e.updatedAt,
       }));
       this.update(s => ({ ...s, library: dtos, loading: false }));
     } catch (e) {
@@ -55,11 +55,11 @@ class ExtensionsStore extends StoreBase<ExtensionsState> {
       ]);
       const library: ExtensionMeta[] = libExts.map(e => ({
         id: e.id, name: e.name, description: e.description,
-        code: e.code, created_at: e.createdAt, updated_at: e.updatedAt,
+        code: e.code, type: e.type, created_at: e.createdAt, updated_at: e.updatedAt,
       }));
       const indexExtensions: IndexExtension[] = idxExts.map(e => ({
         id: e.id, name: e.name, description: e.description, code: e.code,
-        created_at: e.createdAt, updated_at: e.updatedAt,
+        type: e.type, created_at: e.createdAt, updated_at: e.updatedAt,
         run_order: e.runOrder, enabled: e.enabled,
       }));
       this.update(s => ({ ...s, library, indexExtensions, loading: false }));
@@ -75,11 +75,11 @@ class ExtensionsStore extends StoreBase<ExtensionsState> {
    * @param description Optional description.
    * @param code        JavaScript source (must define ``function transform(doc)``).
    */
-  async createExtension(name: string, description: string, code: string): Promise<void> {
-    const ext = await extensionService.createExtension(name, description, code);
+  async createExtension(name: string, description: string, code: string, ext_type: 'transform' | 'pre_processor' = 'transform'): Promise<void> {
+    const ext = await extensionService.createExtension(name, description, code, ext_type);
     const dto: ExtensionMeta = {
       id: ext.id, name: ext.name, description: ext.description,
-      code: ext.code, created_at: ext.createdAt, updated_at: ext.updatedAt,
+      code: ext.code, type: ext.type, created_at: ext.createdAt, updated_at: ext.updatedAt,
     };
     this.update(s => ({ ...s, library: [dto, ...s.library] }));
   }
@@ -96,7 +96,7 @@ class ExtensionsStore extends StoreBase<ExtensionsState> {
     const ext = await extensionService.updateExtension(id, fields);
     const dto: ExtensionMeta = {
       id: ext.id, name: ext.name, description: ext.description,
-      code: ext.code, created_at: ext.createdAt, updated_at: ext.updatedAt,
+      code: ext.code, type: ext.type, created_at: ext.createdAt, updated_at: ext.updatedAt,
     };
     this.update(s => ({
       ...s,

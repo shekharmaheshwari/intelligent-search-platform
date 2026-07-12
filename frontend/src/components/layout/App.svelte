@@ -140,12 +140,16 @@
       if (partial.detailTab && partial.detailTab !== 'overview') {
         appStateStore.setDetailTab(partial.detailTab);
       }
+      if (isMobile) sidebarVisible = false;
     } else if (partial.view === 'extensions') {
       appStateStore.navigateTo('extensions');
+      if (isMobile) sidebarVisible = false;
     } else if (partial.view === 'settings') {
       appStateStore.navigateTo('settings');
+      if (isMobile) sidebarVisible = false;
     } else if (partial.selectedIndexId) {
       appStateStore.selectIndex(partial.selectedIndexId);
+      if (isMobile) sidebarVisible = false;
     } else {
       appStateStore.navigateTo('dashboard', null);
     }
@@ -320,6 +324,14 @@
       display: block;
     }
 
+    .configure-wrap {
+      padding: 16px;
+    }
+
+    .configure-back {
+      display: none;
+    }
+
     .fab-add {
       display: flex;
       position: fixed;
@@ -349,6 +361,7 @@
     height: 100%;
     overflow-y: auto;
     padding: 28px 32px;
+    overflow-x: hidden;
   }
 
   .configure-back {

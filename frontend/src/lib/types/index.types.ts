@@ -101,6 +101,7 @@ export interface RestConnectorConfig {
   title_field?: string;
   content_field?: string;
   url_field?: string;
+  pre_processor?: string;
 }
 
 /** Form values for a Google Sheets connector. */
