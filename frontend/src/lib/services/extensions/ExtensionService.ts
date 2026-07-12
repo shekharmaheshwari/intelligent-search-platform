@@ -29,8 +29,8 @@ export class ExtensionService {
    * @param description Optional human-readable description.
    * @param code        JavaScript source; must define ``function transform(doc) { ... return doc; }``.
    */
-  async createExtension(name: string, description: string, code: string): Promise<Extension> {
-    const dto = await this.repo.createExtension(name, description, code);
+  async createExtension(name: string, description: string, code: string, ext_type: 'transform' | 'pre_processor' = 'transform'): Promise<Extension> {
+    const dto = await this.repo.createExtension(name, description, code, ext_type);
     return mapExtensionMetaToExtension(dto);
   }
 

@@ -126,7 +126,7 @@ catalog:                   ← Entire catalog deleted (no filter)
 ---
 
 ### Table: `extensions`
-Stores the global JS extension library. Each row is a reusable `transform(doc)` function.
+Stores the global JS extension library. Each row is either a per-item `transform(doc)` function or a full-response `pre_process(response)` function, distinguished by the `type` column.
 
 ```sql
 CREATE TABLE extensions (
@@ -134,23 +134,33 @@ CREATE TABLE extensions (
     name        VARCHAR(120) NOT NULL,       -- human-readable, used to match file-based seeds
     description TEXT         DEFAULT '',
     code        TEXT         NOT NULL DEFAULT '',  -- full JS source
+    type        VARCHAR(20)  NOT NULL DEFAULT 'transform',  -- 'transform' | 'pre_processor'
     created_at  VARCHAR(30)  NOT NULL,
     updated_at  VARCHAR(30)  NOT NULL
 );
 ```
 
-Extensions are seeded from `backend/extensions/*.js` on every startup. The `// @name` and `// @description` comment headers are parsed to populate `name` and `description`. If an extension with the same name already exists it is updated (code sync), so the file is always the source of truth.
+**`type` values:**
+
+| Value | Function signature | When it runs |
+|---|---|---|
+| `transform` | `function transform(doc) { … return doc; }` | Per item, after `result_path` extraction |
+| `pre_processor` | `function pre_process(response) { … return response; }` | Once on the full raw API response, before `result_path` extraction |
+
+Extensions are seeded from `backend/extensions/*.js` on every startup. The `// @name`, `// @description`, and `// @type` comment headers are parsed to populate the corresponding columns. If an extension with the same name already exists it is updated (code sync), so the file is always the source of truth.
+
+Pre-processor type extensions are never auto-assigned at startup — they must be assigned manually via the Extensions tab in the UI.
 
 ---
 
 ### Table: `index_extensions`
-Many-to-many join between indexes and extensions. Controls which transforms run on which source and in what order.
+Many-to-many join between indexes and extensions. Controls which extensions run on which source, in what order, and at which stage.
 
 ```sql
 CREATE TABLE index_extensions (
     index_id     VARCHAR(12) NOT NULL REFERENCES indexes(id) ON DELETE CASCADE,
     extension_id VARCHAR(12) NOT NULL REFERENCES extensions(id) ON DELETE CASCADE,
-    run_order    INTEGER     NOT NULL DEFAULT 0,   -- lower = runs first
+    run_order    INTEGER     NOT NULL DEFAULT 0,   -- lower = runs first within the same stage
     enabled      BOOLEAN     NOT NULL DEFAULT TRUE,
     PRIMARY KEY (index_id, extension_id)
 );
@@ -159,6 +169,7 @@ CREATE TABLE index_extensions (
 - Deleting an index or extension cascades to remove the assignment.
 - `assign_extension_if_new` uses `ON CONFLICT DO NOTHING` so startup seeding never overrides user-configured `run_order` or `enabled` state.
 - `assign_extension` (full upsert) is used only when the user explicitly re-assigns via the UI.
+- The rebuild pipeline splits assigned extensions by `type` at runtime: `pre_processor` extensions run on the raw response first, then `transform` extensions run per item.
 
 ---
 

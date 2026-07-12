@@ -81,7 +81,20 @@ app.include_router(catalog.router,    prefix="/v1")
 app.include_router(extensions.router, prefix="/v1")
 ```
 
-`_seed_extensions_from_files()` scans `settings.extensions_dir` (default `/app/extensions`) for `*.js` files, upserts each using name as the merge key, and assigns them to all existing external indexes. This makes the git repo the single source of truth for extension code — no manual DB management needed.
+`_seed_extensions_from_files()` scans `settings.extensions_dir` (default `/app/extensions`) for `*.js` files, upserts each using name as the merge key, and auto-assigns them based on header annotations:
+
+| Header annotation | Effect |
+|---|---|
+| `// @name …` | Display name (used as the upsert key) |
+| `// @description …` | One-line description |
+| `// @type transform` | Default. Per-item extension; function is `transform(doc)` |
+| `// @type pre_processor` | Full-response extension; function is `pre_process(response)`. Never auto-assigned — must be manually assigned via the Extensions tab |
+| `// @assign external` | Auto-assign to catalog write-back indexes only (default for `transform` type) |
+| `// @assign all` | Auto-assign to every index |
+| `// @assign none` | Skip auto-assignment entirely |
+| `// @run_order N` | Execution order within the same stage (lower = first) |
+
+This makes the git repo the single source of truth for extension code — no manual DB management needed.
 
 ### `config.py` — Settings
 All configuration is read from environment variables or `.env`:
@@ -203,20 +216,31 @@ PostgreSQL CRUD for the primary metadata tables:
 
 ### `services/extension_service.py`
 PostgreSQL CRUD for the extension library and index assignments:
-- `list_extensions()`, `get_extension(id)`, `create_extension(...)`, `update_extension(...)`, `delete_extension(id)`
-- `upsert_extension_by_name(name, desc, code)` — create or update matched by name (used by file seed)
-- `list_index_extensions(idx_id)` — JOIN query, ordered by `run_order`
+- `list_extensions()`, `get_extension(id)`, `create_extension(..., ext_type)`, `update_extension(..., ext_type)`, `delete_extension(id)`
+- `upsert_extension_by_name(name, desc, code, ext_type)` — create or update matched by name (used by file seed)
+- `list_index_extensions(idx_id)` — JOIN query returning all fields including `type`, ordered by `run_order`
 - `assign_extension(idx_id, ext_id, run_order, enabled)` — full upsert (updates existing)
 - `assign_extension_if_new(idx_id, ext_id, run_order)` — `ON CONFLICT DO NOTHING` (startup seeding)
 - `unassign_extension(idx_id, ext_id)`
 
 ### `services/extension_runner.py`
-Executes JS extensions in V8 isolates via `py-mini-racer`:
-- One `MiniRacer` context per extension, compiled once and reused across all documents in a batch.
-- `_run_sync(docs, extension_records)` — synchronous; compiles extensions, applies each `transform(doc)` call to every document in sequence.
-- `apply_extensions(docs, extension_records)` — async wrapper that runs `_run_sync` in a thread executor to avoid blocking the asyncio event loop.
-- If `py-mini-racer` is not installed, extensions are silently skipped with a warning log.
-- If a single extension raises a runtime error for a document, that document is kept in its pre-extension state and the error is logged.
+Executes JS extensions in V8 isolates via `py-mini-racer`. Two separate execution stages:
+
+**Stage 1 — pre-processor (full response):**
+- `_apply_pre_processor_extensions_sync(response, exts)` — filters to `type == 'pre_processor'` records, compiles each, calls `pre_process(response)` in `run_order` sequence; output of one becomes input of next.
+- `apply_pre_processor_extensions(response, exts)` — async wrapper.
+
+**Stage 2 — transform (per item):**
+- `_run_sync(docs, extension_records)` — filters to `type == 'transform'` records, compiles each into its own `MiniRacer` context (once per batch), applies `transform(doc)` to every document in sequence.
+- `apply_extensions(docs, extension_records)` — async wrapper.
+
+**Shared behaviour:**
+- If `py-mini-racer` is not installed, both stages are silently skipped with a warning log.
+- A compile error skips that extension for the entire batch (logged as ERROR).
+- A runtime error on a single item/response falls back to the previous state and logs an ERROR — the rebuild continues.
+
+**Inline pre-processor (connector config):**
+- `run_pre_processor(code, response)` — runs a single JS code string (the `pre_processor` field on `RestConnectorConfig`). Runs before file-based pre-processor extensions.
 
 ### `services/typesense_client.py`
 All Typesense API calls. Key functions:

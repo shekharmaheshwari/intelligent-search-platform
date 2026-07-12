@@ -31,8 +31,8 @@ except ImportError:
 
 
 def _run_sync(docs: list[dict], extension_records: list[dict]) -> list[dict]:
-    """Apply enabled extensions in run_order to every document. Runs synchronously in a thread."""
-    enabled = [e for e in extension_records if e.get("enabled", True)]
+    """Apply enabled transform extensions in run_order to every document. Runs synchronously in a thread."""
+    enabled = [e for e in extension_records if e.get("enabled", True) and e.get("type", "transform") == "transform"]
     if not enabled or not docs:
         return docs
 
@@ -142,3 +142,89 @@ async def filter_urls(urls: list[str], extension_records: list[dict]) -> list[st
         return urls
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _filter_urls_sync, urls, extension_records)
+
+
+def _apply_pre_processor_extensions_sync(response: dict, extension_records: list[dict]) -> dict:
+    """
+    Run enabled pre_processor-type extensions in run_order on the full raw API response.
+
+    Each extension must define ``function pre_process(response) { ... return response; }``.
+    Extensions chain: the output of one becomes the input of the next.
+    Falls back to the previous response value on any error.
+    """
+    enabled = [e for e in extension_records if e.get("enabled", True) and e.get("type") == "pre_processor"]
+    if not enabled:
+        return response
+
+    if not _MR_AVAILABLE:
+        log.warning("py-mini-racer unavailable — skipping %d pre_processor extension(s)", len(enabled))
+        return response
+
+    current = response
+    for ext in enabled:
+        name = ext.get("name", ext.get("id", "?"))
+        code = ext.get("code", "")
+        try:
+            ctx = MiniRacer()
+            ctx.eval(code)
+            result = ctx.call("pre_process", current)  # type: ignore[union-attr]
+            if isinstance(result, dict):
+                current = result
+                log.debug("Pre-processor extension '%s' applied OK", name)
+            else:
+                log.warning("Pre-processor '%s' returned non-dict — keeping previous response", name)
+        except Exception as exc:
+            log.error("Pre-processor extension '%s' error: %s", name, exc)
+    return current
+
+
+async def apply_pre_processor_extensions(response: dict, extension_records: list[dict]) -> dict:
+    """
+    Async entry point — runs pre_processor-type extensions in a thread executor.
+
+    Called on the full raw API response before ``result_path`` extraction, giving each
+    script access to the entire response structure (sibling arrays, wrappers, etc.).
+    Extensions chain in run_order; errors fall back to the previous response.
+    """
+    if not extension_records:
+        return response
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _apply_pre_processor_extensions_sync, response, extension_records)
+
+
+def _run_pre_processor_sync(code: str, response: dict) -> dict:
+    """
+    Run a connector-level pre-processor JS function on the raw API response.
+
+    The script must define ``function pre_process(response) { ... return response; }``.
+    Runs in a fresh V8 isolate (no network, no filesystem).
+    Returns the original response unchanged on any error so the rebuild can continue.
+    """
+    if not _MR_AVAILABLE:
+        log.warning("py-mini-racer unavailable — skipping pre_processor")
+        return response
+    try:
+        ctx = MiniRacer()
+        ctx.eval(code)
+        result = ctx.call("pre_process", response)  # type: ignore[union-attr]
+        if isinstance(result, dict):
+            return result
+        log.warning("pre_processor returned non-dict — using original response")
+    except Exception as exc:
+        log.error("pre_processor error: %s", exc)
+    return response
+
+
+async def run_pre_processor(code: str, response: dict) -> dict:
+    """
+    Async entry point — runs the pre_processor JS in a thread executor so the
+    event loop is not blocked during V8 execution.
+
+    Called on the raw API response before ``result_path`` extraction, giving the
+    script access to the full response structure (sibling arrays, top-level metadata,
+    nested reshaping) before it is split into per-item documents.
+    """
+    if not code or not code.strip():
+        return response
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _run_pre_processor_sync, code, response)

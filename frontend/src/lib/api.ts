@@ -247,11 +247,11 @@ export const api = {
   /** Fetch all extensions from the global library, newest first. */
   listExtensions: () => req<ExtensionMeta[]>('/extensions'),
 
-  /** Create a new JS transform extension in the global library. */
-  createExtension: (name: string, description: string, code: string) =>
+  /** Create a new JS extension in the global library. */
+  createExtension: (name: string, description: string, code: string, ext_type: 'transform' | 'pre_processor' = 'transform') =>
     req<ExtensionMeta>('/extensions', {
       method: 'POST',
-      body: JSON.stringify({ name, description, code }),
+      body: JSON.stringify({ name, description, code, ext_type }),
     }),
 
   /** Partially update an extension. Pass only the fields that should change. */
