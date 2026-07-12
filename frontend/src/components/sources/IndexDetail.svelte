@@ -155,10 +155,19 @@
   .stat-val { font-size: 18px; font-weight: 600; color: var(--text); }
   .stat-lbl { font-size: 11px; color: var(--text-5); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
   .tabs button {
     background: none; border: none; border-bottom: 2px solid transparent;
-    padding: 10px 16px; color: var(--text-4); font-size: 13px; cursor: pointer; margin-bottom: -1px;
+    padding: 10px 16px; color: var(--text-4); font-size: 13px; cursor: pointer;
+    margin-bottom: -1px; white-space: nowrap; flex-shrink: 0;
   }
   .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
   .tabs button:hover:not(.active) { color: var(--text-3); }
@@ -166,4 +175,11 @@
   .tab-body { min-height: 200px; }
   .connector-tab { display: flex; flex-direction: column; gap: 20px; }
   .no-connector { color: var(--text-5); font-size: 13px; margin: 0; }
+
+  @media (max-width: 767px) {
+    .detail-head { flex-direction: column; gap: 12px; }
+    .stats { gap: 12px 16px; flex-wrap: wrap; }
+    .stat { align-items: flex-start; }
+    h1 { font-size: 18px; }
+  }
 </style>

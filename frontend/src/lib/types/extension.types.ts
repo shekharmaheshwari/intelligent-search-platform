@@ -4,6 +4,8 @@ export interface ExtensionMeta {
   name: string;
   description: string;
   code: string;
+  /** ``'transform'`` runs per-item via ``transform(doc)``; ``'pre_processor'`` runs once on the full raw response via ``pre_process(response)``. */
+  type: 'transform' | 'pre_processor';
   created_at: string;
   updated_at: string;
 }

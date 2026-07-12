@@ -610,4 +610,18 @@
     cursor: pointer; white-space: nowrap;
   }
   .browse-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  @media (max-width: 767px) {
+    .rule-body { flex-direction: column; }
+    .section + .section { border-left: none; border-top: 1px solid var(--border); }
+    .rule-head { flex-wrap: wrap; row-gap: 6px; }
+    .rule-label-display,
+    .rule-label-input { flex: none; width: 100%; }
+    .section-hint { margin-left: 0; width: 100%; }
+    .criterion-row { flex-wrap: wrap; }
+    .crit-select { flex: 1; min-width: 100px; }
+    .crit-value { flex: 1 1 100%; }
+    .id-picker-row { flex: 1 1 100%; }
+    .crit-remove { align-self: flex-start; }
+  }
 </style>

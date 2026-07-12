@@ -25,10 +25,11 @@
   let editName = '';
   let editDesc = '';
   let editCode = '';
+  let editType: 'transform' | 'pre_processor' = 'transform';
   let saving = false;
   let editorErr = '';
 
-  const DEFAULT_CODE = `function transform(doc) {
+  const DEFAULT_TRANSFORM_CODE = `function transform(doc) {
   // doc contains all fields from your data source.
   // Modify and return it.
 
@@ -42,6 +43,22 @@
   return doc;
 }`;
 
+  const DEFAULT_PRE_PROCESSOR_CODE = `function pre_process(response) {
+  // response is the full raw API response object.
+  // Reshape it before result_path extraction splits it into items.
+
+  // Example: join a sibling array into each item
+  // var lookup = {};
+  // (response.metadata || []).forEach(function(m) { lookup[m.id] = m; });
+  // (response.items || []).forEach(function(item) {
+  //   item.meta = lookup[item.id] || {};
+  // });
+
+  return response;
+}`;
+
+  $: DEFAULT_CODE = editType === 'pre_processor' ? DEFAULT_PRE_PROCESSOR_CODE : DEFAULT_TRANSFORM_CODE;
+
   async function load() {
     await extensionsStore.loadLibrary();
   }
@@ -50,14 +67,23 @@
 
   /** Open the editor modal pre-filled with defaults for creating a new extension. */
   function openCreate() {
-    editingId = ''; editName = ''; editDesc = ''; editCode = DEFAULT_CODE;
+    editingId = ''; editName = ''; editDesc = ''; editType = 'transform';
+    editCode = DEFAULT_TRANSFORM_CODE;
     editorErr = ''; showEditor = true;
   }
 
   /** Open the editor modal pre-filled with an existing extension's current values. */
   function openEdit(ext: ExtensionMeta) {
-    editingId = ext.id; editName = ext.name; editDesc = ext.description; editCode = ext.code;
+    editingId = ext.id; editName = ext.name; editDesc = ext.description;
+    editType = ext.type ?? 'transform'; editCode = ext.code;
     editorErr = ''; showEditor = true;
+  }
+
+  function onTypeChange() {
+    // Only replace code when it still matches the current default (i.e. user hasn't typed)
+    if (editCode === DEFAULT_TRANSFORM_CODE || editCode === DEFAULT_PRE_PROCESSOR_CODE) {
+      editCode = editType === 'pre_processor' ? DEFAULT_PRE_PROCESSOR_CODE : DEFAULT_TRANSFORM_CODE;
+    }
   }
 
   async function save() {
@@ -68,7 +94,7 @@
       if (editingId) {
         await extensionsStore.updateExtension(editingId, { name: editName.trim(), description: editDesc.trim(), code: editCode });
       } else {
-        await extensionsStore.createExtension(editName.trim(), editDesc.trim(), editCode);
+        await extensionsStore.createExtension(editName.trim(), editDesc.trim(), editCode, editType);
       }
       showEditor = false;
     } catch (e) {
@@ -130,7 +156,12 @@
         <div class="ext-card">
           <div class="ext-card-head">
             <div class="ext-info">
-              <span class="ext-name">{ext.name}</span>
+              <div class="ext-name-row">
+                <span class="ext-name">{ext.name}</span>
+                <span class="ext-type-badge" class:pre-proc={ext.type === 'pre_processor'}>
+                  {ext.type === 'pre_processor' ? 'pre_processor' : 'transform'}
+                </span>
+              </div>
               {#if ext.description}<span class="ext-desc">{ext.description}</span>{/if}
               <span class="ext-date">Created {fmtDate(ext.created_at)}{ext.updated_at !== ext.created_at ? ` · Updated ${fmtDate(ext.updated_at)}` : ''}</span>
             </div>
@@ -165,8 +196,40 @@
         <label>Description <span class="hint">(optional)</span>
           <input bind:value={editDesc} placeholder="Rebuilds the URL from slug + category" />
         </label>
+        {#if !editingId}
+        <div class="type-row">
+          <span class="type-label">Type</span>
+          <div class="type-toggle">
+            <button
+              class="type-btn" class:active={editType === 'transform'}
+              on:click={() => { editType = 'transform'; onTypeChange(); }}
+              type="button"
+            >transform</button>
+            <button
+              class="type-btn" class:active={editType === 'pre_processor'}
+              on:click={() => { editType = 'pre_processor'; onTypeChange(); }}
+              type="button"
+            >pre_processor</button>
+          </div>
+          <span class="type-hint">
+            {#if editType === 'pre_processor'}
+              Runs once on the full raw API response · define <code>pre_process(response)</code>
+            {:else}
+              Runs per document · define <code>transform(doc)</code>
+            {/if}
+          </span>
+        </div>
+        {/if}
         <div class="code-label-row">
-          <span class="code-label">JavaScript <span class="hint">— must define <code>function transform(doc) &#123; ... return doc; &#125;</code></span></span>
+          <span class="code-label">JavaScript
+            <span class="hint">— must define
+              {#if editType === 'pre_processor'}
+                <code>function pre_process(response) &#123; ... return response; &#125;</code>
+              {:else}
+                <code>function transform(doc) &#123; ... return doc; &#125;</code>
+              {/if}
+            </span>
+          </span>
         </div>
         <textarea
           class="code-editor"
@@ -246,9 +309,34 @@
   }
 
   .ext-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .ext-name-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
   .ext-name { font-size: 14px; font-weight: 600; color: var(--text-2); }
+  .ext-type-badge {
+    font-size: 10px; font-weight: 500; font-family: 'SF Mono', 'Fira Code', monospace;
+    padding: 2px 6px; border-radius: 4px; line-height: 1.4;
+    background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border);
+    flex-shrink: 0;
+  }
+  .ext-type-badge.pre-proc {
+    background: color-mix(in srgb, #a855f7 10%, transparent);
+    color: #a855f7;
+    border-color: color-mix(in srgb, #a855f7 25%, transparent);
+  }
   .ext-desc { font-size: 12px; color: var(--text-5); }
   .ext-date { font-size: 11px; color: var(--text-7); }
+
+  .type-row { display: flex; flex-direction: column; gap: 6px; }
+  .type-label { font-size: 12px; color: var(--text-3); }
+  .type-toggle { display: flex; gap: 0; border: 1px solid var(--border-2); border-radius: 6px; overflow: hidden; width: fit-content; }
+  .type-btn {
+    background: var(--bg-2); color: var(--text-4); border: none; cursor: pointer;
+    padding: 6px 14px; font-size: 12px; font-family: 'SF Mono', 'Fira Code', monospace;
+    transition: background 0.1s, color 0.1s;
+  }
+  .type-btn + .type-btn { border-left: 1px solid var(--border-2); }
+  .type-btn.active { background: var(--accent); color: #fff; }
+  .type-hint { font-size: 11px; color: var(--text-5); }
+  .type-hint code { font-size: 10px; background: var(--accent-dim); padding: 1px 4px; border-radius: 3px; color: var(--accent); }
 
   .ext-actions { display: flex; gap: 6px; flex-shrink: 0; }
   .edit-btn {

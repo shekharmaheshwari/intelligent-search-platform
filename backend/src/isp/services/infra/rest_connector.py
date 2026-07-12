@@ -61,14 +61,32 @@ def _extract_path(data: dict | list, path: str) -> list:
 
     Example: ``_extract_path({"results": {"items": [...]}}, "results.items")``
     Returns the list at that path, or an empty list if any segment is missing.
+
+    When a path segment is accessed on a list and every element of that list
+    returns another list-of-dicts, the results are flattened one level so callers
+    always get a flat list of items.  This handles paths like
+    ``"ratePlans.ratePlanOffers"`` where each ratePlan contains its own offers
+    array — without mishandling APIs whose top-level data happens to be a
+    list-of-lists (those would have non-dict inner items and are left untouched).
     """
+    import itertools
     if not path:
         return data if isinstance(data, list) else [data]
     for part in path.split("."):
         if isinstance(data, dict):
             data = data.get(part, [])
         elif isinstance(data, list):
-            data = [item.get(part) for item in data if isinstance(item, dict)]
+            expanded = [item.get(part) for item in data if isinstance(item, dict)]
+            # Flatten only when expanding a list field that itself contains lists
+            # of dicts — i.e. a genuine nested-array traversal, not native list data.
+            if (
+                expanded
+                and all(isinstance(x, list) for x in expanded)
+                and all(isinstance(i, dict) for x in expanded for i in x if x)
+            ):
+                data = list(itertools.chain.from_iterable(x for x in expanded if x))
+            else:
+                data = expanded
         else:
             return []
     return data if isinstance(data, list) else [data]
@@ -168,9 +186,14 @@ async def _do_request(cfg: RestConnectorConfig):
         return resp.json()
 
 
-async def fetch_raw_items(cfg: RestConnectorConfig) -> list[dict]:
+async def fetch_raw_items(cfg: RestConnectorConfig, pre_processor_exts: list[dict] | None = None) -> list[dict]:
     """Fetch and return the raw API items without any field-name mapping."""
+    from isp.services.infra.extension_runner import run_pre_processor, apply_pre_processor_extensions
     data = await _do_request(cfg)
+    if cfg.pre_processor:
+        data = await run_pre_processor(cfg.pre_processor, data)
+    if pre_processor_exts:
+        data = await apply_pre_processor_extensions(data, pre_processor_exts)
     if cfg.result_path:
         items = _extract_path(data, cfg.result_path)
     else:
@@ -178,7 +201,7 @@ async def fetch_raw_items(cfg: RestConnectorConfig) -> list[dict]:
     return [item for item in items if isinstance(item, dict)]
 
 
-async def fetch_and_parse(cfg: RestConnectorConfig) -> list[dict]:
+async def fetch_and_parse(cfg: RestConnectorConfig, pre_processor_exts: list[dict] | None = None) -> list[dict]:
     """
     Fetch from the REST API and return ISP-normalised document dicts.
 
@@ -188,7 +211,12 @@ async def fetch_and_parse(cfg: RestConnectorConfig) -> list[dict]:
     3. Detect or use explicit id/title/content/url field names.
     4. Build ``DocumentItem``-compatible dicts, preserving unmapped extra fields.
     """
+    from isp.services.infra.extension_runner import run_pre_processor, apply_pre_processor_extensions
     data = await _do_request(cfg)
+    if cfg.pre_processor:
+        data = await run_pre_processor(cfg.pre_processor, data)
+    if pre_processor_exts:
+        data = await apply_pre_processor_extensions(data, pre_processor_exts)
 
     # Auto-detect result path when not explicitly set
     if cfg.result_path:
