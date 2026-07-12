@@ -81,12 +81,12 @@ def _parse_js_header(code: str) -> dict:
     - ``@assign``      Scope for auto-assignment: ``external`` (default) or ``all``.
     - ``@run_order``   Integer execution order (default 0). Higher numbers run later.
     """
-    result = {"name": "", "description": "", "assign": "external", "run_order": 0}
+    result = {"name": "", "description": "", "assign": "external", "run_order": 0, "type": "transform"}
     for line in code.splitlines():
         line = line.strip()
         if not line.startswith("//"):
             break
-        for tag, key in (("@name", "name"), ("@description", "description"), ("@assign", "assign")):
+        for tag, key in (("@name", "name"), ("@description", "description"), ("@assign", "assign"), ("@type", "type")):
             m = re.match(rf"//\s*{tag}\s+(.+)", line)
             if m:
                 result[key] = m.group(1).strip()
@@ -130,10 +130,16 @@ async def _seed_extensions_from_files() -> None:
         desc = meta["description"]
         assign = meta["assign"]
         run_order = meta["run_order"]
+        ext_type = meta["type"]
 
-        ext = await extension_service.upsert_extension_by_name(name, desc, code)
-        log.info("Seeded extension '%s' from %s (assign=%s, run_order=%d)",
-                 name, js_path.name, assign, run_order)
+        ext = await extension_service.upsert_extension_by_name(name, desc, code, ext_type)
+        log.info("Seeded extension '%s' from %s (type=%s, assign=%s, run_order=%d)",
+                 name, js_path.name, ext_type, assign, run_order)
+
+        # Pre-processor extensions are assigned manually via the Extensions tab,
+        # never auto-assigned at startup — they target a specific connector's raw response.
+        if ext_type == "pre_processor" or assign == "none":
+            continue
 
         targets = all_indexes if assign == "all" else external_indexes
         for idx in targets:

@@ -10,10 +10,11 @@ export function getExistingRest(index: IndexMeta): Partial<RestConnectorConfig> 
   const c = index.connectors.find(c => c.type === 'rest');
   if (!c) return {};
   return {
-    url:     String(c.url ?? ''),
-    method:  String(c.method ?? 'GET'),
-    headers: (c.headers as Record<string, string>) ?? {},
-    body:    String(c.body ?? ''),
+    url:           String(c.url ?? ''),
+    method:        String(c.method ?? 'GET'),
+    headers:       (c.headers as Record<string, string>) ?? {},
+    body:          String(c.body ?? ''),
+    pre_processor: String(c.pre_processor ?? ''),
   };
 }
 
@@ -78,12 +79,14 @@ export function parseCurl(raw: string): {
   const url = urlMatch[1];
 
   const hdrs: Record<string, string> = {};
-  const hRegex = /-H\s+['"]([^'"]+)['"]/g;
+  // Match both -H and --header, with single or double quoted values
+  const hRegex = /(?:--header|-H)\s+(?:'([^']*)'|"([^"]*)")/g;
   let hm: RegExpExecArray | null;
   while ((hm = hRegex.exec(s)) !== null) {
-    const colon = hm[1].indexOf(':');
+    const raw = hm[1] ?? hm[2];
+    const colon = raw.indexOf(':');
     if (colon > 0) {
-      hdrs[hm[1].slice(0, colon).trim()] = hm[1].slice(colon + 1).trim();
+      hdrs[raw.slice(0, colon).trim()] = raw.slice(colon + 1).trim();
     }
   }
 

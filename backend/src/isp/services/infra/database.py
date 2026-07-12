@@ -67,6 +67,7 @@ async def init_db() -> None:
                 name        VARCHAR(120) NOT NULL,
                 description TEXT         DEFAULT '',
                 code        TEXT         NOT NULL DEFAULT '',
+                type        VARCHAR(20)  NOT NULL DEFAULT 'transform',
                 created_at  VARCHAR(30)  NOT NULL,
                 updated_at  VARCHAR(30)  NOT NULL
             );
@@ -103,6 +104,11 @@ async def init_db() -> None:
                 key_hash    TEXT         NOT NULL UNIQUE,
                 created_at  TEXT         NOT NULL
             );
+        """)
+        # Idempotent column additions for extensions — safe to run on existing databases.
+        await conn.execute("""
+            ALTER TABLE extensions
+            ADD COLUMN IF NOT EXISTS type VARCHAR(20) NOT NULL DEFAULT 'transform';
         """)
         # Idempotent column additions — safe to run on existing databases.
         await conn.execute("""

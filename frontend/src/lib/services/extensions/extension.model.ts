@@ -3,6 +3,7 @@ export interface Extension {
   name: string;
   description: string;
   code: string;
+  type: 'transform' | 'pre_processor';
   createdAt: string;
   updatedAt: string;
 }

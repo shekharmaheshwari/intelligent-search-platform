@@ -100,7 +100,12 @@
                 <button class="order-btn" on:click={() => moveDown(i)} disabled={i === assigned.length - 1} aria-label="Move down">↓</button>
               </div>
               <div class="ext-info">
-                <span class="ext-name">{ext.name}</span>
+                <div class="ext-name-row">
+                  <span class="ext-name">{ext.name}</span>
+                  <span class="ext-type-badge" class:pre-proc={ext.type === 'pre_processor'}>
+                    {ext.type === 'pre_processor' ? 'pre_proc' : 'transform'}
+                  </span>
+                </div>
                 {#if ext.description}<span class="ext-desc">{ext.description}</span>{/if}
               </div>
               <div class="row-actions">
@@ -131,7 +136,12 @@
           {#each available as ext}
             <div class="library-row">
               <div class="ext-info">
-                <span class="ext-name">{ext.name}</span>
+                <div class="ext-name-row">
+                  <span class="ext-name">{ext.name}</span>
+                  <span class="ext-type-badge" class:pre-proc={ext.type === 'pre_processor'}>
+                    {ext.type === 'pre_processor' ? 'pre_proc' : 'transform'}
+                  </span>
+                </div>
                 {#if ext.description}<span class="ext-desc">{ext.description}</span>{/if}
               </div>
               <button class="add-btn" on:click={() => add(ext)}>+ Add</button>
@@ -228,7 +238,18 @@
   .order-btn:disabled { opacity: 0.2; cursor: not-allowed; }
 
   .ext-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+  .ext-name-row { display: flex; align-items: center; gap: 6px; }
   .ext-name { font-size: 13px; font-weight: 500; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ext-type-badge {
+    font-size: 9px; font-weight: 500; font-family: 'SF Mono', 'Fira Code', monospace;
+    padding: 1px 5px; border-radius: 3px; line-height: 1.5; flex-shrink: 0;
+    background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border);
+  }
+  .ext-type-badge.pre-proc {
+    background: color-mix(in srgb, #a855f7 10%, transparent);
+    color: #a855f7;
+    border-color: color-mix(in srgb, #a855f7 25%, transparent);
+  }
   .ext-desc { font-size: 11px; color: var(--text-6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .row-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }

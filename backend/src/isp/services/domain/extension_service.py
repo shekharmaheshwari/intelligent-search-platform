@@ -31,21 +31,21 @@ async def get_extension(ext_id: str) -> dict | None:
     return dict(row) if row else None
 
 
-async def create_extension(name: str, description: str, code: str) -> dict:
+async def create_extension(name: str, description: str, code: str, ext_type: str = "transform") -> dict:
     """Insert a new extension and return it with its generated id and timestamps."""
     ext_id = uuid.uuid4().hex[:12]
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO extensions (id, name, description, code, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6)",
-            ext_id, name, description, code, now, now,
+            "INSERT INTO extensions (id, name, description, code, type, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+            ext_id, name, description, code, ext_type, now, now,
         )
     return {"id": ext_id, "name": name, "description": description, "code": code,
-            "created_at": now, "updated_at": now}
+            "type": ext_type, "created_at": now, "updated_at": now}
 
 
-async def update_extension(ext_id: str, name: str | None, description: str | None, code: str | None) -> dict | None:
+async def update_extension(ext_id: str, name: str | None, description: str | None, code: str | None, ext_type: str | None = None) -> dict | None:
     """
     Partially update an extension.  Pass ``None`` for any field to leave it unchanged.
     Returns the updated record, or ``None`` if the extension does not exist.
@@ -57,22 +57,23 @@ async def update_extension(ext_id: str, name: str | None, description: str | Non
     new_name = name if name is not None else ext["name"]
     new_desc = description if description is not None else ext["description"]
     new_code = code if code is not None else ext["code"]
+    new_type = ext_type if ext_type is not None else ext.get("type", "transform")
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE extensions SET name=$2, description=$3, code=$4, updated_at=$5 WHERE id=$1",
-            ext_id, new_name, new_desc, new_code, now,
+            "UPDATE extensions SET name=$2, description=$3, code=$4, type=$5, updated_at=$6 WHERE id=$1",
+            ext_id, new_name, new_desc, new_code, new_type, now,
         )
-    return {**ext, "name": new_name, "description": new_desc, "code": new_code, "updated_at": now}
+    return {**ext, "name": new_name, "description": new_desc, "code": new_code, "type": new_type, "updated_at": now}
 
 
-async def upsert_extension_by_name(name: str, description: str, code: str) -> dict:
+async def upsert_extension_by_name(name: str, description: str, code: str, ext_type: str = "transform") -> dict:
     """Create or update an extension matched by name. Used by the file-based seed."""
     exts = await list_extensions()
     existing = next((e for e in exts if e["name"] == name), None)
     if existing:
-        return await update_extension(existing["id"], name, description, code) or existing
-    return await create_extension(name, description, code)
+        return await update_extension(existing["id"], name, description, code, ext_type) or existing
+    return await create_extension(name, description, code, ext_type)
 
 
 async def delete_extension(ext_id: str) -> bool:
@@ -90,7 +91,7 @@ async def list_index_extensions(idx_id: str) -> list[dict]:
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT e.id, e.name, e.description, e.code, e.created_at, e.updated_at,
+            SELECT e.id, e.name, e.description, e.code, e.type, e.created_at, e.updated_at,
                    ie.run_order, ie.enabled
             FROM index_extensions ie
             JOIN extensions e ON e.id = ie.extension_id
