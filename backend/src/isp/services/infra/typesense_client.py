@@ -733,11 +733,14 @@ def get_suggestions(q: str, category: str | None, limit: int) -> list[dict]:
     and optionally ``category``.
     """
     if category:
-        # Eval expression promotes entries whose category matches the active context
-        # without hard-filtering — unmatched entries still appear if limit is not met.
         sort_by = f"boost:desc,_eval(category:={category}):desc,popularity:desc"
+        # Hard-filter to this category's catalog suggestions OR global query-frequency
+        # entries (type=query have no category). Without this, suggestions seeded from
+        # other indexes (e.g. account, devices) bleed through on shared prefix matches.
+        filter_by = f"category:={category} || type:=query"
     else:
         sort_by = "boost:desc,popularity:desc"
+        filter_by = None
 
     params: dict = {
         "q": q,
@@ -748,6 +751,8 @@ def get_suggestions(q: str, category: str | None, limit: int) -> list[dict]:
         "sort_by": sort_by,
         # id is included (no exclude_fields) so callers can use it for update calls.
     }
+    if filter_by:
+        params["filter_by"] = filter_by
     try:
         raw = get_client().collections["search_suggestions"].documents.search(params)
     except Exception:
