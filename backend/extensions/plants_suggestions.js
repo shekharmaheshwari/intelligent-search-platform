@@ -21,11 +21,12 @@ function extractSuggestions(doc) {
   var results = [];
   var seen    = {};
 
-  function add(query) {
+  function add(query, category) {
     var q = String(query || '').trim().toLowerCase();
     if (q && q.length >= 3 && !seen[q]) {
       seen[q] = true;
-      results.push({ query: q });
+      var item = { query: q, category: category || 'plants' };
+      results.push(item);
     }
   }
 
