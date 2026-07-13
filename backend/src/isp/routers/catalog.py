@@ -564,6 +564,10 @@ async def suggest(
         results = ts.get_suggestions(q, category, limit)
         if results:
             return {"suggestions": results, "query": q}
+        # When a category is scoped, an empty result means no matches in that category.
+        # Skip the fallback to avoid returning suggestions from unrelated categories.
+        if category:
+            return {"suggestions": [], "query": q}
     except Exception:
         # suggestions collection unavailable — fall through to product-title search
         pass
