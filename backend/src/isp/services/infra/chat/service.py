@@ -123,10 +123,24 @@ async def _search_context(query: str, index_id: str) -> tuple[list[dict], str]:
         title   = doc.get("title", "")
         content = doc.get("content", "")[:300]
         url     = doc.get("url", "")
-        price   = str(meta.get("price", meta.get("Price", "")))
-        image   = meta.get("image", meta.get("Image", meta.get("thumbnail", "")))
 
-        parts.append(f"{i}. {title}\n{content}")
+        raw_price = meta.get("price", meta.get("Price", ""))
+        price = str(raw_price) if raw_price != "" else ""
+
+        # images field can be a CDN array (devices) or a single URL string (plants)
+        images_field = meta.get("images")
+        if isinstance(images_field, list):
+            image = images_field[0] if images_field else ""
+        else:
+            image = meta.get("image_url", meta.get("image", meta.get("Image", meta.get("thumbnail", ""))))
+
+        # Build rich context line for the LLM
+        price_str = f"${raw_price}" if raw_price != "" else ""
+        pet        = meta.get("pet_safety_label", "")
+        difficulty = meta.get("care_difficulty", "")
+        growth     = meta.get("growth_style", "")
+        extras     = ", ".join(x for x in [price_str, pet, difficulty, growth] if x)
+        parts.append(f"{i}. {title}{' — ' + extras if extras else ''}\n{content}")
         cards.append({
             "id":    doc.get("id", ""),
             "title": title,
