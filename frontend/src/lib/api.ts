@@ -443,6 +443,25 @@ export const api = {
       }),
     }),
 
+  getChatConfig: () =>
+    req<import('./types/settings.types').ChatConfig>('/settings/chat'),
+
+  updateChatConfig: (opts: {
+    provider:  string;
+    model:     string;
+    apiKey?:   string;
+    endpoint?: string;
+  }) =>
+    req<import('./types/settings.types').ChatConfig>('/settings/chat', {
+      method: 'PUT',
+      body: JSON.stringify({
+        provider: opts.provider,
+        model:    opts.model,
+        api_key:  opts.apiKey  ?? null,
+        endpoint: opts.endpoint ?? null,
+      }),
+    }),
+
   getAffinityDimensions: (indexId: string) =>
     req<{ dimensions: import('./types').AffinityDimension[]; viewed_item_policy: import('./types').ViewedItemPolicy }>(`/indexes/${indexId}/affinity-dimensions`),
 
