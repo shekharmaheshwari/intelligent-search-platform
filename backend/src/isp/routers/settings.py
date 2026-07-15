@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 from isp.services.domain.settings_service import (
     AVAILABLE_MODELS,
+    AVAILABLE_CHAT_MODELS,
     DIM_BY_MODEL,
     PROVIDER_BY_MODEL,
     get_embed_model,
@@ -34,6 +35,8 @@ from isp.services.domain.settings_service import (
     get_cc_affinity_boost_enabled,
     get_cc_viewed_penalty_enabled,
     set_customer_context_flags,
+    get_chat_config,
+    set_chat_config,
 )
 from isp.services.infra import embedding_service
 
@@ -238,6 +241,82 @@ async def get_settings() -> SettingsResponse:
     """
     model = await get_embed_model()
     return SettingsResponse(**(await _build_response(model)))
+
+
+# ── Chat configuration endpoints ─────────────────────────────────────────────
+
+class ChatConfigUpdate(BaseModel):
+    """
+    Request body for updating the chat provider.
+
+    - ``provider``  — one of: "none", "anthropic", "google", "openai", "groq", "self_hosted"
+    - ``model``     — model id (e.g. "gemini-1.5-flash"); empty string for self_hosted
+                      (model is sent in every request, so server needs to know it)
+    - ``api_key``   — cloud API key; omit to keep the previously stored key
+    - ``endpoint``  — required only when provider is "self_hosted"
+    """
+    provider:  str
+    model:     str             = ""
+    api_key:   str | None      = None
+    endpoint:  str | None      = None
+
+
+class ChatConfigResponse(BaseModel):
+    provider:         str
+    model:            str
+    endpoint:         str | None
+    api_key_set:      bool
+    available_models: list[dict]
+
+
+@router.get("/chat", response_model=ChatConfigResponse)
+async def get_chat_settings() -> ChatConfigResponse:
+    """Return the current chat provider configuration."""
+    cfg = await get_chat_config()
+    return ChatConfigResponse(
+        provider=cfg["provider"],
+        model=cfg["model"],
+        endpoint=cfg["endpoint"] or None,
+        api_key_set=cfg["api_key_set"],
+        available_models=AVAILABLE_CHAT_MODELS,
+    )
+
+
+@router.put("/chat", response_model=ChatConfigResponse)
+async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
+    """
+    Save the chat provider configuration and apply it immediately.
+
+    No container restart required.  Pass ``provider="none"`` to disable chat.
+    API key is not returned in responses — only a boolean presence flag.
+    """
+    if body.provider not in ("none", "anthropic", "google", "openai", "groq", "self_hosted"):
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown provider '{body.provider}'.",
+        )
+    if body.provider == "self_hosted" and not body.endpoint:
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="endpoint is required when provider is 'self_hosted'.",
+        )
+
+    await set_chat_config(
+        provider=body.provider,
+        model=body.model,
+        api_key=body.api_key,
+        endpoint=body.endpoint,
+    )
+    cfg = await get_chat_config()
+    return ChatConfigResponse(
+        provider=cfg["provider"],
+        model=cfg["model"],
+        endpoint=cfg["endpoint"] or None,
+        api_key_set=cfg["api_key_set"],
+        available_models=AVAILABLE_CHAT_MODELS,
+    )
 
 
 @router.put("", response_model=UpdateSettingsResponse)
