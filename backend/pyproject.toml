@@ -22,6 +22,10 @@ dependencies = [
     "google-auth>=2.0.0",                    # Service account credential loading for Google APIs
     "google-api-python-client>=2.0.0",       # Google Sheets REST API client (sheets v4)
     "PyJWT>=2.8.0",                          # JWT sign/verify for OAuth2 admin sessions
+    # Chat providers — imported lazily so a missing package only fails when that provider is used
+    "anthropic>=0.40.0",                     # Anthropic Claude (paid)
+    "openai>=1.50.0",                        # OpenAI + Groq + self-hosted (OpenAI-compat)
+    "google-genai>=1.0.0",                   # Google Gemini (paid) — replaces deprecated google-generativeai
 ]
 
 [build-system]
