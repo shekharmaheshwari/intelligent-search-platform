@@ -32,7 +32,6 @@ docs/createPageUsingISP.md
 docs/shopify-app-integration.md
 docs/shopify-cost-model.md
 docs/shopify-multitenancy.md
-docs/chat-rag.md
 
 # Claude Code local config — keep off remote
 .claude/
