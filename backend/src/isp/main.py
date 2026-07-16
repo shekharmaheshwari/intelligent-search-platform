@@ -25,11 +25,11 @@ bootstrap_secrets()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router, analytics
+from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router, analytics, chat as chat_router_module
 from isp.routers import auth as auth_router_module, api_keys as api_keys_router_module
 from isp.routers.admin import router as admin_router
 from isp.services.infra.database import init_db
-from isp.services.domain.settings_service import load_embed_model
+from isp.services.domain.settings_service import load_embed_model, load_chat_config
 from isp.services.infra import typesense_client as ts
 from isp.config import settings
 
@@ -162,7 +162,8 @@ async def lifespan(app: FastAPI):
     await init_db()
     # Back-fill slug for any indexes that were created before the slug column was added.
     await seed_slugs()
-    await load_embed_model()          # restore operator-chosen model before serving requests
+    await load_embed_model()          # restore operator-chosen embedding model before serving requests
+    await load_chat_config()          # restore operator-chosen chat provider before serving requests
     _ensure_catalog_collection()
     ts.migrate_isp_fields()
     # Provision the search_suggestions collection used by the autocomplete API.
@@ -213,6 +214,7 @@ app.include_router(admin_router, prefix="/v1/admin")
 # the middleware only enforces guards when AUTH_ENABLED=true.
 app.include_router(auth_router_module.router)
 app.include_router(api_keys_router_module.router, prefix="/v1")
+app.include_router(chat_router_module.router, prefix="/v1")
 
 
 @app.get("/health")

@@ -385,6 +385,85 @@ async def set_embed_model(model_id: str) -> None:
     await set_embed_config(model_id)
 
 
+# ── Chat model configuration ─────────────────────────────────────────────────
+#
+# Two categories of providers:
+#   self_hosted — user supplies an OpenAI-compatible endpoint URL
+#   paid        — cloud API; user supplies an API key; URL is hardcoded per provider
+#
+# Default provider is "none" — chat feature is disabled until the operator
+# saves a configuration via the Settings → Chat panel.
+
+AVAILABLE_CHAT_MODELS: list[dict] = [
+    # Anthropic (paid)
+    {"id": "claude-haiku-4-5",          "label": "Claude Haiku 4.5",       "provider": "anthropic",   "tier": "paid"},
+    {"id": "claude-sonnet-4-6",         "label": "Claude Sonnet 4.6",      "provider": "anthropic",   "tier": "paid"},
+    # Google (paid) — 1.5 models deprecated; use 2.x+
+    {"id": "gemini-2.5-flash",          "label": "Gemini 2.5 Flash",       "provider": "google",      "tier": "paid"},
+    {"id": "gemini-2.0-flash",          "label": "Gemini 2.0 Flash",       "provider": "google",      "tier": "paid"},
+    {"id": "gemini-2.5-pro",            "label": "Gemini 2.5 Pro",         "provider": "google",      "tier": "paid"},
+    # OpenAI (paid)
+    {"id": "gpt-4o-mini",               "label": "GPT-4o Mini",            "provider": "openai",      "tier": "paid"},
+    {"id": "gpt-4o",                    "label": "GPT-4o",                 "provider": "openai",      "tier": "paid"},
+    # Groq (paid — free tier available)
+    {"id": "llama-3.1-8b-instant",      "label": "Llama 3.1 8B (Groq)",   "provider": "groq",        "tier": "paid"},
+    {"id": "llama-3.3-70b-versatile",   "label": "Llama 3.3 70B (Groq)",  "provider": "groq",        "tier": "paid"},
+    # Self-hosted (free — user provides endpoint)
+    {"id": "self_hosted",               "label": "Self-hosted (Ollama / vLLM / LocalAI)", "provider": "self_hosted", "tier": "self_hosted"},
+]
+
+
+async def get_chat_config() -> dict:
+    """Return the stored chat provider configuration."""
+    provider = await get_setting("chat_provider") or "none"
+    model    = await get_setting("chat_model")    or ""
+    endpoint = await get_setting("chat_endpoint") or ""
+    key_set  = bool(await get_setting("chat_api_key"))
+    return {"provider": provider, "model": model, "endpoint": endpoint, "api_key_set": key_set}
+
+
+async def set_chat_config(
+    *,
+    provider: str,
+    model: str,
+    api_key: str | None = None,
+    endpoint: str | None = None,
+) -> None:
+    """Persist chat provider configuration and apply it immediately at runtime."""
+    await set_setting("chat_provider", provider)
+    await set_setting("chat_model",    model)
+    if api_key is not None:
+        await set_setting("chat_api_key", api_key)
+    if endpoint is not None:
+        await set_setting("chat_endpoint", endpoint)
+
+    from isp.services.infra.chat import service as chat_service
+    stored_key      = await get_setting("chat_api_key")  or ""
+    stored_endpoint = await get_setting("chat_endpoint") or ""
+    chat_service.set_chat_config(
+        provider=provider,
+        model=model,
+        api_key=stored_key,
+        endpoint=stored_endpoint,
+    )
+
+
+async def load_chat_config() -> None:
+    """Restore chat provider state from DB on startup."""
+    provider = await get_setting("chat_provider") or "none"
+    model    = await get_setting("chat_model")    or ""
+    api_key  = await get_setting("chat_api_key")  or ""
+    endpoint = await get_setting("chat_endpoint") or ""
+
+    from isp.services.infra.chat import service as chat_service
+    chat_service.set_chat_config(
+        provider=provider,
+        model=model,
+        api_key=api_key,
+        endpoint=endpoint,
+    )
+
+
 async def load_embed_model() -> None:
     """
     Synchronise runtime state with the persisted model setting.
