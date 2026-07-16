@@ -25,13 +25,63 @@
   import { onMount } from 'svelte';
   import { settingsStore } from '../../lib/store';
   import { settingsService } from '../../lib/services/settings/SettingsService';
+  import { api } from '../../lib/api';
   import type { AppSettings } from '../../lib/types';
   import { modelOption, effectiveDim, dimensionWillChange } from './SettingsPanel.helpers';
 
   $: settings = $settingsStore.settings;
   $: loading = $settingsStore.loading;
 
-  let activeTab: 'model' | 'personalisation' = 'model';
+  import type { ChatConfig } from '../../lib/types/settings.types';
+
+  let activeTab: 'model' | 'personalisation' | 'chat' = 'model';
+
+  // ── Chat config state ────────────────────────────────────────────────────────
+  let chatConfig: ChatConfig | null = null;
+  let chatProvider  = 'none';
+  let chatModel     = '';
+  let chatApiKey    = '';
+  let chatEndpoint  = '';
+  let chatSaving    = false;
+  let chatSaved     = false;
+  let chatErr       = '';
+
+  async function loadChat() {
+    try {
+      chatConfig   = await api.getChatConfig();
+      chatProvider = chatConfig.provider;
+      chatModel    = chatConfig.model;
+      chatEndpoint = chatConfig.endpoint ?? '';
+    } catch { /* ignore — chat may not be deployed yet */ }
+  }
+
+  async function saveChat() {
+    chatSaving = true; chatSaved = false; chatErr = '';
+    try {
+      chatConfig   = await api.updateChatConfig({
+        provider: chatProvider,
+        model:    chatModel,
+        apiKey:   chatApiKey.trim() || undefined,
+        endpoint: chatEndpoint.trim() || undefined,
+      });
+      chatProvider = chatConfig.provider;
+      chatModel    = chatConfig.model;
+      chatEndpoint = chatConfig.endpoint ?? '';
+      chatApiKey   = '';
+      chatSaved    = true;
+    } catch (e) {
+      chatErr = String(e);
+    } finally {
+      chatSaving = false;
+    }
+  }
+
+  $: chatIsSelfHosted = chatProvider === 'self_hosted';
+  $: chatIsPaid       = ['anthropic','google','openai','groq'].includes(chatProvider);
+  $: chatIsDirty      = chatProvider !== (chatConfig?.provider ?? 'none') ||
+                        chatModel    !== (chatConfig?.model    ?? '') ||
+                        chatApiKey.trim() !== '' ||
+                        (chatIsSelfHosted && chatEndpoint !== (chatConfig?.endpoint ?? ''));
 
   let selectedModel = '';
   let saving = false;
@@ -80,7 +130,7 @@
     }
   }
 
-  onMount(load);
+  onMount(() => { load(); loadChat(); });
 
   $: selectedProvider = settings ? (modelOption(settings, selectedModel)?.provider ?? 'voyage') : 'voyage';
 
@@ -222,6 +272,13 @@
       on:click={() => activeTab = 'personalisation'}
     >
       Customer Personalisation
+    </button>
+    <button
+      class="tab-btn"
+      class:tab-active={activeTab === 'chat'}
+      on:click={() => activeTab = 'chat'}
+    >
+      Chat Model
     </button>
   </nav>
 
@@ -669,6 +726,161 @@
 
   {/if}<!-- end personalisation tab -->
 
+  <!-- ── Tab: Chat Model ──────────────────────────────────────────────────── -->
+  {#if activeTab === 'chat'}
+    <section class="section">
+      <div class="section-header">
+        <h3>Chat Model</h3>
+        <p class="section-sub">
+          Configure the LLM used for conversational search (RAG chat on the PLP).
+          Applied immediately — no restart required.
+        </p>
+      </div>
+
+      <div class="field-group">
+
+        <!-- Category: None -->
+        <div class="chat-category">
+          <label class="field-label">Provider type</label>
+          <div class="chat-type-row">
+            <button
+              class="chat-type-btn"
+              class:chat-type-active={chatProvider === 'none'}
+              on:click={() => { chatProvider = 'none'; chatModel = ''; }}
+            >
+              Disabled
+            </button>
+            <button
+              class="chat-type-btn"
+              class:chat-type-active={chatIsSelfHosted}
+              on:click={() => { chatProvider = 'self_hosted'; chatModel = ''; }}
+            >
+              Self-hosted
+            </button>
+            <button
+              class="chat-type-btn"
+              class:chat-type-active={chatIsPaid}
+              on:click={() => { chatProvider = 'google'; chatModel = 'gemini-1.5-flash'; }}
+            >
+              Paid API
+            </button>
+          </div>
+        </div>
+
+        <!-- Self-hosted fields -->
+        {#if chatIsSelfHosted}
+          <div class="provider-fields">
+            <div class="field-row">
+              <label class="field-label" for="chat-endpoint">
+                Endpoint URL <span class="required">*</span>
+                <span class="key-stored">— Ollama, LM Studio, vLLM, LocalAI, or any OpenAI-compatible server</span>
+              </label>
+              <input
+                id="chat-endpoint"
+                class="text-input"
+                type="url"
+                placeholder="http://localhost:11434/v1"
+                bind:value={chatEndpoint}
+                disabled={chatSaving}
+              />
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="chat-model-self">
+                Model name <span class="chat-optional">(optional — leave blank if server has only one model)</span>
+              </label>
+              <input
+                id="chat-model-self"
+                class="text-input"
+                type="text"
+                placeholder="llama3.1:8b"
+                bind:value={chatModel}
+                disabled={chatSaving}
+              />
+            </div>
+          </div>
+        {/if}
+
+        <!-- Paid API fields -->
+        {#if chatIsPaid && chatConfig}
+          <div class="provider-fields">
+            <div class="field-row">
+              <label class="field-label" for="chat-provider-select">Provider</label>
+              <select
+                id="chat-provider-select"
+                class="model-select"
+                bind:value={chatProvider}
+                on:change={() => { chatModel = chatConfig?.available_models.find(m => m.provider === chatProvider)?.id ?? ''; }}
+                disabled={chatSaving}
+              >
+                <option value="google">Google Gemini</option>
+                <option value="anthropic">Anthropic Claude</option>
+                <option value="openai">OpenAI</option>
+                <option value="groq">Groq (free tier available)</option>
+              </select>
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="chat-model-select">Model</label>
+              <select
+                id="chat-model-select"
+                class="model-select"
+                bind:value={chatModel}
+                disabled={chatSaving}
+              >
+                {#each chatConfig.available_models.filter(m => m.provider === chatProvider) as m}
+                  <option value={m.id}>{m.label}</option>
+                {/each}
+              </select>
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="chat-api-key">
+                API key
+                {#if chatConfig.api_key_set}
+                  <span class="key-stored">(stored — leave blank to keep)</span>
+                {/if}
+              </label>
+              <input
+                id="chat-api-key"
+                class="text-input"
+                type="password"
+                placeholder={chatConfig.api_key_set ? '••••••••••••' : 'Paste API key…'}
+                bind:value={chatApiKey}
+                disabled={chatSaving}
+              />
+            </div>
+          </div>
+        {/if}
+
+        {#if chatErr}<p class="err">{chatErr}</p>{/if}
+        {#if chatSaved}<p class="success">Chat provider saved.</p>{/if}
+
+        <button
+          class="btn-save"
+          on:click={saveChat}
+          disabled={chatSaving || !chatIsDirty}
+        >
+          {chatSaving ? 'Saving…' : 'Save'}
+        </button>
+
+        <!-- Status card -->
+        {#if chatConfig}
+          <div class="chat-status-card">
+            <span class="chat-status-dot" class:dot-on={chatConfig.provider !== 'none'}></span>
+            {#if chatConfig.provider === 'none'}
+              Chat is <strong>disabled</strong>. Select a provider above to enable it.
+            {:else if chatConfig.provider === 'self_hosted'}
+              Self-hosted at <code>{chatConfig.endpoint ?? '—'}</code>
+              {#if chatConfig.model} · model <code>{chatConfig.model}</code>{/if}
+            {:else}
+              <strong>{chatConfig.provider}</strong> · <code>{chatConfig.model}</code>
+              · API key {chatConfig.api_key_set ? 'stored ✓' : 'not set ✗'}
+            {/if}
+          </div>
+        {/if}
+
+      </div>
+    </section>
+  {/if}<!-- end chat tab -->
+
   {/if}<!-- end settings loaded -->
 </div>
 
@@ -931,6 +1143,54 @@
     color: var(--accent);
     font-weight: 600;
   }
+
+  /* ── Chat tab ── */
+  .chat-category { display: flex; flex-direction: column; gap: 6px; }
+
+  .chat-type-row { display: flex; gap: 8px; }
+
+  .chat-type-btn {
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 7px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-4);
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .chat-type-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .chat-type-active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .chat-optional { font-size: 11px; color: var(--text-6); font-weight: 400; margin-left: 4px; }
+
+  .chat-status-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--text-4);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    line-height: 1.5;
+  }
+  .chat-status-card strong { color: var(--text-2); }
+  .chat-status-card code { font-family: 'SF Mono','Fira Code',monospace; color: var(--accent); font-size: 11px; }
+
+  .chat-status-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--border-2);
+  }
+  .dot-on { background: #5cdb85; box-shadow: 0 0 6px #5cdb8566; }
 
   .cc-section { margin-top: 0; }
 

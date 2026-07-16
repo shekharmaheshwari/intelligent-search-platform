@@ -24,6 +24,21 @@ export interface EmbedModelOption {
  * ``openai_api_key_set`` is ``true`` when an OpenAI key is stored — the key
  * itself is never returned by the API.
  */
+export interface ChatModelOption {
+  id:       string;
+  label:    string;
+  provider: string;
+  tier:     string;
+}
+
+export interface ChatConfig {
+  provider:         string;
+  model:            string;
+  endpoint:         string | null;
+  api_key_set:      boolean;
+  available_models: ChatModelOption[];
+}
+
 export interface AppSettings {
   embed_model: string;
   embed_model_num_dim: number;
