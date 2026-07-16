@@ -47,10 +47,14 @@ class SearchRequest(BaseModel):
     page: int = Field(default=1, ge=1)
     per_page: int = Field(default=10, ge=1, le=50)
     mode: str = "hybrid"
-    manufacturer: list[str] | str | None = None
-    """Filter results to these manufacturers (single value or list for multi-select)."""
-    category: list[str] | str | None = None
-    """Filter results to these category slugs (single value or list for multi-select)."""
+    filters: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description=(
+            "Generic field-level filters applied as Typesense filter_by clauses. "
+            "Keys are Typesense field names; values are lists of allowed values (OR within a field, AND across fields). "
+            "Supports any facetable field — no backend changes needed for new index types."
+        ),
+    )
     action_history: list[CustomerAction] = Field(
         default_factory=list,
         description=(
