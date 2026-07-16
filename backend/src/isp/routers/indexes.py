@@ -995,9 +995,15 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         # rebuild form (result_path, id_field, title_field, content_field,
         # url_field, static_fields, field_map, value_map) are preserved.
         # The rebuild form only sends url/method/headers/body — overlay those.
+        # Mapping fields (static_fields, field_map, value_map) are restored from
+        # the stored connector AFTER the merge because model_dump() always includes
+        # them as empty dicts, which would otherwise overwrite saved values.
         _existing = meta.connectors[0] if meta.connectors else {}
         _merged = dict(_existing)
         _merged.update(cfg_dict)
+        for _f in ("static_fields", "field_map", "value_map"):
+            if _f in _existing:
+                _merged[_f] = _existing[_f]
         cfg_dict = _merged
 
         # Persist the connector config immediately so headers/URL are saved

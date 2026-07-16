@@ -98,25 +98,13 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
             def ctx_hook(scores: dict, all_docs: dict) -> None:  # noqa: F811
                 ts.apply_boost_rules(scores, all_docs, _rules, query=_query)
 
-    # Build native Typesense filter string — works after schema migration promotes
-    # category and manufacturer to top-level fields.  External collections skip
-    # this path and rely on their own filter_by via search_external.
-    def _to_list(v) -> list[str]:
-        if not v:
-            return []
-        return v if isinstance(v, list) else [v]
-
     ts_filter: str | None = None
     if not meta.is_external:
-        _parts = []
-        cats = _to_list(req.category)
-        mfrs = _to_list(req.manufacturer)
-        if cats:
-            vals = ",".join(cats)
-            _parts.append(f"category:=[{vals}]")
-        if mfrs:
-            vals = ",".join(mfrs)
-            _parts.append(f"manufacturer:=[{vals}]")
+        _parts = [
+            f"{field}:=[{','.join(values)}]"
+            for field, values in (req.filters or {}).items()
+            if values
+        ]
         if _parts:
             ts_filter = " && ".join(_parts)
 
@@ -216,20 +204,30 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     return raw
 
 
+# System fields that are facetable in the schema but carry no filtering value for the UI.
+_FACET_EXCLUDE = {"source_type"}
+
 @router.get("/{idx_id}/facets", summary="Get facets for an index", tags=["public"])
 async def get_index_facets(idx_id: str):
     """
-    Return category and manufacturer facet counts for an ISP-managed index.
+    Return facet counts for an ISP-managed index.
 
-    Counts come directly from Typesense so they always reflect the indexed data.
-    Values match what is stored in Typesense (set by the index extension).
+    Discovers facetable fields directly from the Typesense schema — any field
+    with facet=True is included, minus internal system fields.  No hardcoding
+    needed: marking a field facetable in the schema is the only deployment step.
     """
     meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
     if meta.is_external:
         raise HTTPException(400, "Facets are not available for external indexes")
-    facets = ts.get_facets(meta.id, ["category", "manufacturer"])
+    facet_fields = [
+        f for f in ts.get_facet_fields(meta.id)
+        if f not in _FACET_EXCLUDE
+    ]
+    if not facet_fields:
+        return {"facets": {}}
+    facets = ts.get_facets(meta.id, facet_fields)
     return {"facets": facets}
 
 

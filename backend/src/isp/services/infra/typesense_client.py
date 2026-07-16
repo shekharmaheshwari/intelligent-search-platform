@@ -364,6 +364,16 @@ def search_with_vec(
             "page": page}
 
 
+def get_facet_fields(index_id: str) -> list[str]:
+    """Return names of all fields marked facet=True in the collection schema."""
+    name = collection_name(index_id)
+    try:
+        schema = get_client().collections[name].retrieve()
+        return [f["name"] for f in schema.get("fields", []) if f.get("facet")]
+    except Exception:
+        return []
+
+
 def get_facets(index_id: str, facet_fields: list[str]) -> dict:
     """
     Return facet value counts for an ISP-managed collection.
