@@ -1,7 +1,7 @@
 import { indexRepository, type IndexRepository } from '../../repository/IndexRepository';
 import { mapIndexMetaToIndex, mapIndexesToDomain } from './index.mapper';
 import type { Index, IngestStatus, SearchResult } from './index.model';
-import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, MappingConfig } from '../../types';
+import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, MappingConfig, FieldEntry, FieldConfig } from '../../types';
 
 /**
  * Service for all index-domain operations.
@@ -180,6 +180,14 @@ export class IndexService {
   async saveMapping(indexId: string, cfg: MappingConfig): Promise<Index> {
     const dto = await this.repo.saveMapping(indexId, cfg);
     return mapIndexMetaToIndex(dto);
+  }
+
+  getFields(indexId: string): Promise<{ fields: FieldEntry[] }> {
+    return this.repo.getFields(indexId);
+  }
+
+  updateField(indexId: string, fieldName: string, patch: Partial<FieldConfig>): Promise<FieldEntry> {
+    return this.repo.updateField(indexId, fieldName, patch);
   }
 }
 

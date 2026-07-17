@@ -66,15 +66,31 @@ Note: `metadata` is stored as a plain `string` field (serialised JSON) because T
 
 ### Lexical Search
 Standard BM25 full-text search. Fast, no embedding needed.
+
+`query_by` is derived dynamically at request time from the index's `field_config`:
+
+```python
+_extra_qb = [
+    fc["name"]
+    for fc in (meta.field_config or [])
+    if fc.get("searchable") and fc["name"] not in {"title", "content"}
+]
+ts_query_by = ("title,content," + ",".join(_extra_qb)) if _extra_qb else None
+```
+
+If no extra fields are marked searchable, the default `"title,content"` is used:
+
 ```python
 client.collections[name].documents.search({
     "q": q,
-    "query_by": "title,content",
-    "query_by_weights": "2,1",   # title weighted 2x content
+    "query_by": ts_query_by or "title,content",
+    "query_by_weights": "2,1,...",  # 2 for title, 1 for all others
     "num_typos": 2,
     "sort_by": "_text_match:desc",
 })
 ```
+
+This means the set of fields searched is entirely controlled by the **Fields tab** in the admin UI — no code changes are needed to extend search to new fields.
 
 ### Semantic Search
 Vector similarity search using pre-computed embeddings.
@@ -129,6 +145,111 @@ All four signals read from top-level Typesense fields (never the `metadata` blob
 │           Ranked Results            │
 └─────────────────────────────────────┘
 ```
+
+---
+
+## Generic Filter System
+
+All facet/filter values are sent from the frontend as a single generic dict and mapped to Typesense `filter_by` syntax at request time. No field names are hardcoded in the backend.
+
+**Request shape (`SearchRequest`):**
+```python
+class SearchRequest(BaseModel):
+    q: str
+    mode: str = "hybrid"
+    page: int = 1
+    per_page: int = 20
+    filters: dict[str, list[str]] = {}
+```
+
+**Backend filter_by construction:**
+```python
+_parts = [
+    f"{field}:=[{','.join(values)}]"
+    for field, values in (req.filters or {}).items()
+    if values
+]
+filter_by = " && ".join(_parts) if _parts else None
+```
+
+**Frontend filter construction (PLP):**
+```typescript
+const allFilters: Record<string, string[]> = {};
+if (cats.length)  allFilters['category']     = cats;
+if (mfrs.length)  allFilters['manufacturer'] = mfrs;
+for (const [field, values] of Object.entries(facets)) {
+  if ([...values].length) allFilters[field] = [...values];
+}
+// body: { filters: allFilters }
+```
+
+Adding a new facetable field (e.g. `customer_group`) requires only:
+1. Enable **Facet** toggle in Fields tab for that field
+2. No backend or frontend code changes
+
+The PLP `FilterSidebar` renders any facet field returned from the search API that is not in `DEDICATED_FIELDS = { category, manufacturer, price_range }` using a generic loop with auto-formatted labels (`customer_group` → `Customer Group`).
+
+---
+
+## Field Schema Management
+
+Typesense does not support in-place schema alterations. Changing a field's `facet` or `type` requires a **drop + re-add** operation:
+
+```python
+def update_field_properties(index_id, field_name, *, facet, multi_value, current_type):
+    target_type = "string[]" if multi_value else "string"
+    col = client.collections[f"isp_{index_id}"]
+    # 1. Drop the field (documents are NOT deleted)
+    col.update({"fields": [{"name": field_name, "drop": True}]})
+    # 2. Re-add with new properties
+    col.update({"fields": [{
+        "name": field_name,
+        "type": target_type,
+        "optional": True,
+        "facet": facet,
+    }]})
+```
+
+**Important:** Only the field definition changes. Document data is preserved by Typesense — existing values in that field remain intact after the drop+re-add.
+
+### field_config persistence
+
+Field settings are stored in `indexes.field_config` (PostgreSQL JSONB). Each entry is:
+```json
+{ "name": "manufacturer", "facet": true, "multi_value": false, "searchable": false }
+```
+
+At the end of every `_run_rebuild`, ISP re-applies the stored `field_config`:
+```python
+if not meta.is_external and meta.field_config:
+    for fc in meta.field_config:
+        ts.update_field_properties(idx_id, fc["name"],
+                                   facet=fc.get("facet", False),
+                                   multi_value=fc.get("multi_value", False),
+                                   current_type=...)
+```
+
+This guarantees that a full index rebuild never silently loses user-configured field properties.
+
+### field_config API
+
+| Method | Path | Action |
+|---|---|---|
+| GET | `/v1/indexes/{id}/fields` | List all fields, merged with stored field_config |
+| PATCH | `/v1/indexes/{id}/fields/{field_name}` | Toggle facet / multi_value / searchable |
+
+`GET` response schema:
+```json
+{
+  "fields": [
+    { "name": "manufacturer", "type": "string", "facet": true,
+      "multi_value": false, "searchable": false,
+      "optional": true, "system": false }
+  ]
+}
+```
+
+System fields (`id`, `vec`, `indexed_at`) are returned with `"system": true` and are not editable.
 
 ---
 
