@@ -1,8 +1,11 @@
-# Fields Tab — Design & Implementation Plan
+# Fields Tab — Implementation Reference
+
+> **Status: Implemented and deployed.**  
+> This document serves as the canonical reference for the Fields tab feature.
 
 ## Overview
 
-A new **Fields** tab in the index detail view that surfaces every Typesense field
+The **Fields** tab in the index detail view surfaces every Typesense field
 associated with an index and lets operators configure three per-field properties
 through toggles — no Python scripts, no Typesense API calls needed.
 
@@ -314,7 +317,7 @@ updateField(indexId: string, fieldName: string, config: Partial<FieldConfig>): P
 [User toggles Facet on customer_group]
   → PATCH /indexes/{id}/fields/customer_group  { facet: true }
   → typesense_client.update_field_properties() ← drop+re-add in Typesense
-  → IndexMeta.field_config updated in MongoDB
+  → IndexMeta.field_config updated in PostgreSQL
   → UI row updates optimistically
 
 [Rebuild runs]
@@ -327,15 +330,17 @@ updateField(indexId: string, fieldName: string, config: Partial<FieldConfig>): P
 
 ---
 
-## Files to create / modify
+## File Reference
 
-| File | Action |
+| File | Role |
 |---|---|
-| `backend/src/isp/models/index.py` | Add `FieldConfigEntry` model and `field_config` to `IndexMeta` |
-| `backend/src/isp/routers/indexes.py` | Add `GET /{id}/fields`, `PATCH /{id}/fields/{name}`, apply in `_run_rebuild` |
-| `backend/src/isp/routers/search.py` | Derive `query_by` from `field_config` |
-| `backend/src/isp/services/infra/typesense_client.py` | Add `get_all_fields()`, `update_field_properties()` |
-| `frontend/src/components/sources/FieldsTab.svelte` | New component |
-| `frontend/src/components/sources/IndexDetail.svelte` | Add fields tab to union, array, and body |
-| `frontend/src/lib/services/indexes/IndexService.ts` | Add `getFields()`, `updateField()` |
-| `frontend/src/lib/services/indexes/index.model.ts` | Add `FieldEntry`, `FieldConfig` types |
+| `backend/src/isp/models/index.py` | `field_config: list[dict]` on `IndexMeta` |
+| `backend/src/isp/routers/indexes.py` | `GET /{id}/fields`, `PATCH /{id}/fields/{name}`; `_FIELD_SYSTEM`, `_FIELD_ALWAYS_SEARCHABLE` constants; `field_config` re-applied in `_run_rebuild` |
+| `backend/src/isp/routers/search.py` | Derives `ts_query_by` from `field_config` at request time |
+| `backend/src/isp/services/infra/typesense_client.py` | `get_all_fields()`, `update_field_properties()`, `query_by` param on `search_documents` and `search_with_vec` |
+| `frontend/src/components/sources/FieldsTab.svelte` | Fields tab UI with toggle controls |
+| `frontend/src/components/sources/IndexDetail.svelte` | Mounts `<FieldsTab>` on `tab === 'fields'` |
+| `frontend/src/lib/services/indexes/IndexService.ts` | `getFields()`, `updateField()` |
+| `frontend/src/lib/repository/IndexRepository.ts` | `getFields()`, `updateField()` HTTP delegation |
+| `frontend/src/lib/api.ts` | `getFields()`, `updateField()` fetch calls |
+| `frontend/src/lib/types/index.types.ts` | `FieldEntry`, `FieldConfig` interfaces |
