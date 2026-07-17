@@ -25,6 +25,7 @@ bootstrap_secrets()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router, analytics, chat as chat_router_module
 from isp.routers import auth as auth_router_module, api_keys as api_keys_router_module
 from isp.routers.admin import router as admin_router
@@ -215,6 +216,11 @@ app.include_router(admin_router, prefix="/v1/admin")
 app.include_router(auth_router_module.router)
 app.include_router(api_keys_router_module.router, prefix="/v1")
 app.include_router(chat_router_module.router, prefix="/v1")
+
+
+_DATA_DIR = Path("/app/data")
+if _DATA_DIR.is_dir():
+    app.mount("/data", StaticFiles(directory=str(_DATA_DIR)), name="data")
 
 
 @app.get("/health")

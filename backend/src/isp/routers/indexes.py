@@ -589,6 +589,25 @@ async def get_index_fields(idx_id: str):
     return {"fields": schema_fields}
 
 
+@router.get("/{idx_id}/fields/public", summary="Get facet-enabled fields — no auth", tags=["public"])
+async def get_index_fields_public(idx_id: str):
+    """Return only the fields that have facet=true, for public consumers like the PLP."""
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    schema_fields = ts.get_all_fields(meta.id)
+    if not schema_fields:
+        return {"fields": []}
+    cfg_by_name = {fc["name"]: fc for fc in (meta.field_config or [])}
+    for f in schema_fields:
+        stored = cfg_by_name.get(f["name"], {})
+        f["searchable"] = stored.get("searchable", f["name"] in _FIELD_ALWAYS_SEARCHABLE)
+        if f["name"] in _FIELD_ALWAYS_SEARCHABLE:
+            f["searchable"] = True
+    facet_fields = [f for f in schema_fields if f.get("facet")]
+    return {"fields": facet_fields}
+
+
 @router.patch("/{idx_id}/fields/{field_name}", summary="Update field properties")
 async def update_index_field(idx_id: str, field_name: str, body: FieldUpdate):
     """
