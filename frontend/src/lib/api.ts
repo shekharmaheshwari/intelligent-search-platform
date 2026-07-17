@@ -11,7 +11,7 @@ import type {
   RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig,
   ExtensionMeta, IndexExtension, AppSettings,
   Suggestion, SuggestionsResponse,
-  MappingConfig,
+  MappingConfig, FieldEntry, FieldConfig,
 } from './types';
 
 const BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8001/v1';
@@ -491,4 +491,13 @@ export const api = {
 
   getBoostRuleFields: (indexId: string) =>
     req<{ fields: string[] }>(`/indexes/${indexId}/boost-rules/fields`),
+
+  getFields: (indexId: string) =>
+    req<{ fields: FieldEntry[] }>(`/indexes/${indexId}/fields`),
+
+  updateField: (indexId: string, fieldName: string, patch: Partial<FieldConfig>) =>
+    req<FieldEntry>(`/indexes/${indexId}/fields/${encodeURIComponent(fieldName)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
 };

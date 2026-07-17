@@ -98,6 +98,13 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
             def ctx_hook(scores: dict, all_docs: dict) -> None:  # noqa: F811
                 ts.apply_boost_rules(scores, all_docs, _rules, query=_query)
 
+    # Build query_by from field_config searchable entries (title+content always included).
+    _extra_qb = [
+        fc["name"] for fc in (meta.field_config or [])
+        if fc.get("searchable") and fc["name"] not in {"title", "content"}
+    ]
+    ts_query_by: str | None = ("title,content," + ",".join(_extra_qb)) if _extra_qb else None
+
     ts_filter: str | None = None
     if not meta.is_external:
         _parts = [
@@ -122,7 +129,8 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
         last_raw: dict = {}
         for _p in range(1, _MAX_BROWSE_PAGES + 1):
             _raw = ts.search_documents(meta.id, req.q, "lexical", _p, _FILTER_BATCH,
-                                       exclude_vec=exclude_vec, filter_by=ts_filter)
+                                       exclude_vec=exclude_vec, filter_by=ts_filter,
+                                       query_by=ts_query_by)
             last_raw = _raw
             page_hits = _raw.get("hits", [])
             if not page_hits:
@@ -189,17 +197,20 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
                 post_rrf_hook=ctx_hook,
                 filter_by=ts_filter,
                 pinned_hits=pinned or None,
+                query_by=ts_query_by,
             )
         else:
             raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
                                       exclude_vec=exclude_vec, post_rrf_hook=ctx_hook,
                                       filter_by=ts_filter,
-                                      pinned_hits=pinned or None)
+                                      pinned_hits=pinned or None,
+                                      query_by=ts_query_by)
     else:
         raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
                                   exclude_vec=exclude_vec, post_rrf_hook=ctx_hook,
                                   filter_by=ts_filter,
-                                  pinned_hits=pinned or None)
+                                  pinned_hits=pinned or None,
+                                  query_by=ts_query_by)
 
     return raw
 

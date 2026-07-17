@@ -1,3 +1,4 @@
+import type { FieldEntry, FieldConfig } from '../types';
 import type {
   IndexMeta, IngestStatus, SearchResult,
   RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig,
@@ -169,6 +170,14 @@ export class IndexRepository {
    */
   saveMapping(indexId: string, cfg: MappingConfig): Promise<IndexMeta> {
     return api.saveMapping(indexId, cfg);
+  }
+
+  getFields(indexId: string): Promise<{ fields: FieldEntry[] }> {
+    return api.getFields(indexId);
+  }
+
+  updateField(indexId: string, fieldName: string, patch: Partial<FieldConfig>): Promise<FieldEntry> {
+    return api.updateField(indexId, fieldName, patch);
   }
 }
 
