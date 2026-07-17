@@ -555,6 +555,102 @@ async def update_affinity_dimensions(idx_id: str, body: AffinityDimensionUpdate)
     return {"dimensions": body.dimensions, "viewed_item_policy": policy}
 
 
+_FIELD_SYSTEM = {"id", "vec", "indexed_at"}
+_FIELD_ALWAYS_SEARCHABLE = {"title", "content"}
+
+
+class FieldUpdate(BaseModel):
+    facet:       bool | None = None
+    multi_value: bool | None = None
+    searchable:  bool | None = None
+
+
+@router.get("/{idx_id}/fields", summary="Get all fields for an index")
+async def get_index_fields(idx_id: str):
+    """
+    Return all Typesense fields for an ISP-managed index, merged with the stored
+    field_config so the UI reflects both live schema state and operator settings.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    if meta.is_external:
+        raise HTTPException(400, "Field configuration is not available for external indexes")
+    schema_fields = ts.get_all_fields(meta.id)
+    if not schema_fields:
+        return {"fields": []}
+    # Build a lookup from stored field_config
+    cfg_by_name = {fc["name"]: fc for fc in (meta.field_config or [])}
+    for f in schema_fields:
+        stored = cfg_by_name.get(f["name"], {})
+        f["searchable"] = stored.get("searchable", f["name"] in _FIELD_ALWAYS_SEARCHABLE)
+        if f["name"] in _FIELD_ALWAYS_SEARCHABLE:
+            f["searchable"] = True   # always on, cannot be disabled
+    return {"fields": schema_fields}
+
+
+@router.patch("/{idx_id}/fields/{field_name}", summary="Update field properties")
+async def update_index_field(idx_id: str, field_name: str, body: FieldUpdate):
+    """
+    Toggle facet, multi-value, or searchable on a single field.
+
+    Facet and multi-value changes apply immediately via a Typesense schema update
+    (drop + re-add — data is preserved).  Searchable is stored in ISP metadata and
+    takes effect on the next search call without any schema change.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    if meta.is_external:
+        raise HTTPException(400, "Field configuration is not available for external indexes")
+    if field_name in _FIELD_SYSTEM:
+        raise HTTPException(400, f"'{field_name}' is a system field and cannot be modified")
+    if field_name in _FIELD_ALWAYS_SEARCHABLE and body.searchable is False:
+        raise HTTPException(400, f"'{field_name}' is always searchable and cannot be disabled")
+
+    # Get current schema state for the field
+    schema_fields = ts.get_all_fields(meta.id)
+    field_map = {f["name"]: f for f in schema_fields}
+    if field_name not in field_map:
+        raise HTTPException(404, f"Field '{field_name}' not found in schema")
+    current = field_map[field_name]
+
+    # Resolve new values, defaulting to current state
+    new_facet       = body.facet       if body.facet       is not None else current["facet"]
+    new_multi_value = body.multi_value if body.multi_value is not None else current["multi_value"]
+
+    # Apply schema change if facet or multi_value changed
+    if body.facet is not None or body.multi_value is not None:
+        try:
+            ts.update_field_properties(
+                meta.id, field_name,
+                facet=new_facet,
+                multi_value=new_multi_value,
+                current_type=current["type"],
+            )
+        except Exception as e:
+            raise HTTPException(500, f"Schema update failed: {e}")
+
+    # Persist searchable + any facet/multi_value change into field_config
+    cfg_list = [fc for fc in (meta.field_config or []) if fc.get("name") != field_name]
+    entry: dict = {"name": field_name, "facet": new_facet, "multi_value": new_multi_value}
+    if body.searchable is not None:
+        entry["searchable"] = body.searchable
+    else:
+        existing = next((fc for fc in (meta.field_config or []) if fc.get("name") == field_name), {})
+        entry["searchable"] = existing.get("searchable", field_name in _FIELD_ALWAYS_SEARCHABLE)
+    cfg_list.append(entry)
+    meta.field_config = cfg_list
+    await index_service.update_index(meta)
+
+    # Return the refreshed field
+    refreshed = ts.get_all_fields(meta.id)
+    refreshed_map = {f["name"]: f for f in refreshed}
+    result = refreshed_map.get(field_name, current)
+    result["searchable"] = entry["searchable"]
+    return result
+
+
 @router.get("/{idx_id}/boost-rules", summary="Get boost rules for an index")
 async def get_boost_rules(idx_id: str):
     """Return the current boost rules config for this index."""
@@ -1213,6 +1309,29 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             meta.collection_name = f"isp_{idx_id}"
             meta.connectors = [cfg_dict]
             await index_service.update_index(meta)
+
+        # Re-apply operator field config after rebuild recreates the collection.
+        # Non-critical: schema defaults are still usable if this step fails.
+        if not meta.is_external and meta.field_config:
+            try:
+                schema_fields = ts.get_all_fields(meta.id)
+                schema_map = {f["name"]: f for f in schema_fields}
+                for fc in meta.field_config:
+                    fname = fc.get("name", "")
+                    if fname not in schema_map or fname in _FIELD_SYSTEM:
+                        continue
+                    current = schema_map[fname]
+                    want_facet = fc.get("facet", current["facet"])
+                    want_multi = fc.get("multi_value", current["multi_value"])
+                    if want_facet != current["facet"] or want_multi != current["multi_value"]:
+                        ts.update_field_properties(
+                            meta.id, fname,
+                            facet=want_facet,
+                            multi_value=want_multi,
+                            current_type=current["type"],
+                        )
+            except Exception:
+                pass
 
         # Seed the search_suggestions collection from newly indexed documents.
         # Non-critical: a failure here must never abort a successful rebuild.

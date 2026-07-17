@@ -167,6 +167,22 @@ export interface DocumentItem {
   [key: string]: unknown;
 }
 
+/** Operator-configured properties for a single Typesense field. */
+export interface FieldConfig {
+  facet:       boolean;
+  multi_value: boolean;
+  searchable:  boolean;
+}
+
+/** One field entry returned by GET /indexes/{id}/fields. */
+export interface FieldEntry extends FieldConfig {
+  name:     string;
+  type:     string;
+  optional: boolean;
+  /** True for internal ISP fields (id, vec, indexed_at) — not editable. */
+  system:   boolean;
+}
+
 /**
  * Connector mapping config sent to ``PUT /v1/indexes/{id}/connectors/mapping``.
  * ``field_map`` renames source keys before indexing; ``value_map`` rewrites field
