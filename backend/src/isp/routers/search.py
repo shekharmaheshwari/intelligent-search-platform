@@ -105,6 +105,12 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     ]
     ts_query_by: str | None = ("title,content," + ",".join(_extra_qb)) if _extra_qb else None
 
+    # Derive facet_by dynamically from schema — no hardcoding
+    ts_facet_fields: list[str] = [
+        f for f in ts.get_facet_fields(meta.id)
+        if f not in _FACET_EXCLUDE
+    ] if not meta.is_external else []
+
     ts_filter: str | None = None
     if not meta.is_external:
         _parts = [
@@ -130,7 +136,8 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
         for _p in range(1, _MAX_BROWSE_PAGES + 1):
             _raw = ts.search_documents(meta.id, req.q, "lexical", _p, _FILTER_BATCH,
                                        exclude_vec=exclude_vec, filter_by=ts_filter,
-                                       query_by=ts_query_by)
+                                       query_by=ts_query_by,
+                                       facet_fields=ts_facet_fields if _p == 1 else None)
             last_raw = _raw
             page_hits = _raw.get("hits", [])
             if not page_hits:
@@ -158,12 +165,14 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
 
         total = last_raw.get("found", len(all_hits))
         start = (req.page - 1) * req.per_page
-        return {
+        result: dict = {
             **last_raw,
             "hits":  all_hits[start : start + req.per_page],
             "found": total,
             "page":  req.page,
         }
+        # facet_counts come from page 1 (captured in last_raw only if _p==1 ever set them)
+        return result
 
     # ── Standard path — single Typesense call ────────────────────────────────
     # filter_by is handled natively; Typesense paginates on its own.
@@ -198,19 +207,22 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
                 filter_by=ts_filter,
                 pinned_hits=pinned or None,
                 query_by=ts_query_by,
+                facet_fields=ts_facet_fields or None,
             )
         else:
             raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
                                       exclude_vec=exclude_vec, post_rrf_hook=ctx_hook,
                                       filter_by=ts_filter,
                                       pinned_hits=pinned or None,
-                                      query_by=ts_query_by)
+                                      query_by=ts_query_by,
+                                      facet_fields=ts_facet_fields or None)
     else:
         raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
                                   exclude_vec=exclude_vec, post_rrf_hook=ctx_hook,
                                   filter_by=ts_filter,
                                   pinned_hits=pinned or None,
-                                  query_by=ts_query_by)
+                                  query_by=ts_query_by,
+                                  facet_fields=ts_facet_fields or None)
 
     return raw
 

@@ -34,6 +34,7 @@ _PUBLIC_API_PREFIXES = (
 )
 _SEARCH_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/search/public$")
 _FACETS_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/facets$")
+_FIELDS_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/fields/public$")
 _CHAT_PUBLIC    = re.compile(r"^/v1/indexes/[^/]+/chat$")   # PLP-facing, called by end users
 
 
@@ -61,8 +62,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(p) for p in _PUBLIC_API_PREFIXES):
             return await call_next(request)
 
-        # Public search, facets, and chat endpoints — open without auth
-        if _SEARCH_PUBLIC.match(path) or _FACETS_PUBLIC.match(path) or _CHAT_PUBLIC.match(path):
+        # Public search, facets, fields, and chat endpoints — open without auth
+        if _SEARCH_PUBLIC.match(path) or _FACETS_PUBLIC.match(path) or _FIELDS_PUBLIC.match(path) or _CHAT_PUBLIC.match(path):
             return await call_next(request)
 
         # Admin routes — JWT
