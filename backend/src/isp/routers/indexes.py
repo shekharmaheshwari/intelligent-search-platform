@@ -558,32 +558,18 @@ async def update_affinity_dimensions(idx_id: str, body: AffinityDimensionUpdate)
 _FIELD_SYSTEM = {"id", "vec", "indexed_at"}
 _FIELD_ALWAYS_SEARCHABLE = {"title", "content"}
 
-# Fields skipped when enriching the embedding text with structured attributes.
-_EMBED_SKIP = {"id", "vec", "title", "content", "url", "source_type",
-               "indexed_at", "metadata", "image_url", "image", "images",
-               "thumbnail", "url_name", "boost_queries_equal",
-               "boost_queries_contains"}
-
-
-def _build_embed_text(doc: dict, chat_field_names: set[str]) -> str:
+def _build_embed_text(doc: dict) -> str:
     """Build the text to embed for a document.
 
-    Always includes title + content.  When the index has operator-configured
-    chat fields (field_config entries with chat=True), their values are
-    appended so that semantic search can match attribute-specific queries
-    (e.g. "pet safe plants" → finds documents where pet_safety_label='Pet safe').
+    Uses chatContent (built by the JS extension at index time) when present —
+    it already contains all structured, labelled attributes for this index type.
+    Falls back to title + content for indexes without an extension assigned.
     """
-    parts = [doc.get("title", ""), doc.get("content", "")]
-    for name in chat_field_names:
-        if name in _EMBED_SKIP:
-            continue
-        val = doc.get(name)
-        if val is None or val == "":
-            continue
-        if isinstance(val, (list, dict)):
-            continue
-        parts.append(str(val))
-    return " ".join(p for p in parts if p).strip()
+    return " ".join(p for p in [
+        doc.get("title", ""),
+        doc.get("content", ""),
+        doc.get("chatContent", ""),
+    ] if p).strip()
 
 
 class FieldUpdate(BaseModel):
@@ -982,12 +968,9 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
         # Use this index's dedicated model, or fall back to the global active model.
         effective_model = (meta.embed_model if meta else "") or embedding_service.get_current_model()
 
-        # Include chat-flagged structured fields in the embedding text so that
-        # semantic search can match attribute-specific queries (e.g. "pet safe plants").
-        _chat_fns: set[str] = {fc["name"] for fc in ((meta.field_config or []) if meta else []) if fc.get("chat")}
         # Only embed docs that have non-empty text; skip the rest to avoid
         # empty-string rejections from the embedding provider.
-        raw_texts = [_build_embed_text(d, _chat_fns) for d in docs]
+        raw_texts = [_build_embed_text(d) for d in docs]
         embed_idxs = [i for i, t in enumerate(raw_texts) if t]
         if embed_idxs:
             vecs = await embedding_service.embed_texts(
@@ -1232,8 +1215,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
-            _chat_fns_r: set[str] = {fc["name"] for fc in (meta.field_config or []) if fc.get("chat")}
-            raw_texts = [_build_embed_text(d, _chat_fns_r) for d in docs]
+            raw_texts = [_build_embed_text(d) for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
                 vecs = await embedding_service.embed_texts(
@@ -1281,8 +1263,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
-            _chat_fns_r: set[str] = {fc["name"] for fc in (meta.field_config or []) if fc.get("chat")}
-            raw_texts = [_build_embed_text(d, _chat_fns_r) for d in docs]
+            raw_texts = [_build_embed_text(d) for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
                 vecs = await embedding_service.embed_texts(
@@ -1345,8 +1326,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
-            _chat_fns_r: set[str] = {fc["name"] for fc in (meta.field_config or []) if fc.get("chat")}
-            raw_texts = [_build_embed_text(d, _chat_fns_r) for d in docs]
+            raw_texts = [_build_embed_text(d) for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
                 vecs = await embedding_service.embed_texts(

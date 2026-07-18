@@ -106,31 +106,17 @@ as searchable, and the runtime query_by builder skips them as a final safety net
 
 ### Chat toggle
 
-Controls two things at once:
+> **Note:** The Chat toggle was previously the primary control for LLM context and embedding enrichment. This responsibility has moved to **JS extensions** (`chat_content_*.js`). The toggle is retained in the UI for reference but is no longer read by the chat pipeline.
 
-1. **LLM context** — when `chat: true`, the field's value appears as a labelled
-   line in the system prompt sent to the LLM for every chat message:
-   ```
-   1. Peperomia Lima
-      Pet Safety Label: Pet safe
-      Care Difficulty: Easy
-      Description: ...
-   ```
+The chat context and embedding text are now owned by the `chatContent` field, which is built by the extension assigned to each index at rebuild time. See `docs/chat-rag.md` §16 for the full design.
 
-2. **Embedding enrichment** — at rebuild time, the field's value is appended to
-   the text that gets embedded into the `vec` vector. This lets semantic search
-   correctly find documents when the user asks attribute-specific questions
-   (e.g. "pet safe plants" → finds documents where pet_safety_label = "Pet safe").
+What the toggle still does:
+- Records operator intent in `field_config` — useful as documentation of which fields are "important for chat"
+- May be used by future tooling to auto-generate or validate extensions
 
-**Applies:** LLM context change is immediate. Embedding enrichment takes effect
-on the next index rebuild.
-
-Default: `title` and `content` are always included in the chat context and in
-the embedding text regardless of this toggle. The Chat toggle controls additional
-structured attribute fields only.
-
-Fields in the exclusion list (`image_url`, `image`, `images`, `thumbnail`, `url`,
-`url_name`) are never rendered in the LLM context even if Chat is enabled.
+What it no longer does:
+- Does **not** affect the LLM context directly (the extension writes `chatContent`, which the service reads)
+- Does **not** affect embedding enrichment directly (the extension runs before embedding; `_build_embed_text` reads `chatContent`)
 
 ---
 
@@ -377,19 +363,19 @@ updateField(indexId: string, fieldName: string, config: Partial<FieldConfig>): P
 
 [Rebuild runs]
   → collection dropped + recreated
-  → chat_field_names derived from field_config (chat: true entries)
-  → documents indexed with enriched embedding text:
-      f"{title} {content} {pet_safety_label_value} {care_difficulty_value} ..."
+  → JS extensions run in run_order (catalog_mapper → version_score → chat_content_*)
+  → chat_content extension stamps doc.chatContent on each document
+  → embedding text = title + content + chatContent  ← _build_embed_text()
+  → documents indexed with enriched embedding vectors
   → meta.field_config iterated
   → update_field_properties() called for each configured field
   → schema matches stored settings
 
 [Chat request arrives]
-  → chat.py router calls index_service.get_index(index_id)
-  → derives chat_fields, query_by, query_by_weights, facet_query_by from field_config
-  → passes as plain values to service.chat_stream()
-  → service runs 3-pass multi_search (lex-all, lex-facets, semantic) → RRF merge
-  → builds LLM context from chat_fields
+  → chat.py router reads field_config for searchable fields only (query_by/weights)
+  → facet_query_by = "chatContent"  ← always, no field inspection needed
+  → service runs 3-pass multi_search (lex-all, lex-chatContent, semantic) → RRF merge
+  → LLM context = doc.get("chatContent") or doc.get("content")  ← extension owns this
   → streams LLM response
 ```
 
