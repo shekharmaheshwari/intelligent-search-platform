@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat RAG — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#141414;
+      --border:#222;--border2:#1a1a1a;
+      --text:#eee;--text-h2:#ccc;--text-h3:#aaa;--text-p:#777;--text-td:#888;
+      --text-muted:#555;--text-faint:#444;--text-ghost:#333;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#b4a4f8;--pre-fg:#bbb;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f0f0f8;
+      --border:#ddd;--border2:#e8e8ed;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#666;
+      --text-muted:#666;--text-faint:#888;--text-ghost:#aaa;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;--pre-fg:#444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1060px; margin: 0 auto; padding: 48px 32px 80px; gap: 48px; }
+    nav.sidebar { flex-shrink: 0; width: 200px; }
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 24px; }
+    nav.sidebar li a { display: block; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: var(--text-muted); text-decoration: none; line-height: 1.4; }
+    nav.sidebar li a:hover { color: var(--text); background: var(--bg-hover); }
+    nav.sidebar li a.active { color: var(--accent); background: var(--accent-dim); }
+    .content { flex: 1; min-width: 0; }
+    h1 { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 17px; font-weight: 600; color: var(--text-h2); margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 22px 0 8px; }
+    h4 { font-size: 13px; font-weight: 600; color: var(--text-h3); margin: 18px 0 6px; }
+    p { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; }
+    ol, ul { font-size: 14px; color: var(--text-p); line-height: 1.8; margin-left: 20px; margin-bottom: 16px; }
+    li { margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th { text-align: left; padding: 9px 14px; background: var(--bg3); color: var(--text-h3); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border2); color: var(--text-td); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); overflow-x: auto; line-height: 1.6; margin-bottom: 20px; white-space: pre; }
+    .notice { background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 7px; padding: 14px 16px; font-size: 13px; color: var(--code-fg); line-height: 1.6; margin-bottom: 20px; }
+    .notice strong { color: var(--accent); }
+    .warn { background: #1a120a; border: 1px solid #3a2a10; border-radius: 7px; padding: 14px 16px; font-size: 13px; color: #c9903a; line-height: 1.6; margin-bottom: 20px; }
+    .warn strong { color: #e0aa55; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; margin-left: 8px; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    footer { border-top: 1px solid var(--border2); padding: 24px 32px; text-align: center; font-size: 12px; color: var(--text-ghost); max-width: 1060px; margin: 0 auto; }
+    hr { border: none; border-top: 1px solid var(--border2); margin: 32px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo-icon">⬡</span>
+    <span class="logo-name">Intelligent Search Platform</span>
+    <span class="breadcrumb">
+      <a href="index.html">Docs</a>
+      <span>›</span>
+      <span>Chat RAG</span>
+    </span>
+    <button id="theme-toggle" class="theme-btn" title="Toggle theme">☀</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <ul>
+        <li><a href="#s1">1. Plain LLM Problem</a></li>
+        <li><a href="#s2">2. What is RAG?</a></li>
+        <li><a href="#s3">3. Three Steps of RAG</a></li>
+        <li><a href="#s4">4. Real Examples</a></li>
+        <li><a href="#s5">5. Vector Embeddings</a></li>
+        <li><a href="#s6">6. Semantic Search</a></li>
+        <li><a href="#s7">7. System Architecture</a></li>
+        <li><a href="#s8">8. UI Design</a></li>
+        <li><a href="#s9">9. Data Flow</a></li>
+        <li><a href="#s10">10. Backend Design</a></li>
+        <li><a href="#s11">11. Frontend Design</a></li>
+        <li><a href="#s12">12. LLM Provider Design</a></li>
+        <li><a href="#s13">13. Settings Panel</a></li>
+        <li><a href="#s14">14. LLM Does / Does Not</a></li>
+        <li><a href="#s15">15. Why This Matters</a></li>
+        <li><a href="#s16">16. chatContent Extension</a></li>
+        <li><a href="#s17">17. Three-Pass Retrieval</a></li>
+        <li><a href="#s18">18. Embedding Enrichment</a></li>
+        <li><a href="#s19">19. Follow-up Detection</a></li>
+        <li><a href="#s20">20. Chat API Reference</a></li>
+      </ul>
+    </nav>
+
+    <div class="content">
+      <h1>💬 Chat RAG</h1>
+      <p class="page-subtitle">End-to-end documentation for ISP conversational chat — why it exists, how it works, full UI design, architecture, data flow, and implementation details.</p>
+
+      <!-- ── Section 1 ── -->
+      <h2 id="s1">1. The Problem with Plain LLM Chat</h2>
+      <p>A large language model (LLM) like ChatGPT, Claude, or Gemini is trained on a massive snapshot of the internet — text from websites, books, and articles up to a certain date. That training gives it general knowledge, but it has no idea what your store sells, what your current prices are, or which products are in stock today.</p>
+      <h3>Without RAG</h3>
+<pre>Customer asks:  "What plants do you have that are safe for cats under $30?"
+
+LLM says:       "I'm not sure what plants your store carries.
+                 Generally, spider plants and Boston ferns are
+                 considered pet-safe and are often affordable."</pre>
+      <p>Two problems:</p>
+      <ul>
+        <li>The LLM is guessing from general knowledge, not your actual inventory</li>
+        <li>If it guesses wrong, the customer may look for a product you do not carry, or miss one you do</li>
+      </ul>
+      <p><strong>The LLM only knows what it was trained on. It has no live connection to your store.</strong></p>
+
+      <!-- ── Section 2 ── -->
+      <h2 id="s2">2. What is RAG?</h2>
+      <p><strong>RAG = Retrieval Augmented Generation</strong></p>
+      <table>
+        <thead><tr><th>Word</th><th>Plain English</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Retrieval</strong></td><td>Look up relevant products from your database</td></tr>
+          <tr><td><strong>Augmented</strong></td><td>Add those products to the AI's prompt as context</td></tr>
+          <tr><td><strong>Generation</strong></td><td>The AI writes its answer using that real data</td></tr>
+        </tbody>
+      </table>
+      <p>The simplest analogy: <strong>a well-trained employee with a product catalog.</strong></p>
+      <p>A new employee on their first day does not know every product in the store. But if you hand them a catalog and tell them "look it up before you answer," they can give accurate answers to any customer question.</p>
+      <ul>
+        <li><strong>Without RAG</strong> — the AI answers from memory (may be wrong or outdated)</li>
+        <li><strong>With RAG</strong> — the AI looks up the answer in your product index first, then answers</li>
+      </ul>
+      <p>Your Typesense index is the catalog. The LLM is the employee. RAG is the act of handing them the catalog before they speak.</p>
+
+      <!-- ── Section 3 ── -->
+      <h2 id="s3">3. The Three Steps of RAG</h2>
+      <p>Every chat message goes through three steps before the customer sees a response:</p>
+<pre>Customer: "What plants are safe for cats under $30?"
+                    │
+                    ▼
+        ┌───────────────────────────┐
+        │     Step 1: RETRIEVE      │
+        │                           │
+        │  Convert question into a  │
+        │  1024-d vector via        │
+        │  Voyage AI embedding      │
+        │                           │
+        │  Run three passes on      │
+        │  Typesense index:         │
+        │  - lex-all: BM25 over     │
+        │    all searchable fields  │
+        │  - lex-facets: BM25 over  │
+        │    facet label fields     │
+        │    (exact-word, no typos) │
+        │  - semantic: vector kNN   │
+        │    over vec field         │
+        │                           │
+        │  Merge via RRF, top 5     │
+        └───────────┬───────────────┘
+                    │
+                    │  Retrieved products:
+                    │  1. Spider Plant   – $18 – pet safe ✓
+                    │  2. Boston Fern    – $22 – pet safe ✓
+                    │  3. Calathea       – $28 – pet safe ✓
+                    │  4. Areca Palm     – $29 – pet safe ✓
+                    │  5. Peperomia      – $15 – pet safe ✓
+                    │
+                    ▼
+        ┌───────────────────────────┐
+        │     Step 2: AUGMENT       │
+        │                           │
+        │  Build a system prompt    │
+        │  that includes:           │
+        │  - Role instruction       │
+        │  - The 5 retrieved        │
+        │    products as context    │
+        │  - The customer's         │
+        │    question               │
+        │                           │
+        │  Send full prompt to LLM  │
+        └───────────┬───────────────┘
+                    │
+                    ▼
+        ┌───────────────────────────┐
+        │     Step 3: GENERATE      │
+        │                           │
+        │  LLM reads the real       │
+        │  product data and writes  │
+        │  a helpful, accurate,     │
+        │  conversational answer    │
+        │                           │
+        │  Streams tokens back to   │
+        │  the browser as SSE       │
+        └───────────┬───────────────┘
+                    │
+                    ▼
+        "Great news — we have several pet-safe
+         plants under $30! The Spider Plant ($18)
+         and Peperomia ($15) are perfect beginner
+         options. Boston Fern ($22) and Calathea
+         ($28) are more dramatic choices."
+
+         [Spider Plant $18] [Peperomia $15]
+         [Boston Fern $22]  [Calathea $28]</pre>
+      <p>The LLM never guesses. It only uses the products you handed it.</p>
+
+      <!-- ── Section 4 ── -->
+      <h2 id="s4">4. Real Examples</h2>
+
+      <h3>Example A — Plant Store (Pet Safety Question)</h3>
+      <h4>Without RAG</h4>
+<pre>Customer:  "Do you have any trailing plants that are easy to care for?"
+
+LLM:       "Pothos and Tradescantia are popular trailing plants
+            that are generally easy to care for."
+
+            ← Generic internet advice. The LLM has no idea what
+              the store carries or whether those plants are in stock.</pre>
+      <h4>With RAG</h4>
+<pre>Customer:  "Do you have any trailing plants that are easy to care for?"
+
+Step 1 — Typesense retrieves:
+  • Pothos Golden     – $14 – growth_style: trailing – difficulty: beginner
+  • Hoya Carnosa      – $24 – growth_style: trailing – difficulty: easy
+  • String of Pearls  – $19 – growth_style: trailing – difficulty: moderate
+
+Step 2 — These products are added to the prompt
+
+Step 3 — LLM answers:
+  "Yes! We have three great trailing options.
+   Pothos Golden ($14) is nearly impossible to kill
+   — perfect for beginners. Hoya Carnosa ($24) is
+   easy to care for and produces beautiful waxy
+   blooms. String of Pearls ($19) is a showstopper
+   but needs a little more attention."
+
+  [Pothos Golden $14] [Hoya Carnosa $24] [String of Pearls $19]</pre>
+
+      <h3>Example B — Plant Store (No Match Scenario)</h3>
+<pre>Customer:  "Do you have any bonsai trees?"
+
+Step 1 — Typesense finds 0 matching products
+          (store does not carry bonsai)
+
+Step 2 — Prompt tells LLM: no products found
+
+Step 3 — LLM answers:
+  "We don't currently carry bonsai trees. If you're
+   looking for a compact, sculptural plant, I could
+   suggest some alternatives — would you like to see
+   those?"
+
+  (No product cards shown — nothing to display)</pre>
+      <p>Without RAG, the LLM might invent a bonsai product that does not exist.</p>
+
+      <h3>Example C — Phone Store (Budget + Use Case)</h3>
+      <h4>Without RAG</h4>
+<pre>Customer:  "What's a good Samsung phone for gaming under $800?"
+
+LLM:       "The Samsung Galaxy S23 is a solid gaming phone."
+
+            ← Training data from last year. Store might not carry S23.
+              Price might be wrong. Newer model might be available.</pre>
+      <h4>With RAG</h4>
+<pre>Customer:  "What's a good Samsung phone for gaming under $800?"
+
+Step 1 — Typesense retrieves:
+  • Galaxy S24+   – $799 – Samsung – snapdragon 8 Gen 3, 120Hz display
+  • Galaxy S24 FE – $649 – Samsung – gaming optimised, 6.7" display
+  • Galaxy A55 5G – $449 – Samsung – gaming mode, 5000mAh battery
+
+Step 2 — Products added to prompt
+
+Step 3 — LLM answers:
+  "For gaming under $800 we have three great Samsung
+   options. The S24+ ($799) is the most powerful —
+   top-tier chipset, brilliant 120Hz display, ideal
+   for demanding games. The S24 FE ($649) is a great
+   mid-range pick with solid performance. If budget
+   is the priority, the A55 ($449) has a dedicated
+   gaming mode and impressive battery life."
+
+  [Galaxy S24+ $799] [Galaxy S24 FE $649] [Galaxy A55 $449]</pre>
+
+      <h3>Example D — Follow-up Conversation (Multi-turn)</h3>
+<pre>Turn 1:
+  Customer:   "Show me pet safe plants"
+  Assistant:  "Here are our pet-safe options..."
+              [Spider Plant] [Boston Fern] [Calathea]
+
+Turn 2:
+  Customer:   "Which of those is cheapest?"
+
+  → The full conversation history is sent with Turn 2
+  → LLM knows what "those" refers to (the plants from Turn 1)
+
+  Assistant:  "The Spider Plant at $18 is the most affordable
+               of the three I mentioned."</pre>
+      <p>The chat history travels with every request so the LLM can handle follow-up questions naturally.</p>
+
+      <!-- ── Section 5 ── -->
+      <h2 id="s5">5. How Vector Embeddings Power Chat Retrieval</h2>
+      <p>This section answers: <strong>why does RAG chat use the same Voyage AI embeddings as search, and what exactly are those embeddings doing?</strong></p>
+
+      <h3>What is a vector embedding?</h3>
+      <p>A vector embedding is a list of numbers that represents the <em>meaning</em> of a piece of text. Two sentences that mean the same thing — even if worded completely differently — produce similar lists of numbers.</p>
+<pre>"safe for pets"          → [0.23, -0.14,  0.87, 0.11, -0.63, ...]   ← 1024 numbers
+"non-toxic to animals"   → [0.21, -0.13,  0.85, 0.10, -0.61, ...]   ← almost identical
+"best gaming phone"      → [-0.55, 0.67, -0.21, 0.90,  0.14, ...]   ← completely different</pre>
+      <p>The model that produces these numbers is <strong>Voyage AI</strong> (specifically <code>voyage-3</code> or <code>voyage-3-lite</code>). It was trained on billions of sentences to learn that "safe for pets" and "non-toxic to animals" share meaning, even though they share only one word.</p>
+
+      <h3>How embeddings are created at index time</h3>
+<pre>Spider Plant product document
+│
+│  title:   "Spider Plant"
+│  content: "Air-purifying trailing plant. Safe for cats
+│            and dogs. Thrives in indirect light. Great
+│            for beginners."
+│
+▼  Voyage AI embed_document()
+│
+│  vec: [0.23, -0.14, 0.87, 0.11, -0.63, 0.40, ...]   ← 1024 numbers
+│
+▼  Stored in Typesense
+│
+│  {
+│    "id":     "plant-001",
+│    "title":  "Spider Plant",
+│    "content": "Air-purifying trailing...",
+│    "vec":    [0.23, -0.14, 0.87, ...]         ← the vector lives here
+│  }</pre>
+
+      <h3>How embeddings are used at chat time</h3>
+<pre>Customer types: "What plants won't hurt my cat?"
+
+Voyage AI embed_query()
+    │
+    ▼
+[0.21, -0.13, 0.85, 0.09, -0.60, 0.39, ...]   ← 1024 numbers
+
+This vector is compared against every product vector in Typesense.</pre>
+      <p>The comparison finds products whose vectors are numerically closest to the question vector. Because "won't hurt my cat" and "safe for cats and dogs" were embedded by the same model, their vectors are close — and Spider Plant is retrieved.</p>
+
+      <h3>The math behind vector similarity</h3>
+      <p>Typesense uses <strong>HNSW</strong> (Hierarchical Navigable Small World) — a graph-based index that makes approximate nearest-neighbor search fast even with millions of products.</p>
+<pre>cosine_similarity(query_vec, product_vec) =
+    (query_vec · product_vec) / (|query_vec| × |product_vec|)
+
+Range: -1 (opposite meaning) to +1 (identical meaning)</pre>
+
+      <h3>Hybrid search: vector + keyword combined</h3>
+      <p>Chat retrieval combines both signals using <strong>Reciprocal Rank Fusion (RRF)</strong>:</p>
+<pre>Customer asks: "monstera thai constellation price"
+
+Keyword search ranks:
+  1. Monstera Thai Constellation  ← exact title match
+  2. Monstera Deliciosa
+  3. Monstera Adansonii
+
+Vector search ranks:
+  1. Monstera Thai Constellation  ← semantic match
+  2. Monstera Albo Variegata      ← visually similar plant
+  3. Monstera Deliciosa
+
+RRF combines both:
+  Monstera Thai Constellation  → score 0.98  ← appears #1 in both lists
+  Monstera Deliciosa           → score 0.71  ← appears in both, lower
+  Monstera Adansonii           → score 0.54  ← keyword only
+  Monstera Albo Variegata      → score 0.48  ← vector only</pre>
+
+      <h3>Why the same embeddings work for both search and chat</h3>
+      <table>
+        <thead><tr><th>Feature</th><th>Where embedding is used</th></tr></thead>
+        <tbody>
+          <tr><td>Semantic search bar</td><td>Embed the search query → find visually/semantically matching products</td></tr>
+          <tr><td>RAG chat retrieval</td><td>Embed the chat question → find contextually matching products to give to the LLM</td></tr>
+        </tbody>
+      </table>
+      <p>If you change the embedding model, you would need to re-index all products with the new model. The LLM provider can be swapped freely without touching the embeddings.</p>
+
+      <h3>Why the LLM never sees the vectors</h3>
+<pre>Step 1 — Retrieval (Typesense + Voyage AI):
+  [0.21, -0.13, 0.85, ...]  ← vector is used here, then discarded
+
+Step 2 — Context building:
+  "1. Spider Plant — $18 — Safe for cats and dogs. Trailing. Beginner-friendly."
+                        ← plain text extracted from the product document
+
+Step 3 — LLM receives plain text only:
+  [system prompt with product text]
+  [customer's question in plain text]</pre>
+      <p>Vectors are a retrieval tool, not a representation the LLM uses. The LLM receives the same plain text description a human would read on the product page. The vector's job is finished once Typesense identifies which products are relevant.</p>
+
+      <h3>End-to-end embedding flow</h3>
+<pre>INDEX TIME (once per product)
+─────────────────────────────
+Product title + content
+        │
+        ▼  Voyage AI embed_document()
+        │
+   [1024-d vector]
+        │
+        ▼  stored in Typesense vec field
+
+
+CHAT TIME (every message)
+──────────────────────────
+Customer message: "plants safe for cats under $30"
+        │
+        ▼  Voyage AI embed_query()
+        │
+   [1024-d vector]
+        │
+        ▼  Typesense hybrid search
+        │   - HNSW ANN for vector similarity
+        │   - BM25 for keyword match
+        │   - RRF combines both
+        │
+   Top 5 matching products (plain text, not vectors)
+        │
+        ▼  Built into system prompt
+        │
+   LLM writes answer using product text
+        │
+        ▼  Streams tokens back via SSE
+        │
+   Browser renders product cards + text</pre>
+
+      <!-- ── Section 6 ── -->
+      <h2 id="s6">6. How Semantic Search Makes Retrieval Smarter</h2>
+      <p>Standard keyword search breaks when customers describe what they want in their own words rather than typing the exact product name. Semantic search understands meaning, not just words.</p>
+
+      <h3>Keyword search vs. semantic search in retrieval</h3>
+      <table>
+        <thead><tr><th>Customer types</th><th>Keyword match</th><th>Semantic match</th></tr></thead>
+        <tbody>
+          <tr><td>"plants that won't hurt my cat"</td><td>Fails — "won't hurt" not in any title</td><td>Finds <code>pet_safe: true</code> plants</td></tr>
+          <tr><td>"something easy for my first plant"</td><td>Fails — "first plant" not in titles</td><td>Finds <code>care_difficulty: beginner</code></td></tr>
+          <tr><td>"trailing green thing for a shelf"</td><td>Fails — too vague</td><td>Finds <code>growth_style: trailing</code> plants</td></tr>
+          <tr><td>"low maintenance office plant"</td><td>Partial</td><td>Finds beginner plants + low light plants</td></tr>
+          <tr><td>"budget phone good for photos"</td><td>Partial</td><td>Finds camera-spec phones sorted by price</td></tr>
+          <tr><td>"phone that lasts all day"</td><td>Fails — no product says this</td><td>Finds high battery capacity phones</td></tr>
+          <tr><td>"something like an iPhone but cheaper"</td><td>Fails</td><td>Finds premium Android alternatives</td></tr>
+        </tbody>
+      </table>
+      <p>Semantic search means the retrieval step finds the right products even when the customer's words do not exactly match the product description. The LLM then gets accurate context and writes a helpful answer.</p>
+<pre>"pet safe trailing plant"
+        │
+        ▼  Voyage AI embed_query()
+        │
+  [0.23, -0.14, 0.87, 0.11, ...]  ← 1024 numbers representing meaning
+        │
+        ▼  Typesense ANN search (HNSW index)
+        │
+  Finds vectors closest in meaning:
+    Spider Plant vec:   similarity 0.94  ✓
+    Pothos vec:         similarity 0.91  ✓
+    Snake Plant vec:    similarity 0.88  ✓
+    iPhone case vec:    similarity 0.02  ✗  (different domain entirely)</pre>
+
+      <!-- ── Section 7 ── -->
+      <h2 id="s7">7. Complete System Architecture</h2>
+<pre>┌────────────────────────────────────────────────────────────────────────┐
+│                          BROWSER (PLP)                                 │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  PlantChat.svelte                                                │  │
+│  │                                                                  │  │
+│  │  chatStore.ts ──────── message history, loading state           │  │
+│  │  chatController.ts ─── SSE stream reader, store updater         │  │
+│  └──────────────────────────┬───────────────────────────────────────┘  │
+│                             │  POST /api/v1/indexes/{id}/chat          │
+│                             │  { query, messages[] }                   │
+└─────────────────────────────┼──────────────────────────────────────────┘
+                              │  SSE stream
+                              │  data: {"type":"products","products":[]}
+                              │  data: {"type":"text","content":"Great"}
+                              │  data: [DONE]
+                              │
+┌─────────────────────────────┼──────────────────────────────────────────┐
+│                    ISP BACKEND (FastAPI)                                │
+│                             │                                          │
+│  routers/chat.py ───────────┘                                          │
+│       │  POST /v1/indexes/{index_id}/chat                              │
+│       │  StreamingResponse (text/event-stream)                         │
+│       │                                                                │
+│       ▼                                                                │
+│  services/infra/chat/service.py                                        │
+│       │                                                                │
+│       ├── Step 1: _search_context(query, index_id)                     │
+│       │       │                                                        │
+│       │       ├── embed_query(query)  ──────────────► Voyage AI API   │
+│       │       │   returns 1024-d vector                ◄──────────────│
+│       │       │                                                        │
+│       │       └── typesense.search()  ─────────────►  Typesense       │
+│       │           hybrid: keyword + vector             ◄──────────────│
+│       │           returns top 5 hits                                   │
+│       │                                                                │
+│       ├── Step 2: _system_prompt(context)                              │
+│       │       Assembles: role + product list + question                │
+│       │                                                                │
+│       └── Step 3: route to provider                                    │
+│               │                                                        │
+│               ├── anthropic_chat.py  ──────────────►  Anthropic API   │
+│               ├── google_chat.py     ──────────────►  Gemini API      │
+│               └── openai_compat.py   ──────────────►  OpenAI / Groq   │
+│                                          OR local ►  Ollama / vLLM    │
+│                                                                        │
+│  services/domain/settings_service.py                                   │
+│       chat_provider, chat_model, chat_api_key, chat_endpoint           │
+│       stored in app_settings (Postgres), cached in-process             │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────┼──────────────────────────────────────────┐
+│                    ISP ADMIN UI                                         │
+│                                                                        │
+│  Settings → Chat Model tab                                             │
+│       GET/PUT /v1/settings/chat                                        │
+│       Configure provider, model, API key, endpoint                     │
+└────────────────────────────────────────────────────────────────────────┘</pre>
+
+      <!-- ── Section 8 ── -->
+      <h2 id="s8">8. UI Design</h2>
+
+      <h3>8.1 Floating Chat Button (Closed State)</h3>
+      <p>The chat entry point is a floating action button in the bottom-right corner of the PLP page. It does not disrupt the existing search, filter, or product grid layout.</p>
+<pre>┌─────────────────────────────────────────────────────────────┐
+│  [Search bar                                    ]           │
+│                                                             │
+│  [Filter]  [Sort]                                           │
+│                                                             │
+│  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐               │
+│  │       │  │       │  │       │  │       │                │
+│  │ Plant │  │ Plant │  │ Plant │  │ Plant │                │
+│  │ Card  │  │ Card  │  │ Card  │  │ Card  │                │
+│  └───────┘  └───────┘  └───────┘  └───────┘               │
+│                                                             │
+│  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐               │
+│  │       │  │       │  │       │  │       │                │
+│  │ Plant │  │ Plant │  │ Plant │  │ Plant │                │
+│  │ Card  │  │ Card  │  │ Card  │  │ Card  │                │
+│  └───────┘  └───────┘  └───────┘  └───────┘               │
+│                                                             │
+│                                          ┌───────────────┐ │
+│                                          │ 🤖  Ask AI    │ │
+│                                          └───────────────┘ │
+└─────────────────────────────────────────────────────────────┘</pre>
+      <ul>
+        <li>Background: dark green <code>#2d6a4f</code></li>
+        <li>Text: white, <code>Ask AI</code> label</li>
+        <li>On hover: darkens, lifts 2px</li>
+        <li>On click: opens chat panel, button changes to <code>✕</code></li>
+      </ul>
+
+      <h3>8.2 Chat Panel (Open State — Empty)</h3>
+<pre>                              ┌──────────────────────────────┐
+                              │ 🌿 Plant Expert      [🗑] [✕] │
+                              │ Ask anything about our plants │
+                              ├──────────────────────────────┤
+                              │                              │
+                              │  Hi! I can help you find     │
+                              │  the perfect plant.          │
+                              │                              │
+                              │  Try one of these:           │
+                              │                              │
+                              │ ┌──────────────────────────┐ │
+                              │ │ What plants are safe      │ │
+                              │ │ for cats?                 │ │
+                              │ └──────────────────────────┘ │
+                              │ ┌──────────────────────────┐ │
+                              │ │ Show me low-light options │ │
+                              │ └──────────────────────────┘ │
+                              │ ┌──────────────────────────┐ │
+                              │ │ Easy plants for beginners │ │
+                              │ └──────────────────────────┘ │
+                              │                              │
+                              ├──────────────────────────────┤
+                              │ [ Ask about plants…  ]  [↑] │
+                              └──────────────────────────────┘
+                                              ▲
+                                       [✕  Ask AI]</pre>
+      <p><strong>Panel dimensions:</strong> 380px wide × 560px max height<br>
+      <strong>Position:</strong> fixed, bottom-right, above the FAB button<br>
+      <strong>Animation:</strong> slides up + fades in (0.18s)</p>
+
+      <h3>8.3 Chat Panel — During Conversation</h3>
+<pre>                              ┌──────────────────────────────┐
+                              │ 🌿 Plant Expert      [🗑] [✕] │
+                              │ Ask anything about our plants │
+                              ├──────────────────────────────┤
+                              │                              │
+                              │              What plants are  │
+                              │              safe for cats? 👤│
+                              │                              │
+                              │ 🌿                           │
+                              │  ┌────────┐┌────────┐┌──────┐│
+                              │  │[image] ││[image] ││[img] ││
+                              │  │Spider  ││Boston  ││Calat ││
+                              │  │Plant   ││Fern    ││hea   ││
+                              │  │ $18    ││ $22    ││ $28  ││
+                              │  └────────┘└────────┘└──────┘│
+                              │  ┌────────────────────────┐  │
+                              │  │ Great news — we have   │  │
+                              │  │ several pet-safe plants │  │
+                              │  │ under $30. Spider Plant │  │
+                              │  │ ($18) is perfect for   │  │
+                              │  │ beginners...           │  │
+                              │  └────────────────────────┘  │
+                              │                              │
+                              │              Which is        │
+                              │              cheapest? 👤    │
+                              │                              │
+                              │ 🌿                           │
+                              │  ┌────────────────────────┐  │
+                              │  │ The Spider Plant at    │  │
+                              │  │ $18 is the most        │  │
+                              │  │ affordable option.     │  │
+                              │  └────────────────────────┘  │
+                              │                              │
+                              ├──────────────────────────────┤
+                              │ [ Ask about plants…  ]  [↑] │
+                              └──────────────────────────────┘</pre>
+
+      <h3>8.4 Chat Panel — Typing / Loading State</h3>
+<pre>                              ├──────────────────────────────┤
+                              │              Do you have any  │
+                              │              monstera? 👤     │
+                              │                              │
+                              │ 🌿                           │
+                              │  ┌────────┐┌────────┐        │
+                              │  │[image] ││[image] │        │
+                              │  │Monstera││Monstera│        │
+                              │  │Delicio ││Thai    │        │
+                              │  │ $34    ││ $89    │        │
+                              │  └────────┘└────────┘        │
+                              │  ┌────────────────────────┐  │
+                              │  │  ●  ●  ●               │  │  ← typing indicator
+                              │  └────────────────────────┘  │    (animated dots)
+                              │                              │
+                              ├──────────────────────────────┤
+                              │ [ Ask about plants…  ] [⟳]  │  ← spinner on send button
+                              └──────────────────────────────┘</pre>
+      <p>The product cards render <strong>immediately</strong> when the first SSE chunk arrives (<code>type: products</code>), before the LLM has finished writing. The customer can start reading and clicking product cards while the text streams in.</p>
+
+      <h3>8.5 Product Card Design (Inside Chat)</h3>
+<pre>┌──────────────┐
+│              │   ← 100×100px image (aspect-ratio: 1:1)
+│   [image]    │      object-fit: cover
+│              │      background: #f4f8f5 placeholder
+│              │
+├──────────────┤
+│ Spider Plant │   ← title, 10px, 2-line clamp
+│ $18.00       │   ← price, 10px bold, green
+└──────────────┘</pre>
+      <ul>
+        <li>Cards scroll horizontally if more than 3 fit</li>
+        <li>Each card is a link to the product page (<code>target="_blank"</code>)</li>
+        <li>Hover: lifts 1px, adds shadow</li>
+      </ul>
+
+      <h3>8.6 Message Bubble Design</h3>
+<pre>User bubble (right-aligned):
+                    ┌─────────────────────┐
+                    │  What plants are    │  background: #2d6a4f (dark green)
+                    │  safe for cats?     │  color: white
+                    └─────────────────────┘ 👤
+                              border-bottom-right-radius: 4px (chat tail)
+
+Assistant bubble (left-aligned):
+🌿 ┌─────────────────────┐
+   │  Great news — we   │  background: #f2fbf5 (light green)
+   │  have several...   │  border: 1px solid #d8f3dc
+   └─────────────────────┘
+   border-bottom-left-radius: 4px (chat tail)</pre>
+
+      <h3>8.7 Mobile Layout</h3>
+      <p>On screens narrower than 480px the panel expands to fill the full width:</p>
+<pre>┌───────────────────────────┐
+│ 🌿 Plant Expert   [🗑][✕] │
+│ Ask anything...           │
+├───────────────────────────┤
+│                           │
+│         messages          │
+│                           │
+├───────────────────────────┤
+│ [ Ask about plants… ] [↑] │
+└───────────────────────────┘
+▲
+[✕ Ask AI]  (FAB at bottom right, smaller padding)</pre>
+
+      <!-- ── Section 9 ── -->
+      <h2 id="s9">9. Data Flow — Request to Response</h2>
+
+      <h3>Complete sequence diagram</h3>
+<pre>Browser                 ISP Backend              Voyage AI        Typesense          LLM
+   │                        │                        │                │               │
+   │  POST /chat            │                        │                │               │
+   │  {query, messages}     │                        │                │               │
+   │───────────────────────►│                        │                │               │
+   │                        │                        │                │               │
+   │                        │  embed_query(query)    │                │               │
+   │                        │───────────────────────►│                │               │
+   │                        │  1024-d vector         │                │               │
+   │                        │◄───────────────────────│                │               │
+   │                        │                        │                │               │
+   │                        │  hybrid_search(vec, q) │                │               │
+   │                        │────────────────────────────────────────►│               │
+   │                        │  top 5 hits            │                │               │
+   │                        │◄────────────────────────────────────────│               │
+   │                        │                        │                │               │
+   │                        │  build_system_prompt() │                │               │
+   │                        │  (products → context)  │                │               │
+   │                        │                        │                │               │
+   │  SSE: products[]       │  stream(system,        │                │               │
+   │◄───────────────────────│         messages)      │                │               │
+   │  (cards render now)    │───────────────────────────────────────────────────────►│
+   │                        │                        │                │               │
+   │  SSE: text chunk 1     │  token 1               │                │               │
+   │◄───────────────────────│◄──────────────────────────────────────────────────────-│
+   │  SSE: text chunk 2     │  token 2               │                │               │
+   │◄───────────────────────│◄──────────────────────────────────────────────────────-│
+   │  SSE: text chunk n     │  token n               │                │               │
+   │◄───────────────────────│◄──────────────────────────────────────────────────────-│
+   │                        │  [stream ends]         │                │               │
+   │  SSE: [DONE]           │                        │                │               │
+   │◄───────────────────────│                        │                │               │</pre>
+
+      <h3>SSE event types</h3>
+      <p>Every server-sent event is a JSON object on a <code>data:</code> line:</p>
+<pre>data: {"type": "products", "products": [
+         {"id":"plant-001","title":"Spider Plant","price":"18","url":"...","image":"..."},
+         {"id":"plant-002","title":"Boston Fern", "price":"22","url":"...","image":"..."}
+       ]}
+
+data: {"type": "text", "content": "Great news"}
+data: {"type": "text", "content": " — we have"}
+data: {"type": "text", "content": " several pet-safe"}
+data: {"type": "text", "content": " plants..."}
+
+data: [DONE]</pre>
+      <p>The browser renders product cards as soon as the first <code>products</code> event arrives, and appends text to the assistant bubble as each <code>text</code> event arrives. This creates the "typing" streaming effect.</p>
+
+      <!-- ── Section 10 ── -->
+      <h2 id="s10">10. Backend Design</h2>
+
+      <h3>File structure</h3>
+<pre>backend/src/isp/
+│
+├── routers/
+│   ├── chat.py                  ← POST /v1/indexes/{id}/chat (SSE endpoint)
+│   └── settings.py              ← GET/PUT /v1/settings/chat (added)
+│
+├── services/
+│   ├── domain/
+│   │   └── settings_service.py  ← AVAILABLE_CHAT_MODELS, get/set/load_chat_config()
+│   │
+│   └── infra/
+│       └── chat/
+│           ├── __init__.py
+│           ├── service.py           ← dispatcher + RAG pipeline
+│           └── providers/
+│               ├── __init__.py
+│               ├── anthropic_chat.py    ← Anthropic SDK (~35 lines)
+│               ├── google_chat.py       ← Google Generative AI SDK (~40 lines)
+│               └── openai_compat.py     ← OpenAI SDK — handles OpenAI, Groq,
+│                                          and all self-hosted servers (~30 lines)
+│
+└── auth/
+    └── middleware.py            ← /v1/indexes/{id}/chat added to public routes</pre>
+
+      <h3>Why providers are split into separate files</h3>
+      <p>Each paid provider uses a completely different SDK with different authentication, streaming format, and message structure:</p>
+      <table>
+        <thead><tr><th>Provider file</th><th>SDK</th><th>Unique aspects</th></tr></thead>
+        <tbody>
+          <tr><td><code>anthropic_chat.py</code></td><td><code>anthropic</code></td><td><code>system</code> is a top-level field, not a message. Uses <code>client.messages.stream()</code>. Text arrives via <code>stream.text_stream</code>.</td></tr>
+          <tr><td><code>google_chat.py</code></td><td><code>google-generativeai</code></td><td>Message format uses <code>parts</code> not <code>content</code>. <code>role: "model"</code> not <code>"assistant"</code>. No native async streaming — wrapped in <code>asyncio.to_thread</code>.</td></tr>
+          <tr><td><code>openai_compat.py</code></td><td><code>openai</code></td><td>Handles OpenAI, Groq, and all self-hosted servers (Ollama, vLLM, LM Studio, LocalAI). Only the <code>base_url</code> differs.</td></tr>
+        </tbody>
+      </table>
+<pre>openai_compat.py
+  └── stream(system, messages, model, api_key, base_url=None)
+        │
+        ├── provider="openai"      → base_url=None    (default: api.openai.com)
+        ├── provider="groq"        → base_url="https://api.groq.com/openai/v1"
+        └── provider="self_hosted" → base_url=&lt;user endpoint&gt;</pre>
+
+      <h3>service.py — the dispatcher</h3>
+<pre>if provider == "none":
+    yield error message
+    return
+
+cards, context = await _search_context(
+    query, index_id,
+    query_by,             # ← chatContent + extra searchable fields + title + content
+    query_by_weights,     # ← extra fields: 10, chatContent: 5, title/content: 1
+    facet_query_by,       # ← always "chatContent" (built by JS extension at index time)
+)
+yield {"type": "products", "products": cards}    # ← product cards first
+
+system = _system_prompt(context)
+
+if   provider == "anthropic":   gen = anthropic_chat.stream(...)
+elif provider == "google":      gen = google_chat.stream(...)
+elif provider == "groq":        gen = openai_compat.stream(..., base_url=GROQ_URL)
+elif provider == "self_hosted": gen = openai_compat.stream(..., base_url=user_url)
+else:                           gen = openai_compat.stream(...)   # openai
+
+async for chunk in gen:
+    yield {"type": "text", "content": chunk}</pre>
+      <p><code>query_by</code> and <code>query_by_weights</code> are resolved by the router from <code>field_config</code> (searchable fields only). <code>facet_query_by</code> is always <code>"chatContent"</code> — no field inspection needed. Context is read directly from <code>doc.get("chatContent")</code>, falling back to <code>doc.get("content")</code> for indexes without an extension.</p>
+
+      <h3>The system prompt</h3>
+<pre>You are a helpful product expert assistant.
+Answer questions using ONLY the structured product data listed below —
+do NOT rely on general knowledge about these products.
+Each product has labelled attributes; use those exact values when answering
+attribute-specific questions.
+Be concise — 2 to 3 sentences maximum.
+If no product matches the question, say so honestly.
+
+Products:
+1. Spider Plant (Chlorophytum family). Pet safety: Pet safe. Safe for cats and dogs.
+   Care level: Beginner-friendly. Low maintenance, easy care.
+   Growth style: Trailing. Light: Bright indirect to low light. Water: Every 1–2 weeks.
+   Price: $18.00 (mid).
+
+2. Boston Fern (Nephrolepis family). Pet safety: Pet safe. Safe for cats and dogs.
+   Care level: Moderate. Needs some regular attention.
+   Growth style: Trailing. Light: Indirect light. Humidity: High.
+   Price: $22.00 (mid).</pre>
+      <p>Each product block is the <code>chatContent</code> field built by the JS extension at index time — a single structured string with all relevant attributes already labelled. The LLM is told to use only these values, not general knowledge.</p>
+
+      <h3>Why multi_search is used for retrieval</h3>
+      <p>Typesense limits GET request query strings to 4000 characters. A 1024-float vector serialised as <code>vec:([0.23,-0.14,...], k:5)</code> exceeds that limit, causing a 400 error. The chat retrieval uses <code>client.multi_search.perform()</code> (POST body) instead of <code>documents.search()</code> (GET query string) to avoid this. The two passes (lexical + semantic) are sent in a single POST body and merged via RRF.</p>
+
+      <h3>API endpoint</h3>
+<pre>POST /v1/indexes/{index_id}/chat
+Content-Type: application/json
+
+Request body:
+{
+  "query":    "compare it with samsung buds",
+  "messages": [                              ← prior conversation turns
+    {
+      "role":    "user",
+      "content": "show me pixel buds"
+    },
+    {
+      "role":     "assistant",
+      "content":  "Here are some options...",
+      "products": [                          ← products shown in prior turn
+        {"id": "...", "title": "Google Pixel Buds Pro2", "price": "229", ...}
+      ]
+    }
+  ]
+}
+
+Response:
+Content-Type: text/event-stream
+Cache-Control: no-cache
+X-Accel-Buffering: no
+
+data: {"type": "products", "products": [...]}
+data: {"type": "text",     "content": "Great"}
+data: {"type": "text",     "content": " news"}
+data: {"type": "error",    "content": "..."}   ← only on LLM failure (friendly message)
+data: [DONE]</pre>
+      <p>Auth: <strong>public</strong> — no JWT required. This endpoint is called by PLP shoppers who do not have admin tokens.</p>
+
+      <!-- ── Section 11 ── -->
+      <h2 id="s11">11. Frontend Design</h2>
+
+      <h3>File structure</h3>
+<pre>plp/src/
+│
+├── lib/
+│   ├── stores/
+│   │   └── chatStore.ts          ← open/closed, message history, loading state
+│   │
+│   └── controller/
+│       └── chatController.ts     ← SSE stream reader, updates store
+│
+└── components/
+    └── plants/
+        └── PlantChat.svelte      ← full chat UI (FAB + panel)</pre>
+
+      <h3>chatStore.ts — state shape</h3>
+<pre>interface ProductCard {
+  id:    string;
+  title: string;
+  price: string;
+  url:   string;
+  image: string;
+}
+
+interface ChatMessage {
+  role:      'user' | 'assistant';
+  content:   string;
+  products?: ProductCard[];      // only on assistant messages, from RAG
+}
+
+chatOpenStore     = writable&lt;boolean&gt;(false)       // panel open/closed
+chatMessagesStore = writable&lt;ChatMessage[]&gt;([])    // full conversation
+chatLoadingStore  = writable&lt;boolean&gt;(false)       // streaming in progress</pre>
+
+      <h3>chatController.ts — stream handling</h3>
+<pre>async function sendChatMessage(query: string): Promise&lt;void&gt; {
+  // 1. Snapshot history for request
+  const history = get(chatMessagesStore);
+
+  // 2. Add user message + empty assistant placeholder immediately
+  chatMessagesStore.update(msgs =&gt; [
+    ...msgs,
+    { role: 'user',      content: query },
+    { role: 'assistant', content: '', products: [] },
+  ]);
+  chatLoadingStore.set(true);
+
+  // 3. Open SSE stream — include products from prior assistant turns
+  //    so the backend can resolve pronouns ("it", "those") in Smart mode
+  const messages = history.map(m =&gt; ({
+    role:    m.role,
+    content: m.content,
+    ...(m.products?.length ? { products: m.products } : {}),
+  }));
+  const res = await fetch(`/api/v1/indexes/${indexId}/chat`, {  // indexId passed as prop per page
+    method: 'POST',
+    body:   JSON.stringify({ query, messages }),
+  });
+
+  const reader = res.body.getReader();
+
+  // 4. Read and parse events
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    for (const line of decode(value)) {
+      const chunk = JSON.parse(line.slice(6));   // "data: {...}"
+
+      if (chunk.type === 'products')
+        // renders product cards above the text bubble
+        updateLastMessage(last =&gt; ({ ...last, products: chunk.products }));
+
+      if (chunk.type === 'text')
+        // appends tokens to the text bubble as they stream in
+        updateLastMessage(last =&gt; ({ ...last, content: last.content + chunk.content }));
+    }
+  }
+}</pre>
+
+      <h3>Component responsibilities</h3>
+<pre>src/components/
+│
+├── Chat.svelte                  ← generic, used by all device pages
+│   Props: indexId, title, subtitle, icon, accent, placeholder, starters
+│   Each category page passes its own ISP index ID and branding.
+│
+│   Page → index mapping:
+│     /phones       → 22ffabfef4d1  (pink, 📱)
+│     /accessories  → 847bf1f24c72  (navy, 🎧)
+│     /smartwatch   → 8bf92948e950  (blue, ⌚)
+│     /tablets      → 9ed56100f220  (green, 💻)
+│
+└── plants/
+    └── PlantChat.svelte         ← plants-specific (green theme, 🌿)
+          indexId: 2d921f78d54b
+
+chatController.ts
+  sendChatMessage(query, indexId)  ← indexId is a parameter, not hardcoded
+  clearChat()
+
+chatStore.ts
+  chatOpenStore     — panel open/closed
+  chatMessagesStore — full conversation history
+  chatLoadingStore  — streaming in progress</pre>
+
+      <!-- ── Section 12 ── -->
+      <h2 id="s12">12. LLM Provider Design</h2>
+
+      <h3>Two categories — one UI decision</h3>
+<pre>Settings → Chat Model
+│
+├── Disabled     → chat feature hidden entirely
+│
+├── Self-hosted  → one code path for all self-hosted tools
+│   │              (all expose OpenAI-compatible API)
+│   │
+│   │  User provides:
+│   │    Endpoint: http://your-server:11434/v1
+│   │    Model:    llama3.1:8b  (optional)
+│   │
+│   └── Compatible software:
+│         Ollama      — brew install ollama &amp;&amp; ollama pull llama3.1:8b
+│         LM Studio   — desktop app, one-click model download
+│         vLLM        — Python server, GPU required for speed
+│         LocalAI     — docker run localai/localai:latest
+│
+└── Paid API     → four providers, all cloud, user provides API key
+    │
+    ├── Google Gemini   → api key from aistudio.google.com (free quota available)
+    ├── Anthropic       → api key from console.anthropic.com
+    ├── OpenAI          → api key from platform.openai.com
+    └── Groq            → api key from console.groq.com (free tier available)</pre>
+
+      <h3>Why URL is only needed for self-hosted</h3>
+      <table>
+        <thead><tr><th>Provider</th><th>URL in settings?</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Anthropic</td><td>No</td><td><code>api.anthropic.com</code> — hardcoded</td></tr>
+          <tr><td>Google</td><td>No</td><td><code>generativelanguage.googleapis.com</code> — hardcoded</td></tr>
+          <tr><td>OpenAI</td><td>No</td><td><code>api.openai.com</code> — hardcoded</td></tr>
+          <tr><td>Groq</td><td>No</td><td><code>api.groq.com/openai/v1</code> — hardcoded</td></tr>
+          <tr><td>Self-hosted</td><td><strong>Yes</strong></td><td>You decide where to run it — could be localhost, a home server, or a cloud GPU</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Cost comparison (per 1,000 chats, ~500 tokens each)</h3>
+      <table>
+        <thead><tr><th>Provider</th><th>Model</th><th>Cost</th></tr></thead>
+        <tbody>
+          <tr><td>Self-hosted (Ollama)</td><td>Llama 3.1 8B</td><td><strong>$0</strong> (server cost only)</td></tr>
+          <tr><td>Groq</td><td>Llama 3.3 70B</td><td><strong>$0</strong> (free tier — 14,400 req/day, no card needed)</td></tr>
+          <tr><td>Groq</td><td>Llama 3.1 8B</td><td><strong>$0</strong> (free tier — faster, slightly weaker)</td></tr>
+          <tr><td>Google</td><td>Gemini 2.0 Flash</td><td><strong>~$0.01</strong> (billing required)</td></tr>
+          <tr><td>Google</td><td>Gemini 2.5 Flash</td><td><strong>~$0.02</strong> (billing required)</td></tr>
+          <tr><td>Google</td><td>Gemini 2.5 Pro</td><td><strong>~$0.50</strong> (billing required)</td></tr>
+          <tr><td>OpenAI</td><td>GPT-4o mini</td><td><strong>~$0.08</strong></td></tr>
+          <tr><td>OpenAI</td><td>GPT-4o</td><td><strong>~$2.00</strong></td></tr>
+          <tr><td>Anthropic</td><td>Claude Haiku 4.5</td><td><strong>~$0.14</strong></td></tr>
+          <tr><td>Anthropic</td><td>Claude Sonnet 4.6</td><td><strong>~$1.50</strong></td></tr>
+        </tbody>
+      </table>
+      <p><strong>Recommended starting point:</strong> Groq / Llama 3.3 70B — genuinely free (no credit card), 14,400 requests/day, fast streaming. Sign up at console.groq.com. For production with higher volume, Gemini 2.0 Flash is the best cost-to-quality ratio once billing is enabled.</p>
+      <div class="warn"><strong>Note:</strong> Gemini 1.5 models (Flash and Pro) are deprecated and will return a 404. Use Gemini 2.0 Flash or newer.</div>
+
+      <h3>How vector embedding and LLM are independent</h3>
+<pre>Voyage AI  →  converts query to 1024-d vector  →  Typesense finds products
+                        ↓
+                    (product list)
+                        ↓
+LLM        →  reads products, writes answer
+
+These two systems share no state. You can:
+  - Change the LLM provider → search quality unchanged
+  - Change the embedding model → LLM quality unchanged
+  - Use self-hosted LLM + cloud embeddings → fully valid combination
+  - Use cloud LLM + self-hosted embeddings → also valid</pre>
+
+      <!-- ── Section 13 ── -->
+      <h2 id="s13">13. Settings Panel Design</h2>
+      <p>The Chat Model tab in the ISP admin panel (Settings → Chat Model). Settings are persisted in the <code>app_settings</code> PostgreSQL table and applied immediately at runtime — no container restart required.</p>
+      <table>
+        <thead><tr><th>DB key</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>chat_provider</code></td><td>string</td><td><code>"none"</code></td><td>Active LLM provider</td></tr>
+          <tr><td><code>chat_model</code></td><td>string</td><td><code>""</code></td><td>Model ID within the provider</td></tr>
+          <tr><td><code>chat_api_key</code></td><td>string</td><td><code>""</code></td><td>API key (never returned by API)</td></tr>
+          <tr><td><code>chat_endpoint</code></td><td>string</td><td><code>""</code></td><td>Self-hosted endpoint URL</td></tr>
+          <tr><td><code>chat_smart_followup</code></td><td>string</td><td><code>"false"</code></td><td><code>"true"</code> enables Smart Follow-up mode</td></tr>
+        </tbody>
+      </table>
+
+      <h3>State: Disabled (default)</h3>
+<pre>┌ Embedding Model │ Customer Personalisation │ Chat Model ───────────────┐
+│                                                                         │
+│  Chat Model                                                             │
+│  Configure the LLM used for conversational search (RAG chat on PLP).   │
+│  Applied immediately — no restart required.                             │
+│                                                                         │
+│  Provider type                                                          │
+│  ┌────────────┐  ┌─────────────────┐  ┌──────────────┐                 │
+│  │  Disabled  │  │  Self-hosted    │  │   Paid API   │                 │
+│  │  (active)  │  │                 │  │              │                 │
+│  └────────────┘  └─────────────────┘  └──────────────┘                 │
+│                                                                         │
+│  [Save]                                                                 │
+│                                                                         │
+│  ● Chat is disabled. Select a provider above to enable it.              │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘</pre>
+
+      <h3>State: Self-hosted selected</h3>
+<pre>│  Provider type                                                          │
+│  ┌────────────┐  ┌─────────────────┐  ┌──────────────┐                 │
+│  │  Disabled  │  │  Self-hosted    │  │   Paid API   │                 │
+│  │            │  │   (active) ✓   │  │              │                 │
+│  └────────────┘  └─────────────────┘  └──────────────┘                 │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  Endpoint URL *                                                   │  │
+│  │  Ollama, LM Studio, vLLM, LocalAI, or any OpenAI-compatible      │  │
+│  │  ┌─────────────────────────────────────────────────────────────┐ │  │
+│  │  │ http://localhost:11434/v1                                   │ │  │
+│  │  └─────────────────────────────────────────────────────────────┘ │  │
+│  │                                                                   │  │
+│  │  Model name  (optional — leave blank if server has only 1 model) │  │
+│  │  ┌─────────────────────────────────────────────────────────────┐ │  │
+│  │  │ llama3.1:8b                                                 │ │  │
+│  │  └─────────────────────────────────────────────────────────────┘ │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  [Save]                                                                 │
+│                                                                         │
+│  ● Self-hosted at http://localhost:11434/v1 · model llama3.1:8b         │</pre>
+
+      <h3>State: Paid API selected (Google Gemini)</h3>
+<pre>│  Provider type                                                          │
+│  ┌────────────┐  ┌─────────────────┐  ┌──────────────┐                 │
+│  │  Disabled  │  │  Self-hosted    │  │   Paid API   │                 │
+│  │            │  │                 │  │  (active) ✓  │                 │
+│  └────────────┘  └─────────────────┘  └──────────────┘                 │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  Provider                                                         │  │
+│  │  ┌─────────────────────────────────────────────────────────────┐ │  │
+│  │  │ Google Gemini                                             ▼ │ │  │
+│  │  └─────────────────────────────────────────────────────────────┘ │  │
+│  │                                                                   │  │
+│  │  Model                                                            │  │
+│  │  ┌─────────────────────────────────────────────────────────────┐ │  │
+│  │  │ Gemini 2.0 Flash                                          ▼ │ │  │
+│  │  └─────────────────────────────────────────────────────────────┘ │  │
+│  │                                                                   │  │
+│  │  API key  (stored — leave blank to keep)                         │  │
+│  │  ┌─────────────────────────────────────────────────────────────┐ │  │
+│  │  │ ••••••••••••••••••••••••                                    │ │  │
+│  │  └─────────────────────────────────────────────────────────────┘ │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│  [Save]                                                                 │
+│                                                                         │
+│  ● google · gemini-2.0-flash · API key stored ✓                         │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  Smart Follow-up Detection                         [ toggle OFF ] │  │
+│  │  When ON, the LLM rewrites follow-up queries using conversation   │  │
+│  │  history before retrieval. Improves comparison accuracy ("compare │  │
+│  │  it with Samsung") at the cost of one extra LLM call per turn.    │  │
+│  └───────────────────────────────────────────────────────────────────┘  │</pre>
+
+      <!-- ── Section 14 ── -->
+      <h2 id="s14">14. What the LLM Does and Does Not Do</h2>
+      <table>
+        <thead><tr><th>The LLM does</th><th>The LLM does not</th></tr></thead>
+        <tbody>
+          <tr><td>Read the retrieved products and write a natural answer</td><td>Search your database — Typesense does that</td></tr>
+          <tr><td>Format the response conversationally</td><td>Know your prices or stock from training data</td></tr>
+          <tr><td>Handle follow-up questions using conversation history</td><td>Access the internet or live external systems</td></tr>
+          <tr><td>Say "I don't know" when no products match</td><td>Invent products not in the system prompt</td></tr>
+          <tr><td>Summarise, compare, and recommend from the given list</td><td>Remember anything between separate sessions</td></tr>
+          <tr><td>Stream tokens back to the browser as they are generated</td><td>Make decisions about which products to retrieve</td></tr>
+        </tbody>
+      </table>
+      <p><strong>The LLM is a writer, not a searcher. Typesense does the searching. The LLM does the writing.</strong></p>
+
+      <!-- ── Section 15 ── -->
+      <h2 id="s15">15. Why This Matters for Your Store</h2>
+
+      <h3>Problems RAG solves</h3>
+      <p><strong>Hallucination</strong> — a plain LLM will confidently make up products, prices, and features. RAG grounds every answer in real data from your index. If a product is not indexed, the LLM cannot mention it.</p>
+      <p><strong>Staleness</strong> — LLM training data has a cutoff date. Your store inventory changes daily. RAG always queries the live index, so answers reflect current products and pricing.</p>
+      <p><strong>Specificity</strong> — generic AI chat can only give generic plant or phone advice. RAG chat gives advice specific to what you actually carry, using your descriptions, your categories, and your prices.</p>
+      <p><strong>Trust</strong> — customers can see the product cards alongside the chat answer. The product cards are the source. If the LLM says "Spider Plant for $18" and the card shows the same thing, the customer trusts the answer.</p>
+
+      <h3>What improves chat quality</h3>
+      <p>The chat is only as good as what is indexed. Richer product data → better retrieval → more accurate answers.</p>
+      <p>The primary lever is the <strong><code>chatContent</code> JS extension</strong> assigned to each index. The extension runs at rebuild time and stamps a structured, labelled summary onto every document. This single field drives:</p>
+      <ol>
+        <li>The facet retrieval pass (exact-word matching against labelled values)</li>
+        <li>The LLM context block (the text the LLM reads to answer the question)</li>
+        <li>The embedding text (so semantic search can find attribute-specific queries)</li>
+      </ol>
+      <table>
+        <thead><tr><th>Index</th><th>Extension</th><th>What chatContent includes</th></tr></thead>
+        <tbody>
+          <tr><td>Plants</td><td><code>chat_content_plants.js</code></td><td>Pet safety, care level, growth style, light, water, price</td></tr>
+          <tr><td>Plans</td><td><code>chat_content_plans.js</code></td><td>Price/line, data, international coverage, promotions, features</td></tr>
+          <tr><td>Phones / Tablets</td><td><code>chat_content_phones.js</code></td><td>Brand, OS, form factor, price, colors, in-stock</td></tr>
+          <tr><td>Smartwatches</td><td><code>chat_content_watches.js</code></td><td>GPS, cellular, fitness tracking, compatibility, price</td></tr>
+          <tr><td>Accessories</td><td><code>chat_content_accessories.js</code></td><td>Type, device compatibility, size, price, in-stock</td></tr>
+        </tbody>
+      </table>
+      <p>To improve chat quality for an index: edit the relevant extension to add or reword attribute labels, then trigger a rebuild. No Python code changes needed.</p>
+
+      <!-- ── Section 16 ── -->
+      <h2 id="s16">16. chatContent — Extension-Driven Context</h2>
+
+      <h3>The problem</h3>
+      <p>Building LLM context from operator-configured <code>field_config</code> flags (<code>chat: true</code>) at query time had two costs:</p>
+      <ol>
+        <li><strong>Drift risk</strong> — the Python loop that collected and labelled field values duplicated what a rebuild-time transform could do, creating two places to maintain.</li>
+        <li><strong>False-match risk</strong> — the <code>facet_query_by</code> pass required complex filtering (only facet fields whose type was explicitly stored in <code>field_config</code>, to avoid bool fields causing Typesense 400 errors).</li>
+      </ol>
+
+      <h3>The solution — <code>chatContent</code> field</h3>
+      <p>Each index type has a <strong>JS extension</strong> (in <code>backend/extensions/</code>) that runs at rebuild time and stamps a single <code>chatContent</code> field onto every document. This field is a structured, labelled string covering all the attributes that matter for chat.</p>
+<pre>Extension: chat_content_plants.js  (run_order 2, runs after plants_transformer)
+                    │
+                    ▼
+    For each plant document:
+    doc.chatContent =
+      "Peperomia Lima (Peperomia family). Pet safety: Pet safe. Safe for cats and dogs.
+       Care level: Easy. Growth style: compact.
+       Light: Bright indirect light. Water: Every 1–2 weeks. Price: $12.99 (mid)."
+                    │
+                    ▼
+    Stored in Typesense as a plain string field</pre>
+
+      <h3>How the Python pipeline uses chatContent</h3>
+<pre>chat.py router:
+  facet_query_by = "chatContent"    ← always, no field_config inspection needed
+  query_by = "chatContent,title,content"  (+ extra searchable fields at weight 10)
+                    │
+                    ▼
+service._search_context():
+  Pass 2 (lex-facets, weight 0.6): query chatContent with num_typos=0
+    → "plants which are pet safe" → matches "Pet safety: Pet safe" exactly
+                    │
+                    ▼
+service context building:
+  chat_ctx = doc.get("chatContent") or doc.get("content", "")[:300]
+    → falls back to plain content on indexes without an extension</pre>
+
+      <h3>Extensions by index</h3>
+      <table>
+        <thead><tr><th>Index</th><th>Extension file</th><th>Run order</th></tr></thead>
+        <tbody>
+          <tr><td>Plants</td><td><code>chat_content_plants.js</code></td><td>2 (after <code>plants_transformer</code>)</td></tr>
+          <tr><td>Plans</td><td><code>chat_content_plans.js</code></td><td>2 (after <code>plans_transformer</code>)</td></tr>
+          <tr><td>Phones / Tablets</td><td><code>chat_content_phones.js</code></td><td>3 (after <code>catalog_mapper</code>, <code>version_score</code>)</td></tr>
+          <tr><td>Smartwatches</td><td><code>chat_content_watches.js</code></td><td>3 (after <code>catalog_mapper</code>, <code>version_score</code>)</td></tr>
+          <tr><td>Accessories</td><td><code>chat_content_accessories.js</code></td><td>3 (after <code>catalog_mapper</code>, <code>version_score</code>)</td></tr>
+        </tbody>
+      </table>
+      <p>All use <code>@assign none</code> — assigned manually per index via the Extensions tab or API.</p>
+
+      <h3>Searchable toggle constraint for non-string fields</h3>
+      <p>Boolean and numeric fields (e.g. <code>pet_safe: bool</code>, <code>price: float</code>) cannot be made Searchable because Typesense's <code>query_by</code> only accepts string fields. The toggle is disabled in the UI for these types, and the backend rejects the request with HTTP 400 if attempted via the API.</p>
+      <p>The runtime guard in <code>search.py</code> also filters the <code>query_by</code> list to string types only, as a safety net for data inconsistencies.</p>
+
+      <!-- ── Section 17 ── -->
+      <h2 id="s17">17. Three-Pass Retrieval — How Attribute Queries Work</h2>
+
+      <h3>The problem</h3>
+      <p>A query like "plants which are pet safe" breaks simple BM25 search:</p>
+      <ol>
+        <li>Typesense tokenises it: <code>["plants", "which", "are", "pet", "safe"]</code></li>
+        <li>It tries to find documents matching all five tokens</li>
+        <li>"which" and "are" match nothing → tokens are progressively dropped</li>
+        <li>"plants" matches all product titles (high recall, zero discrimination)</li>
+        <li>The word "safe" needs to match <code>pet_safety_label</code> — but that signal gets diluted</li>
+      </ol>
+      <p>The same query also breaks naive semantic search because "plants which are" dominates the query embedding, and the semantic index only knows about <code>title + content</code> (pet_safety_label was never embedded).</p>
+
+      <h3>The solution — three retrieval passes</h3>
+      <p>Every chat context search runs up to three Typesense passes in a single <code>multi_search</code> POST, then merges with RRF:</p>
+<pre>Pass 1 — lex-all  (weight 0.3)
+  query_by: chatContent, &lt;extra searchable fields&gt;, title, content
+  query_by_weights: chatContent=5, extra=10, title/content=1
+  Purpose: broad BM25 coverage of all text fields
+
+Pass 2 — lex-chatContent  (weight 0.6)
+  query_by: chatContent
+  num_typos: 0  ← exact word matching only
+  Purpose: precise attribute matching — "pet safe" → matches
+           "Pet safety: Pet safe" in chatContent exactly.
+           num_typos=0 prevents "plants" from fuzzy-matching "plant"
+           in labels like "Growth style: trailing plant"
+
+Pass 3 — semantic  (weight 0.1)
+  vector_query: vec:([&lt;embedded query&gt;], k:15)
+  Purpose: semantic similarity for general queries</pre>
+
+      <h3>Why num_typos=0 matters</h3>
+      <p>Without <code>num_typos=0</code>, the word "plants" in the query would fuzzy-match "plant" anywhere in <code>chatContent</code> via typo tolerance (1 edit: "plants" → "plant"). With exact-word matching, only documents whose <code>chatContent</code> contains the exact token match — so "pet safe" resolves to documents where <code>chatContent</code> contains "Pet safe" verbatim.</p>
+
+      <h3>Why chatContent is the right target for the facet pass</h3>
+      <p>Previously, the facet pass targeted individual facet fields (e.g. <code>pet_safety_label</code>, <code>care_difficulty</code>). This required careful filtering to exclude booleans and fields without explicit types stored in <code>field_config</code>.</p>
+      <p>With <code>chatContent</code>, there is one string field, always present when an extension is assigned, always containing short labelled values (<code>"Pet safety: Pet safe"</code>, <code>"GPS: Yes"</code>, <code>"Price: $45/mo"</code>). No filtering logic needed — <code>facet_query_by = "chatContent"</code> is always safe.</p>
+
+      <h3>RRF merge weights</h3>
+      <table>
+        <thead><tr><th>Pass</th><th>Weight</th><th>Reasoning</th></tr></thead>
+        <tbody>
+          <tr><td>lex-facets</td><td>0.6</td><td>Highest — precise exact-word attribute matching</td></tr>
+          <tr><td>lex-all</td><td>0.3</td><td>Medium — broad BM25 for general text queries</td></tr>
+          <tr><td>semantic</td><td>0.1</td><td>Lowest — used as tiebreaker; accuracy depends on rebuild</td></tr>
+        </tbody>
+      </table>
+      <p>When <code>lex-facets</code> returns 0 results (e.g. query has no words matching any facet value), only <code>lex-all</code> and <code>semantic</code> contribute — behaviour unchanged from a two-pass system.</p>
+
+      <!-- ── Section 18 ── -->
+      <h2 id="s18">18. Embedding Enrichment — chatContent in Vectors</h2>
+
+      <h3>The problem</h3>
+      <p>Without structured attribute text in the embedding, semantic search for "pet safe plants" could not distinguish:</p>
+      <ul>
+        <li>Peperomia (<code>pet_safety_label = "Pet safe"</code>)</li>
+        <li>Hoya Wayetii (<code>pet_safety_label = "Unknown"</code>)</li>
+      </ul>
+      <p>because neither label appeared in the <code>title + content</code> text that was embedded.</p>
+
+      <h3>The solution</h3>
+      <p>Because the JS extension stamps <code>chatContent</code> onto each document <strong>before</strong> the embedding step runs, <code>_build_embed_text</code> simply includes it:</p>
+<pre>def _build_embed_text(doc: dict) -&gt; str:
+    return " ".join(p for p in [
+        doc.get("title", ""),
+        doc.get("content", ""),
+        doc.get("chatContent", ""),
+    ] if p).strip()</pre>
+      <p>For a pet-safe Peperomia plant, the embedding text becomes:</p>
+<pre>Peperomia Lima – 4" Houseplant                              [title]
+Peperomia Lima is a compact houseplant...                   [content]
+Peperomia Lima (Peperomia family). Pet safety: Pet safe.    [chatContent — starts here]
+Safe for cats and dogs. Care level: Easy. Growth style:
+compact. Light: Bright indirect light. Water: Every 1–2
+weeks. Price: $12.99 (mid).</pre>
+      <p>The semantic vector for this document is now close to queries like "pet safe", "easy care", "indirect light", "safe for cats" — not just the product name and description.</p>
+
+      <h3>When the enrichment takes effect</h3>
+      <p>The extension runs during rebuild. After assigning or updating a <code>chat_content_*.js</code> extension, trigger a rebuild to regenerate vectors. No <code>field_config</code> changes needed.</p>
+
+      <h3>Fallback for indexes without an extension</h3>
+      <p>If no extension is assigned (<code>chatContent</code> absent), <code>_build_embed_text</code> falls back to <code>title + content</code> only — identical to the original behaviour. The chat pipeline degrades gracefully; it does not break.</p>
+
+      <!-- ── Section 19 ── -->
+      <h2 id="s19">19. Follow-up Detection &amp; Smart Mode</h2>
+      <p>Multi-turn chat needs to distinguish two types of queries:</p>
+      <ul>
+        <li><strong>Follow-up</strong> — the user is refining or asking about the products already shown ("which is cheaper?", "compare it with Samsung", "does it have GPS?")</li>
+        <li><strong>New topic</strong> — the user is searching for something completely different ("show me earbuds", "what tablets do you have?")</li>
+      </ul>
+      <p>For follow-ups, ISP can pin the previously shown products into the retrieval result to give the LLM the full comparison context. For new topics, retrieval starts fresh.</p>
+      <p>Two modes are available, toggled in Settings → Chat → Smart Follow-up Detection.</p>
+
+      <h3>Mode 1 — Heuristic (Smart OFF, default)</h3>
+      <p>Three-tier detection runs in order; the first match wins:</p>
+<pre>T1 — Unambiguous pronouns / comparison phrases  (always follow-up)
+  Regex: \b(these|those|them|compare|versus|vs|does it have|...)\b
+  Example: "compare it with Samsung" → follow-up ✓
+
+T2 — Anchored refinement phrases  (always follow-up)
+  Regex: \b(i('m| am) interested in|i prefer|not that one|...)\b
+  Example: "I'm interested in the red one" → follow-up ✓
+
+T3 — Context-aware short-query guard  (domain-agnostic)
+  Applies only when: len(query.split()) ≤ 5 AND prior messages exist
+  Logic:
+    1. Collect all words from product titles shown in prior turns
+    2. Extract content words from the current query (len &gt; 3)
+    3. If ALL content words already appear in the shown product titles
+       → it's a follow-up (user is asking about products they can see)
+    4. If ANY content word is new (e.g. "samsung" when only Pixel Buds shown)
+       → new topic, fresh retrieval
+  Example: "how much is it?" after seeing Pixel Buds → follow-up ✓
+  Example: "samsung buds" after seeing Pixel Buds   → new topic ✓</pre>
+      <p><strong>No LLM call is made.</strong> The filter is pure regex + set membership, so it adds zero latency.</p>
+      <p>For follow-up queries: retrieval is filtered to the IDs of previously shown products (plus any price filter). The LLM gets the same products it already summarised, so it can answer refinement questions accurately without re-ranking.</p>
+
+      <h3>Mode 2 — Smart Follow-up (Smart ON)</h3>
+      <p>Every query goes through an LLM rewrite step before retrieval:</p>
+<pre>Query + last 6 conversation turns (user text + shown product titles + assistant summary)
+                    │
+                    ▼  LLM rewrite call (same provider/model as chat)
+                    │
+         Standalone enriched search query
+         e.g. "compare it with samsung buds" + history showing Pixel Buds Pro2
+              → "Google Pixel Buds Pro2 vs Samsung Galaxy Buds4 Pro"
+                    │
+                    ▼  Free Typesense retrieval (no ID filter, price filter kept)
+                    │
+              Top 3 from rewritten search
+                    +
+              Up to 2 pinned from prior assistant turn  (_merge_cards)
+                    │
+                    ▼  LLM context contains both sides of comparison</pre>
+      <p><strong>When the rewrite is most useful:</strong></p>
+      <table>
+        <thead><tr><th>Query</th><th>Heuristic result</th><th>Smart result</th></tr></thead>
+        <tbody>
+          <tr><td>"compare it with Samsung buds"</td><td>pins Pixel Buds only (ID filter)</td><td>rewrites to "Pixel Buds Pro2 vs Samsung Buds4" → finds both</td></tr>
+          <tr><td>"does it come in black?"</td><td>correct — pins prior products</td><td>same</td></tr>
+          <tr><td>"show me something cheaper"</td><td>usually correct via T3 guard</td><td>better if the cheaper product is a new brand</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Cost:</strong> one extra LLM call per chat turn. Use when comparison accuracy matters more than latency.</p>
+
+      <h3>Query normalisation — stripping conversational filler</h3>
+      <p>BM25 search can be confused by natural-language prefixes. "show me pixel buds" sends the word "show" to Typesense, which matches product descriptions containing "show it off" (marketing copy), causing unrelated items to rank above the target.</p>
+      <p><code>_normalize_query</code> strips common filler before BM25:</p>
+<pre>_FILLER_RE = re.compile(
+    r"^\s*(show me|find me|can you (show|find)|give me|what are|i('m| am) looking for"
+    r"|search for|look for|find|show|i want|i need|tell me about|do you have)\s+",
+    re.IGNORECASE,
+)
+
+def _normalize_query(q: str) -&gt; str:
+    return _FILLER_RE.sub("", q).strip() or q</pre>
+      <p>Applied in two places:</p>
+      <table>
+        <thead><tr><th>Path</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><td>Smart ON, no history</td><td><code>_llm_rewrite_query</code> returns <code>_normalize_query(query)</code> instead of calling the LLM</td></tr>
+          <tr><td>Smart OFF, new topic</td><td><code>_resolve_retrieval_params</code> passes <code>_normalize_query(query)</code> to Typesense</td></tr>
+        </tbody>
+      </table>
+      <p>Follow-up queries are <strong>not</strong> normalised — they are passed as-is because T1/T2 regex patterns need the original phrasing, and the query is used only to look up pinned IDs, not for BM25.</p>
+
+      <h3><code>_resolve_retrieval_params</code> — single dispatch</h3>
+<pre>async def _resolve_retrieval_params(query, messages) -&gt; tuple[str, str | None]:
+    if _smart_followup_enabled:
+        # LLM rewrites query; price filter preserved; no ID filter
+        search_query = await _llm_rewrite_query(query, messages)
+        return search_query, _price_filter_for_smart(query, messages)
+
+    # Heuristic path
+    is_fu = _is_follow_up_heuristic(query, messages)
+    search_query = query if is_fu else _normalize_query(query)
+    return search_query, _resolve_retrieval_filter(query, messages, is_fu)</pre>
+      <p>Returns <code>(search_query, filter_by)</code> where <code>filter_by</code> is a Typesense filter string or <code>None</code>.</p>
+
+      <h3><code>_merge_cards</code> — comparison context builder (Smart ON only)</h3>
+<pre>def _merge_cards(primary: list[dict], pinned: list[dict]) -&gt; list[dict]:
+    top3 = primary[:3]                             # top results from rewritten query
+    seen = {c["id"] for c in top3}
+    extra = [c for c in pinned if c["id"] not in seen]
+    return (top3 + extra)[:5]                      # up to 2 pinned, max 5 total</pre>
+      <p><code>pinned</code> = products from the most recent assistant turn. For "compare Pixel Buds with Samsung Buds", the rewritten query finds Samsung Buds (new side) and <code>_merge_cards</code> adds the Pixel Buds that were already shown — giving the LLM full context for a side-by-side answer.</p>
+
+      <h3>Error handling — <code>_friendly_error</code></h3>
+      <p>LLM provider errors are translated to human-readable messages before reaching the browser:</p>
+      <table>
+        <thead><tr><th>Raw error signal</th><th>User-visible message</th></tr></thead>
+        <tbody>
+          <tr><td><code>rate_limit</code> / <code>429</code></td><td>"The AI provider is temporarily rate-limited. Please wait a moment and try again, or switch to a different model in Settings → Chat."</td></tr>
+          <tr><td><code>401</code> / <code>api key</code> / <code>authentication</code></td><td>"Invalid API key. Please update your key in Settings → Chat."</td></tr>
+          <tr><td><code>503</code> / <code>overloaded</code> / <code>unavailable</code></td><td>"The AI provider is temporarily unavailable. Please try again in a moment."</td></tr>
+          <tr><td><code>context_length</code> / <code>too long</code></td><td>"The conversation is too long for this model. Please start a new chat."</td></tr>
+          <tr><td>anything else</td><td>"Something went wrong with the AI provider. Please try again."</td></tr>
+        </tbody>
+      </table>
+
+      <!-- ── Section 20 ── -->
+      <h2 id="s20">20. Chat API Reference in ISP Admin</h2>
+      <p>Each index detail view includes an <strong>Api</strong> tab that shows copy-ready curl examples for all three endpoint groups — Public, Internal, and Chat.</p>
+
+      <h3>Chat API section</h3>
+      <p>The Chat API section appears below the Internal API group and uses a purple badge (<code>RAG-grounded · SSE · Streaming</code>) to distinguish it from the REST-style search endpoints.</p>
+      <table>
+        <thead><tr><th>Item</th><th>Content</th></tr></thead>
+        <tbody>
+          <tr><td>First turn</td><td><code>POST /v1/indexes/{id}/chat</code> with empty <code>messages: []</code></td></tr>
+          <tr><td>Multi-turn</td><td>Same endpoint with prior <code>messages</code> history attached</td></tr>
+          <tr><td>Request body</td><td><code>query</code> (string, required) + <code>messages</code> (array of prior turns)</td></tr>
+          <tr><td>SSE response</td><td><code>products</code> chunk → streamed <code>text</code> chunks → <code>[DONE]</code> sentinel</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Request body</h3>
+<pre>{
+  "query":    "your question",
+  "messages": [
+    {
+      "role":     "user",
+      "content":  "first question"
+    },
+    {
+      "role":     "assistant",
+      "content":  "Here are some options...",
+      "products": [...]
+    }
+  ]
+}</pre>
+      <p><code>messages</code> is empty (<code>[]</code>) on the first turn. On follow-up turns the full prior conversation is passed — including <code>products</code> on assistant turns so the backend can resolve pronouns and pin previously shown items.</p>
+
+      <h3>SSE response stream</h3>
+<pre>data: {"type": "products", "items": [...]}   ← product cards (first chunk)
+data: {"type": "text", "content": "Here"}    ← streamed answer tokens
+data: {"type": "text", "content": " are"}
+data: {"type": "text", "content": " some…"}
+data: [DONE]                                 ← stream closed</pre>
+      <p>The <code>products</code> chunk always arrives first so the UI can render cards immediately while the LLM answer is still streaming.</p>
+      <p>Auth: <strong>public</strong> — no JWT required. This endpoint is called by PLP shoppers who do not have admin tokens. The <code>vec</code> embedding field is never included in chat responses.</p>
+
+    </div>
+  </div>
+
+  <footer>Intelligent Search Platform &mdash; Internal documentation</footer>
+
+  <script>
+    (function(){
+      var btn = document.getElementById('theme-toggle');
+      function apply(t) {
+        if (t === 'light') { document.documentElement.setAttribute('data-theme','light'); btn.textContent = '☾'; }
+        else { document.documentElement.removeAttribute('data-theme'); btn.textContent = '☀'; }
+      }
+      apply(localStorage.getItem('isp-theme') === 'light' ? 'light' : 'dark');
+      btn.addEventListener('click', function(){
+        var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        localStorage.setItem('isp-theme', next);
+        apply(next);
+      });
+
+      // Active sidebar link on scroll
+      var sections = document.querySelectorAll('h2[id]');
+      var links = document.querySelectorAll('nav.sidebar a');
+      function onScroll() {
+        var scrollY = window.scrollY + 80;
+        var active = null;
+        sections.forEach(function(s) {
+          if (s.offsetTop <= scrollY) active = s.id;
+        });
+        links.forEach(function(a) {
+          var href = a.getAttribute('href').slice(1);
+          a.classList.toggle('active', href === active);
+        });
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    })();
+  </script>
+</body>
+</html>
