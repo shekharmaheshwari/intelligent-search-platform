@@ -21,6 +21,9 @@ End-to-end documentation for the ISP conversational chat feature: why it exists,
 13. [Settings Panel Design](#13-settings-panel-design)
 14. [What the LLM Does and Does Not Do](#14-what-the-llm-does-and-does-not-do)
 15. [Why This Matters for Your Store](#15-why-this-matters-for-your-store)
+16. [Chat Flag — Operator-Controlled Field Selection](#16-chat-flag--operator-controlled-field-selection)
+17. [Three-Pass Retrieval — How Attribute Queries Work](#17-three-pass-retrieval--how-attribute-queries-work)
+18. [Embedding Enrichment — Structured Fields in Vectors](#18-embedding-enrichment--structured-fields-in-vectors)
 
 ---
 
@@ -82,14 +85,17 @@ Customer: "What plants are safe for cats under $30?"
         │  1024-d vector via        │
         │  Voyage AI embedding      │
         │                           │
-        │  Run hybrid search on     │
+        │  Run three passes on      │
         │  Typesense index:         │
-        │  - keyword match on       │
-        │    title + content        │
-        │  - vector similarity on   │
-        │    vec field              │
+        │  - lex-all: BM25 over     │
+        │    all searchable fields  │
+        │  - lex-facets: BM25 over  │
+        │    facet label fields     │
+        │    (exact-word, no typos) │
+        │  - semantic: vector kNN   │
+        │    over vec field         │
         │                           │
-        │  Return top 5 hits        │
+        │  Merge via RRF, top 5     │
         └───────────┬───────────────┘
                     │
                     │  Retrieved products:
@@ -884,8 +890,14 @@ if provider == "none":
     yield error message
     return
 
-cards, context = await _search_context(query, index_id)
-yield {"type": "products", "products": cards}           # ← product cards first
+cards, context = await _search_context(
+    query, index_id,
+    chat_fields,          # ← operator-selected fields for LLM context
+    query_by,             # ← all searchable string fields + title + content
+    query_by_weights,     # ← structured fields get weight 10, title/content get 1
+    facet_query_by,       # ← facet fields with explicit type (e.g. pet_safety_label)
+)
+yield {"type": "products", "products": cards}    # ← product cards first
 
 system = _system_prompt(context)
 
@@ -899,29 +911,32 @@ async for chunk in gen:
     yield {"type": "text", "content": chunk}
 ```
 
+All domain resolution (`chat_fields`, `query_by`, `facet_query_by`) is done in the router (`chat.py`) before calling the service, so `service.py` receives only plain Python values and never imports from the domain layer.
+
 ### The system prompt
 
 ```
 You are a helpful product expert assistant.
-Answer questions using only the products listed below.
+Answer questions using ONLY the structured product data listed below —
+do NOT rely on general knowledge about these products.
+Each product has labelled attributes; use those exact values when answering
+attribute-specific questions.
 Be concise — 2 to 3 sentences maximum.
 If no product matches the question, say so honestly.
 
 Products:
 1. Spider Plant
-   A low-maintenance trailing plant safe for pets.
-   Great for beginners.
+  Pet Safety Label: Pet safe
+  Care Difficulty: Easy
+  Description: A low-maintenance trailing plant safe for pets...
 
 2. Boston Fern
-   Lush, elegant fern. Thrives in humidity.
-   Pet safe, needs indirect light.
-
-3. Calathea Ornata
-   Striking leaf patterns. Non-toxic to pets.
-   ...
+  Pet Safety Label: Pet safe
+  Care Light: Indirect light
+  Description: Lush, elegant fern. Thrives in humidity...
 ```
 
-The LLM is explicitly told to use **only** the provided products. It cannot invent products not in the list.
+Each product block contains labelled attribute lines for every field the operator has enabled for chat. The LLM is explicitly told to use **only** these values — not general knowledge.
 
 ### Why multi_search is used for retrieval
 
@@ -1268,15 +1283,198 @@ The LLM is a writer, not a searcher. Typesense does the searching. The LLM does 
 
 ### What improves chat quality
 
-The chat is only as good as what is indexed. Richer product data → better retrieval → more accurate answers:
+The chat is only as good as what is indexed. Richer product data → better retrieval → more accurate answers.
 
-| Field | Why it matters for chat |
-|-------|------------------------|
-| `title` | Primary search signal — always include the full plant or product name |
-| `content` | Description used in retrieval — more detail means better semantic matching |
-| `metadata.pet_safe` | Enables "safe for cats/dogs" questions |
-| `metadata.care_difficulty` | Enables "easy for beginners" questions |
-| `metadata.price` | Enables budget-based questions |
-| `metadata.plant_family` | Enables "any Hoyas?" or "show me Aroids" questions |
-| `metadata.growth_style` | Enables "trailing" or "upright" preference questions |
-| `metadata.care_light` | Enables "low light" or "bright indirect" questions |
+Enable the **Chat** toggle on key fields in the Fields tab. This does two things:
+1. Includes the field as a labelled attribute in the LLM context block
+2. Includes the field value in the embedding text at rebuild time, so semantic search can match attribute-specific queries
+
+| Field | Toggle to enable | Why it matters for chat |
+|-------|-----------------|------------------------|
+| `title` | Always on | Primary search signal |
+| `content` | Always on | Description for semantic matching |
+| `pet_safety_label` | Chat + Facet + Searchable | Enables "pet safe" queries |
+| `care_difficulty` | Chat + Facet | Enables "easy for beginners" questions |
+| `care_light` | Chat + Facet | Enables "low light" or "bright indirect" questions |
+| `care_water` | Chat + Facet | Enables watering frequency questions |
+| `price_tier` | Chat + Facet | Enables budget-tier questions |
+| `growth_style` | Chat | Enables "trailing" or "upright" preference questions |
+
+---
+
+## 16. Chat Flag — Operator-Controlled Field Selection
+
+### The problem
+
+Before the chat flag existed, the LLM context was built from a hardcoded list of field names. Adding a new domain (cell phones, tablets) required code changes.
+
+### The solution
+
+The **Chat** toggle in the Fields tab (one per field, alongside Searchable, Facet, Multi-value) lets the operator mark which fields should appear as labelled attributes in the LLM context. No code changes needed.
+
+### How it works
+
+```
+Fields tab → Chat toggle ON for "pet_safety_label"
+                    │
+                    ▼
+    field_config in DB:
+    { "name": "pet_safety_label", "chat": true, "facet": true, ... }
+                    │
+                    ▼
+    chat.py router resolves:
+      chat_fields = ["pet_safety_label", "care_difficulty", ...]
+                    │
+                    ▼
+    service.py builds LLM context:
+      "1. Peperomia Lima
+         Pet Safety Label: Pet safe
+         Care Difficulty: Easy
+         Description: ..."
+```
+
+### What the Chat toggle affects
+
+| Effect | Where |
+|--------|-------|
+| Field value appears as a labelled line in the LLM context | Every chat request |
+| Field value is included in the embedding text at rebuild time | Next index rebuild |
+
+Enabling Chat on a field that is also **Searchable** means:
+- It is included in `query_by` for BM25 search (weighted higher than title/content)
+- It is included in the facet-label retrieval pass for exact attribute matching
+- Its values are included in the embedding text so semantic search can find it
+
+Fields in `_CHAT_FIELD_SKIP` are never rendered in the LLM context regardless of the toggle: `image_url`, `image`, `images`, `thumbnail`, `url`, `url_name`, `description`.
+
+### Searchable toggle constraint for non-string fields
+
+Boolean and numeric fields (e.g. `pet_safe: bool`, `price: float`) cannot be made Searchable because Typesense's `query_by` only accepts string fields. The toggle is disabled in the UI for these types, and the backend rejects the request with HTTP 400 if attempted via the API.
+
+The runtime guard in `search.py` also filters the `query_by` list to string types only, as a safety net for data inconsistencies.
+
+---
+
+## 17. Three-Pass Retrieval — How Attribute Queries Work
+
+### The problem
+
+A query like "plants which are pet safe" breaks simple BM25 search:
+
+1. Typesense tokenises it: `["plants", "which", "are", "pet", "safe"]`
+2. It tries to find documents matching all five tokens
+3. "which" and "are" match nothing → tokens are progressively dropped
+4. "plants" matches all product titles (high recall, zero discrimination)
+5. The word "safe" needs to match `pet_safety_label` — but that signal gets diluted
+
+The same query also breaks naive semantic search because "plants which are" dominates the query embedding, and the semantic index only knows about `title + content` (pet_safety_label was never embedded).
+
+### The solution — three retrieval passes
+
+Every chat context search runs up to three Typesense passes in a single `multi_search` POST, then merges with RRF:
+
+```
+Pass 1 — lex-all  (weight 0.3)
+  query_by: <all searchable fields> + title + content
+  query_by_weights: 10 (structured), 1 (title/content)
+  Purpose: broad BM25 coverage of all text fields
+
+Pass 2 — lex-facets  (weight 0.6)
+  query_by: <facet fields with explicit type in field_config>
+  num_typos: 0  ← exact word matching only
+  Purpose: precise attribute matching — "pet safe" → Pet safe label
+           num_typos=0 prevents "plants" from matching "plant" in
+           field values like plant_family="Coffee Plant"
+
+Pass 3 — semantic  (weight 0.1)
+  vector_query: vec:([<embedded query>], k:15)
+  Purpose: semantic similarity for general queries
+```
+
+### Why num_typos=0 matters
+
+Without `num_typos=0`, the word "plants" in the query matches "plant" in a field like `plant_family: "Coffee Plant"` via typo tolerance (1 edit: "plants" → "plant"). This creates false positives — e.g., Coffea Arabica returns for "pet safe" queries because it matches "plant" in `plant_family` AND "pet"/"safe" in `pet_safety`. With exact-word matching, only fields that contain the token verbatim match.
+
+### Which fields go into the facet pass
+
+The facet pass uses only fields where:
+- `facet: true` — it has short categorical values (suitable for exact matching)
+- `type` is explicitly stored in `field_config` — meaning the operator made it Searchable via the Fields tab, which persists the Typesense type
+
+Fields without an explicit stored type are excluded because they may be booleans (e.g. `pet_safe`), long descriptive text (e.g. `pet_safety`), or proper-noun identifiers (e.g. `plant_family`) that would create false positive matches.
+
+### RRF merge weights
+
+| Pass | Weight | Reasoning |
+|------|--------|-----------|
+| lex-facets | 0.6 | Highest — precise exact-word attribute matching |
+| lex-all | 0.3 | Medium — broad BM25 for general text queries |
+| semantic | 0.1 | Lowest — used as tiebreaker; accuracy depends on rebuild |
+
+When `lex-facets` returns 0 results (e.g. query has no words matching any facet value), only `lex-all` and `semantic` contribute — behaviour unchanged from a two-pass system.
+
+---
+
+## 18. Embedding Enrichment — Structured Fields in Vectors
+
+### The problem
+
+Before this change, the embedding text for every document was:
+
+```python
+f"{title} {content}"
+```
+
+This means semantic search for "pet safe plants" could not distinguish:
+- Peperomia (pet_safety_label = "Pet safe")
+- Hoya Wayetii (pet_safety_label = "Unknown")
+
+because neither `pet_safety_label` value was in the embedded text.
+
+### The solution
+
+At rebuild time, the pipeline now enriches the embedding text with the values of all chat-flagged fields:
+
+```python
+def _build_embed_text(doc: dict, chat_field_names: set[str]) -> str:
+    parts = [doc.get("title", ""), doc.get("content", "")]
+    for name in chat_field_names:
+        if name in _EMBED_SKIP:      # skip image/url fields
+            continue
+        val = doc.get(name)
+        if val is None or isinstance(val, (list, dict)):
+            continue
+        parts.append(str(val))
+    return " ".join(p for p in parts if p).strip()
+```
+
+For a pet-safe Peperomia plant, the embedding text becomes:
+
+```
+Peperomia Lima – 4" Houseplant [title]
+Peperomia Lima is a compact houseplant... [content]
+Pet safe [pet_safety_label]
+Easy [care_difficulty]
+Indirect light [care_light]
+Weekly [care_water]
+```
+
+This means the semantic search vector for this document is close to queries like "pet safe", "easy care", "indirect light" — not just the product name and description.
+
+### When the enrichment takes effect
+
+The enriched embedding is generated **at rebuild time**. After enabling Chat on new fields in the Fields tab, trigger a rebuild to regenerate vectors. Queries against the live index will then correctly retrieve documents via semantic search for attribute-specific queries.
+
+### Fields excluded from embedding text
+
+`_EMBED_SKIP` contains fields that add no semantic signal and would pollute the embedding:
+
+```python
+_EMBED_SKIP = {
+    "id", "vec", "title", "content", "url", "source_type",
+    "indexed_at", "metadata", "image_url", "image", "images",
+    "thumbnail", "url_name", "boost_queries_equal", "boost_queries_contains"
+}
+```
+
+`title` and `content` are excluded because they are already added separately at the start of the parts list.

@@ -172,6 +172,7 @@ export interface FieldConfig {
   facet:       boolean;
   multi_value: boolean;
   searchable:  boolean;
+  chat:        boolean;
 }
 
 /** One field entry returned by GET /indexes/{id}/fields. */
