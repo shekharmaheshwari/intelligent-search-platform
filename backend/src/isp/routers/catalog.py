@@ -541,6 +541,18 @@ async def get_facets(type: str = Query(default="device")):
 
 # ── GET /v1/suggest ───────────────────────────────────────────────────────────
 
+# Map PLP tab names → intent_label values stored in search_suggestions.
+# PLP sends the tab slug ("phones") but suggestions are seeded using the index's
+# intent_label ("device"). Without this mapping the category filter matches nothing
+# and only global type=query entries are returned (typically 1-2 results).
+_TAB_TO_INTENT: dict[str, str] = {
+    "phones":      "device",
+    "accessories": "accessory",
+    "smartwatch":  "smartwatch",
+    "tablets":     "tablet",
+}
+
+
 @router.get("/suggest", summary="Autocomplete suggestions")
 async def suggest(
     q:          str = Query(..., description="Partial query (min 2 chars)"),
@@ -559,14 +571,17 @@ async def suggest(
     if not q or len(q) < 2:
         return {"suggestions": [], "query": q}
 
+    # Resolve PLP tab names to the intent_label stored on suggestions documents.
+    resolved_category = _TAB_TO_INTENT.get(category or "", category) if category else None
+
     # Primary path: dedicated suggestions collection (fast, operator-curated).
     try:
-        results = ts.get_suggestions(q, category, limit)
+        results = ts.get_suggestions(q, resolved_category, limit)
         if results:
             return {"suggestions": results, "query": q}
         # When a category is scoped, an empty result means no matches in that category.
         # Skip the fallback to avoid returning suggestions from unrelated categories.
-        if category:
+        if resolved_category:
             return {"suggestions": [], "query": q}
     except Exception:
         # suggestions collection unavailable — fall through to product-title search
