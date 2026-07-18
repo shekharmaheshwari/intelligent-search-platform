@@ -116,16 +116,29 @@ function transform(doc) {
   var colorNames = (doc.colorOptions || []).map(function(c) { return c && c.name ? c.name : ''; }).filter(Boolean);
 
   // Badges live per-SKU in the product API, not at product level — collect and deduplicate.
+  // Extract label strings only (not the full object) so metadata serializes cleanly.
   var badgeSet = {}, badges = [];
   skus.forEach(function(sku) {
     (sku.badges || []).forEach(function(b) {
-      if (b && b.label && !badgeSet[b.label]) { badgeSet[b.label] = true; badges.push(b); }
+      if (b && b.label && !badgeSet[b.label]) { badgeSet[b.label] = true; badges.push(b.label); }
     });
   });
   // Also include any top-level badges the API may add in future.
   (doc.badges || []).forEach(function(b) {
-    if (b && b.label && !badgeSet[b.label]) { badgeSet[b.label] = true; badges.push(b); }
+    if (b && b.label && !badgeSet[b.label]) { badgeSet[b.label] = true; badges.push(b.label); }
   });
+
+  var shortDesc = display + (manufacturer ? ' by ' + manufacturer + '.' : '.') +
+                  (osName ? ' ' + osName + ' smartphone.' : '');
+  var longDesc  = doc.longDescription || '';
+
+  // Monthly payment from the first CRP entry (phones/accessories only)
+  var monthlyPayment = null;
+  var crp = skus.length > 0 ? (skus[0].crpPrices || []) : [];
+  if (crp.length > 0 && crp[0].monthlyPayment) {
+    var mp = crp[0].monthlyPayment;
+    monthlyPayment = parseFloat(mp.salePrice || mp.listPrice || 0) || null;
+  }
 
   return {
     id:               rawId,
@@ -142,14 +155,17 @@ function transform(doc) {
     images:           images.slice(0, 3),
     color_options:    colorNames,
     skus:             skuCodes,
-    description:      display + (manufacturer ? ' by ' + manufacturer + '.' : '.') +
-                      (osName ? ' ' + osName + ' smartphone.' : ''),
+    description:      shortDesc,
+    // content = long description when available; falls back to short desc.
+    // This is the primary searchable body field indexed by Typesense BM25.
+    content:          longDesc || shortDesc,
+    long_description: longDesc,
+    monthly_payment:  monthlyPayment,
     aliases:          aliases,
     tags:             tags,
     popularity:       Math.max(0, 1000 - rank * 10),
     is_featured:      rank <= 5,
-    // Pass raw badges through so chained extensions (e.g. version_score.js) can
-    // inspect them. Not stored in Typesense — consumed and discarded by the mapper.
+    // Badge label strings — passed through so chained extensions can use them.
     badges:           badges
   };
 }

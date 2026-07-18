@@ -37,6 +37,7 @@ from isp.services.domain.settings_service import (
     set_customer_context_flags,
     get_chat_config,
     set_chat_config,
+    get_smart_followup_enabled,
 )
 from isp.services.infra import embedding_service
 
@@ -249,16 +250,17 @@ class ChatConfigUpdate(BaseModel):
     """
     Request body for updating the chat provider.
 
-    - ``provider``  — one of: "none", "anthropic", "google", "openai", "groq", "self_hosted"
-    - ``model``     — model id (e.g. "gemini-1.5-flash"); empty string for self_hosted
-                      (model is sent in every request, so server needs to know it)
-    - ``api_key``   — cloud API key; omit to keep the previously stored key
-    - ``endpoint``  — required only when provider is "self_hosted"
+    - ``provider``       — one of: "none", "anthropic", "google", "openai", "groq", "self_hosted"
+    - ``model``          — model id; empty string for self_hosted
+    - ``api_key``        — cloud API key; omit to keep the previously stored key
+    - ``endpoint``       — required only when provider is "self_hosted"
+    - ``smart_followup`` — when True, route every follow-up query through the LLM classifier
     """
-    provider:  str
-    model:     str             = ""
-    api_key:   str | None      = None
-    endpoint:  str | None      = None
+    provider:       str
+    model:          str        = ""
+    api_key:        str | None = None
+    endpoint:       str | None = None
+    smart_followup: bool       = False
 
 
 class ChatConfigResponse(BaseModel):
@@ -266,6 +268,7 @@ class ChatConfigResponse(BaseModel):
     model:            str
     endpoint:         str | None
     api_key_set:      bool
+    smart_followup:   bool
     available_models: list[dict]
 
 
@@ -278,6 +281,7 @@ async def get_chat_settings() -> ChatConfigResponse:
         model=cfg["model"],
         endpoint=cfg["endpoint"] or None,
         api_key_set=cfg["api_key_set"],
+        smart_followup=cfg.get("smart_followup", False),
         available_models=AVAILABLE_CHAT_MODELS,
     )
 
@@ -308,6 +312,7 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
         model=body.model,
         api_key=body.api_key,
         endpoint=body.endpoint,
+        smart_followup=body.smart_followup,
     )
     cfg = await get_chat_config()
     return ChatConfigResponse(
@@ -315,6 +320,7 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
         model=cfg["model"],
         endpoint=cfg["endpoint"] or None,
         api_key_set=cfg["api_key_set"],
+        smart_followup=cfg.get("smart_followup", False),
         available_models=AVAILABLE_CHAT_MODELS,
     )
 

@@ -36,6 +36,7 @@ export interface ChatConfig {
   model:            string;
   endpoint:         string | null;
   api_key_set:      boolean;
+  smart_followup:   boolean;
   available_models: ChatModelOption[];
 }
 
