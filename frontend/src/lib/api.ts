@@ -447,18 +447,20 @@ export const api = {
     req<import('./types/settings.types').ChatConfig>('/settings/chat'),
 
   updateChatConfig: (opts: {
-    provider:  string;
-    model:     string;
-    apiKey?:   string;
-    endpoint?: string;
+    provider:       string;
+    model:          string;
+    apiKey?:        string;
+    endpoint?:      string;
+    smartFollowup?: boolean;
   }) =>
     req<import('./types/settings.types').ChatConfig>('/settings/chat', {
       method: 'PUT',
       body: JSON.stringify({
-        provider: opts.provider,
-        model:    opts.model,
-        api_key:  opts.apiKey  ?? null,
-        endpoint: opts.endpoint ?? null,
+        provider:       opts.provider,
+        model:          opts.model,
+        api_key:        opts.apiKey        ?? null,
+        endpoint:       opts.endpoint      ?? null,
+        smart_followup: opts.smartFollowup ?? false,
       }),
     }),
 
