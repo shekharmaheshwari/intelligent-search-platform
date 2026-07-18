@@ -558,11 +558,25 @@ async def update_affinity_dimensions(idx_id: str, body: AffinityDimensionUpdate)
 _FIELD_SYSTEM = {"id", "vec", "indexed_at"}
 _FIELD_ALWAYS_SEARCHABLE = {"title", "content"}
 
+def _build_embed_text(doc: dict) -> str:
+    """Build the text to embed for a document.
+
+    Uses chatContent (built by the JS extension at index time) when present —
+    it already contains all structured, labelled attributes for this index type.
+    Falls back to title + content for indexes without an extension assigned.
+    """
+    return " ".join(p for p in [
+        doc.get("title", ""),
+        doc.get("content", ""),
+        doc.get("chatContent", ""),
+    ] if p).strip()
+
 
 class FieldUpdate(BaseModel):
     facet:       bool | None = None
     multi_value: bool | None = None
     searchable:  bool | None = None
+    chat:        bool | None = None
 
 
 @router.get("/{idx_id}/fields", summary="Get all fields for an index")
@@ -586,6 +600,7 @@ async def get_index_fields(idx_id: str):
         f["searchable"] = stored.get("searchable", f["name"] in _FIELD_ALWAYS_SEARCHABLE)
         if f["name"] in _FIELD_ALWAYS_SEARCHABLE:
             f["searchable"] = True   # always on, cannot be disabled
+        f["chat"] = stored.get("chat", False)
     return {"fields": schema_fields}
 
 
@@ -611,11 +626,13 @@ async def get_index_fields_public(idx_id: str):
 @router.patch("/{idx_id}/fields/{field_name}", summary="Update field properties")
 async def update_index_field(idx_id: str, field_name: str, body: FieldUpdate):
     """
-    Toggle facet, multi-value, or searchable on a single field.
+    Toggle facet, multi-value, searchable, or chat on a single field.
 
     Facet and multi-value changes apply immediately via a Typesense schema update
-    (drop + re-add — data is preserved).  Searchable is stored in ISP metadata and
-    takes effect on the next search call without any schema change.
+    (drop + re-add — data is preserved).  Searchable and chat are stored in
+    field_config (PostgreSQL) and take effect on the next request without any
+    schema change.  Chat controls which fields appear as labelled attributes in
+    the RAG chat context — no field names are hardcoded in the chat service.
     """
     meta = await _resolve_index(idx_id)
     if not meta:
@@ -650,14 +667,22 @@ async def update_index_field(idx_id: str, field_name: str, body: FieldUpdate):
         except Exception as e:
             raise HTTPException(500, f"Schema update failed: {e}")
 
-    # Persist searchable + any facet/multi_value change into field_config
+    # Persist searchable + chat + any facet/multi_value change into field_config.
+    field_type = current.get("type", "string")
+    if body.searchable and not field_type.startswith("string"):
+        raise HTTPException(400, f"'{field_name}' is type '{field_type}' — only string fields can be searchable")
+    existing = next((fc for fc in (meta.field_config or []) if fc.get("name") == field_name), {})
     cfg_list = [fc for fc in (meta.field_config or []) if fc.get("name") != field_name]
-    entry: dict = {"name": field_name, "facet": new_facet, "multi_value": new_multi_value}
-    if body.searchable is not None:
-        entry["searchable"] = body.searchable
-    else:
-        existing = next((fc for fc in (meta.field_config or []) if fc.get("name") == field_name), {})
-        entry["searchable"] = existing.get("searchable", field_name in _FIELD_ALWAYS_SEARCHABLE)
+    entry: dict = {
+        "name":        field_name,
+        "type":        field_type,   # stored so search.py can guard without a schema round-trip
+        "facet":       new_facet,
+        "multi_value": new_multi_value,
+        "searchable":  body.searchable if body.searchable is not None
+                       else existing.get("searchable", field_name in _FIELD_ALWAYS_SEARCHABLE),
+        "chat":        body.chat if body.chat is not None
+                       else existing.get("chat", False),
+    }
     cfg_list.append(entry)
     meta.field_config = cfg_list
     await index_service.update_index(meta)
@@ -667,6 +692,7 @@ async def update_index_field(idx_id: str, field_name: str, body: FieldUpdate):
     refreshed_map = {f["name"]: f for f in refreshed}
     result = refreshed_map.get(field_name, current)
     result["searchable"] = entry["searchable"]
+    result["chat"]       = entry["chat"]
     return result
 
 
@@ -944,7 +970,7 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
 
         # Only embed docs that have non-empty text; skip the rest to avoid
         # empty-string rejections from the embedding provider.
-        raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
+        raw_texts = [_build_embed_text(d) for d in docs]
         embed_idxs = [i for i, t in enumerate(raw_texts) if t]
         if embed_idxs:
             vecs = await embedding_service.embed_texts(
@@ -1189,7 +1215,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
-            raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
+            raw_texts = [_build_embed_text(d) for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
                 vecs = await embedding_service.embed_texts(
@@ -1237,7 +1263,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
-            raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
+            raw_texts = [_build_embed_text(d) for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
                 vecs = await embedding_service.embed_texts(
@@ -1300,7 +1326,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
-            raw_texts = [f"{d.get('title', '')} {d.get('content', '')}".strip() for d in docs]
+            raw_texts = [_build_embed_text(d) for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
                 vecs = await embedding_service.embed_texts(
