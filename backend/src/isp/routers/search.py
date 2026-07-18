@@ -98,25 +98,26 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
             def ctx_hook(scores: dict, all_docs: dict) -> None:  # noqa: F811
                 ts.apply_boost_rules(scores, all_docs, _rules, query=_query)
 
-    # Build native Typesense filter string — works after schema migration promotes
-    # category and manufacturer to top-level fields.  External collections skip
-    # this path and rely on their own filter_by via search_external.
-    def _to_list(v) -> list[str]:
-        if not v:
-            return []
-        return v if isinstance(v, list) else [v]
+    # Build query_by from field_config searchable entries (title+content always included).
+    _extra_qb = [
+        fc["name"] for fc in (meta.field_config or [])
+        if fc.get("searchable") and fc["name"] not in {"title", "content"}
+    ]
+    ts_query_by: str | None = ("title,content," + ",".join(_extra_qb)) if _extra_qb else None
+
+    # Derive facet_by dynamically from schema — no hardcoding
+    ts_facet_fields: list[str] = [
+        f for f in ts.get_facet_fields(meta.id)
+        if f not in _FACET_EXCLUDE
+    ] if not meta.is_external else []
 
     ts_filter: str | None = None
     if not meta.is_external:
-        _parts = []
-        cats = _to_list(req.category)
-        mfrs = _to_list(req.manufacturer)
-        if cats:
-            vals = ",".join(cats)
-            _parts.append(f"category:=[{vals}]")
-        if mfrs:
-            vals = ",".join(mfrs)
-            _parts.append(f"manufacturer:=[{vals}]")
+        _parts = [
+            f"{field}:=[{','.join(values)}]"
+            for field, values in (req.filters or {}).items()
+            if values
+        ]
         if _parts:
             ts_filter = " && ".join(_parts)
 
@@ -134,7 +135,9 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
         last_raw: dict = {}
         for _p in range(1, _MAX_BROWSE_PAGES + 1):
             _raw = ts.search_documents(meta.id, req.q, "lexical", _p, _FILTER_BATCH,
-                                       exclude_vec=exclude_vec, filter_by=ts_filter)
+                                       exclude_vec=exclude_vec, filter_by=ts_filter,
+                                       query_by=ts_query_by,
+                                       facet_fields=ts_facet_fields if _p == 1 else None)
             last_raw = _raw
             page_hits = _raw.get("hits", [])
             if not page_hits:
@@ -162,12 +165,14 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
 
         total = last_raw.get("found", len(all_hits))
         start = (req.page - 1) * req.per_page
-        return {
+        result: dict = {
             **last_raw,
             "hits":  all_hits[start : start + req.per_page],
             "found": total,
             "page":  req.page,
         }
+        # facet_counts come from page 1 (captured in last_raw only if _p==1 ever set them)
+        return result
 
     # ── Standard path — single Typesense call ────────────────────────────────
     # filter_by is handled natively; Typesense paginates on its own.
@@ -201,35 +206,51 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
                 post_rrf_hook=ctx_hook,
                 filter_by=ts_filter,
                 pinned_hits=pinned or None,
+                query_by=ts_query_by,
+                facet_fields=ts_facet_fields or None,
             )
         else:
             raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
                                       exclude_vec=exclude_vec, post_rrf_hook=ctx_hook,
                                       filter_by=ts_filter,
-                                      pinned_hits=pinned or None)
+                                      pinned_hits=pinned or None,
+                                      query_by=ts_query_by,
+                                      facet_fields=ts_facet_fields or None)
     else:
         raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
                                   exclude_vec=exclude_vec, post_rrf_hook=ctx_hook,
                                   filter_by=ts_filter,
-                                  pinned_hits=pinned or None)
+                                  pinned_hits=pinned or None,
+                                  query_by=ts_query_by,
+                                  facet_fields=ts_facet_fields or None)
 
     return raw
 
 
+# System fields that are facetable in the schema but carry no filtering value for the UI.
+_FACET_EXCLUDE = {"source_type"}
+
 @router.get("/{idx_id}/facets", summary="Get facets for an index", tags=["public"])
 async def get_index_facets(idx_id: str):
     """
-    Return category and manufacturer facet counts for an ISP-managed index.
+    Return facet counts for an ISP-managed index.
 
-    Counts come directly from Typesense so they always reflect the indexed data.
-    Values match what is stored in Typesense (set by the index extension).
+    Discovers facetable fields directly from the Typesense schema — any field
+    with facet=True is included, minus internal system fields.  No hardcoding
+    needed: marking a field facetable in the schema is the only deployment step.
     """
     meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
     if meta.is_external:
         raise HTTPException(400, "Facets are not available for external indexes")
-    facets = ts.get_facets(meta.id, ["category", "manufacturer"])
+    facet_fields = [
+        f for f in ts.get_facet_fields(meta.id)
+        if f not in _FACET_EXCLUDE
+    ]
+    if not facet_fields:
+        return {"facets": {}}
+    facets = ts.get_facets(meta.id, facet_fields)
     return {"facets": facets}
 
 
