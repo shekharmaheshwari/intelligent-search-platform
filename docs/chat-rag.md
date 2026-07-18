@@ -25,6 +25,7 @@ End-to-end documentation for the ISP conversational chat feature: why it exists,
 17. [Three-Pass Retrieval — How Attribute Queries Work](#17-three-pass-retrieval--how-attribute-queries-work)
 18. [Embedding Enrichment — chatContent in Vectors](#18-embedding-enrichment--chatcontent-in-vectors)
 19. [Follow-up Detection & Smart Mode](#19-follow-up-detection--smart-mode)
+20. [Chat API Reference in ISP Admin](#20-chat-api-reference-in-isp-admin)
 
 ---
 
@@ -1661,3 +1662,65 @@ LLM provider errors are translated to human-readable messages before reaching th
 | `503` / `overloaded` / `unavailable` | "The AI provider is temporarily unavailable. Please try again in a moment." |
 | `context_length` / `too long` | "The conversation is too long for this model. Please start a new chat." |
 | anything else | "Something went wrong with the AI provider. Please try again." |
+
+---
+
+## 20. Chat API Reference in ISP Admin
+
+Each index detail view includes an **Api** tab that shows copy-ready curl examples
+for all three endpoint groups — Public, Internal, and Chat.
+
+### Chat API section
+
+The Chat API section appears below the Internal API group and uses a purple badge
+(`RAG-grounded · SSE · Streaming`) to distinguish it from the REST-style search
+endpoints.
+
+It documents:
+
+| Item | Content |
+|---|---|
+| First turn | `POST /v1/indexes/{id}/chat` with empty `messages: []` |
+| Multi-turn | Same endpoint with prior `messages` history attached |
+| Request body | `query` (string, required) + `messages` (array of prior turns) |
+| SSE response | `products` chunk → streamed `text` chunks → `[DONE]` sentinel |
+
+### Request body
+
+```json
+{
+  "query":    "your question",
+  "messages": [
+    {
+      "role":     "user",
+      "content":  "first question"
+    },
+    {
+      "role":     "assistant",
+      "content":  "Here are some options...",
+      "products": [...]
+    }
+  ]
+}
+```
+
+`messages` is empty (`[]`) on the first turn. On follow-up turns the full prior
+conversation is passed — including `products` on assistant turns so the backend
+can resolve pronouns and pin previously shown items.
+
+### SSE response stream
+
+```
+data: {"type": "products", "items": [...]}   ← product cards (first chunk)
+data: {"type": "text", "content": "Here"}    ← streamed answer tokens
+data: {"type": "text", "content": " are"}
+data: {"type": "text", "content": " some…"}
+data: [DONE]                                 ← stream closed
+```
+
+The `products` chunk always arrives first so the UI can render cards immediately
+while the LLM answer is still streaming.
+
+Auth: **public** — no JWT required. This endpoint is called by PLP shoppers who
+do not have admin tokens. The `vec` embedding field is never included in chat
+responses.
