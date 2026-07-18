@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from isp.models.search import CustomerAction
 from isp.services.infra import embedding_service
 from isp.services.infra import typesense_client as ts
+from isp.services.infra.database import get_pool
 from isp.services.domain.context_service import (
     SearchContext, build_context, context_boost, fetch_preference_vector,
 )
@@ -541,16 +542,37 @@ async def get_facets(type: str = Query(default="device")):
 
 # ── GET /v1/suggest ───────────────────────────────────────────────────────────
 
-# Map PLP tab names → intent_label values stored in search_suggestions.
-# PLP sends the tab slug ("phones") but suggestions are seeded using the index's
-# intent_label ("device"). Without this mapping the category filter matches nothing
-# and only global type=query entries are returned (typically 1-2 results).
-_TAB_TO_INTENT: dict[str, str] = {
-    "phones":      "device",
-    "accessories": "accessory",
-    "smartwatch":  "smartwatch",
-    "tablets":     "tablet",
-}
+async def _resolve_suggest_category(index_id: str | None) -> str | None:
+    """
+    Resolve the suggestion category for a given ISP index ID.
+
+    Each ISP index carries an ``intent_label`` (e.g. ``"device"``, ``"accessory"``,
+    ``"consumerPlans"``) that is set once in the ISP admin UI and stored in the
+    ``indexes`` DB table.  When suggestion documents are seeded from that index,
+    they are tagged with the same label in their ``category`` field.
+
+    This function translates an opaque index ID into that label so the
+    ``/v1/suggest`` endpoint can scope autocomplete results to only the entries
+    that belong to the caller's index — without any hardcoded slug-to-category
+    mapping in application code.
+
+    Returns ``None`` when:
+    - ``index_id`` is absent (caller wants cross-category suggestions).
+    - The index does not exist or has no ``intent_label`` set (new/unconfigured index).
+    - The DB is temporarily unavailable (silently degrades to unscoped suggestions).
+    """
+    if not index_id:
+        return None
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT intent_label FROM indexes WHERE id = $1", index_id
+            )
+        label = (row["intent_label"] or "").strip() if row else ""
+        return label or None
+    except Exception:
+        return None
 
 
 @router.get("/suggest", summary="Autocomplete suggestions")
@@ -558,7 +580,8 @@ async def suggest(
     q:          str = Query(..., description="Partial query (min 2 chars)"),
     session_id: str = Query(default=""),
     limit:      int = Query(default=8, ge=1, le=20),
-    category:   str | None = Query(default=None, description="Active catalog tab — boosts matching suggestions"),
+    index_id:   str | None = Query(default=None, description="ISP index ID — resolved to intent_label for category scoping"),
+    category:   str | None = Query(default=None, description="Direct category filter (used by isolated stores like plants)"),
 ):
     """
     Typeahead autocomplete for the PLP search bar.
@@ -571,8 +594,8 @@ async def suggest(
     if not q or len(q) < 2:
         return {"suggestions": [], "query": q}
 
-    # Resolve PLP tab names to the intent_label stored on suggestions documents.
-    resolved_category = _TAB_TO_INTENT.get(category or "", category) if category else None
+    # index_id → DB intent_label lookup (preferred); category → direct filter (plants, legacy).
+    resolved_category = await _resolve_suggest_category(index_id) or category or None
 
     # Primary path: dedicated suggestions collection (fast, operator-curated).
     try:
