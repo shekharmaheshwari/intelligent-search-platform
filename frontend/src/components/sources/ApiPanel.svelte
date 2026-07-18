@@ -19,6 +19,8 @@
   const curlHybrid       = curls.hybrid;
   const curlLexical      = curls.lexical;
   const curlDocs         = curls.docs;
+  const curlChat         = curls.chat;
+  const curlChatTurn     = curls.chatTurn;
 
   let copied = '';
 
@@ -189,6 +191,74 @@
     </section>
   </div>
 
+  <div class="divider"></div>
+
+  <!-- ── Chat API ───────────────────────────────────────────────────────── -->
+  <div class="api-group">
+    <div class="group-header">
+      <span class="group-title">Chat API</span>
+      <span class="group-badge chat-badge">Streaming · SSE · RAG-grounded</span>
+    </div>
+    <p class="group-desc">
+      Conversational endpoint grounded in this index. Returns a
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events" target="_blank" rel="noopener">Server-Sent Events</a>
+      stream — each <code>data:</code> line is a JSON chunk. Send the full
+      <code>messages</code> history on every turn to maintain context.
+    </p>
+
+    <section>
+      <div class="section-head">
+        <div class="endpoint-line">
+          <span class="method post">POST</span>
+          <span class="path">/v1/indexes/{indexId}/chat</span>
+        </div>
+        <button class="copy-btn" on:click={() => copy(curlChat, 'chat')}>
+          {copied === 'chat' ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <p class="desc">First turn — empty <code>messages</code> array.</p>
+      <pre class="code-block"><code>{curlChat}</code></pre>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div class="endpoint-line">
+          <span class="method post">POST</span>
+          <span class="path">/v1/indexes/{indexId}/chat</span>
+          <span class="mode-tag">multi-turn</span>
+        </div>
+        <button class="copy-btn" on:click={() => copy(curlChatTurn, 'chat-turn')}>
+          {copied === 'chat-turn' ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <p class="desc">Follow-up turn — pass prior <code>messages</code> for context.</p>
+      <pre class="code-block"><code>{curlChatTurn}</code></pre>
+    </section>
+
+    <section>
+      <div class="section-head"><span class="section-label">Request body</span></div>
+      <pre class="code-block"><code>{`{
+  "query":    "string",   // user's question (required)
+  "messages": [           // prior turns — omit or [] on first turn
+    {
+      "role":     "user" | "assistant",
+      "content":  "string",
+      "products": [...]   // assistant turns only — shown product cards
+    }
+  ]
+}`}</code></pre>
+    </section>
+
+    <section>
+      <div class="section-head"><span class="section-label">SSE response stream</span></div>
+      <pre class="code-block"><code>{`data: {"type": "products", "items": [...]}   // product cards (first chunk)
+data: {"type": "text", "content": "Here"}    // streamed answer tokens
+data: {"type": "text", "content": " are"}
+data: {"type": "text", "content": " some…"}
+data: [DONE]                                 // stream closed`}</code></pre>
+    </section>
+  </div>
+
 </div>
 
 <style>
@@ -204,11 +274,13 @@
     font-size: 10px; font-weight: 600; padding: 2px 8px;
     border-radius: 10px; letter-spacing: 0.03em;
   }
-  .public-badge  { background: #0d2a1f; color: #4cde93; border: 1px solid #1a4a30; }
+  .public-badge   { background: #0d2a1f; color: #4cde93; border: 1px solid #1a4a30; }
   .internal-badge { background: #1a1a2e; color: #7c7caa; border: 1px solid #2a2a44; }
+  .chat-badge     { background: #1e1130; color: #c084fc; border: 1px solid #3b1f5e; }
 
   .group-desc { font-size: 12px; color: var(--text-5); margin: 0; line-height: 1.6; }
   .group-desc code { color: var(--accent); background: var(--accent-dim); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+  .group-desc a { color: var(--accent); text-decoration: underline; }
 
   .divider { border: none; border-top: 1px solid var(--border); margin: 8px 0 24px; }
 
