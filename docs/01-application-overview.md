@@ -56,6 +56,11 @@ ISP is an internal search platform that lets users connect external data sources
 │  │ ExtensionsPanel      │  │ IndexExtensionsPanel             │  │
 │  │ (global library)     │  │ (per-index assignment)           │  │
 │  └──────────────────────┘  └──────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │ IndexDetail (tabbed)                                     │    │
+│  │  Overview · Connector · Mapping · Fields · Documents     │    │
+│  │  Search · API · Suggestions · Personalisation · Boost    │    │
+│  └──────────────────────────────────────────────────────────┘    │
 └───────────────────────────┬──────────────────────────────────────┘
                             │ HTTP REST /v1/*
                             ▼
@@ -134,6 +139,9 @@ User clicks "↺ Rebuild"
                   embed via Voyage AI
                   drop+recreate isp_{id} collection
                   upsert all docs
+                  re-apply field_config (facet / multi_value / searchable)
+                    — calls update_field_properties for each changed field
+                    — preserves user field settings across every rebuild
 
               if external (is_external=true, catalog write-back):
                   _generic_catalog_mapper → catalog schema
@@ -200,7 +208,44 @@ App loads → POST /v1/indexes/discover
     existing user-configured assignments)
 ```
 
-### 6. Manage Extensions
+### 6. Configure Field Properties (Fields Tab)
+```
+User opens IndexDetail → Fields tab
+  → GET /v1/indexes/{id}/fields
+      → reads live Typesense schema
+      → merges with stored field_config from PostgreSQL
+      → returns list of { name, type, facet, multi_value, searchable, system }
+  → Table rendered: one row per field, three toggle columns
+      System fields (id, vec, indexed_at): greyed out, non-editable
+      Core fields (title, content): always-searchable badge, searchable toggle fixed
+      Other fields: all three toggles active
+
+User clicks a toggle (e.g. Facet ON for "manufacturer"):
+  → PATCH /v1/indexes/{id}/fields/manufacturer  { "facet": true }
+      → Typesense schema change: drop field → re-add with facet:true
+        (Typesense requires drop+re-add; no document data is lost)
+      → field_config saved to PostgreSQL (persists across rebuilds)
+      → updated FieldEntry returned; UI updates optimistically
+```
+
+### 7. Generic Facet Filtering (PLP)
+```
+Admin enables facet on a field (e.g. "customer_group") via Fields tab
+  → PLP renders that field automatically in FilterSidebar
+      — no code changes needed in frontend or backend
+      — DEDICATED_FIELDS = { category, manufacturer, price_range }
+        handle their own UI; everything else renders in a generic loop
+
+User selects a filter value in FilterSidebar
+  → FilterState.facets["customer_group"] = Set(["business"])
+  → POST /v1/catalog (or /indexes/{id}/search)
+      body: { filters: { "customer_group": ["business"] } }
+      — all filter fields sent as a single generic dict
+      — backend builds filter_by: "customer_group:=[business]"
+        from the dict regardless of field name
+```
+
+### 8. Manage Extensions
 ```
 User opens "⚙ Extensions" in sidebar footer
   → ExtensionsPanel (global library)

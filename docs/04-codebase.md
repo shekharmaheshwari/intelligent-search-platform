@@ -46,7 +46,8 @@ intelligent-search-platform/
 │           ├── SourceContent.svelte    # Main panel: docs list + search + "⚙ Extensions" button
 │           ├── RebuildPanel.svelte     # Rebuild modal: sitemap form OR curl paste + REST form + progress
 │           ├── CreateWizard.svelte     # 4-step wizard to add a new source
-│           ├── IndexDetail.svelte      # Tabbed detail view: Overview / Connector / Documents / Search / Api
+│           ├── IndexDetail.svelte      # Tabbed detail view: Overview / Connector / Mapping / Fields / Documents / Search / API / Suggestions / Personalisation / Boost Rules
+│           ├── FieldsTab.svelte        # Fields tab: table of Typesense fields with Searchable / Facet / Multi-value toggles
 │           ├── ExtensionsPanel.svelte  # Global extension library (list/create/edit/delete)
 │           └── IndexExtensionsPanel.svelte  # Per-index extension assignment overlay
 │
@@ -115,13 +116,14 @@ All configuration is read from environment variables or `.env`:
 
 | Model | Purpose |
 |---|---|
-| `IndexMeta` | Full source metadata (id, name, connectors, external_*, doc_count) |
+| `IndexMeta` | Full source metadata (id, name, connectors, external_*, doc_count, field_config) |
 | `IndexCreate` | Request body for creating an index (name, description) |
 | `RestConnectorConfig` | REST connector (url, method, headers, body, field_map, field shortcuts) |
 | `SitemapConnectorConfig` | Sitemap connector (url, max_pages, selectors, patterns) |
 | `IngestStatus` | Job status (state, total, indexed, error) |
-| `SearchRequest` | Search request (q, page, per_page, mode) |
+| `SearchRequest` | Search request (q, page, per_page, mode, `filters: dict[str, list[str]]`) |
 | `DocumentItem` | Search result shape (id, title, content, url, source_type, indexed_at) |
+| `FieldUpdate` | PATCH body for field properties (facet, multi_value, searchable — all optional booleans) |
 
 `RestConnectorConfig.field_map` — optional source→target field renames applied before indexing. Setting a target to `""` drops the field. Special target names `title`, `content`, `url`, `id` override the corresponding core field shortcuts.
 
@@ -148,6 +150,8 @@ All configuration is read from environment variables or `.env`:
 | GET | `/v1/indexes/{id}/documents` | List documents — includes `vec` (paginated) |
 | GET | `/v1/indexes/{id}/documents/public` | List documents — `vec` excluded (external consumers) |
 | PATCH | `/v1/indexes/{id}/documents/{doc_id}` | Update editorial fields without re-indexing |
+| GET | `/v1/indexes/{id}/fields` | List all Typesense fields merged with stored `field_config` |
+| PATCH | `/v1/indexes/{id}/fields/{field_name}` | Toggle facet / multi_value / searchable for a field; persists to `field_config` |
 
 Key internal functions:
 - `_generic_catalog_mapper(item, idx)` — packages extension output (flat dict) into Typesense catalog schema. Makes no assumptions about API field names; that is the extension's job.
@@ -247,11 +251,13 @@ All Typesense API calls. Key functions:
 - `create_collection(id)` / `drop_collection(id)` — ISP-managed collection lifecycle
 - `upsert_documents(id, docs)` — ISP-managed collections
 - `upsert_to_collection(col, docs)` — any collection (write-back to `catalog`)
-- `search_documents(id, q, mode, page, per_page, exclude_vec)` — lexical search
-- `search_with_vec(id, q, vec, page, per_page, exclude_vec)` — hybrid RRF (ISP collections); applies `is_featured`, `popularity`, `boost_queries_equal`, `boost_queries_contains` boosts after RRF
+- `search_documents(id, q, mode, page, per_page, exclude_vec, query_by)` — lexical search; `query_by` is derived from `field_config.searchable` at request time
+- `search_with_vec(id, q, vec, page, per_page, exclude_vec, query_by)` — hybrid RRF (ISP collections); applies `is_featured`, `popularity`, `boost_queries_equal`, `boost_queries_contains` boosts after RRF; `query_by_weights` is computed dynamically (2 for title, 1 for all others)
 - `search_external(col, q, filter_by, query_by, vec, page, per_page, exclude_vec)` — hybrid RRF (external collections); same boost logic
 - `list_documents(id, page, per_page, exclude_vec)` — list from ISP collection
 - `list_documents_external(col, filter_by, query_by, page, per_page, exclude_vec)` — list from external collection
+- `get_all_fields(index_id)` — reads live Typesense schema; returns list of `{name, type, facet, multi_value, optional, system}` (system=True for `id`, `vec`, `indexed_at`)
+- `update_field_properties(index_id, field_name, *, facet, multi_value, current_type)` — drop + re-add field in Typesense schema without losing document data; changes `facet` flag and converts `string` ↔ `string[]` for multi-value
 
 All read functions accept `exclude_vec=False` (default).  Pass `True` for public-facing calls to strip the `vec` field via Typesense `exclude_fields: "vec"`.
 
@@ -304,9 +310,31 @@ All calls go to `PUBLIC_API_URL` (set at Astro build time). Key methods:
 - Extensions: `listExtensions`, `createExtension`, `updateExtension`, `deleteExtension`
 - Index assignments: `listIndexExtensions`, `assignExtension`, `unassignExtension`
 - Catalog: `searchCatalog`, `getCatalogFacets`, `getSuggestions`, `getIntentTab`
+- Field management: `getFields(indexId)`, `updateField(indexId, fieldName, patch: Partial<FieldConfig>)`
 
 ### `lib/types.ts` — TypeScript Interfaces
-Mirrors Pydantic models: `IndexMeta`, `RestConnectorConfig`, `IngestStatus`, `DocumentItem`, `ExtensionMeta`, `IndexExtension`.
+Mirrors Pydantic models: `IndexMeta`, `RestConnectorConfig`, `IngestStatus`, `DocumentItem`, `ExtensionMeta`, `IndexExtension`, `FieldEntry`, `FieldConfig`.
+
+`FieldEntry` — single field row returned by `GET /fields`:
+```typescript
+interface FieldConfig  { facet: boolean; multi_value: boolean; searchable: boolean; }
+interface FieldEntry extends FieldConfig {
+  name: string; type: string; optional: boolean; system: boolean;
+}
+```
+
+### `components/sources/FieldsTab.svelte` — Fields Tab
+Renders a table of all Typesense fields for the selected index with toggle controls.
+
+- On mount: `GET /v1/indexes/{id}/fields` → populates field rows
+- Three toggle columns per field: **Searchable**, **Facet**, **Multi-value**
+- System fields (`id`, `vec`, `indexed_at`): greyed out at 50% opacity, all toggles disabled
+- Core fields (`title`, `content`): always-searchable badge; searchable toggle locked ON
+- Multi-value toggle: only shown for `string` and `string[]` type fields
+- Optimistic UI: toggle fires immediately, spinner shown while PATCH is in flight, reverts on error
+- Per-row error display below each row that fails
+- `isBusy(fieldName, prop)` checks `saving["{name}:{prop}"]` — kept as a script-block function (Svelte 4 `{@const}` does not support arrow functions)
+- Changes persist across rebuilds via `field_config` in PostgreSQL
 
 ### `App.svelte` — Root Component
 - Owns the layout (Header + Sidebar + Main)

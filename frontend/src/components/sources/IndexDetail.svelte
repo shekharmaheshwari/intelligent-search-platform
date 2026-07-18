@@ -15,14 +15,15 @@
   import ApiPanel                 from './ApiPanel.svelte';
   import SuggestionsTab           from './SuggestionsTab.svelte';
   import MappingTab               from './MappingTab.svelte';
+  import FieldsTab                from './FieldsTab.svelte';
   import AffinityDimensionsPanel  from './AffinityDimensionsPanel.svelte';
   import BoostRulesTab            from './BoostRulesTab.svelte';
 
   export let indexId: string;
-  export let tab: 'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' = 'overview';
+  export let tab: 'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' = 'overview';
 
-  const tabs: Array<'overview' | 'connector' | 'mapping' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules'> =
-    ['overview', 'connector', 'mapping', 'documents', 'search', 'api', 'suggestions', 'personalisation', 'boost-rules'];
+  const tabs: Array<'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules'> =
+    ['overview', 'connector', 'mapping', 'fields', 'documents', 'search', 'api', 'suggestions', 'personalisation', 'boost-rules'];
 
   const dispatch = createEventDispatcher<{ back: void; tabchange: typeof tab }>();
 
@@ -106,6 +107,9 @@
           {connector}
           intentLabel={meta.intentLabel ?? null}
         />
+
+      {:else if tab === 'fields'}
+        <FieldsTab {indexId} />
 
       {:else if tab === 'documents'}
         <DocumentTable {indexId} />

@@ -188,6 +188,10 @@ class IndexMeta(BaseModel):
     # Each entry: {"id": str, "label": str, "enabled": bool, "boost": float,
     #              "criteria": [{"field": str, "operator": str, "value": str}, ...]}
     boost_rules: list[dict] = []
+    # Operator-configured field-level search/facet properties.
+    # Persisted here so they survive rebuilds (which recreate the Typesense collection).
+    # Each entry: {"name": str, "facet": bool, "multi_value": bool, "searchable": bool}
+    field_config: list[dict] = []
 
 
 class IngestStatus(BaseModel):

@@ -206,7 +206,9 @@ def _apply_lexical_hook(raw: dict, hook) -> dict:
 def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
                      exclude_vec: bool = False, post_rrf_hook=None,
                      filter_by: str | None = None,
-                     pinned_hits: list[str] | None = None) -> dict:
+                     pinned_hits: list[str] | None = None,
+                     query_by: str | None = None,
+                     facet_fields: list[str] | None = None) -> dict:
     """
     Single-pass lexical search on an ISP-managed collection.
 
@@ -236,11 +238,15 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
 
     fb_params: dict = {"filter_by": filter_by} if filter_by else {}
     pin_params: dict = {"pinned_hits": ",".join(f"{d}:{i+1}" for i, d in enumerate(pinned_hits))} if pinned_hits else {}
+    facet_params: dict = {"facet_by": ",".join(facet_fields), "max_facet_values": 100} if facet_fields else {}
+    _qb = query_by or "title,content"
+    _qb_fields = _qb.split(",")
+    _qb_weights = ",".join(["2" if f == "title" else "1" for f in _qb_fields])
     base_params: dict = {
-        "q": q, "query_by": "title,content",
-        "query_by_weights": "2,1",
+        "q": q, "query_by": _qb,
+        "query_by_weights": _qb_weights,
         "num_typos": 2,
-        "page": page, "per_page": per_page, **extra, **fb_params, **pin_params,
+        "page": page, "per_page": per_page, **extra, **fb_params, **pin_params, **facet_params,
     }
 
     def _search_with_sort(sort_by: str) -> dict:
@@ -248,7 +254,11 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
             raw = client.collections[name].documents.search({**base_params, "sort_by": sort_by})
         except Exception:
             raw = client.collections[name].documents.search({**base_params, "sort_by": "_text_match:desc"})
-        return _apply_lexical_hook(raw, post_rrf_hook) if post_rrf_hook else raw
+        result = _apply_lexical_hook(raw, post_rrf_hook) if post_rrf_hook else raw
+        # Promote facet_counts to a normalized dict if Typesense returned them
+        if facet_fields and "facet_counts" in result:
+            result = {**result, "facet_counts": _parse_facet_counts(result["facet_counts"])}
+        return result
 
     if mode == "lexical":
         return _search_with_sort("is_featured:desc,_text_match:desc")
@@ -268,6 +278,8 @@ def search_with_vec(
     post_rrf_hook=None,
     filter_by: str | None = None,
     pinned_hits: list[str] | None = None,
+    query_by: str | None = None,
+    facet_fields: list[str] | None = None,
 ) -> dict:
     """
     Hybrid search via Typesense multi_search + Reciprocal Rank Fusion.
@@ -282,15 +294,19 @@ def search_with_vec(
     client = get_client()
     extra: dict = {"exclude_fields": "vec"} if exclude_vec else {}
     fb: dict = {"filter_by": filter_by} if filter_by else {}
+    facet_params: dict = {"facet_by": ",".join(facet_fields), "max_facet_values": 100} if facet_fields else {}
     # Typesense hard cap is 250 per page; 3× over-fetch improves RRF recall
     # but must be clamped so we never exceed the limit.
     fetch_n = min(per_page * 3, 250)
+    _qb = query_by or "title,content"
+    _qb_fields = _qb.split(",")
+    _qb_weights = ",".join(["2" if f == "title" else "1" for f in _qb_fields])
     resp = client.multi_search.perform({"searches": [
         {
             "collection": name,
-            "q": q, "query_by": "title,content",
-            "query_by_weights": "2,1",
-            "per_page": str(fetch_n), **extra, **fb,
+            "q": q, "query_by": _qb,
+            "query_by_weights": _qb_weights,
+            "per_page": str(fetch_n), **extra, **fb, **facet_params,
         },
         {
             "collection": name,
@@ -300,8 +316,11 @@ def search_with_vec(
         },
     ]}, {})
     results = resp.get("results", [{}, {}])
-    lex_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(results[0].get("hits", []))}
+    lex_result = results[0]
+    lex_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(lex_result.get("hits", []))}
     sem_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(results[1].get("hits", []))}
+    # Carry facet counts from the lexical pass (facet_by was only applied there)
+    _facet_counts = _parse_facet_counts(lex_result.get("facet_counts", []))
     K = 60
     scores: dict[str, float] = {}
     for did, (rank, _) in lex_hits.items():
@@ -358,10 +377,90 @@ def search_with_vec(
     ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
     start = (page - 1) * per_page
     page_ids = ranked[start:start + per_page]
-    return {"hits": [{"document": all_docs[d], "score": scores[d],
-                      "text_match": int(scores[d] * 100_000)} for d in page_ids],
-            "found": len(ranked),
-            "page": page}
+    result: dict = {"hits": [{"document": all_docs[d], "score": scores[d],
+                               "text_match": int(scores[d] * 100_000)} for d in page_ids],
+                    "found": len(ranked),
+                    "page": page}
+    if _facet_counts:
+        result["facet_counts"] = _facet_counts
+    return result
+
+
+def _parse_facet_counts(raw_counts: list) -> dict:
+    """Convert Typesense facet_counts list into {field: [{value, count}]} dict."""
+    result: dict = {}
+    for fc in raw_counts:
+        field = fc.get("field_name")
+        if field:
+            result[field] = [{"value": c["value"], "count": c["count"]} for c in fc.get("counts", [])]
+    return result
+
+
+def get_all_fields(index_id: str) -> list[dict]:
+    """Return all fields from the collection schema with their current properties."""
+    _SYSTEM = {"id", "vec", "indexed_at"}
+    name = collection_name(index_id)
+    try:
+        schema = get_client().collections[name].retrieve()
+    except Exception:
+        return []
+    fields = []
+    for f in schema.get("fields", []):
+        fname = f.get("name", "")
+        if fname.startswith("."):
+            continue
+        ftype = f.get("type", "string")
+        fields.append({
+            "name":        fname,
+            "type":        ftype,
+            "facet":       bool(f.get("facet", False)),
+            "multi_value": ftype.endswith("[]"),
+            "optional":    bool(f.get("optional", False)),
+            "system":      fname in _SYSTEM,
+        })
+    return sorted(fields, key=lambda f: (f["system"], f["name"]))
+
+
+def update_field_properties(
+    index_id: str,
+    field_name: str,
+    *,
+    facet: bool,
+    multi_value: bool,
+    current_type: str,
+) -> None:
+    """
+    Change facet or multi-value on an existing field via drop + re-add.
+
+    Typesense cannot mutate these properties in-place — the only supported path
+    is to drop the field and re-declare it.  Existing document data is preserved
+    because Typesense re-indexes it from stored values automatically.
+    """
+    name = collection_name(index_id)
+    client = get_client()
+    # Determine the target type: honour multi_value only for string fields.
+    base_type = current_type.rstrip("[]")
+    if base_type == "string":
+        target_type = "string[]" if multi_value else "string"
+    else:
+        target_type = current_type  # don't change numeric/bool types
+    client.collections[name].update({"fields": [{"name": field_name, "drop": True}]})
+    client.collections[name].update({"fields": [{
+        "name":     field_name,
+        "type":     target_type,
+        "optional": True,
+        "facet":    facet,
+    }]})
+
+
+def get_facet_fields(index_id: str) -> list[str]:
+    """Return names of all fields marked facet=True in the collection schema."""
+    name = collection_name(index_id)
+    try:
+        schema = get_client().collections[name].retrieve()
+        return [f["name"] for f in schema.get("fields", []) if f.get("facet")]
+    except Exception:
+        return []
 
 
 def get_facets(index_id: str, facet_fields: list[str]) -> dict:
