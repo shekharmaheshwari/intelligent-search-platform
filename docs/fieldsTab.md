@@ -6,7 +6,7 @@
 ## Overview
 
 The **Fields** tab in the index detail view surfaces every Typesense field
-associated with an index and lets operators configure three per-field properties
+associated with an index and lets operators configure four per-field properties
 through toggles — no Python scripts, no Typesense API calls needed.
 
 ---
@@ -41,9 +41,10 @@ A table of every field in the Typesense collection schema, one row per field.
 |---|---|
 | **Field name** | The Typesense field name (e.g. `category`, `customer_group`) |
 | **Type** | Typesense type — `string`, `string[]`, `int32`, `float`, `bool`, etc. |
-| **Searchable** | Toggle — whether this field is included in `query_by` for BM25/hybrid text search |
+| **Searchable** | Toggle — whether this field is included in `query_by` for BM25/hybrid text search. Only string fields can be made searchable. |
 | **Facet** | Toggle — whether this field has `facet: true` in the Typesense schema |
 | **Multi-value** | Toggle — whether the field stores an array of values (`string[]`), enabling multi-value faceting |
+| **Chat** | Toggle — whether this field's value is included as a labelled attribute in the RAG chat context, and whether its value is embedded in the document vector at rebuild time |
 
 ### System fields (read-only, shown greyed out)
 
@@ -98,6 +99,39 @@ setting stored in ISP index metadata.
 Default `query_by` fields (always included, not toggleable): `title`, `content`.
 Additional fields enabled via the Searchable toggle are appended.
 
+**Constraint:** only `string` and `string[]` fields can be made Searchable.
+The toggle is disabled for `bool`, `int32`, `float`, and other non-string types.
+The backend also rejects the request with HTTP 400 if a non-string field is sent
+as searchable, and the runtime query_by builder skips them as a final safety net.
+
+### Chat toggle
+
+Controls two things at once:
+
+1. **LLM context** — when `chat: true`, the field's value appears as a labelled
+   line in the system prompt sent to the LLM for every chat message:
+   ```
+   1. Peperomia Lima
+      Pet Safety Label: Pet safe
+      Care Difficulty: Easy
+      Description: ...
+   ```
+
+2. **Embedding enrichment** — at rebuild time, the field's value is appended to
+   the text that gets embedded into the `vec` vector. This lets semantic search
+   correctly find documents when the user asks attribute-specific questions
+   (e.g. "pet safe plants" → finds documents where pet_safety_label = "Pet safe").
+
+**Applies:** LLM context change is immediate. Embedding enrichment takes effect
+on the next index rebuild.
+
+Default: `title` and `content` are always included in the chat context and in
+the embedding text regardless of this toggle. The Chat toggle controls additional
+structured attribute fields only.
+
+Fields in the exclusion list (`image_url`, `image`, `images`, `thumbnail`, `url`,
+`url_name`) are never rendered in the LLM context even if Chat is enabled.
+
 ---
 
 ## Persistence across rebuilds
@@ -111,15 +145,22 @@ alongside existing settings like `boost_rules` and `affinity_dimensions`.
 ```json
 {
   "field_config": [
-    { "name": "customer_group", "facet": true,  "multi_value": false, "searchable": false },
-    { "name": "plan_tier",      "facet": true,  "multi_value": false, "searchable": false },
-    { "name": "tags",           "facet": false, "multi_value": true,  "searchable": false }
+    { "name": "customer_group",   "type": "string", "facet": true,  "multi_value": false, "searchable": false, "chat": false },
+    { "name": "plan_tier",        "type": "string", "facet": true,  "multi_value": false, "searchable": false, "chat": false },
+    { "name": "tags",             "type": "string", "facet": false, "multi_value": true,  "searchable": false, "chat": false },
+    { "name": "pet_safety_label", "type": "string", "facet": true,  "multi_value": false, "searchable": true,  "chat": true  }
   ]
 }
 ```
 
 Only fields that have been explicitly configured appear in this list. Fields not in
 the list fall back to their schema defaults after a rebuild.
+
+The `type` key is stored only when the field has been updated via the PATCH
+endpoint — i.e. when the operator has toggled at least one property via the UI.
+The stored `type` is used by the chat retrieval pipeline to identify safe fields
+for the facet-label search pass (fields without a stored type are excluded to
+avoid bool/int fields being included in Typesense `query_by`).
 
 ### Rebuild pipeline integration
 
@@ -172,10 +213,10 @@ stored `field_config` overlay:
 PATCH /indexes/{idx_id}/fields/{field_name}
 ```
 
-Request body:
+Request body (all fields optional — only send what changes):
 
 ```json
-{ "facet": true, "multi_value": false, "searchable": false }
+{ "facet": true, "multi_value": false, "searchable": false, "chat": true }
 ```
 
 The handler:
@@ -219,15 +260,20 @@ client.collections[name].update({'fields': [{
 ### 5. IndexMeta model — add field_config
 
 ```python
-field_config: list[FieldConfigEntry] = Field(default_factory=list)
+field_config: list[dict] | None = None
 ```
 
+Each entry in the list is a plain dict with these keys:
+
 ```python
-class FieldConfigEntry(BaseModel):
-    name:        str
-    facet:       bool = False
-    multi_value: bool = False
-    searchable:  bool = False
+{
+    "name":        str,           # Typesense field name
+    "type":        str | None,    # stored when PATCH endpoint is called
+    "facet":       bool,
+    "multi_value": bool,
+    "searchable":  bool,
+    "chat":        bool,          # new — controls LLM context and embedding enrichment
+}
 ```
 
 **File:** `backend/src/isp/models/index.py`
@@ -265,27 +311,28 @@ Located at `frontend/src/components/sources/FieldsTab.svelte`.
 **Layout:**
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  Fields                                              [i] info     │
-│  Configure search and filter behaviour per field.                 │
-│  Facet and multi-value changes apply immediately.                 │
-│  Searchable changes take effect on the next search.               │
-├─────────────────┬────────────┬─────────────┬────────┬────────────┤
-│  Field          │  Type      │  Searchable │  Facet │  Multi     │
-├─────────────────┼────────────┼─────────────┼────────┼────────────┤
-│  category       │  string    │  ○          │  ●     │  ○         │
-│  customer_group │  string    │  ○          │  ●     │  ○         │
-│  plan_tier      │  string    │  ○          │  ●     │  ○         │
-│  title          │  string    │  ● (fixed)  │  ○     │  ○         │
-│  content        │  string    │  ● (fixed)  │  ○     │  ○         │
-│  id             │  string    │  — (system) │  —     │  —         │
-│  vec            │  float[]   │  — (system) │  —     │  —         │
-└─────────────────┴────────────┴─────────────┴────────┴────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Fields                                                                  │
+│  Configure search and filter behaviour per field.                        │
+│  Facet/Multi changes apply immediately. Searchable on next search.       │
+│  Chat controls the LLM context and embedding enrichment.                 │
+├─────────────────┬──────────┬─────────────┬────────┬────────┬────────────┤
+│  Field          │  Type    │  Searchable │  Facet │  Multi │  Chat      │
+├─────────────────┼──────────┼─────────────┼────────┼────────┼────────────┤
+│  pet_safety_lbl │  string  │  ●          │  ●     │  ○     │  ●         │
+│  care_difficulty│  string  │  ○          │  ●     │  ○     │  ●         │
+│  available      │  bool    │  ○ (off)    │  ●     │  ○     │  ○         │
+│  title          │  string  │  ● (fixed)  │  ○     │  ○     │  always    │
+│  content        │  string  │  ● (fixed)  │  ○     │  ○     │  always    │
+│  id             │  string  │  — (system) │  —     │  —     │  —         │
+│  vec            │  float[] │  — (system) │  —     │  —     │  —         │
+└─────────────────┴──────────┴─────────────┴────────┴────────┴────────────┘
 ```
 
-- System fields are shown with `—` (em dash) in toggle columns and are not
-  interactive
-- `title` and `content` show Searchable as permanently on (non-toggleable)
+- System fields are shown with `—` in all toggle columns and are not interactive
+- `title` and `content` show Searchable as permanently on (non-toggleable); Chat
+  column shows "always" for these two fields
+- Bool/int/float fields show a disabled Searchable toggle with a tooltip
 - Toggling any property calls the PATCH endpoint immediately (optimistic UI with
   rollback on error)
 - A spinner/loading state per row while the PATCH is in flight
@@ -311,8 +358,16 @@ updateField(indexId: string, fieldName: string, config: Partial<FieldConfig>): P
 [Fields Tab loads]
   → GET /indexes/{id}/fields
   → typesense_client.get_all_fields()   ← reads live Typesense schema
-  + IndexMeta.field_config              ← overlays stored ISP settings
-  → renders table
+  + IndexMeta.field_config              ← overlays stored ISP settings (searchable, chat)
+  → renders table with Searchable, Facet, Multi-value, Chat columns
+
+[User toggles Chat on pet_safety_label]
+  → PATCH /indexes/{id}/fields/pet_safety_label  { chat: true }
+  → IndexMeta.field_config updated in PostgreSQL
+    (no Typesense schema change — chat is a search-time + rebuild-time setting)
+  → UI row updates optimistically
+  → Next chat request: pet_safety_label value appears in LLM context
+  → Next rebuild: pet_safety_label value included in embedding text
 
 [User toggles Facet on customer_group]
   → PATCH /indexes/{id}/fields/customer_group  { facet: true }
@@ -322,10 +377,20 @@ updateField(indexId: string, fieldName: string, config: Partial<FieldConfig>): P
 
 [Rebuild runs]
   → collection dropped + recreated
-  → documents indexed
+  → chat_field_names derived from field_config (chat: true entries)
+  → documents indexed with enriched embedding text:
+      f"{title} {content} {pet_safety_label_value} {care_difficulty_value} ..."
   → meta.field_config iterated
   → update_field_properties() called for each configured field
   → schema matches stored settings
+
+[Chat request arrives]
+  → chat.py router calls index_service.get_index(index_id)
+  → derives chat_fields, query_by, query_by_weights, facet_query_by from field_config
+  → passes as plain values to service.chat_stream()
+  → service runs 3-pass multi_search (lex-all, lex-facets, semantic) → RRF merge
+  → builds LLM context from chat_fields
+  → streams LLM response
 ```
 
 ---
