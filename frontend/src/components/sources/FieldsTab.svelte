@@ -26,7 +26,7 @@
     }
   });
 
-  async function toggle(field: FieldEntry, prop: 'facet' | 'multi_value' | 'searchable') {
+  async function toggle(field: FieldEntry, prop: 'facet' | 'multi_value' | 'searchable' | 'chat') {
     if (field.system) return;
     if (prop === 'searchable' && ALWAYS_SEARCHABLE.has(field.name)) return;
 
@@ -34,7 +34,7 @@
     saving = { ...saving, [key]: '1' };
     rowError = { ...rowError, [field.name]: '' };
 
-    const patch: Partial<{ facet: boolean; multi_value: boolean; searchable: boolean }> = {
+    const patch: Partial<{ facet: boolean; multi_value: boolean; searchable: boolean; chat: boolean }> = {
       [prop]: !field[prop],
     };
 
@@ -72,6 +72,7 @@
       <p class="tab-desc">
         Configure search and filter behaviour per field. Facet and Multi-value changes
         update the Typesense schema immediately. Searchable takes effect on the next search.
+        Chat controls which fields appear as labelled attributes in the RAG chat context.
         Changes persist across rebuilds.
       </p>
     </div>
@@ -95,6 +96,7 @@
             <th class="col-toggle" title="Include in query_by for BM25/hybrid text search">Searchable</th>
             <th class="col-toggle" title="Enable facet counts for filtering">Facet</th>
             <th class="col-toggle" title="Store as an array of values (string[])">Multi-value</th>
+            <th class="col-toggle" title="Include this field as a labelled attribute in the chat RAG context">Chat</th>
           </tr>
         </thead>
         <tbody>
@@ -121,8 +123,8 @@
                     class="toggle"
                     class:on={f.searchable}
                     class:loading={isBusy(f.name, 'searchable')}
-                    disabled={f.system || ALWAYS_SEARCHABLE.has(f.name) || isBusy(f.name, 'searchable')}
-                    title={ALWAYS_SEARCHABLE.has(f.name) ? 'Always searchable — cannot disable' : ''}
+                    disabled={f.system || ALWAYS_SEARCHABLE.has(f.name) || !f.type.startsWith('string') || isBusy(f.name, 'searchable')}
+                    title={ALWAYS_SEARCHABLE.has(f.name) ? 'Always searchable — cannot disable' : !f.type.startsWith('string') ? `${f.type} fields cannot be made searchable` : ''}
                     on:click={() => toggle(f, 'searchable')}
                     aria-label="{f.searchable ? 'Disable' : 'Enable'} searchable for {f.name}"
                   >
@@ -178,10 +180,34 @@
                   </button>
                 {/if}
               </td>
+
+              <!-- Chat -->
+              <td class="col-toggle">
+                {#if f.system}
+                  <span class="dash">—</span>
+                {:else if ALWAYS_SEARCHABLE.has(f.name)}
+                  <span class="badge fixed">always</span>
+                {:else}
+                  <button
+                    class="toggle"
+                    class:on={f.chat}
+                    class:loading={isBusy(f.name, 'chat')}
+                    disabled={isBusy(f.name, 'chat')}
+                    on:click={() => toggle(f, 'chat')}
+                    aria-label="{f.chat ? 'Remove' : 'Add'} {f.name} from chat context"
+                  >
+                    {#if isBusy(f.name, 'chat')}
+                      <span class="spinner"></span>
+                    {:else}
+                      <span class="knob"></span>
+                    {/if}
+                  </button>
+                {/if}
+              </td>
             </tr>
             {#if rowError[f.name]}
               <tr class="err-row">
-                <td colspan="5" class="err-cell">{rowError[f.name]}</td>
+                <td colspan="6" class="err-cell">{rowError[f.name]}</td>
               </tr>
             {/if}
           {/each}

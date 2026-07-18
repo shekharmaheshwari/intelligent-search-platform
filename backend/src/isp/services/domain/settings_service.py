@@ -413,13 +413,25 @@ AVAILABLE_CHAT_MODELS: list[dict] = [
 ]
 
 
+_smart_followup_enabled: bool = False
+
+
+def get_smart_followup_enabled() -> bool:
+    return _smart_followup_enabled
+
+
 async def get_chat_config() -> dict:
     """Return the stored chat provider configuration."""
-    provider = await get_setting("chat_provider") or "none"
-    model    = await get_setting("chat_model")    or ""
-    endpoint = await get_setting("chat_endpoint") or ""
-    key_set  = bool(await get_setting("chat_api_key"))
-    return {"provider": provider, "model": model, "endpoint": endpoint, "api_key_set": key_set}
+    provider       = await get_setting("chat_provider")       or "none"
+    model          = await get_setting("chat_model")          or ""
+    endpoint       = await get_setting("chat_endpoint")       or ""
+    key_set        = bool(await get_setting("chat_api_key"))
+    raw_sf         = await get_setting("chat_smart_followup") or "false"
+    smart_followup = raw_sf.lower() == "true"
+    return {
+        "provider": provider, "model": model, "endpoint": endpoint,
+        "api_key_set": key_set, "smart_followup": smart_followup,
+    }
 
 
 async def set_chat_config(
@@ -428,14 +440,19 @@ async def set_chat_config(
     model: str,
     api_key: str | None = None,
     endpoint: str | None = None,
+    smart_followup: bool | None = None,
 ) -> None:
     """Persist chat provider configuration and apply it immediately at runtime."""
+    global _smart_followup_enabled
     await set_setting("chat_provider", provider)
     await set_setting("chat_model",    model)
     if api_key is not None:
         await set_setting("chat_api_key", api_key)
     if endpoint is not None:
         await set_setting("chat_endpoint", endpoint)
+    if smart_followup is not None:
+        _smart_followup_enabled = smart_followup
+        await set_setting("chat_smart_followup", "true" if smart_followup else "false")
 
     from isp.services.infra.chat import service as chat_service
     stored_key      = await get_setting("chat_api_key")  or ""
@@ -445,15 +462,19 @@ async def set_chat_config(
         model=model,
         api_key=stored_key,
         endpoint=stored_endpoint,
+        smart_followup=_smart_followup_enabled,
     )
 
 
 async def load_chat_config() -> None:
     """Restore chat provider state from DB on startup."""
-    provider = await get_setting("chat_provider") or "none"
-    model    = await get_setting("chat_model")    or ""
-    api_key  = await get_setting("chat_api_key")  or ""
-    endpoint = await get_setting("chat_endpoint") or ""
+    global _smart_followup_enabled
+    provider  = await get_setting("chat_provider")       or "none"
+    model     = await get_setting("chat_model")          or ""
+    api_key   = await get_setting("chat_api_key")        or ""
+    endpoint  = await get_setting("chat_endpoint")       or ""
+    raw_sf    = await get_setting("chat_smart_followup") or "false"
+    _smart_followup_enabled = raw_sf.lower() == "true"
 
     from isp.services.infra.chat import service as chat_service
     chat_service.set_chat_config(
@@ -461,6 +482,7 @@ async def load_chat_config() -> None:
         model=model,
         api_key=api_key,
         endpoint=endpoint,
+        smart_followup=_smart_followup_enabled,
     )
 
 

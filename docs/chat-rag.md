@@ -21,6 +21,10 @@ End-to-end documentation for the ISP conversational chat feature: why it exists,
 13. [Settings Panel Design](#13-settings-panel-design)
 14. [What the LLM Does and Does Not Do](#14-what-the-llm-does-and-does-not-do)
 15. [Why This Matters for Your Store](#15-why-this-matters-for-your-store)
+16. [chatContent — Extension-Driven Context](#16-chatcontent--extension-driven-context)
+17. [Three-Pass Retrieval — How Attribute Queries Work](#17-three-pass-retrieval--how-attribute-queries-work)
+18. [Embedding Enrichment — chatContent in Vectors](#18-embedding-enrichment--chatcontent-in-vectors)
+19. [Follow-up Detection & Smart Mode](#19-follow-up-detection--smart-mode)
 
 ---
 
@@ -82,14 +86,17 @@ Customer: "What plants are safe for cats under $30?"
         │  1024-d vector via        │
         │  Voyage AI embedding      │
         │                           │
-        │  Run hybrid search on     │
+        │  Run three passes on      │
         │  Typesense index:         │
-        │  - keyword match on       │
-        │    title + content        │
-        │  - vector similarity on   │
-        │    vec field              │
+        │  - lex-all: BM25 over     │
+        │    all searchable fields  │
+        │  - lex-facets: BM25 over  │
+        │    facet label fields     │
+        │    (exact-word, no typos) │
+        │  - semantic: vector kNN   │
+        │    over vec field         │
         │                           │
-        │  Return top 5 hits        │
+        │  Merge via RRF, top 5     │
         └───────────┬───────────────┘
                     │
                     │  Retrieved products:
@@ -884,8 +891,13 @@ if provider == "none":
     yield error message
     return
 
-cards, context = await _search_context(query, index_id)
-yield {"type": "products", "products": cards}           # ← product cards first
+cards, context = await _search_context(
+    query, index_id,
+    query_by,             # ← chatContent + extra searchable fields + title + content
+    query_by_weights,     # ← extra fields: 10, chatContent: 5, title/content: 1
+    facet_query_by,       # ← always "chatContent" (built by JS extension at index time)
+)
+yield {"type": "products", "products": cards}    # ← product cards first
 
 system = _system_prompt(context)
 
@@ -899,29 +911,32 @@ async for chunk in gen:
     yield {"type": "text", "content": chunk}
 ```
 
+`query_by` and `query_by_weights` are resolved by the router from `field_config` (searchable fields only). `facet_query_by` is always `"chatContent"` — no field inspection needed. Context is read directly from `doc.get("chatContent")`, falling back to `doc.get("content")` for indexes without an extension.
+
 ### The system prompt
 
 ```
 You are a helpful product expert assistant.
-Answer questions using only the products listed below.
+Answer questions using ONLY the structured product data listed below —
+do NOT rely on general knowledge about these products.
+Each product has labelled attributes; use those exact values when answering
+attribute-specific questions.
 Be concise — 2 to 3 sentences maximum.
 If no product matches the question, say so honestly.
 
 Products:
-1. Spider Plant
-   A low-maintenance trailing plant safe for pets.
-   Great for beginners.
+1. Spider Plant (Chlorophytum family). Pet safety: Pet safe. Safe for cats and dogs.
+   Care level: Beginner-friendly. Low maintenance, easy care.
+   Growth style: Trailing. Light: Bright indirect to low light. Water: Every 1–2 weeks.
+   Price: $18.00 (mid).
 
-2. Boston Fern
-   Lush, elegant fern. Thrives in humidity.
-   Pet safe, needs indirect light.
-
-3. Calathea Ornata
-   Striking leaf patterns. Non-toxic to pets.
-   ...
+2. Boston Fern (Nephrolepis family). Pet safety: Pet safe. Safe for cats and dogs.
+   Care level: Moderate. Needs some regular attention.
+   Growth style: Trailing. Light: Indirect light. Humidity: High.
+   Price: $22.00 (mid).
 ```
 
-The LLM is explicitly told to use **only** the provided products. It cannot invent products not in the list.
+Each product block is the `chatContent` field built by the JS extension at index time — a single structured string with all relevant attributes already labelled. The LLM is told to use only these values, not general knowledge.
 
 ### Why multi_search is used for retrieval
 
@@ -935,13 +950,26 @@ Content-Type: application/json
 
 Request body:
 {
-  "query":    "What plants are safe for cats?",
+  "query":    "compare it with samsung buds",
   "messages": [                              ← prior conversation turns
-    {"role": "user",      "content": "Show me trailing plants"},
-    {"role": "assistant", "content": "Here are some trailing options..."}
+    {
+      "role":    "user",
+      "content": "show me pixel buds"
+    },
+    {
+      "role":     "assistant",
+      "content":  "Here are some options...",
+      "products": [                          ← products shown in prior turn
+        {"id": "...", "title": "Google Pixel Buds Pro2", "price": "229", ...}
+      ]
+    }
   ]
 }
+```
 
+The `products` field on assistant messages is required for Smart Follow-up mode — the backend uses it to resolve pronouns ("it", "those") and to pin previously shown products into comparison results. Without it, smart follow-up falls back to the original query.
+
+```
 Response:
 Content-Type: text/event-stream
 Cache-Control: no-cache
@@ -950,6 +978,7 @@ X-Accel-Buffering: no
 data: {"type": "products", "products": [...]}
 data: {"type": "text",     "content": "Great"}
 data: {"type": "text",     "content": " news"}
+data: {"type": "error",    "content": "..."}   ← only on LLM failure (friendly message)
 data: [DONE]
 ```
 
@@ -1013,10 +1042,16 @@ async function sendChatMessage(query: string): Promise<void> {
   ]);
   chatLoadingStore.set(true);
 
-  // 3. Open SSE stream
+  // 3. Open SSE stream — include products from prior assistant turns
+  //    so the backend can resolve pronouns ("it", "those") in Smart mode
+  const messages = history.map(m => ({
+    role:    m.role,
+    content: m.content,
+    ...(m.products?.length ? { products: m.products } : {}),
+  }));
   const res = await fetch(`/api/v1/indexes/${indexId}/chat`, {  // indexId passed as prop per page
     method: 'POST',
-    body:   JSON.stringify({ query, messages: history }),
+    body:   JSON.stringify({ query, messages }),
   });
 
   const reader = res.body.getReader();
@@ -1153,7 +1188,17 @@ These two systems share no state. You can:
 
 ## 13. Settings Panel Design
 
-The Chat Model tab in the ISP admin panel (Settings → Chat Model):
+The Chat Model tab in the ISP admin panel (Settings → Chat Model).
+
+Settings are persisted in the `app_settings` PostgreSQL table and applied immediately at runtime — no container restart required.
+
+| DB key | Type | Default | Description |
+|--------|------|---------|-------------|
+| `chat_provider` | string | `"none"` | Active LLM provider |
+| `chat_model` | string | `""` | Model ID within the provider |
+| `chat_api_key` | string | `""` | API key (never returned by API) |
+| `chat_endpoint` | string | `""` | Self-hosted endpoint URL |
+| `chat_smart_followup` | string | `"false"` | `"true"` enables Smart Follow-up mode |
 
 ### State: Disabled (default)
 
@@ -1235,6 +1280,13 @@ The Chat Model tab in the ISP admin panel (Settings → Chat Model):
 │                                                                         │
 │  ● google · gemini-2.0-flash · API key stored ✓                         │
 │                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  Smart Follow-up Detection                         [ toggle OFF ] │  │
+│  │  When ON, the LLM rewrites follow-up queries using conversation   │  │
+│  │  history before retrieval. Improves comparison accuracy ("compare │  │
+│  │  it with Samsung") at the cost of one extra LLM call per turn.    │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
 ```
 
 ---
@@ -1268,15 +1320,344 @@ The LLM is a writer, not a searcher. Typesense does the searching. The LLM does 
 
 ### What improves chat quality
 
-The chat is only as good as what is indexed. Richer product data → better retrieval → more accurate answers:
+The chat is only as good as what is indexed. Richer product data → better retrieval → more accurate answers.
 
-| Field | Why it matters for chat |
-|-------|------------------------|
-| `title` | Primary search signal — always include the full plant or product name |
-| `content` | Description used in retrieval — more detail means better semantic matching |
-| `metadata.pet_safe` | Enables "safe for cats/dogs" questions |
-| `metadata.care_difficulty` | Enables "easy for beginners" questions |
-| `metadata.price` | Enables budget-based questions |
-| `metadata.plant_family` | Enables "any Hoyas?" or "show me Aroids" questions |
-| `metadata.growth_style` | Enables "trailing" or "upright" preference questions |
-| `metadata.care_light` | Enables "low light" or "bright indirect" questions |
+The primary lever is the **`chatContent` JS extension** assigned to each index. The extension runs at rebuild time and stamps a structured, labelled summary onto every document. This single field drives:
+1. The facet retrieval pass (exact-word matching against labelled values)
+2. The LLM context block (the text the LLM reads to answer the question)
+3. The embedding text (so semantic search can find attribute-specific queries)
+
+| Index | Extension | What chatContent includes |
+|-------|-----------|--------------------------|
+| Plants | `chat_content_plants.js` | Pet safety, care level, growth style, light, water, price |
+| Plans | `chat_content_plans.js` | Price/line, data, international coverage, promotions, features |
+| Phones / Tablets | `chat_content_phones.js` | Brand, OS, form factor, price, colors, in-stock |
+| Smartwatches | `chat_content_watches.js` | GPS, cellular, fitness tracking, compatibility, price |
+| Accessories | `chat_content_accessories.js` | Type, device compatibility, size, price, in-stock |
+
+To improve chat quality for an index: edit the relevant extension to add or reword attribute labels, then trigger a rebuild. No Python code changes needed.
+
+---
+
+## 16. chatContent — Extension-Driven Context
+
+### The problem
+
+Building LLM context from operator-configured `field_config` flags (`chat: true`) at query time had two costs:
+1. **Drift risk** — the Python loop that collected and labelled field values duplicated what a rebuild-time transform could do, creating two places to maintain.
+2. **False-match risk** — the `facet_query_by` pass required complex filtering (only facet fields whose type was explicitly stored in `field_config`, to avoid bool fields causing Typesense 400 errors).
+
+### The solution — `chatContent` field
+
+Each index type has a **JS extension** (in `backend/extensions/`) that runs at rebuild time and stamps a single `chatContent` field onto every document. This field is a structured, labelled string covering all the attributes that matter for chat.
+
+```
+Extension: chat_content_plants.js  (run_order 2, runs after plants_transformer)
+                    │
+                    ▼
+    For each plant document:
+    doc.chatContent =
+      "Peperomia Lima (Peperomia family). Pet safety: Pet safe. Safe for cats and dogs.
+       Care level: Easy. Growth style: compact.
+       Light: Bright indirect light. Water: Every 1–2 weeks. Price: $12.99 (mid)."
+                    │
+                    ▼
+    Stored in Typesense as a plain string field
+```
+
+### How the Python pipeline uses chatContent
+
+```
+chat.py router:
+  facet_query_by = "chatContent"    ← always, no field_config inspection needed
+  query_by = "chatContent,title,content"  (+ extra searchable fields at weight 10)
+                    │
+                    ▼
+service._search_context():
+  Pass 2 (lex-facets, weight 0.6): query chatContent with num_typos=0
+    → "plants which are pet safe" → matches "Pet safety: Pet safe" exactly
+                    │
+                    ▼
+service context building:
+  chat_ctx = doc.get("chatContent") or doc.get("content", "")[:300]
+    → falls back to plain content on indexes without an extension
+```
+
+### Extensions by index
+
+| Index | Extension file | Run order |
+|-------|---------------|-----------|
+| Plants | `chat_content_plants.js` | 2 (after `plants_transformer`) |
+| Plans | `chat_content_plans.js` | 2 (after `plans_transformer`) |
+| Phones / Tablets | `chat_content_phones.js` | 3 (after `catalog_mapper`, `version_score`) |
+| Smartwatches | `chat_content_watches.js` | 3 (after `catalog_mapper`, `version_score`) |
+| Accessories | `chat_content_accessories.js` | 3 (after `catalog_mapper`, `version_score`) |
+
+All use `@assign none` — assigned manually per index via the Extensions tab or API.
+
+### Searchable toggle constraint for non-string fields
+
+Boolean and numeric fields (e.g. `pet_safe: bool`, `price: float`) cannot be made Searchable because Typesense's `query_by` only accepts string fields. The toggle is disabled in the UI for these types, and the backend rejects the request with HTTP 400 if attempted via the API.
+
+The runtime guard in `search.py` also filters the `query_by` list to string types only, as a safety net for data inconsistencies.
+
+---
+
+## 17. Three-Pass Retrieval — How Attribute Queries Work
+
+### The problem
+
+A query like "plants which are pet safe" breaks simple BM25 search:
+
+1. Typesense tokenises it: `["plants", "which", "are", "pet", "safe"]`
+2. It tries to find documents matching all five tokens
+3. "which" and "are" match nothing → tokens are progressively dropped
+4. "plants" matches all product titles (high recall, zero discrimination)
+5. The word "safe" needs to match `pet_safety_label` — but that signal gets diluted
+
+The same query also breaks naive semantic search because "plants which are" dominates the query embedding, and the semantic index only knows about `title + content` (pet_safety_label was never embedded).
+
+### The solution — three retrieval passes
+
+Every chat context search runs up to three Typesense passes in a single `multi_search` POST, then merges with RRF:
+
+```
+Pass 1 — lex-all  (weight 0.3)
+  query_by: chatContent, <extra searchable fields>, title, content
+  query_by_weights: chatContent=5, extra=10, title/content=1
+  Purpose: broad BM25 coverage of all text fields
+
+Pass 2 — lex-chatContent  (weight 0.6)
+  query_by: chatContent
+  num_typos: 0  ← exact word matching only
+  Purpose: precise attribute matching — "pet safe" → matches
+           "Pet safety: Pet safe" in chatContent exactly.
+           num_typos=0 prevents "plants" from fuzzy-matching "plant"
+           in labels like "Growth style: trailing plant"
+
+Pass 3 — semantic  (weight 0.1)
+  vector_query: vec:([<embedded query>], k:15)
+  Purpose: semantic similarity for general queries
+```
+
+### Why num_typos=0 matters
+
+Without `num_typos=0`, the word "plants" in the query would fuzzy-match "plant" anywhere in `chatContent` via typo tolerance (1 edit: "plants" → "plant"). With exact-word matching, only documents whose `chatContent` contains the exact token match — so "pet safe" resolves to documents where `chatContent` contains "Pet safe" verbatim.
+
+### Why chatContent is the right target for the facet pass
+
+Previously, the facet pass targeted individual facet fields (e.g. `pet_safety_label`, `care_difficulty`). This required careful filtering to exclude booleans and fields without explicit types stored in `field_config`.
+
+With `chatContent`, there is one string field, always present when an extension is assigned, always containing short labelled values (`"Pet safety: Pet safe"`, `"GPS: Yes"`, `"Price: $45/mo"`). No filtering logic needed — `facet_query_by = "chatContent"` is always safe.
+
+### RRF merge weights
+
+| Pass | Weight | Reasoning |
+|------|--------|-----------|
+| lex-facets | 0.6 | Highest — precise exact-word attribute matching |
+| lex-all | 0.3 | Medium — broad BM25 for general text queries |
+| semantic | 0.1 | Lowest — used as tiebreaker; accuracy depends on rebuild |
+
+When `lex-facets` returns 0 results (e.g. query has no words matching any facet value), only `lex-all` and `semantic` contribute — behaviour unchanged from a two-pass system.
+
+---
+
+## 18. Embedding Enrichment — chatContent in Vectors
+
+### The problem
+
+Without structured attribute text in the embedding, semantic search for "pet safe plants" could not distinguish:
+- Peperomia (pet_safety_label = "Pet safe")
+- Hoya Wayetii (pet_safety_label = "Unknown")
+
+because neither label appeared in the `title + content` text that was embedded.
+
+### The solution
+
+Because the JS extension stamps `chatContent` onto each document **before** the embedding step runs, `_build_embed_text` simply includes it:
+
+```python
+def _build_embed_text(doc: dict) -> str:
+    return " ".join(p for p in [
+        doc.get("title", ""),
+        doc.get("content", ""),
+        doc.get("chatContent", ""),
+    ] if p).strip()
+```
+
+For a pet-safe Peperomia plant, the embedding text becomes:
+
+```
+Peperomia Lima – 4" Houseplant                              [title]
+Peperomia Lima is a compact houseplant...                   [content]
+Peperomia Lima (Peperomia family). Pet safety: Pet safe.    [chatContent — starts here]
+Safe for cats and dogs. Care level: Easy. Growth style:
+compact. Light: Bright indirect light. Water: Every 1–2
+weeks. Price: $12.99 (mid).
+```
+
+The semantic vector for this document is now close to queries like "pet safe", "easy care", "indirect light", "safe for cats" — not just the product name and description.
+
+### When the enrichment takes effect
+
+The extension runs during rebuild. After assigning or updating a `chat_content_*.js` extension, trigger a rebuild to regenerate vectors. No `field_config` changes needed.
+
+### Fallback for indexes without an extension
+
+If no extension is assigned (chatContent absent), `_build_embed_text` falls back to `title + content` only — identical to the original behaviour. The chat pipeline degrades gracefully; it does not break.
+
+---
+
+## 19. Follow-up Detection & Smart Mode
+
+Multi-turn chat needs to distinguish two types of queries:
+
+- **Follow-up** — the user is refining or asking about the products already shown ("which is cheaper?", "compare it with Samsung", "does it have GPS?")
+- **New topic** — the user is searching for something completely different ("show me earbuds", "what tablets do you have?")
+
+For follow-ups, ISP can pin the previously shown products into the retrieval result to give the LLM the full comparison context. For new topics, retrieval starts fresh.
+
+Two modes are available, toggled in Settings → Chat → Smart Follow-up Detection.
+
+---
+
+### Mode 1 — Heuristic (Smart OFF, default)
+
+Three-tier detection runs in order; the first match wins:
+
+```
+T1 — Unambiguous pronouns / comparison phrases  (always follow-up)
+  Regex: \b(these|those|them|compare|versus|vs|does it have|...)\b
+  Example: "compare it with Samsung" → follow-up ✓
+
+T2 — Anchored refinement phrases  (always follow-up)
+  Regex: \b(i('m| am) interested in|i prefer|not that one|...)\b
+  Example: "I'm interested in the red one" → follow-up ✓
+
+T3 — Context-aware short-query guard  (domain-agnostic)
+  Applies only when: len(query.split()) ≤ 5 AND prior messages exist
+  Logic:
+    1. Collect all words from product titles shown in prior turns
+    2. Extract content words from the current query (len > 3)
+    3. If ALL content words already appear in the shown product titles
+       → it's a follow-up (user is asking about products they can see)
+    4. If ANY content word is new (e.g. "samsung" when only Pixel Buds shown)
+       → new topic, fresh retrieval
+  Example: "how much is it?" after seeing Pixel Buds → follow-up ✓
+  Example: "samsung buds" after seeing Pixel Buds   → new topic ✓
+```
+
+**No LLM call is made.** The filter is pure regex + set membership, so it adds zero latency.
+
+For follow-up queries: retrieval is filtered to the IDs of previously shown products (plus any price filter). The LLM gets the same products it already summarised, so it can answer refinement questions accurately without re-ranking.
+
+---
+
+### Mode 2 — Smart Follow-up (Smart ON)
+
+Every query goes through an LLM rewrite step before retrieval:
+
+```
+Query + last 6 conversation turns (user text + shown product titles + assistant summary)
+                    │
+                    ▼  LLM rewrite call (same provider/model as chat)
+                    │
+         Standalone enriched search query
+         e.g. "compare it with samsung buds" + history showing Pixel Buds Pro2
+              → "Google Pixel Buds Pro2 vs Samsung Galaxy Buds4 Pro"
+                    │
+                    ▼  Free Typesense retrieval (no ID filter, price filter kept)
+                    │
+              Top 3 from rewritten search
+                    +
+              Up to 2 pinned from prior assistant turn  (_merge_cards)
+                    │
+                    ▼  LLM context contains both sides of comparison
+```
+
+**When the rewrite is most useful:**
+
+| Query | Heuristic result | Smart result |
+|-------|-----------------|--------------|
+| "compare it with Samsung buds" | pins Pixel Buds only (ID filter) | rewrites to "Pixel Buds Pro2 vs Samsung Buds4" → finds both |
+| "does it come in black?" | correct — pins prior products | same |
+| "show me something cheaper" | usually correct via T3 guard | better if the cheaper product is a new brand |
+
+**Cost:** one extra LLM call per chat turn. Use when comparison accuracy matters more than latency.
+
+---
+
+### Query normalisation — stripping conversational filler
+
+BM25 search can be confused by natural-language prefixes. "show me pixel buds" sends the word "show" to Typesense, which matches product descriptions containing "show it off" (ZAGG marketing copy), causing ZAGG phone cases to rank above Pixel Buds.
+
+`_normalize_query` strips common filler before BM25:
+
+```python
+_FILLER_RE = re.compile(
+    r"^\s*(show me|find me|can you (show|find)|give me|what are|i('m| am) looking for"
+    r"|search for|look for|find|show|i want|i need|tell me about|do you have)\s+",
+    re.IGNORECASE,
+)
+
+def _normalize_query(q: str) -> str:
+    return _FILLER_RE.sub("", q).strip() or q
+```
+
+Applied in two places:
+
+| Path | When |
+|------|------|
+| Smart ON, no history | `_llm_rewrite_query` returns `_normalize_query(query)` instead of calling the LLM |
+| Smart OFF, new topic | `_resolve_retrieval_params` passes `_normalize_query(query)` to Typesense |
+
+Follow-up queries are **not** normalised — they are passed as-is because T1/T2 regex patterns need the original phrasing, and the query is used only to look up pinned IDs, not for BM25.
+
+---
+
+### `_resolve_retrieval_params` — single dispatch
+
+```python
+async def _resolve_retrieval_params(query, messages) -> tuple[str, str | None]:
+    if _smart_followup_enabled:
+        # LLM rewrites query; price filter preserved; no ID filter
+        search_query = await _llm_rewrite_query(query, messages)
+        return search_query, _price_filter_for_smart(query, messages)
+
+    # Heuristic path
+    is_fu = _is_follow_up_heuristic(query, messages)
+    search_query = query if is_fu else _normalize_query(query)
+    return search_query, _resolve_retrieval_filter(query, messages, is_fu)
+```
+
+Returns `(search_query, filter_by)` where `filter_by` is a Typesense filter string or `None`.
+
+---
+
+### `_merge_cards` — comparison context builder (Smart ON only)
+
+After retrieval, Smart ON merges results to ensure both sides of a comparison query are in the LLM context:
+
+```python
+def _merge_cards(primary: list[dict], pinned: list[dict]) -> list[dict]:
+    top3 = primary[:3]                             # top results from rewritten query
+    seen = {c["id"] for c in top3}
+    extra = [c for c in pinned if c["id"] not in seen]
+    return (top3 + extra)[:5]                      # up to 2 pinned, max 5 total
+```
+
+`pinned` = products from the most recent assistant turn. For "compare Pixel Buds with Samsung Buds", the rewritten query finds Samsung Buds (new side) and `_merge_cards` adds the Pixel Buds that were already shown — giving the LLM full context for a side-by-side answer.
+
+---
+
+### Error handling — `_friendly_error`
+
+LLM provider errors are translated to human-readable messages before reaching the browser:
+
+| Raw error signal | User-visible message |
+|-----------------|---------------------|
+| `rate_limit` / `429` | "The AI provider is temporarily rate-limited. Please wait a moment and try again, or switch to a different model in Settings → Chat." |
+| `401` / `api key` / `authentication` | "Invalid API key. Please update your key in Settings → Chat." |
+| `503` / `overloaded` / `unavailable` | "The AI provider is temporarily unavailable. Please try again in a moment." |
+| `context_length` / `too long` | "The conversation is too long for this model. Please start a new chat." |
+| anything else | "Something went wrong with the AI provider. Please try again." |

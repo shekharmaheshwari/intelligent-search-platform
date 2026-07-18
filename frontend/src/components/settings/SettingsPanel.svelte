@@ -38,20 +38,22 @@
 
   // ── Chat config state ────────────────────────────────────────────────────────
   let chatConfig: ChatConfig | null = null;
-  let chatProvider  = 'none';
-  let chatModel     = '';
-  let chatApiKey    = '';
-  let chatEndpoint  = '';
-  let chatSaving    = false;
-  let chatSaved     = false;
-  let chatErr       = '';
+  let chatProvider      = 'none';
+  let chatModel         = '';
+  let chatApiKey        = '';
+  let chatEndpoint      = '';
+  let chatSmartFollowup = false;
+  let chatSaving        = false;
+  let chatSaved         = false;
+  let chatErr           = '';
 
   async function loadChat() {
     try {
-      chatConfig   = await api.getChatConfig();
-      chatProvider = chatConfig.provider;
-      chatModel    = chatConfig.model;
-      chatEndpoint = chatConfig.endpoint ?? '';
+      chatConfig        = await api.getChatConfig();
+      chatProvider      = chatConfig.provider;
+      chatModel         = chatConfig.model;
+      chatEndpoint      = chatConfig.endpoint ?? '';
+      chatSmartFollowup = chatConfig.smart_followup ?? false;
     } catch { /* ignore — chat may not be deployed yet */ }
   }
 
@@ -59,16 +61,18 @@
     chatSaving = true; chatSaved = false; chatErr = '';
     try {
       chatConfig   = await api.updateChatConfig({
-        provider: chatProvider,
-        model:    chatModel,
-        apiKey:   chatApiKey.trim() || undefined,
-        endpoint: chatEndpoint.trim() || undefined,
+        provider:       chatProvider,
+        model:          chatModel,
+        apiKey:         chatApiKey.trim() || undefined,
+        endpoint:       chatEndpoint.trim() || undefined,
+        smartFollowup:  chatSmartFollowup,
       });
-      chatProvider = chatConfig.provider;
-      chatModel    = chatConfig.model;
-      chatEndpoint = chatConfig.endpoint ?? '';
-      chatApiKey   = '';
-      chatSaved    = true;
+      chatProvider      = chatConfig.provider;
+      chatModel         = chatConfig.model;
+      chatEndpoint      = chatConfig.endpoint ?? '';
+      chatSmartFollowup = chatConfig.smart_followup ?? false;
+      chatApiKey        = '';
+      chatSaved         = true;
     } catch (e) {
       chatErr = String(e);
     } finally {
@@ -78,9 +82,10 @@
 
   $: chatIsSelfHosted = chatProvider === 'self_hosted';
   $: chatIsPaid       = ['anthropic','google','openai','groq'].includes(chatProvider);
-  $: chatIsDirty      = chatProvider !== (chatConfig?.provider ?? 'none') ||
-                        chatModel    !== (chatConfig?.model    ?? '') ||
-                        chatApiKey.trim() !== '' ||
+  $: chatIsDirty      = chatProvider      !== (chatConfig?.provider      ?? 'none') ||
+                        chatModel         !== (chatConfig?.model         ?? '')     ||
+                        chatSmartFollowup !== (chatConfig?.smart_followup ?? false)  ||
+                        chatApiKey.trim() !== ''                                     ||
                         (chatIsSelfHosted && chatEndpoint !== (chatConfig?.endpoint ?? ''));
 
   let selectedModel = '';
@@ -876,6 +881,29 @@
             {/if}
           </div>
         {/if}
+
+        <!-- Smart follow-up detection toggle -->
+        <div class="cc-row" style="margin-top:20px">
+          <div class="cc-label-col">
+            <span class="cc-label">Smart follow-up detection</span>
+            <span class="cc-desc">
+              When ON, every query is classified by the LLM to determine whether
+              it refers to products already shown — maximising accuracy at the cost
+              of one extra LLM call per turn. When OFF (default), a fast layered
+              heuristic (pronoun/phrase matching + short-query guard) is used instead.
+            </span>
+          </div>
+          <label class="toggle">
+            <input
+              type="checkbox"
+              bind:checked={chatSmartFollowup}
+              disabled={chatSaving}
+            />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
 
       </div>
     </section>

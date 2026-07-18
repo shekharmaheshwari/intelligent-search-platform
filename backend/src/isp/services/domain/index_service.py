@@ -101,6 +101,11 @@ def _row_to_meta(row: dict) -> IndexMeta:
             if isinstance(row.get("boost_rules"), str)
             else (row.get("boost_rules") or [])
         )],
+        field_config=(
+            json.loads(row["field_config"])
+            if isinstance(row.get("field_config"), str)
+            else (row.get("field_config") or [])
+        ),
     )
 
 
@@ -224,7 +229,8 @@ async def update_index(meta: IndexMeta) -> None:
                 external_url_field   = $14,
                 embed_model          = $15,
                 intent_label         = $16,
-                slug                 = $17
+                slug                 = $17,
+                field_config         = $18
             WHERE id = $1
         """,
             meta.id, meta.name, meta.description,
@@ -233,6 +239,7 @@ async def update_index(meta: IndexMeta) -> None:
             meta.external_collection, meta.external_filter, meta.external_query_by,
             meta.external_title_field, meta.external_url_field, meta.embed_model,
             meta.intent_label, meta.slug,
+            json.dumps(meta.field_config or []),
         )
 
 

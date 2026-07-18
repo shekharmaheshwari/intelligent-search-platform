@@ -10,6 +10,8 @@ export interface ApiCurls {
   hybrid:       string;
   lexical:      string;
   docs:         string;
+  chat:         string;
+  chatTurn:     string;
 }
 
 export function buildApiCurls(base: string, indexId: string): ApiCurls {
@@ -19,5 +21,7 @@ export function buildApiCurls(base: string, indexId: string): ApiCurls {
     hybrid:       `curl -X POST "${base}/indexes/${indexId}/search" \\\n  -H "Content-Type: application/json" \\\n  -d '{"q": "your query", "mode": "hybrid", "page": 1, "per_page": 10}'`,
     lexical:      `curl -X POST "${base}/indexes/${indexId}/search" \\\n  -H "Content-Type: application/json" \\\n  -d '{"q": "your query", "mode": "lexical", "page": 1, "per_page": 10}'`,
     docs:         `curl "${base}/indexes/${indexId}/documents?page=1&per_page=20"`,
+    chat:         `curl -X POST "${base}/indexes/${indexId}/chat" \\\n  -H "Content-Type: application/json" \\\n  -d '{"query": "your question", "messages": []}'`,
+    chatTurn:     `curl -X POST "${base}/indexes/${indexId}/chat" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "query": "follow-up question",\n    "messages": [\n      {"role": "user",      "content": "first question"},\n      {"role": "assistant", "content": "...", "products": [...]}\n    ]\n  }'`,
   };
 }

@@ -99,9 +99,13 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
                 ts.apply_boost_rules(scores, all_docs, _rules, query=_query)
 
     # Build query_by from field_config searchable entries (title+content always included).
+    # Guard: only string/string[] types are valid in Typesense query_by — bool/int/float
+    # fields silently stored with searchable=True (e.g. via direct DB edits) must be skipped.
     _extra_qb = [
         fc["name"] for fc in (meta.field_config or [])
-        if fc.get("searchable") and fc["name"] not in {"title", "content"}
+        if fc.get("searchable")
+        and fc["name"] not in {"title", "content"}
+        and fc.get("type", "string").startswith("string")
     ]
     ts_query_by: str | None = ("title,content," + ",".join(_extra_qb)) if _extra_qb else None
 
