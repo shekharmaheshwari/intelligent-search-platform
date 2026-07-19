@@ -9,6 +9,7 @@ from isp.models.index import (  # noqa: F401
     RestConnectorConfig,
     SitemapConnectorConfig,
     GSheetConnectorConfig,
+    JsonFileConnectorConfig,
     ConnectorConfig,
     IndexCreate,
     ConnectorAdd,

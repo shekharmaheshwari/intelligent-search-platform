@@ -130,7 +130,26 @@ class GSheetConnectorConfig(BaseModel):
     )
 
 
-ConnectorConfig = Union[RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig]
+class JsonFileConnectorConfig(BaseModel):
+    """
+    Configuration for a local or remote JSON file data source.
+
+    The file may be a local path accessible inside the container (e.g.
+    ``/data/products.json``) or an ``https://`` URL.  ``root_key`` is the
+    top-level dict key whose value is the array of items; leave empty to
+    auto-detect the first non-empty array value.
+    """
+    type: Literal["json_file"] = "json_file"
+    path: str
+    root_key: str = ""
+    id_field: str = "id"
+    title_field: str = "title"
+    content_field: str = "content"
+    url_field: str = "url"
+    static_fields: dict[str, str] = Field(default_factory=dict)
+
+
+ConnectorConfig = Union[RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, JsonFileConnectorConfig]
 
 
 class IndexCreate(BaseModel):
@@ -144,7 +163,7 @@ class IndexCreate(BaseModel):
 
 class ConnectorAdd(BaseModel):
     """Wraps a connector config for the add-connector endpoint."""
-    config: Union[RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig] = Field(discriminator="type")
+    config: Union[RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, JsonFileConnectorConfig] = Field(discriminator="type")
 
 
 class IndexMeta(BaseModel):

@@ -34,7 +34,9 @@
 
   import type { ChatConfig } from '../../lib/types/settings.types';
 
-  let activeTab: 'model' | 'personalisation' | 'chat' = 'model';
+  import AgentSetup from './AgentSetup.svelte';
+
+  let activeTab: 'model' | 'personalisation' | 'chat' | 'agent' = 'model';
 
   // ── Chat config state ────────────────────────────────────────────────────────
   let chatConfig: ChatConfig | null = null;
@@ -284,6 +286,13 @@
       on:click={() => activeTab = 'chat'}
     >
       Chat Model
+    </button>
+    <button
+      class="tab-btn"
+      class:tab-active={activeTab === 'agent'}
+      on:click={() => activeTab = 'agent'}
+    >
+      Agent
     </button>
   </nav>
 
@@ -908,6 +917,12 @@
       </div>
     </section>
   {/if}<!-- end chat tab -->
+
+  {#if activeTab === 'agent'}
+    <section class="section">
+      <AgentSetup />
+    </section>
+  {/if}<!-- end agent tab -->
 
   {/if}<!-- end settings loaded -->
 </div>

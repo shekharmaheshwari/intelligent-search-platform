@@ -486,6 +486,23 @@ async def load_chat_config() -> None:
     )
 
 
+async def get_chat_api_key_for_agent() -> str:
+    """
+    Return an Anthropic API key usable by the Setup Agent.
+
+    Checks ``agent_api_key`` first (a dedicated key the user can set in the
+    Agent tab).  Falls back to ``chat_api_key`` when the configured chat
+    provider is Anthropic.  Returns empty string when neither is available.
+    """
+    dedicated = await get_setting("agent_api_key") or ""
+    if dedicated:
+        return dedicated
+    provider = await get_setting("chat_provider") or "none"
+    if provider == "anthropic":
+        return await get_setting("chat_api_key") or ""
+    return ""
+
+
 async def load_embed_model() -> None:
     """
     Synchronise runtime state with the persisted model setting.
