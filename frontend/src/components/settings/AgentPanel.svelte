@@ -1,7 +1,8 @@
 <script lang="ts">
-  import AgentSetup from './AgentSetup.svelte';
+  import AgentSetup   from './AgentSetup.svelte';
+  import ShopifySetup from './ShopifySetup.svelte';
 
-  let activeTab: 'setup' = 'setup';
+  let activeTab: 'setup' | 'shopify' = 'setup';
 </script>
 
 <div class="panel">
@@ -20,11 +21,22 @@
     >
       Setup Content
     </button>
+    <button
+      class="tab-btn"
+      class:tab-active={activeTab === 'shopify'}
+      on:click={() => activeTab = 'shopify'}
+    >
+      Shopify
+    </button>
   </nav>
 
   {#if activeTab === 'setup'}
     <div class="tab-content">
       <AgentSetup />
+    </div>
+  {:else if activeTab === 'shopify'}
+    <div class="tab-content">
+      <ShopifySetup />
     </div>
   {/if}
 </div>
