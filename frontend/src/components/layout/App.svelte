@@ -22,6 +22,7 @@
   import CreateWizard from '../sources/CreateWizard.svelte';
   import ExtensionsPanel from '../extensions/ExtensionsPanel.svelte';
   import SettingsPanel from '../settings/SettingsPanel.svelte';
+  import AgentPanel from '../settings/AgentPanel.svelte';
   import DocsHome from './DocsHome.svelte';
 
   let showWizard = false;
@@ -174,6 +175,7 @@
         on:select={e => selectSource(e.detail)}
         on:create={() => showWizard = true}
         on:delete={e => deleteSource(e.detail)}
+        on:agent={() => appStateStore.navigateTo('agent', null)}
         on:extensions={() => appStateStore.navigateTo('extensions', null)}
         on:settings={() => appStateStore.navigateTo('settings', null)}
       />
@@ -183,7 +185,11 @@
       {#if isMobile}
         <button class="back-btn" on:click={() => sidebarVisible = true}>← Sources</button>
       {/if}
-      {#if state.view === 'settings'}
+      {#if state.view === 'agent'}
+        <div class="extensions-wrap">
+          <AgentPanel />
+        </div>
+      {:else if state.view === 'settings'}
         <div class="extensions-wrap">
           <SettingsPanel />
         </div>
