@@ -6,6 +6,8 @@ POST /v1/agent/preview → JSON: analyse only, return artifacts without executin
 """
 from __future__ import annotations
 import json
+import os
+import glob
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -14,6 +16,18 @@ from isp.services.infra.agent import json_sampler, schema_extractor, claude_anal
 from isp.services.domain.settings_service import get_chat_api_key_for_agent
 
 router = APIRouter(prefix="/v1/agent", tags=["Agent"])
+
+_DATA_DIR = "/app/data"
+
+
+@router.get("/data-files", summary="List JSON files available in the data directory")
+async def list_data_files():
+    """Returns all .json files in /app/data, sorted by name."""
+    try:
+        files = sorted(glob.glob(os.path.join(_DATA_DIR, "*.json")))
+        return {"files": [os.path.basename(f) for f in files]}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 # Analysis modes:
 #   auto   — code heuristics only, no AI

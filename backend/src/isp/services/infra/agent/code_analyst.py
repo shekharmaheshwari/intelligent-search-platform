@@ -296,15 +296,23 @@ def _append_array_handling(lines: list[str], sample: list[dict], roles: dict) ->
                 # Array of strings → join
                 lines.append(f'  doc.{key} = (doc.{key} || []).join(", ");')
             elif isinstance(val[0], dict):
-                # Array of objects
+                # Array of objects — always flatten to string, even if a scalar
+                # was already extracted (price from variants[0].price, image from images[0].src).
+                # Without this, variants/images remain as list-of-dicts and get packed
+                # into the metadata blob as nested objects, which display as [object Object].
+                first = val[0]
                 if key == image_field:
-                    # Already handled above in image block
-                    continue
-                if key == price_field:
-                    # Already handled above in price block
+                    # Use src/url key to build a comma-joined image URL list
+                    img_key = next((k for k in ("src", "url", "href") if k in first), None)
+                    if img_key:
+                        lines.append(
+                            f'  doc.{key} = (doc.{key} || []).map(function(x){{ '
+                            f'return x.{img_key} || ""; }}).filter(Boolean).join(", ");'
+                        )
+                    else:
+                        lines.append(f'  doc.{key} = "";')
                     continue
                 # Pick the most meaningful scalar key from the first object
-                first = val[0]
                 pick = next((k for k in ("title", "name", "label", "value", "text")
                              if k in first), None)
                 if pick:
