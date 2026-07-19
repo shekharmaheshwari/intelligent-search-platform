@@ -1,7 +1,7 @@
 // @name Plans Suggestions
 // @description Generates typeahead search suggestions from rate plan documents (plans3 index).
 // Guards on plan_tier so this extension is harmless when assigned to non-plan indexes.
-// @assign all
+// @assign none
 // @run_order 2
 
 /**

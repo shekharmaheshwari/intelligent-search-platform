@@ -31,6 +31,7 @@ _PUBLIC_API_PREFIXES = (
     "/v1/analytics",     # impression/click logging
     "/v1/intent",        # tab intent
     "/v1/suggest",       # typeahead suggestions
+    "/v1/agent",         # agent setup — uses its own Anthropic API key, no JWT needed
 )
 _SEARCH_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/search/public$")
 _FACETS_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/facets$")
@@ -70,11 +71,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if path.startswith("/v1/"):
             token = _extract_token(request)
             if not token:
-                return JSONResponse({"detail": "Authentication required"}, status_code=401)
+                return JSONResponse(
+                    {"detail": "Authentication required"}, status_code=401,
+                    headers={"Access-Control-Allow-Origin": "*"},
+                )
             try:
                 verify_token(token)
             except Exception:
-                return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
+                return JSONResponse(
+                    {"detail": "Invalid or expired token"}, status_code=401,
+                    headers={"Access-Control-Allow-Origin": "*"},
+                )
             return await call_next(request)
 
         return await call_next(request)
