@@ -7,6 +7,7 @@
   let rootKey    = '';
   let apiKey     = '';
   let feedback   = '';
+  let mode: 'auto' | 'hybrid' | 'ai' = 'hybrid';
 
   type PhaseState = 'idle' | 'running' | 'done' | 'error';
   let phase: PhaseState = 'idle';
@@ -60,7 +61,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ index_name: indexName, json_path: jsonPath,
-                                 root_key: rootKey, api_key: apiKey, feedback }),
+                                 root_key: rootKey, api_key: apiKey, feedback, mode }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Preview failed');
@@ -85,7 +86,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ index_name: indexName, json_path: jsonPath,
-                               root_key: rootKey, api_key: apiKey, feedback }),
+                               root_key: rootKey, api_key: apiKey, feedback, mode }),
       });
 
       if (!res.ok || !res.body) {
@@ -193,6 +194,34 @@
       </div>
 
       <div class="field-row">
+        <label class="field-label">
+          Analysis mode
+          <span class="field-hint">how fields and extensions are generated</span>
+        </label>
+        <div class="mode-group">
+          <button type="button" class="mode-btn" class:mode-active={mode === 'auto'}
+                  on:click={() => mode = 'auto'}>
+            <span class="mode-icon">⚡</span>
+            <span class="mode-name">Auto-detect</span>
+            <span class="mode-desc">Code only · instant · free</span>
+          </button>
+          <button type="button" class="mode-btn" class:mode-active={mode === 'hybrid'}
+                  on:click={() => mode = 'hybrid'}>
+            <span class="mode-icon">⚖</span>
+            <span class="mode-name">Hybrid</span>
+            <span class="mode-desc">Code first · AI if needed</span>
+          </button>
+          <button type="button" class="mode-btn" class:mode-active={mode === 'ai'}
+                  on:click={() => mode = 'ai'}>
+            <span class="mode-icon">✦</span>
+            <span class="mode-name">AI only</span>
+            <span class="mode-desc">Claude · handles any structure</span>
+          </button>
+        </div>
+      </div>
+
+      {#if mode !== 'auto'}
+      <div class="field-row">
         <label class="field-label" for="ag-key">
           Anthropic API key
           <span class="field-hint">leave blank to use key from Chat Model settings</span>
@@ -201,6 +230,7 @@
                placeholder="sk-ant-..."
                bind:value={apiKey} />
       </div>
+      {/if}
 
       {#if errorMessage}
         <p class="err">{errorMessage}</p>
@@ -429,4 +459,52 @@
   }
   .feedback-input:focus { border-color: var(--accent); }
   .feedback-actions { display: flex; gap: 10px; }
+  .mode-group {
+    display: flex;
+    gap: 8px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 10px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    font-family: inherit;
+  }
+
+  .mode-btn:hover {
+    border-color: var(--accent);
+  }
+
+  .mode-active {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  }
+
+  .mode-icon {
+    font-size: 16px;
+  }
+
+  .mode-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .mode-desc {
+    font-size: 10px;
+    color: var(--text-5);
+    text-align: center;
+  }
+
+  .mode-active .mode-name {
+    color: var(--accent);
+  }
 </style>
