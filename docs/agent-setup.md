@@ -2,34 +2,66 @@
 
 ## Overview
 
-The Setup Agent creates a fully configured ISP search index from a JSON file using Claude AI. It inspects your data, generates three JavaScript extensions (normalizer, chatContent, suggestions), configures Typesense field types, and runs the first ingest — all in one step.
+The Setup Agent creates a fully configured ISP search index from a JSON file. It inspects your data, generates three JavaScript extensions (normalizer, chatContent, suggestions), configures Typesense field types, and runs the first ingest — all in one step.
+
+Three analysis modes control how field detection works:
+
+| Mode | How it works | API calls |
+|---|---|---|
+| `auto` | Code heuristics only (`code_analyst`) | 0 — instant and free |
+| `hybrid` | Code first; Claude fallback if confidence < 65% | 0 or 1 |
+| `ai` | Claude only (`claude_analyst`) | 1 (+ up to 2 self-correction retries) |
 
 **Entry points:**
+- `GET  /v1/agent/data-files` — list JSON files available in `/app/data/`
 - `POST /v1/agent/preview` — dry-run, no index created, returns normalised sample doc
 - `POST /v1/agent/setup` — full pipeline, streams SSE progress events
+
+**UI entry point:** Sidebar → ✦ Agent (above Extensions)
+
+---
+
+## UI — AgentPanel
+
+`AgentPanel.svelte` is a tab shell with two tabs:
+
+| Tab | Component | Purpose |
+|---|---|---|
+| Setup Content | `AgentSetup.svelte` | Generic JSON setup — configurable root key, full mode selector, feedback loop |
+| Shopify | `ShopifySetup.svelte` | Shopify product exports — file dropdown, pre-fills `root_key=products`, defaults to `auto` |
+
+### ShopifySetup flow
+
+1. On mount: `GET /v1/agent/data-files` → populates file dropdown with all `.json` files in `/app/data/`
+2. User picks file + index name → **Preview schema** or **Build Index**
+3. Preview shows normalised sample doc + **Build Index →** confirm button
+4. Build streams SSE progress same as AgentSetup
 
 ---
 
 ## End-to-End Code Flow
 
 ```
-AgentSetup.svelte
+AgentSetup.svelte / ShopifySetup.svelte
   │
-  ├─ POST /v1/agent/preview ──────────────────────────────────────────────────┐
-  │     agent_setup.py :: agent_preview()                                      │
-  │       1. json_sampler.load()          → sample, root_key, total            │
-  │       2. schema_extractor.extract()   → schema dict                        │
-  │       3. claude_analyst.analyse_with_correction() → artifacts              │
+  ├─ GET /v1/agent/data-files
+  │     → lists *.json in /app/data/, returns { files: [...] }
+  │
+  ├─ POST /v1/agent/preview ─────────────────────────────────────────────────┐
+  │     agent_setup.py :: agent_preview()                                     │
+  │       1. json_sampler.load()          → sample, root_key, total           │
+  │       2. schema_extractor.extract()   → schema dict                       │
+  │       3. _resolve_artifacts()         → artifacts  (see mode routing)     │
   │       4. Run normalizer_js on sample[0] via extension_runner._run_sync()  │
-  │       5. _repair_doc() on the preview result                               │
-  │       Return: { artifacts, preview_doc, schema, total_items }              │
-  │                                                                             │
-  └─ POST /v1/agent/setup ────────────────────────────────────────────────────┘
+  │       5. _flatten_objects() on preview result                             │
+  │       Return: { artifacts, preview_doc, schema, total_items }             │
+  │                                                                            │
+  └─ POST /v1/agent/setup ───────────────────────────────────────────────────┘
         agent_setup.py :: agent_setup()  →  StreamingResponse (SSE)
           1. json_sampler.load()
           2. schema_extractor.extract()
-          3. claude_analyst.analyse_with_correction()
-          4. setup_executor.run()   ← yields SSE events
+          3. _resolve_artifacts()        ← mode-aware analyst routing
+          4. setup_executor.run()        ← yields SSE events
                ├─ index_service.create_index()
                ├─ ts.create_collection()
                ├─ extension_service.upsert_extension_by_name()  × 3
@@ -39,10 +71,61 @@ AgentSetup.svelte
                └─ _run_rebuild_sync()
                     ├─ json_file_connector.fetch_raw_items()
                     ├─ apply_extensions()   (runs the 3 JS extensions)
-                    ├─ _repair_doc()        (fixes bad JS output)
+                    ├─ _ensure_isp_schema() (packs extra fields into metadata)
+                    ├─ _repair_doc()        (fixes any bad JS output)
                     ├─ embedding_service.embed_texts()
                     ├─ ts.upsert_documents()
                     └─ suggestion_service.seed_suggestions_from_index()
+```
+
+---
+
+## Mode Routing — `_resolve_artifacts()`
+
+`agent_setup.py` routes to the correct analyst based on the `mode` field:
+
+```python
+async def _resolve_artifacts(sample, schema, index_name, api_key, feedback, mode):
+
+    if mode == "auto":
+        artifacts = code_analyst.analyse(sample, schema, index_name)
+        # confidence score included in artifacts["_confidence"]
+        return artifacts, f"Auto-detected — {n} fields mapped (confidence {conf}%)"
+
+    if mode == "ai":
+        artifacts = await claude_analyst.analyse_with_correction(
+            sample, schema, index_name, api_key, feedback=feedback)
+        return artifacts, f"AI analysis complete — {n} fields mapped"
+
+    # hybrid: code first; Claude fallback if confidence < HYBRID_THRESHOLD (65)
+    code_artifacts = code_analyst.analyse(sample, schema, index_name)
+    if code_artifacts["_confidence"] >= HYBRID_THRESHOLD:
+        return code_artifacts, f"Auto-detected (confidence {conf}%, no AI needed)"
+
+    # Low confidence — enrich Claude's prompt with code findings as context
+    code_context = confidence_summary(detect_roles(sample, schema))
+    artifacts = await claude_analyst.analyse_with_correction(
+        sample, schema, index_name, api_key,
+        feedback=feedback + "\n\n" + code_context)
+    return artifacts, f"Hybrid — code confidence {conf}%, AI used"
+```
+
+Both analysts return the same artifact shape:
+
+```json
+{
+  "normalizer_js":    "function transform(doc) { ... }",
+  "chat_content_js":  "function transform(doc) { ... }",
+  "suggestion_js":    "function transform(doc) { ... }",
+  "field_config":     [{ "name": "title", "type": "string", "searchable": true, "facet": false }, ...],
+  "intent_label":     "shoe",
+  "id_field":         "id",
+  "title_field":      "title",
+  "content_field":    "content",
+  "url_field":        "url",
+  "_confidence":      86,   // code_analyst only
+  "_method":          "code" | "hybrid-code" | "hybrid-ai" | "ai"
+}
 ```
 
 ---
@@ -55,21 +138,10 @@ Loads the JSON file and returns a **representative sample** of up to 5 items.
 async def load(path, sample_size=5, root_key="") -> (sample, detected_key, total):
 ```
 
-**What it does:**
-
-1. **Strips `file://` prefixes** — browsers sometimes prepend `file:///` when a path is dragged in. Stripped before opening.
-
-2. **Supports HTTP URLs** — if `path` starts with `http://` or `https://`, fetches via `httpx` instead of reading from disk.
-
-3. **Auto-detects root key** — if the JSON is `{ "products": [...] }`, it finds the first key whose value is a non-empty list of dicts. No need to specify `root_key` manually.
-
-4. **Evenly-spaced sample** — for a 500-item catalog, rather than taking the first 5 (which might all be the same category), it spaces indices evenly:
-   ```python
-   step = total // (sample_size - 1)
-   indices = sorted({0, total - 1} | {i * step for i in range(1, sample_size - 1)})
-   sample = [items[i] for i in indices[:sample_size]]
-   ```
-   This gives Claude variety across large catalogs — first item, last item, and 3 distributed in between.
+1. **Strips `file://` prefixes** — browsers sometimes prepend `file:///`.
+2. **Supports HTTP URLs** — fetches via `httpx` if path starts with `http://`.
+3. **Auto-detects root key** — finds the first key whose value is a non-empty list of dicts.
+4. **Evenly-spaced sample** — takes first, last, and evenly distributed middle items to give the analyst variety across large catalogs.
 
 ---
 
@@ -78,238 +150,139 @@ async def load(path, sample_size=5, root_key="") -> (sample, detected_key, total
 Builds a **flat field schema** by walking all sample items and merging their structure.
 
 ```python
-def extract(sample: list[dict]) -> dict[str, str]:
+def extract(sample) -> dict[str, str]:
     # Returns: { "title": "string", "variants[].price": "float", "images": "array[object] (5 items)", ... }
 ```
 
-**What it does:**
-
-- `_flatten()` recursively walks nested dicts up to **depth 3**, using dot notation for nested keys: `category.name`, `variants[].price`
-- For arrays of objects it shows `array[object] (N items)` and also flattens the first element's structure: `variants[].title`, `variants[].price`, etc.
-- `_infer_type()` maps Python types to readable labels: `bool`, `int`, `float`, `string`, `array[string]`, `object`, `null`
-- Fields from ALL sample items are merged — if a field is missing in some items it still appears (handles sparse optional fields)
+- Recursively walks nested dicts up to depth 3, using dot / bracket notation: `variants[].price`
+- Merges fields across all sample items — handles sparse optional fields
 - `null` type is overwritten if a non-null value is seen in another sample item
-
-**Why this matters:** Claude sees a concise structural map rather than the full raw data payload. This keeps the prompt small while giving Claude everything it needs to reason about field types and nesting depth.
 
 ---
 
-## Step 3 — `claude_analyst.analyse_with_correction()` (`agent/claude_analyst.py`)
+## Step 3a — `code_analyst.analyse()` (`agent/code_analyst.py`)
 
-Calls Claude Opus with the schema + sample, then **self-tests and auto-corrects** the generated normalizer.
+Zero-token heuristic analyst. Works well for standard product catalogs (Shopify, WooCommerce, etc.). The `auto` and `hybrid` modes use this first.
 
-### 3a. `analyse()` — the Claude call
+### Role detection — `_detect_roles(sample, schema)`
+
+Three-pass detection:
+
+1. **Name match** — field names checked against pattern sets:
+   - `_TITLE_NAMES = {"title", "name", "product_name", ...}`
+   - `_CONTENT_NAMES = {"body_html", "description", "content", ...}`
+   - `_URL_NAMES = {"handle", "url", "slug", "permalink", ...}`
+   - `_IMAGE_NAMES = {"images", "image", "photo", "thumbnail", ...}`
+   - `_PRICE_NAMES = {"price", "cost", "amount", ...}`
+   - `_ID_NAMES = {"id", "product_id", "sku", ...}`
+
+2. **Nested array patterns** — schema keys like `variants[].price` or `images[].src` are used to detect roles from nested fields.
+
+3. **Value fallbacks** — if name matching fails, inspects actual values (looks for URL-shaped strings, numeric prices, image extensions, etc.)
+
+### Confidence scoring — `_calc_confidence(roles)`
 
 ```python
-async def analyse(sample, schema, index_name, api_key, feedback="") -> dict:
+weights = { "id": 15, "title": 25, "content": 20, "url": 15, "image": 15, "price": 10 }
+confidence = sum(weights[role] for role in detected_roles)
 ```
 
-**Prompt structure sent to Claude:**
+Standard Shopify export: confidence 86% (all 6 roles detected).
 
-```
-[SYSTEM]  _SYSTEM prompt (see below)
+### Normalizer JS generation — `_build_normalizer_js(roles, sample)`
 
-[USER]
-Index name: allbirds
+Generates ES5-compatible JS from Python templates:
 
-Schema (field path → type):
-{
-  "title": "string",
-  "variants": "array[object] (13 items)",
-  "variants[].title": "string",
-  "variants[].price": "string",
-  "images": "array[object] (5 items)",
-  "images[].src": "string",
-  ...
+```js
+function transform(doc) {
+  doc.title   = doc.title || "";
+  var _raw    = doc.body_html || "";
+  doc.content = _raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  delete doc.body_html;
+  doc.url     = doc.handle ? ("/products/" + doc.handle) : (doc.url || "");
+  doc.image   = (doc.images && doc.images.length && doc.images[0]) ? (doc.images[0].src || "") : "";
+  doc.price   = parseFloat((doc.variants && doc.variants.length) ? (doc.variants[0].price || 0) : 0);
+  if (doc.available !== undefined) { doc.in_stock = !!doc.available; }
+  // Array flattening (generated by _append_array_handling):
+  doc.tags     = (doc.tags || []).join(", ");
+  doc.variants = (doc.variants || []).map(function(x){ return x.title || ""; }).filter(Boolean).join(", ");
+  doc.images   = (doc.images || []).map(function(x){ return x.src || ""; }).filter(Boolean).join(", ");
+  doc.options  = (doc.options || []).map(function(x){ return x.name || ""; }).filter(Boolean).join(", ");
+  return doc;
 }
-
-Sample items (5 items):
-[ { "title": "Women's Wool Runner", "variants": [...], ... }, ... ]
-
-## Feedback from previous attempt   ← only present on correction retries
-  - 'variants' became "[object Object]" — use .map() ...
 ```
 
-**The system prompt (`_SYSTEM`) instructs Claude to:**
-- Use **ES5 only** (Duktape JS engine — no arrow functions, no `const`/`let`, no template literals)
-- `normalizer_js`: must produce `function transform(doc)` that flattens all nested fields
-- `chat_content_js`: must produce `function transform(doc)` that builds `doc.chatContent` as a labelled string
-- `suggestion_js`: must define BOTH `extractSuggestions(doc)` (returns `[{query, category}]`) AND `function transform(doc) { return doc; }`
-- `field_config`: JSON array of `{ name, type, searchable, facet }` objects — no `vec`, `id`, `indexed_at` (ISP manages those)
+**Important:** `_append_array_handling` always flattens every array-of-dicts field to a string — including fields that were already used as a scalar source (price from `variants[0].price`, image URL from `images[0].src`). Without this, those fields would remain as list-of-dicts and get packed into the `metadata` blob as nested objects, causing `[object Object]` display in the UI.
 
-**Claude returns raw JSON** (no markdown). If it wraps in code fences, the analyst strips them:
-```python
-if raw.startswith("```"):
-    raw = raw.split("```")[1]
-    if raw.startswith("json"):
-        raw = raw[4:]
-```
+### Field config — `_build_field_config(sample, schema, roles)`
 
-### 3b. `analyse_with_correction()` — the self-test loop
+Uses cardinality analysis to set `searchable` and `facet` flags:
+- High-cardinality fields (many unique values) → `searchable: true`, `facet: false`
+- Low-cardinality fields (few unique values) → `facet: true` (e.g. `product_type`, `vendor`)
+- Numeric / bool fields → `facet: true`
 
-After `analyse()` returns, the generated `normalizer_js` is **actually run** against `sample[0]` using the same JS extension runner used in production:
+---
+
+## Step 3b — `claude_analyst.analyse_with_correction()` (`agent/claude_analyst.py`)
+
+Used in `ai` mode, or as the `hybrid` fallback when code confidence < 65%.
+
+### `analyse()` — the Claude call
+
+Sends schema + sample items to Claude Opus with a structured prompt instructing ES5-only JS output. Returns raw JSON with `normalizer_js`, `chat_content_js`, `suggestion_js`, `field_config`, `intent_label`, and field name mappings.
+
+### Self-correction loop
+
+After `analyse()` returns, the normalizer is **actually run** against `sample[0]` using the same Duktape runner used in production:
 
 ```python
 ext = [{"id": "selftest", "code": normalizer_code, "type": "transform", "enabled": True}]
 result = await asyncio.to_thread(_run_sync, [dict(sample[0])], ext)
-test_doc = result[0]
+bad = _find_bad_fields(result[0])
 ```
 
-`_find_bad_fields(test_doc)` then checks every field in the output:
+`_find_bad_fields` flags:
+- `isinstance(val, dict)` — still a nested object
+- `isinstance(val, list) and isinstance(val[0], dict)` — still array of objects
+- `"[object Object]" in val` — JS did `.join()` without `.map()` first
 
-```python
-def _find_bad_fields(doc):
-    # Flags:
-    # • isinstance(val, dict)                        → still a nested object
-    # • isinstance(val, list) and isinstance(val[0], dict) → still array of objects
-    # • isinstance(val, str) and "[object Object]" in val  → JS did bad .join()
-```
-
-If bad fields are found, an auto-correction note is generated with specific field names and fix instructions, appended to `feedback`, and `analyse()` is called again. This repeats up to **2 times**.
-
-The final artifacts include `_auto_corrections: [...]` — a list of correction notes applied. The SSE stream reports `"(auto-corrected 1x)"` in the analyse step message if any retries happened.
+If bad fields are found, a correction note is generated and `analyse()` is re-called with the feedback. Up to **2 retries**. The SSE stream reports `"(auto-corrected 1x)"` if any retries happened.
 
 ---
 
 ## Step 4 — `setup_executor.run()` (`agent/setup_executor.py`)
 
-An **async generator** that executes all ISP setup steps and yields SSE-compatible event dicts. The router streams each yielded dict directly to the browser.
+An **async generator** that executes all ISP setup steps and yields SSE-compatible event dicts.
+
+### Extensions saved
+
+| Extension name | JS function | Run order |
+|---|---|---|
+| `agent_normalizer_<id>` | `transform(doc)` — flattens nested fields, maps roles | 1 |
+| `agent_chat_content_<id>` | `transform(doc)` — builds `doc.chatContent` as labelled string | 2 |
+| `agent_suggestions_<id>` | `extractSuggestions(doc)` + `transform(doc)` | 3 |
+
+**Note on suggestion extension:** Claude's `suggestion_js` output is ignored. A hardcoded Python template is used to guarantee the correct function signature — Claude historically generates non-standard patterns (`emit()` etc.) here.
+
+### `_run_rebuild_sync()` — ingest, embed, index
 
 ```python
-async def run(artifacts, index_name, json_path, root_key, total_items) -> AsyncIterator[dict]:
-```
-
-Each `yield` has the shape: `{ "step": str, "status": "running"|"ok"|"error", "message": str, "ts": int, ...extra }`
-
-### Step 4.1 — Create index + Typesense collection
-
-```python
-meta = await index_service.create_index(
-    name=index_name,
-    description=f"Created by ISP Setup Agent from {json_path}",
-    intent_label=artifacts["intent_label"],   # e.g. "shoe", "plant", "device"
-)
-ts.create_collection(meta.id, vec_dim=get_vec_dim())
-```
-
-`index_service.create_index()` writes a row to `isp_indexes` in PostgreSQL and returns an `IndexMeta` with an auto-generated UUID `id`. `ts.create_collection()` creates the Typesense collection `isp_<id>` with the current embedding model's vector dimension.
-
-### Step 4.2 — Save 3 extensions to DB
-
-```python
-ext_normalizer = await extension_service.upsert_extension_by_name(
-    name=f"agent_normalizer_{index_id}",
-    description=f"Auto-generated normalizer for {index_name}",
-    code=artifacts["normalizer_js"],
-    ext_type="transform",
-)
-ext_chat = await extension_service.upsert_extension_by_name(
-    name=f"agent_chat_content_{index_id}",
-    code=artifacts["chat_content_js"],
-    ext_type="transform",
-)
-ext_suggest = await extension_service.upsert_extension_by_name(
-    name=f"agent_suggestions_{index_id}",
-    code=_build_suggestion_js(artifacts),   # ← hardcoded template, NOT Claude's suggestion_js
-    ext_type="transform",
-)
-```
-
-`upsert_extension_by_name()` inserts or updates in `isp_extensions`. Extensions are named with the index ID so multiple agent-created indexes don't collide.
-
-**Note on `_build_suggestion_js`:** Claude's `suggestion_js` output is ignored for the suggestions extension. Instead a hardcoded Python template is used to guarantee the `extractSuggestions(doc)` function signature is correct — Claude historically generates `emit()` or other non-standard patterns here.
-
-```python
-def _build_suggestion_js(artifacts):
-    intent_label = artifacts.get("intent_label", "item")
-    return f"""
-function extractSuggestions(doc) {{
-  var results = [];
-  var title = doc.title || "";
-  var category = doc.intent_label || "{intent_label}";
-  if (title) {{ results.push({{query: title.toLowerCase(), category: category}}); }}
-  var brand = doc.brand || "";
-  var cat = doc.category_name || doc.category || "";
-  if (brand && cat) {{ results.push({{query: (brand+" "+cat).toLowerCase(), category: category}}); }}
-  return results;
-}}
-function transform(doc) {{ return doc; }}
-""".strip()
-```
-
-### Step 4.3 — Assign extensions to index
-
-```python
-await extension_service.assign_extension(index_id, ext_normalizer["id"], run_order=1)
-await extension_service.assign_extension(index_id, ext_chat["id"],       run_order=2)
-await extension_service.assign_extension(index_id, ext_suggest["id"],    run_order=3)
-```
-
-Writes to `isp_index_extensions` join table. `run_order` controls execution sequence during rebuild — normalizer always runs first so downstream extensions see clean flat fields.
-
-### Step 4.4 — Configure json_file connector
-
-```python
-connector_cfg = {
-    "type":          "json_file",
-    "path":          json_path,           # e.g. /app/data/allbirds.json
-    "root_key":      root_key,            # e.g. "products"
-    "id_field":      artifacts["id_field"],
-    "title_field":   artifacts["title_field"],
-    "content_field": artifacts["content_field"],
-    "url_field":     artifacts["url_field"],
-}
-await index_service.add_connector(index_id, connector_cfg)
-```
-
-Persisted in the `connectors` JSONB column of `isp_indexes`. The Rebuild panel reads this to pre-populate the UI and knows to show the JSON file path instead of a REST form.
-
-### Step 4.5 — Apply field_config
-
-```python
-field_config = artifacts.get("field_config", [])
-# e.g. [{"name": "title", "type": "string", "searchable": true, "facet": false}, ...]
-meta.field_config = field_config
-await index_service.update_index(meta)
-```
-
-Stored in the `field_config` JSONB column. Used by the Fields tab in the index detail view and by Typesense schema management.
-
-### Step 4.6 — `_run_rebuild_sync()` — ingest, embed, index
-
-Because we're inside an SSE generator that must yield events, the rebuild runs **synchronously** (awaited inline) rather than as a FastAPI background task. This lets the executor yield the `rebuild` done event only after ingest is complete.
-
-```python
-# 1. Fetch all raw items from JSON file
 raw_items = await json_file_connector.fetch_raw_items(jf_cfg)
 
-# 2. Run the 3 JS extensions on every item
-docs = await apply_extensions(list(raw_items), transform_exts)
-docs = _ensure_isp_schema(docs)
-
-# 3. Repair any fields the extension botched
-docs = [_repair_doc(docs[i], raw_items[i]) for i in range(len(docs))]
-
-# 4. Build embed text and call embedding model
-raw_texts = [_build_embed_text(d) for d in docs]
-vecs = await embedding_service.embed_texts([raw_texts[i] for i in embed_idxs])
-for pos, idx in enumerate(embed_idxs):
-    docs[idx]["vec"] = vecs[pos]
-
-# 5. Drop + recreate Typesense collection, upsert all docs
-ts.drop_collection(index_id)
-ts.create_collection(index_id, vec_dim=rebuild_dim)
-ts.upsert_documents(index_id, docs)
-
-# 6. Seed suggestions table from the now-indexed docs
-await suggestion_service.seed_suggestions_from_index(index_id)
+if transform_exts:
+    docs = await apply_extensions(list(raw_items), transform_exts)
+    docs = _ensure_isp_schema(docs)           # packs extra fields into metadata blob
+    docs = [_repair_doc(docs[i], raw_items[i]) for i in range(len(docs))]
+else:
+    docs = _ensure_isp_schema(list(raw_items))
+    docs = [_flatten_objects(d) for d in docs]
 ```
 
 ---
 
-## `_repair_doc` — Post-Extension Safety Net (`agent/setup_executor.py`)
+## `_repair_doc` — Post-Extension Safety Net
 
-Runs after every `apply_extensions()` call on json_file indexes, comparing the extension output against the original raw item:
+Runs after every `apply_extensions()` call on json_file indexes:
 
 ```python
 def _repair_doc(processed: dict, raw: dict) -> dict:
@@ -319,7 +292,7 @@ def _repair_doc(processed: dict, raw: dict) -> dict:
         if isinstance(val, dict) or (isinstance(val, list) and val and isinstance(val[0], dict)):
             doc.update(_flatten_objects({key: val}))
 
-        # Case 2: JS called .join() on an array of objects without .map() first
+        # Case 2: JS called .join() on array of objects without .map()
         # → produced "[object Object], [object Object], ..."
         elif isinstance(val, str) and re.search(r'\[object Object\]', val):
             raw_val = raw.get(key)
@@ -329,15 +302,30 @@ def _repair_doc(processed: dict, raw: dict) -> dict:
                 doc[key] = ""
 ```
 
-`_flatten_objects()` converts a nested value to a string by checking priority keys (`title`, `name`, `src`, `url`, `href`, `value`, `label`, `text`) and falling back to joining all scalar values. Special case: `images` array backfills `doc.image` with `images[0].src` if `image` is not already set.
+`_flatten_objects()` converts a nested value to a string using priority keys (`title`, `name`, `src`, `url`, `href`, `value`, `label`, `text`). Special case: `images` array backfills `doc.image` with `images[0].src` if `image` is not already set.
 
-**Scope:** `_repair_doc` is only called in json_file rebuild paths. REST, sitemap, and GSheet rebuilds are unaffected.
+**Scope:** only called in json_file rebuild paths. REST, sitemap, and GSheet rebuilds are unaffected.
+
+---
+
+## `_ensure_isp_schema()` and the `metadata` field
+
+ISP Typesense documents have a fixed top-level schema (`id`, `title`, `content`, `url`, `vec`, `indexed_at`, `metadata`, and a small set of typed fields). Any field not in this schema is packed into the `metadata` JSONB string:
+
+```python
+combined_meta = {k: v for k, v in doc.items() if k not in _ISP_FIELDS}
+out["metadata"] = json.dumps(combined_meta)
+```
+
+For Shopify indexes, `metadata` contains: `handle`, `vendor`, `product_type`, `tags`, `variants`, `images`, `options`, `price`, `in_stock`, `chatContent`, etc.
+
+**Why variants must be flattened before `_ensure_isp_schema` runs:** if `variants` is still a list-of-dicts when packed into `metadata`, it serialises to a JSON array of objects. The ISP document browser renders these as `[object Object]` when displaying the metadata contents. The `code_analyst` normalizer_js and `_repair_doc` both ensure variants is a flat string before `_ensure_isp_schema` is called.
 
 ---
 
 ## Suggestion Seeding
 
-After `ts.upsert_documents()` completes, `suggestion_service.seed_suggestions_from_index(index_id)` scans all indexed documents via Typesense, calls `extractSuggestions(doc)` through the assigned suggestions extension on each doc, and inserts the returned `{query, category}` pairs into the `isp_suggestions` table. These populate the autocomplete search bar.
+After `ts.upsert_documents()` completes, `suggestion_service.seed_suggestions_from_index(index_id)` scans all indexed documents, calls `extractSuggestions(doc)` on each via the suggestions extension, and inserts `{query, category}` pairs into `isp_suggestions`. These power the autocomplete search bar.
 
 ---
 
@@ -345,19 +333,22 @@ After `ts.upsert_documents()` completes, `suggestion_service.seed_suggestions_fr
 
 | File | Role |
 |---|---|
-| `backend/src/isp/routers/agent_setup.py` | FastAPI router — preview + setup endpoints |
+| `backend/src/isp/routers/agent_setup.py` | FastAPI router — data-files, preview, setup endpoints; mode routing via `_resolve_artifacts` |
 | `backend/src/isp/services/infra/agent/json_sampler.py` | Load JSON file, detect root key, even sample |
 | `backend/src/isp/services/infra/agent/schema_extractor.py` | Walk sample items → flat schema dict |
+| `backend/src/isp/services/infra/agent/code_analyst.py` | Zero-token heuristic analyst — role detection, confidence scoring, JS generation |
 | `backend/src/isp/services/infra/agent/claude_analyst.py` | Claude Opus call + self-correction loop |
-| `backend/src/isp/services/infra/agent/setup_executor.py` | SSE generator — creates index, extensions, runs rebuild |
+| `backend/src/isp/services/infra/agent/setup_executor.py` | SSE generator — creates index, extensions, runs rebuild; `_repair_doc`, `_flatten_objects` |
 | `backend/src/isp/services/infra/json_file_connector.py` | Reads JSON file for the connector |
-| `frontend/src/components/settings/AgentSetup.svelte` | Agent tab UI — form, SSE terminal, preview, feedback |
+| `frontend/src/components/settings/AgentPanel.svelte` | Tab shell — Setup Content + Shopify tabs |
+| `frontend/src/components/settings/AgentSetup.svelte` | Generic JSON setup form with mode selector, SSE terminal, feedback loop |
+| `frontend/src/components/settings/ShopifySetup.svelte` | Shopify-specific form — file dropdown, auto mode, confirm-after-preview |
 
 ---
 
 ## Auth
 
-`/v1/agent` is in `_PUBLIC_API_PREFIXES` in `auth/middleware.py` — it bypasses ISP JWT authentication. The agent authenticates with the Anthropic API directly using the key the user provides (or the key stored in Settings → Chat Model).
+`/v1/agent` is in `_PUBLIC_API_PREFIXES` in `auth/middleware.py` — it bypasses ISP JWT authentication. The agent authenticates with the Anthropic API using the key the user provides in the form, or falls back to the key stored in Settings → Chat Model.
 
 ---
 
@@ -368,13 +359,25 @@ The API container mounts `./data:/app/data:ro` (read-only). Drop your JSON file 
 ```
 intelligent-search-platform/
   data/
-    allbirds.json   →  /app/data/allbirds.json  (path to use in the Agent tab)
+    allbirds.json   →  /app/data/allbirds.json
+    aloyoga.json    →  /app/data/aloyoga.json
 ```
+
+The Shopify tab automatically lists all `.json` files found here via `GET /v1/agent/data-files`.
 
 ---
 
 ## Rebuilding an Agent Index
 
-Agent-created indexes use the `json_file` connector. The Rebuild panel shows the source path (`SOURCE FILE: /app/data/allbirds.json`) and a **Run Rebuild** button. Clicking it re-runs the full ingest + extension + embed + repair pipeline without calling Claude again.
+Agent-created indexes use the `json_file` connector. The Rebuild panel shows the source path and a **Run Rebuild** button. Clicking it re-runs the full ingest + extension + repair + embed pipeline without calling the analyst again.
 
-To change the normalizer after setup: go to Settings → Extensions, find `agent_normalizer_<id>`, edit the JS, then Run Rebuild.
+To change the normalizer after setup: go to Extensions, find `agent_normalizer_<id>`, edit the JS, then Run Rebuild.
+
+---
+
+## Known Constraints
+
+- **ES5 only** — the Duktape JS engine does not support arrow functions, `const`/`let`, template literals, or spread syntax. All generated JS uses `var`, `function() {}`, and string concatenation.
+- **Shopify tab is Shopify-specific** — `root_key` is hardcoded to `products`. For other JSON structures use the Setup Content tab.
+- **`docker cp` required for backend code changes** — the API container does not volume-mount `/app/src/`, so Python file changes require `docker cp <file> isp-api:/app/src/<path>` followed by a container restart to reload.
+- **Frontend requires a rebuild** — `npm run build` in `frontend/` followed by `docker cp frontend/dist/. isp-ui:/usr/share/nginx/html/` to deploy changes to the nginx container.
