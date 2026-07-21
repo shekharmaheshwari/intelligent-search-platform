@@ -7,7 +7,7 @@
   export let indexes: IndexMeta[] = [];
   export let selectedId: string | null = null;
 
-  const dispatch = createEventDispatcher<{ select: string; create: void; delete: string; agent: void; extensions: void; settings: void }>();
+  const dispatch = createEventDispatcher<{ select: string; create: void; delete: string; agent: void; extensions: void; settings: void; analytics: void }>();
 
   let sourcesOpen = true;
   let searchQuery = '';
@@ -93,6 +93,9 @@
   <div class="sidebar-footer">
     <button class="footer-link" on:click={() => dispatch('agent')}>
       <span class="footer-icon">✦</span> Agent
+    </button>
+    <button class="footer-link" on:click={() => dispatch('analytics')}>
+      <span class="footer-icon">📊</span> Analytics
     </button>
     <button class="footer-link" on:click={() => dispatch('extensions')}>
       <span class="footer-icon">⚙</span> Extensions
