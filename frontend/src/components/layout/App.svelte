@@ -24,6 +24,7 @@
   import SettingsPanel from '../settings/SettingsPanel.svelte';
   import AgentPanel from '../settings/AgentPanel.svelte';
   import DocsHome from './DocsHome.svelte';
+  import AnalyticsPanel from '../analytics/AnalyticsPanel.svelte';
 
   let showWizard = false;
   let windowWidth = 1024;
@@ -142,6 +143,9 @@
         appStateStore.setDetailTab(partial.detailTab);
       }
       if (isMobile) sidebarVisible = false;
+    } else if (partial.view === 'analytics') {
+      appStateStore.navigateToAnalytics();
+      if (isMobile) sidebarVisible = false;
     } else if (partial.view === 'extensions') {
       appStateStore.navigateTo('extensions');
       if (isMobile) sidebarVisible = false;
@@ -176,6 +180,7 @@
         on:create={() => showWizard = true}
         on:delete={e => deleteSource(e.detail)}
         on:agent={() => appStateStore.navigateTo('agent', null)}
+        on:analytics={() => appStateStore.navigateToAnalytics()}
         on:extensions={() => appStateStore.navigateTo('extensions', null)}
         on:settings={() => appStateStore.navigateTo('settings', null)}
       />
@@ -188,6 +193,10 @@
       {#if state.view === 'agent'}
         <div class="extensions-wrap">
           <AgentPanel />
+        </div>
+      {:else if state.view === 'analytics'}
+        <div class="extensions-wrap">
+          <AnalyticsPanel indexes={idxState.indexes} />
         </div>
       {:else if state.view === 'settings'}
         <div class="extensions-wrap">
