@@ -266,7 +266,7 @@ export const api = {
    * Any index assignments for this extension are cascade-deleted by the backend.
    */
   deleteExtension: (id: string) =>
-    fetch(`${BASE}/extensions/${id}`, { method: 'DELETE' }),
+    req<void>(`/extensions/${id}`, { method: 'DELETE' }),
 
   // ── Per-index extension assignment ─────────────────────────────────────────
 

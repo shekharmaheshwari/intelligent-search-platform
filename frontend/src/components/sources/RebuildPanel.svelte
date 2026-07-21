@@ -141,6 +141,8 @@
           meta_fields: Object.fromEntries(metaFields.filter(r => r.key.trim() && r.value.trim()).map(r => [r.key.trim(), r.value.trim()])),
         };
         await indexService.rebuild(index.id, cfg);
+      } else if (connectorType === 'json_file') {
+        await indexService.rebuild(index.id, index.connectors[0] ?? {});
       } else {
         if (!url.trim()) { errMsg = 'URL is required'; runState = 'idle'; return; }
         let headers: Record<string, string> = {};
@@ -263,6 +265,14 @@
           <span>Skip empty rows</span>
         </label>
       </fieldset>
+
+    {:else if connectorType === 'json_file'}
+      <!-- JSON file connector — no inputs needed, path is fixed in the connector config -->
+      <div class="json-file-info">
+        <div class="json-file-label">Source file</div>
+        <code class="json-file-path">{index.connectors[0]?.path ?? '(unknown)'}</code>
+        <p class="json-file-hint">The connector reads from this path each time a rebuild runs. Update the connector config to change the file.</p>
+      </div>
 
     {:else if connectorType !== 'sitemap'}
       <!-- Paste curl shortcut — REST only -->
@@ -392,13 +402,13 @@
       {#if runState === 'idle' || runState === 'error'}
         <div class="actions">
           <button class="btn-cancel" on:click={() => dispatch('close')}>Cancel</button>
-          {#if connectorType !== 'sitemap' && connectorType !== 'gsheet'}
+          {#if connectorType !== 'sitemap' && connectorType !== 'gsheet' && connectorType !== 'json_file'}
             <button class="btn-copy-curl" on:click={copyCurl} disabled={!url.trim()} title="Copy full curl command">
               {copied ? '✓ Copied' : '⎘ Copy curl'}
             </button>
           {/if}
           <button class="btn-rebuild" on:click={runRebuild}
-            disabled={connectorType === 'sitemap' ? !sitemapUrl.trim() : connectorType === 'gsheet' ? !gsheetSpreadsheetId.trim() : !url.trim()}>
+            disabled={connectorType === 'sitemap' ? !sitemapUrl.trim() : connectorType === 'gsheet' ? !gsheetSpreadsheetId.trim() : connectorType === 'json_file' ? false : !url.trim()}>
             ↺ Run Rebuild
           </button>
         </div>
@@ -521,6 +531,17 @@
   }
   .paste-curl-input::placeholder { color: var(--text-7); }
   .parse-err { margin: 0; font-size: 11px; color: var(--danger-text); }
+
+  .json-file-info {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .json-file-label { font-size: 11px; font-weight: 600; color: var(--text-5); text-transform: uppercase; letter-spacing: 0.04em; }
+  .json-file-path {
+    font-size: 13px; font-family: 'SF Mono', 'Fira Code', monospace;
+    color: var(--text-2); word-break: break-all;
+  }
+  .json-file-hint { font-size: 12px; color: var(--text-5); margin: 0; }
 
   .divider {
     display: flex;

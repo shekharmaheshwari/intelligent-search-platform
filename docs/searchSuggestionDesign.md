@@ -1,7 +1,12 @@
 # Search Suggestions — Design Document
 
 Typeahead suggestions for the PLP search bar.  Returns generalised search terms
-ranked by real user demand, optionally scoped to the active catalog tab.
+ranked by real user demand.  By default suggestions are cross-category — all
+matching entries from every index are returned together, ranked by operator boost
+then popularity.  Callers can opt into per-index scoping by passing an `index_id`;
+the backend resolves the corresponding `intent_label` from the database and uses it
+as a hard filter.  Isolated stores (e.g. Plants) use a direct `category` param
+instead.
 
 ---
 
@@ -268,23 +273,49 @@ strategy to avoid write pressure on the hot search path.
 | `q` | string | required | Partial query, min 2 chars |
 | `limit` | int | 8 | Max suggestions returned (1–20) |
 | `session_id` | string | `""` | Reserved for future personalisation |
-| `category` | string | `null` | Active catalog tab — boosts matching suggestions |
+| `index_id` | string | `null` | ISP index ID — resolved to `intent_label` from DB for category scoping |
+| `category` | string | `null` | Direct category filter; used by isolated stores (e.g. Plants) that manage their own category value |
+
+`index_id` and `category` are mutually exclusive in practice. `index_id` takes
+precedence — if both are supplied the DB-resolved `intent_label` wins.  Omitting
+both returns cross-category suggestions (default PLP behaviour).
+
+### Category resolution — `_resolve_suggest_category`
+
+When `index_id` is provided the endpoint calls `_resolve_suggest_category(index_id)`,
+which performs a single DB lookup:
+
+```sql
+SELECT intent_label FROM indexes WHERE id = $1
+```
+
+The `intent_label` is set once in the ISP admin per index (e.g. `"device"`,
+`"accessory"`, `"consumerPlans"`) and is the same value stamped onto suggestion
+documents at seed time.  No hardcoded slug-to-category mapping exists in
+application code — adding a new index only requires setting its `intent_label` in
+the ISP admin; the suggest endpoint picks it up automatically.
+
+`_resolve_suggest_category` returns `None` (cross-category) when:
+- `index_id` is absent
+- The index has no `intent_label` set (new / unconfigured index)
+- The DB is temporarily unavailable (silent degradation)
 
 ### Ranking
 
 Ranking applies three signals in order of precedence:
 
 1. **Operator boost** — `boost:desc` always wins, regardless of category or popularity
-2. **Category match** — `_eval(category:={category}):desc` when a tab is active
+2. **Category match** — `_eval(category:={resolved}):desc` when a category is resolved
 3. **Popularity** — `popularity:desc` as the final tiebreaker
 
-When `category` is supplied:
+When a category is resolved (via `index_id` or direct `category`):
 
 ```
-sort_by = "boost:desc,_eval(category:={category}):desc,popularity:desc"
+filter_by = "category:={resolved} || type:=query"
+sort_by   = "boost:desc,_eval(category:={resolved}):desc,popularity:desc"
 ```
 
-When `category` is absent:
+When no category is provided (cross-category default):
 
 ```
 sort_by = "boost:desc,popularity:desc"
@@ -294,8 +325,8 @@ Both cases use prefix-match on `query` with `num_typos: 1`.
 
 This means:
 - Operator-boosted terms always appear first, for every user on every tab
-- Category-matching terms rank above global terms within the same boost tier
-- If accessories has no matching suggestions, global results fill the gap
+- Scoped mode hard-filters to that category's catalog entries + all global `type=query` entries
+- Cross-category mode returns the highest-ranked matching entries from any index
 - Suppressed terms (`boost: -1`) sink below all organic results without being deleted
 
 ### Response
@@ -366,27 +397,74 @@ ZAGG Screen Protector for iPhone.
 | samsung galaxy s25 | devices | query | 203 |
 | iphone 17 | devices | query | 189 |
 
-**User types "screen" on the accessories tab:**
+**User types "screen" on the accessories tab (scope toggle ON — "This tab only"):**
+
+The PLP passes `index_id=847bf1f24c72` (the Accessories index ID).
+`_resolve_suggest_category` looks up `intent_label = "accessory"` from the DB.
 
 ```
-GET /v1/suggest?q=screen&category=accessories
-sort_by = "_eval(category:=accessories):desc,popularity:desc"
+GET /v1/suggest?q=screen&index_id=847bf1f24c72
+filter_by = "category:=accessory || type:=query"
+sort_by   = "boost:desc,_eval(category:=accessory):desc,popularity:desc"
 ```
 
 Returned order:
-1. "screen protector" — accessories match, popularity 142
-2. "samsung screen protector" — accessories match, popularity 38
-3. "iphone screen protector" — accessories match, popularity 21
-4. "iphone 17 screen" — devices (no boost), popularity 15 — falls below
+1. "screen protector" — accessory match, popularity 142
+2. "samsung screen protector" — accessory match, popularity 38
+3. "iphone screen protector" — accessory match, popularity 21
+4. "iphone 17 screen" — devices (filtered out in scoped mode)
 
-**User types "screen" with no tab selected:**
+**User types "screen" on the accessories tab (scope toggle OFF — "All categories", default):**
+
+No `index_id` or `category` is sent.
 
 ```
 GET /v1/suggest?q=screen
-sort_by = "popularity:desc"
+sort_by = "boost:desc,popularity:desc"
 ```
 
-Returned order: purely by popularity across all categories.
+Returned order: highest-ranked matching entries across all categories.
+1. "screen protector" — accessory, popularity 142
+2. "samsung screen protector" — accessory, popularity 38
+3. "iphone screen protector" — accessory, popularity 21
+4. "iphone 17 screen" — device, popularity 15 — also included
+
+**Plants store — direct category (always scoped, no toggle):**
+
+`PlantSearchBar` passes `category=plants` directly (no `index_id`).
+
+```
+GET /v1/suggest?q=peace&category=plants
+filter_by = "category:=plants || type:=query"
+```
+
+Phone and accessories suggestions never appear in the plants search bar.
+
+---
+
+## PLP suggestion scope toggle
+
+Each PLP category page (`/phones`, `/accessories`, `/smartwatch`, `/tablets`,
+`/plans`) renders a two-segment toggle below the search bar:
+
+```
+[ ⊕ All categories ]  [ ⊡ This tab only ]
+```
+
+| Mode | Param sent | Behaviour |
+|---|---|---|
+| **All categories** (default) | none | Cross-category; returns highest-ranked suggestions from any index |
+| **This tab only** | `index_id={chat.indexId}` | Scoped; `_resolve_suggest_category` resolves `intent_label` and hard-filters |
+
+The toggle is a local state in `SearchBar.svelte` (`scoped: boolean`, default
+`false`).  It is not persisted — it resets to "All categories" on every page load.
+
+The `indexId` prop is passed to `SearchBar` from `[category].astro` via
+`CHAT_CONFIG[category].indexId`.  When `scoped = false` the prop is not forwarded
+to the suggest call, so the endpoint receives no category parameter.
+
+The Plants store uses `PlantSearchBar` (a separate component) and always passes
+`category=plants` directly — it has no scope toggle.
 
 ---
 

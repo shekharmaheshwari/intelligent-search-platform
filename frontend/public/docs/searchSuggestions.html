@@ -361,28 +361,48 @@ GROUP BY q, cat</pre>
           <tr><td><code>q</code></td><td>string</td><td>required</td><td>Partial query, min 2 chars</td></tr>
           <tr><td><code>limit</code></td><td>int</td><td>8</td><td>Max suggestions returned (1–20)</td></tr>
           <tr><td><code>session_id</code></td><td>string</td><td><code>""</code></td><td>Reserved for future personalisation</td></tr>
-          <tr><td><code>category</code></td><td>string</td><td><code>null</code></td><td>Active catalog tab — boosts matching suggestions</td></tr>
+          <tr><td><code>index_id</code></td><td>string</td><td><code>null</code></td><td>ISP index ID — resolved to <code>intent_label</code> from DB for category scoping</td></tr>
+          <tr><td><code>category</code></td><td>string</td><td><code>null</code></td><td>Direct category filter; used by isolated stores (e.g. Plants) that manage their own category value</td></tr>
         </tbody>
       </table>
+      <p>
+        <code>index_id</code> takes precedence over <code>category</code>. Omitting both returns cross-category
+        suggestions (the default PLP behaviour).
+      </p>
+
+      <h3>Category resolution — <code>_resolve_suggest_category</code></h3>
+      <p>
+        When <code>index_id</code> is provided the endpoint performs a single DB lookup:
+      </p>
+      <pre>SELECT intent_label FROM indexes WHERE id = $1</pre>
+      <p>
+        The <code>intent_label</code> (e.g. <code>"device"</code>, <code>"accessory"</code>,
+        <code>"consumerPlans"</code>) is set once per index in the ISP admin and is the same value
+        stamped onto suggestion documents at seed time. No hardcoded slug-to-category mapping exists —
+        adding a new index only requires setting its <code>intent_label</code> in the admin.
+      </p>
+      <p>Returns <code>null</code> (cross-category) when <code>index_id</code> is absent, the index
+      has no <code>intent_label</code> set, or the DB is temporarily unavailable.</p>
 
       <h3>Ranking</h3>
       <p>Three signals applied in order of precedence:</p>
       <ol>
         <li><strong>Operator boost</strong> — <code>boost:desc</code> always wins, regardless of category or popularity</li>
-        <li><strong>Category match</strong> — <code>_eval(category:={category}):desc</code> when a tab is active</li>
+        <li><strong>Category match</strong> — <code>_eval(category:={resolved}):desc</code> when a category is resolved</li>
         <li><strong>Popularity</strong> — <code>popularity:desc</code> as the final tiebreaker</li>
       </ol>
 
-      <p>When <code>category</code> is supplied:</p>
-      <pre>sort_by = "boost:desc,_eval(category:={category}):desc,popularity:desc"</pre>
+      <p>When a category is resolved (via <code>index_id</code> or direct <code>category</code>):</p>
+      <pre>filter_by = "category:={resolved} || type:=query"
+sort_by   = "boost:desc,_eval(category:={resolved}):desc,popularity:desc"</pre>
 
-      <p>When <code>category</code> is absent:</p>
+      <p>When no category is provided (cross-category default):</p>
       <pre>sort_by = "boost:desc,popularity:desc"</pre>
 
       <p>
         Operator-boosted terms always appear first for every user on every tab.
-        If the active category has no matching suggestions, global results fill the gap —
-        no category ever returns an empty list.
+        Scoped mode hard-filters to that category's catalog entries plus all global
+        <code>type=query</code> entries.
         Suppressed terms (<code>boost: -1</code>) sink below all organic results without
         being deleted.
       </p>
@@ -447,20 +467,60 @@ GROUP BY q, cat</pre>
         </tbody>
       </table>
 
-      <h3>User types "screen" on the accessories tab</h3>
-      <pre>GET /v1/suggest?q=screen&amp;category=accessories
-sort_by = "boost:desc,_eval(category:=accessories):desc,popularity:desc"</pre>
+      <h3>User types "screen" — scope toggle ON ("This tab only")</h3>
+      <p>PLP passes <code>index_id=847bf1f24c72</code>. Backend resolves <code>intent_label = "accessory"</code>.</p>
+      <pre>GET /v1/suggest?q=screen&amp;index_id=847bf1f24c72
+filter_by = "category:=accessory || type:=query"
+sort_by   = "boost:desc,_eval(category:=accessory):desc,popularity:desc"</pre>
       <ol>
-        <li>"screen protector" — accessories match, popularity 142</li>
-        <li>"samsung screen protector" — accessories match, popularity 38</li>
-        <li>"iphone screen protector" — accessories match, popularity 21</li>
-        <li>"iphone 17 screen" — devices (no category boost), popularity 15 — falls below</li>
+        <li>"screen protector" — accessory match, popularity 142</li>
+        <li>"samsung screen protector" — accessory match, popularity 38</li>
+        <li>"iphone screen protector" — accessory match, popularity 21</li>
+        <li>"iphone 17 screen" — device, filtered out in scoped mode</li>
       </ol>
 
-      <h3>User types "screen" with no tab selected</h3>
+      <h3>User types "screen" — scope toggle OFF ("All categories", default)</h3>
       <pre>GET /v1/suggest?q=screen
 sort_by = "boost:desc,popularity:desc"</pre>
-      <p>Returned order: purely by boost tier then popularity across all categories.</p>
+      <p>Returns highest-ranked matching entries from any index — devices, accessories, plans all included.</p>
+
+      <h3>Plants store — always scoped, no toggle</h3>
+      <p><code>PlantSearchBar</code> passes <code>category=plants</code> directly (no <code>index_id</code>).</p>
+      <pre>GET /v1/suggest?q=peace&amp;category=plants
+filter_by = "category:=plants || type:=query"</pre>
+      <p>Phone and accessories suggestions never appear in the plants search bar.</p>
+
+      <!-- ── PLP scope toggle ───────────────────────────────────────────── -->
+      <h2>PLP suggestion scope toggle</h2>
+      <p>
+        Each PLP category page (<code>/phones</code>, <code>/accessories</code>,
+        <code>/smartwatch</code>, <code>/tablets</code>, <code>/plans</code>) renders a
+        two-segment toggle below the search bar:
+      </p>
+      <pre>[ ⊕ All categories ]  [ ⊡ This tab only ]</pre>
+      <table>
+        <thead><tr><th>Mode</th><th>Param sent</th><th>Behaviour</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>All categories</strong> (default)</td>
+            <td>none</td>
+            <td>Cross-category — highest-ranked suggestions from any index</td>
+          </tr>
+          <tr>
+            <td><strong>This tab only</strong></td>
+            <td><code>index_id={chat.indexId}</code></td>
+            <td>Scoped — backend resolves <code>intent_label</code> and hard-filters</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The toggle is local state in <code>SearchBar.svelte</code> (<code>scoped: boolean</code>,
+        default <code>false</code>). It resets to "All categories" on every page load and is not
+        persisted. The <code>indexId</code> prop flows from <code>[category].astro</code> →
+        <code>SearchBar</code> via <code>CHAT_CONFIG[category].indexId</code>.
+      </p>
+      <p>The Plants store uses <code>PlantSearchBar</code> (a separate component) and always
+      passes <code>category=plants</code> directly — it has no scope toggle.</p>
 
       <!-- ── Boost and pinning ─────────────────────────────────────────── -->
       <h2>Boost and pinning</h2>
