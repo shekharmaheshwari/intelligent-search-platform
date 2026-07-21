@@ -39,7 +39,7 @@ export class ExtensionRepository {
    * Permanently delete an extension from the library.
    * The backend cascade-deletes any index assignments for this extension.
    */
-  deleteExtension(id: string): Promise<Response> {
+  deleteExtension(id: string): Promise<void> {
     return api.deleteExtension(id);
   }
 

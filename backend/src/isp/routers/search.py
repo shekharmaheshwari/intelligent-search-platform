@@ -118,7 +118,7 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     ts_filter: str | None = None
     if not meta.is_external:
         _parts = [
-            f"{field}:=[{','.join(values)}]"
+            f"{field}:=[{','.join(f'`{v}`' for v in values)}]"
             for field, values in (req.filters or {}).items()
             if values
         ]
