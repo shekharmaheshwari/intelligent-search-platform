@@ -909,6 +909,7 @@
     </section>
   {/if}<!-- end chat tab -->
 
+
   {/if}<!-- end settings loaded -->
 </div>
 

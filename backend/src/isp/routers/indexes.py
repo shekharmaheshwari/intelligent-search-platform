@@ -17,14 +17,15 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from pydantic import BaseModel
 from isp.models import (
     IndexCreate, IndexMeta, IngestStatus,
-    RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, ConnectorConfig,
+    RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, JsonFileConnectorConfig, ConnectorConfig,
     IntentLabelUpdate, MappingConfig,
 )
 from isp.services.domain import index_service, extension_service, suggestion_service
 from isp.services.domain.settings_service import DIM_BY_MODEL, get_custom_config
 from isp.services.infra import embedding_service, typesense_client as ts
-from isp.services.infra import rest_connector, sitemap_connector, gsheet_connector
+from isp.services.infra import rest_connector, sitemap_connector, gsheet_connector, json_file_connector
 from isp.services.infra.extension_runner import apply_extensions
+from isp.services.infra.agent.setup_executor import _flatten_objects, _repair_doc
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
 
@@ -958,6 +959,25 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
             if static_fields:
                 docs = [{**item, **static_fields} for item in docs if isinstance(item, dict)]
             docs = _ensure_isp_schema(docs)
+        elif ctype == "json_file":
+            cfg = JsonFileConnectorConfig(**cfg_data)
+            raw = await json_file_connector.fetch_raw_items(cfg)
+            s.total = len(raw)
+            await index_service.set_status(s)
+            if transform_exts:
+                processed = await apply_extensions(list(raw), transform_exts)
+                static_fields = connector_cfg.get("static_fields", {})
+                if static_fields:
+                    processed = [{**item, **static_fields} for item in processed if isinstance(item, dict)]
+                docs = _ensure_isp_schema(processed)
+                docs = [_repair_doc(docs[i], raw[i] if i < len(raw) else {})
+                        for i in range(len(docs))]
+            else:
+                static_fields = connector_cfg.get("static_fields", {})
+                if static_fields:
+                    raw = [{**item, **static_fields} for item in raw if isinstance(item, dict)]
+                docs = _ensure_isp_schema(raw)
+                docs = [_flatten_objects(d) for d in docs]
         else:
             raise ValueError(f"Unknown connector type: {ctype}")
 
@@ -1286,6 +1306,62 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             s.indexed = ok
             s.state = "done"
 
+            meta.doc_count = ok
+            meta.is_external = False
+            meta.collection_name = f"isp_{idx_id}"
+            meta.connectors = [cfg_dict]
+            await index_service.update_index(meta)
+
+        elif ctype == "json_file":
+            # ── ISP-managed JSON file path ──
+            jf_cfg = JsonFileConnectorConfig(**cfg_data)
+            ext_records = await extension_service.list_index_extensions(idx_id)
+            transform_exts = [e for e in ext_records if e.get("type", "transform") == "transform"]
+            raw_items = await json_file_connector.fetch_raw_items(jf_cfg)
+            if not raw_items:
+                raise ValueError("0 items read — check the file path and root_key.")
+
+            s.total = len(raw_items)
+            await index_service.set_status(s)
+
+            _sf = cfg_dict.get("static_fields", {})
+            if transform_exts:
+                items_for_ext = await apply_extensions(list(raw_items), transform_exts)
+                if _sf:
+                    items_for_ext = [{**d, **_sf} for d in items_for_ext if isinstance(d, dict)]
+                docs = _ensure_isp_schema(items_for_ext)
+                docs = [_repair_doc(docs[i], raw_items[i] if i < len(raw_items) else {})
+                        for i in range(len(docs))]
+            else:
+                if _sf:
+                    raw_items = [{**d, **_sf} for d in raw_items if isinstance(d, dict)]
+                docs = _ensure_isp_schema(raw_items)
+                docs = [_flatten_objects(d) for d in docs]
+
+            if not docs:
+                raise ValueError("0 documents parsed — check field mapping.")
+
+            effective_model = meta.embed_model or embedding_service.get_current_model()
+            raw_texts = [_build_embed_text(d) for d in docs]
+            embed_idxs = [i for i, t in enumerate(raw_texts) if t]
+            if embed_idxs:
+                vecs = await embedding_service.embed_texts(
+                    [raw_texts[i] for i in embed_idxs], model=effective_model)
+                for list_pos, doc_idx in enumerate(embed_idxs):
+                    if vecs[list_pos]:
+                        docs[doc_idx]["vec"] = vecs[list_pos]
+
+            ts.drop_collection(idx_id)
+            if effective_model == "custom":
+                cfg_c = await get_custom_config()
+                rebuild_dim = cfg_c["num_dim"] or ts.get_vec_dim()
+            else:
+                rebuild_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
+            ts.create_collection(idx_id, vec_dim=rebuild_dim)
+
+            ok = ts.upsert_documents(idx_id, docs)
+            s.indexed = ok
+            s.state = "done"
             meta.doc_count = ok
             meta.is_external = False
             meta.collection_name = f"isp_{idx_id}"
