@@ -9,3 +9,4 @@ export { indexesStore } from './stores/indexes-store';
 export { extensionsStore } from './stores/extensions-store';
 export { settingsStore } from './stores/settings-store';
 export { themeStore } from './stores/theme-store';
+export { analyticsStore } from './stores/analytics-store';

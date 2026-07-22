@@ -1,5 +1,5 @@
 /** Which top-level panel is currently visible in App.svelte. */
-export type View = 'dashboard' | 'detail' | 'create' | 'configure' | 'extensions' | 'settings';
+export type View = 'dashboard' | 'detail' | 'create' | 'configure' | 'extensions' | 'settings' | 'analytics';
 
 /** Global UI state held in the ``appStateStore`` Svelte store. */
 export interface AppState {

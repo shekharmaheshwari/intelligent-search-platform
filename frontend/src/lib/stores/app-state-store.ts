@@ -45,6 +45,11 @@ class AppStateStore extends StoreBase<AppState> {
     this.update(s => ({ ...s, view: 'detail' }));
   }
 
+  /** Navigate to the analytics panel. */
+  navigateToAnalytics(): void {
+    this.update(s => ({ ...s, view: 'analytics', selectedIndexId: null }));
+  }
+
   /** Switch the active tab within the detail view without changing the selected index. */
   setDetailTab(tab: AppState['detailTab']): void {
     this.update(s => ({ ...s, detailTab: tab }));
