@@ -196,12 +196,12 @@
           <tr>
             <td><span class="method post">POST</span></td>
             <td class="path-cell">/v1/catalog</td>
-            <td>PLP product search across all ISP-managed collections. Body: <code>{ q, type, search_mode, page, per_page, category?, manufacturer?, action_history? }</code>. Returns <code>{ items, total, page, total_pages, context_actions_used }</code>.</td>
+            <td>PLP product search across all ISP-managed collections. Body: <code>{ q, type, search_mode, page, per_page, filters?, action_history? }</code> — <code>filters</code> is a generic <code>Record&lt;string, string[]&gt;</code> keyed by any facetable field. Returns <code>{ items, total, page, total_pages, context_actions_used }</code>.</td>
           </tr>
           <tr>
             <td><span class="method get">GET</span></td>
             <td class="path-cell">/v1/catalog/facets?type=</td>
-            <td>Aggregate facet counts (manufacturer, category, price_range) for the PLP filter sidebar. Scans up to 250 docs per collection.</td>
+            <td>Aggregate facet counts for the PLP filter sidebar. Returns whatever fields are marked <code>facet: true</code> in the Typesense schema — not hardcoded to any specific field names. Scans up to 250 docs per collection.</td>
           </tr>
           <tr>
             <td><span class="method get">GET</span></td>
@@ -216,7 +216,7 @@
           <tr>
             <td><span class="method get">GET</span></td>
             <td class="path-cell">/v1/indexes/{id}/facets</td>
-            <td>Category and manufacturer facet counts for a single ISP-managed index, read directly from Typesense. Public — no auth required.</td>
+            <td>Facet counts for a single ISP-managed index, read directly from Typesense. Returns all fields with <code>facet: true</code> in the schema — no field names hardcoded. Enable faceting for any field via the Fields tab in the ISP console. Public — no auth required.</td>
           </tr>
         </tbody>
       </table>

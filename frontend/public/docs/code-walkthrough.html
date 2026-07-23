@@ -225,7 +225,7 @@
           </div>
           <div class="method">
             <div class="method-sig">create_collection(index_id, vec_dim?) → None</div>
-            <div class="method-desc">Provisions a new ISP-managed collection with fields: <code>title</code>, <code>content</code>, <code>url</code>, <code>source_type</code>, <code>indexed_at</code>, <code>metadata</code>, <code>popularity</code>, <code>is_featured</code>, <code>version_score</code>, <code>boost_queries_equal</code>, <code>boost_queries_contains</code>, <code>vec</code> (float[]), and a wildcard <code>.*</code> auto field. Idempotent — does nothing if collection already exists.</div>
+            <div class="method-desc">Provisions a new ISP-managed collection with a structural base schema: <code>title</code>, <code>content</code>, <code>url</code>, <code>source_type</code>, <code>indexed_at</code>, <code>metadata</code>, <code>popularity</code>, <code>is_featured</code>, <code>version_score</code>, <code>boost_queries_equal</code>, <code>boost_queries_contains</code>, <code>vec</code> (float[]), and a <code>.*</code> auto wildcard. No domain-specific fields (<code>category</code>, <code>manufacturer</code>, etc.) are hardcoded — they are indexed automatically from extension/connector output via the wildcard and made facetable via the Fields tab. Idempotent — does nothing if collection already exists.</div>
           </div>
           <div class="method">
             <div class="method-sig">drop_collection(index_id) → None</div>
@@ -233,7 +233,7 @@
           </div>
           <div class="method">
             <div class="method-sig">migrate_isp_fields() → None</div>
-            <div class="method-desc">Idempotent startup migration — adds <code>version_score</code>, <code>boost_queries_equal</code>, <code>boost_queries_contains</code> to any <code>isp_*</code> or <code>catalog</code> collection that doesn't already have them. Errors are swallowed — a missing field means the feature is inactive until next rebuild.</div>
+            <div class="method-desc">Idempotent startup migration — adds <code>version_score</code>, <code>boost_queries_equal</code>, <code>boost_queries_contains</code> to any <code>isp_*</code> or <code>catalog</code> collection that doesn't already have them. Previously also added <code>category</code> and <code>manufacturer</code> — these are no longer hardcoded and instead come from extension output via the <code>.*</code> wildcard. Errors are swallowed — a missing field means the feature is inactive until next rebuild.</div>
           </div>
           <div class="method">
             <div class="method-sig">upsert_documents(index_id, docs) → int</div>
@@ -778,11 +778,19 @@
   ├─ _inject_isp_type(docs)           infer catalog type from connector body
   ├─ apply_extensions(docs)           V8 sandbox: transform(doc) per extension in run_order
   │
+  ├─ _resolve_doc_id(raw_id, fallback)
+  │   ├─ extension ID is alphanumeric/hyphen/underscore → use as-is (e.g. SKU, familyCode)
+  │   └─ integer or special chars → hash to 16-char hex (stable, Typesense-safe)
+  │
+  ├─ _generic_catalog_mapper / _ensure_isp_schema
+  │   └─ all extension fields pass through via .* wildcard; no domain fields hardcoded
+  │
   ├─ embedding_service.embed_texts(titles)
   │   └─ Provider API (Voyage / OpenAI / RexBERT / custom) → list[list[float]]
   │
   ├─ ts.upsert_documents(index_id, docs)   OR   ts.upsert_to_collection("catalog", docs)
   │
+  ├─ re-apply field_config (facet/searchable settings persist across rebuilds)
   ├─ ingest_status → ready (or error)
   └─ job_lock.release()</div>
 
