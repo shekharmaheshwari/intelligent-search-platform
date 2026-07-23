@@ -7,7 +7,7 @@ export function stateToSearch(s: AppState): string {
   if (s.view === 'configure') {
     p.set('view', 'configure');
     if (s.detailTab && s.detailTab !== 'overview') p.set('tab', s.detailTab);
-  } else if (s.view === 'extensions' || s.view === 'settings' || s.view === 'agent') {
+  } else if (s.view === 'extensions' || s.view === 'settings' || s.view === 'agent' || s.view === 'analytics') {
     p.set('view', s.view);
   }
   // 'detail' is encoded as just ?index=<id>
@@ -29,6 +29,7 @@ export function searchToState(search: string): Partial<AppState> {
   if (view === 'agent')      return { view: 'agent',      selectedIndexId: null };
   if (view === 'extensions') return { view: 'extensions', selectedIndexId: null };
   if (view === 'settings')   return { view: 'settings',   selectedIndexId: null };
+  if (view === 'analytics')  return { view: 'analytics',  selectedIndexId: null };
   if (indexId)               return { view: 'detail',     selectedIndexId: indexId, detailTab: 'overview' };
   return { view: 'dashboard', selectedIndexId: null, detailTab: 'overview' };
 }
