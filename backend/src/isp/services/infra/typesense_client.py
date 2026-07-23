@@ -85,10 +85,6 @@ def create_collection(index_id: str, vec_dim: int | None = None) -> None:
             # metadata stores a JSON string so rich catalog data (images, price,
             # manufacturer, etc.) survives into ISP-managed collections intact.
             {"name": "metadata",    "type": "string", "optional": True, "index": False},
-            # Filterable catalog signals — top-level so Typesense can apply
-            # filter_by natively without scanning the metadata JSON string.
-            {"name": "category",     "type": "string", "optional": True, "facet": True},
-            {"name": "manufacturer", "type": "string", "optional": True, "facet": True},
             # Editorial signals — top-level so Typesense can sort and filter on them.
             {"name": "popularity",            "type": "int32",    "optional": True, "sort": True},
             {"name": "is_featured",           "type": "bool",     "optional": True},
@@ -124,8 +120,6 @@ def migrate_isp_fields() -> None:
         {"name": "version_score",          "type": "float",    "optional": True},
         {"name": "boost_queries_equal",    "type": "string[]", "optional": True},
         {"name": "boost_queries_contains", "type": "string[]", "optional": True},
-        {"name": "category",               "type": "string",   "optional": True, "facet": True},
-        {"name": "manufacturer",           "type": "string",   "optional": True, "facet": True},
     ]
     try:
         client = get_client()
