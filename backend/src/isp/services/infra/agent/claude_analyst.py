@@ -4,7 +4,10 @@ artifacts (3 JS extensions + field_config) ready for ISP to execute.
 """
 from __future__ import annotations
 import json
+import logging
 import re
+
+log = logging.getLogger(__name__)
 
 _OBJ_OBJ_RE = re.compile(r'\[object Object\]')
 
@@ -209,7 +212,10 @@ async def analyse_with_correction(
             result = await asyncio.to_thread(_run_sync, [dict(sample[0])], ext)
             test_doc = result[0] if result else {}
         except Exception:
-            break  # JS error — accept current artifacts; _repair_doc will catch it later
+            # JS error — accept current artifacts; _repair_doc will catch it later
+            log.debug("analyse_with_correction: normalizer self-test failed on attempt %d, "
+                     "accepting current artifacts", attempt + 1, exc_info=True)
+            break
 
         bad = _find_bad_fields(test_doc)
         if not bad:

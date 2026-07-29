@@ -48,10 +48,14 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     mode = req.mode or "hybrid"
     effective_model = meta.embed_model or embedding_service.get_current_model()
 
+    # q="*" is the Typesense wildcard meaning "return all documents" — treat it
+    # identically to an empty query for every personalisation and mode decision.
+    is_browse = not req.q.strip() or req.q.strip() == "*"
+
     # Auto-apply pinned hits: if the caller didn't supply them and the query
     # exactly matches a suggestion with featured_doc_ids, use those.
     pinned = list(req.pinned_hits) if req.pinned_hits else []
-    if not pinned and req.q.strip():
+    if not pinned and not is_browse:
         pinned = ts.get_featured_doc_ids_for_query(req.q.strip())
 
     # Build customer context from action history.  The master switch must be on;
@@ -65,10 +69,10 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
             affinity_dims=meta.affinity_dimensions or None,
         )
 
-        # All personalisation signals apply only when browsing (no query).
+        # All personalisation signals apply only when browsing (no query or q="*").
         # Explicit search expresses intent that must not be overridden by prior behaviour.
-        _apply_affinity = get_cc_affinity_boost_enabled() and not req.q.strip()
-        _apply_penalty  = get_cc_viewed_penalty_enabled()  and not req.q.strip()
+        _apply_affinity = get_cc_affinity_boost_enabled() and is_browse
+        _apply_penalty  = get_cc_viewed_penalty_enabled()  and is_browse
 
         if _apply_affinity or _apply_penalty:
             _affinity_dims  = meta.affinity_dimensions if _apply_affinity else []
@@ -126,7 +130,6 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
             ts_filter = " && ".join(_parts)
 
     has_ctx_sort = bool(ctx_hook)
-    is_browse    = not req.q.strip()
 
     # Personalised browse needs to see the full item set so the hook can
     # promote affinity items that Typesense would otherwise bury on later pages.
@@ -182,9 +185,9 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
     # filter_by is handled natively; Typesense paginates on its own.
     if meta.is_external:
         vec = None
-        if mode in ("hybrid", "semantic") and req.q.strip():
+        if mode in ("hybrid", "semantic") and not is_browse:
             vec = await embedding_service.embed_query(req.q, model=effective_model)
-            if ctx and ctx.vector_seed_ids and vec and get_cc_vector_blending_enabled() and not req.q.strip():
+            if ctx and ctx.vector_seed_ids and vec and get_cc_vector_blending_enabled() and is_browse:
                 vec = await fetch_preference_vector(ctx, [meta.external_collection], vec)
         raw = ts.search_external(
             meta.external_collection,
@@ -198,10 +201,10 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
             post_rrf_hook=ctx_hook,
         )
         raw = _wrap_external_results(raw, meta)
-    elif mode in ("hybrid", "semantic"):
+    elif mode in ("hybrid", "semantic") and not is_browse:
         vec = await embedding_service.embed_query(req.q, model=effective_model)
         if vec:
-            if ctx and ctx.vector_seed_ids and get_cc_vector_blending_enabled() and not req.q.strip():
+            if ctx and ctx.vector_seed_ids and get_cc_vector_blending_enabled() and is_browse:
                 vec = await fetch_preference_vector(ctx, [ts.collection_name(meta.id)], vec)
             raw = ts.search_with_vec(
                 meta.id, req.q, vec, req.page, req.per_page,

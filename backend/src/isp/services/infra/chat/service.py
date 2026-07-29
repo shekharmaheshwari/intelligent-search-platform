@@ -19,8 +19,11 @@ Follow-up detection:
 from __future__ import annotations
 import asyncio
 import json
+import logging
 import re
 from typing import AsyncIterator
+
+log = logging.getLogger(__name__)
 
 from isp.services.infra import typesense_client as ts
 from isp.services.infra.embedding_service import embed_query as _embed_query
@@ -261,6 +264,7 @@ async def _llm_rewrite_query(query: str, messages: list[dict]) -> str:
                 break
         return result.strip() or query
     except Exception:
+        log.warning("_llm_rewrite_query: rewrite failed, using original query=%r", query, exc_info=True)
         return query
 
 
@@ -387,7 +391,8 @@ def _hit_to_card_and_block(hit: dict, i: int) -> tuple[dict, str]:
         try:
             meta = json.loads(raw)
         except Exception:
-            pass
+            log.debug("_hit_to_card_and_block: could not parse metadata JSON for doc id=%s",
+                     doc.get("id"), exc_info=True)
 
     title = doc.get("title", "")
     url   = doc.get("url", "")

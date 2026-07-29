@@ -18,6 +18,9 @@ None of this is stateful: callers pass in the action list on every request.
 """
 from __future__ import annotations
 import json
+import logging
+
+log = logging.getLogger(__name__)
 import math
 from dataclasses import dataclass, field
 from isp.services.domain import viewed_item_policy as vip
@@ -63,6 +66,10 @@ def parse_meta(raw) -> dict:
         try:
             return json.loads(raw)
         except Exception:
+            # A document's metadata is silently dropped here — the loss only
+            # surfaces later as missing price/filter/affinity data in unrelated
+            # search or chat results, with no trace of the actual parse failure.
+            log.warning("parse_meta: could not parse document metadata JSON, treating as empty", exc_info=True)
             return {}
     return {}
 

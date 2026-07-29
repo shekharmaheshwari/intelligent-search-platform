@@ -15,6 +15,7 @@ No existing router or handler is modified.  This middleware is registered in
 ``main.py`` only when ``settings.auth_enabled`` is True.
 """
 from __future__ import annotations
+import logging
 import re
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -22,6 +23,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from isp.auth.jwt_utils import verify_token
+
+log = logging.getLogger(__name__)
 
 _PUBLIC_PREFIXES = ("/health", "/auth/", "/docs", "/openapi.json", "/redoc")
 
@@ -77,7 +80,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 )
             try:
                 verify_token(token)
-            except Exception:
+            except Exception as e:
+                # Log the failure reason (expired vs malformed vs tampered) for
+                # triage — never log the token itself.
+                log.debug("Auth token verification failed for path=%s: %s", path, e)
                 return JSONResponse(
                     {"detail": "Invalid or expired token"}, status_code=401,
                     headers={"Access-Control-Allow-Origin": "*"},
