@@ -13,9 +13,11 @@ configured explicit field mappings; always prefer explicit ``field_map`` or
 ``id_field``/``title_field``/``content_field``/``url_field`` over relying on them.
 """
 from __future__ import annotations
-import hashlib, json, time
+import hashlib, json, logging, time
 import httpx
 from isp.models import RestConnectorConfig
+
+log = logging.getLogger(__name__)
 
 _BROWSER_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -179,7 +181,11 @@ async def _do_request(cfg: RestConnectorConfig):
             send_json = json.loads(cfg.body)
             merged.setdefault("Content-Type", "application/json")
         except json.JSONDecodeError:
-            pass
+            # A configured body that isn't valid JSON is silently dropped —
+            # the request goes out bodyless with no trace of why, and the
+            # symptom only shows up later as a confusing empty/wrong API response.
+            log.warning("_do_request: configured body is not valid JSON, sending request "
+                       "without a body: url=%s method=%s", cfg.url, cfg.method, exc_info=True)
     async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
         resp = await client.request(cfg.method, cfg.url, headers=merged, json=send_json)
         resp.raise_for_status()

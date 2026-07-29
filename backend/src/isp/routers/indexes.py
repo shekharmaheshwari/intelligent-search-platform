@@ -12,7 +12,7 @@ Key design decisions:
   in the UI can display vec, tags, aliases, etc.
 """
 from __future__ import annotations
-import asyncio, hashlib, json, re, time
+import asyncio, hashlib, json, logging, re, time
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from pydantic import BaseModel
 from isp.models import (
@@ -28,6 +28,7 @@ from isp.services.infra.extension_runner import apply_extensions
 from isp.services.infra.agent.setup_executor import _flatten_objects, _repair_doc
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
+log = logging.getLogger(__name__)
 
 
 async def _resolve_index(id_or_slug: str) -> IndexMeta | None:
@@ -95,7 +96,7 @@ def _infer_isp_type(cfg_dict: dict) -> str:
             if family:  # CELLPHONES, TABLETS, SMARTWATCHES → device
                 return "device"
         except Exception:
-            pass
+            log.debug("Could not parse familyCategory from connector body", exc_info=True)
     return "item"
 
 
@@ -163,7 +164,7 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
             try:
                 meta = json.loads(meta_raw) if isinstance(meta_raw, str) else (meta_raw or {})
             except Exception:
-                pass
+                log.debug("Could not parse pre-existing metadata JSON for doc id=%s", doc.get("id"), exc_info=True)
 
         title = str(doc.get("title") or doc.get("display") or doc.get("name") or "")
 
@@ -298,7 +299,8 @@ def _map_external_doc(raw: dict, meta: IndexMeta) -> dict:
                 md = json.loads(meta_raw) if isinstance(meta_raw, str) else meta_raw
                 content = str(md.get("description") or "")
             except Exception:
-                pass
+                log.debug("Could not parse metadata JSON for content extraction: doc id=%s",
+                          raw.get("id"), exc_info=True)
     # 3. Fall back to tags/aliases
     if not content:
         parts = []
@@ -316,7 +318,8 @@ def _map_external_doc(raw: dict, meta: IndexMeta) -> dict:
             md = json.loads(meta_raw) if isinstance(meta_raw, str) else meta_raw
             url = str(md.get("url") or "")
         except Exception:
-            pass
+            log.debug("Could not parse metadata JSON for url extraction: doc id=%s",
+                      raw.get("id"), exc_info=True)
     if not url:
         url = str(raw.get("url") or raw.get("link") or "")
 
@@ -998,6 +1001,10 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
     except Exception as exc:
         s.state = "error"
         s.error = str(exc)
+        # Only visible to a client if it happens to poll ingest status — log
+        # here too so a failure isn't invisible in server-side monitoring.
+        log.error("Ingest failed: index_id=%s connector_type=%s",
+                  idx_id, connector_cfg.get("type"), exc_info=True)
 
     finally:
         hb.cancel()
@@ -1437,14 +1444,15 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                             current_type=current["type"],
                         )
             except Exception:
-                pass
+                log.error("Post-rebuild field_config re-apply failed for index_id=%s — schema "
+                          "defaults are in effect instead of operator settings", idx_id, exc_info=True)
 
         # Seed the search_suggestions collection from newly indexed documents.
         # Non-critical: a failure here must never abort a successful rebuild.
         try:
             await suggestion_service.seed_suggestions_from_index(idx_id)
         except Exception:
-            pass
+            log.error("Suggestion seeding failed after rebuild: index_id=%s", idx_id, exc_info=True)
 
         # Discover affinity dimensions from the newly indexed documents.
         # Non-critical: runs after suggestions so a failure here never blocks rebuild.
@@ -1452,11 +1460,14 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             from isp.services.domain import affinity_service
             await affinity_service.discover_and_save(idx_id)
         except Exception:
-            pass
+            log.error("Affinity dimension discovery failed after rebuild: index_id=%s", idx_id, exc_info=True)
 
     except Exception as exc:
         s.state = "error"
         s.error = str(exc)
+        # Only visible to a client if it happens to poll rebuild status — log
+        # here too so a failure isn't invisible in server-side monitoring.
+        log.error("Rebuild failed: index_id=%s", idx_id, exc_info=True)
 
     finally:
         hb.cancel()
@@ -1573,6 +1584,12 @@ async def update_document(idx_id: str, doc_id: str, patch: DocPatchRequest):
     try:
         meta_dict = json.loads(meta_raw)
     except Exception:
+        # Silently discarding here means the write below replaces the doc's
+        # entire metadata blob (images, price, manufacturer, ...) with just
+        # the patch fields — a real data-loss risk, so log it loudly.
+        log.error("update_document: existing metadata is not valid JSON — it will be "
+                  "DROPPED and replaced by this patch: index_id=%s doc_id=%s",
+                  idx_id, doc_id, exc_info=True)
         meta_dict = {}
 
     if patch.popularity is not None:

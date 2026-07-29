@@ -15,6 +15,9 @@ The discovered dimensions replace the old hardcoded SearchContext fields
 """
 from __future__ import annotations
 import json
+import logging
+
+log = logging.getLogger(__name__)
 
 # Maps a doc field name to the key used in CustomerAction dicts when they differ.
 # Stamped onto discovered dimensions so context_service needs no hardcoded lookup.
@@ -63,6 +66,7 @@ def _safe_json(raw) -> dict:
         try:
             return json.loads(raw)
         except Exception:
+            log.debug("_safe_json: could not parse metadata JSON, treating as empty", exc_info=True)
             return {}
     return {}
 
@@ -117,6 +121,10 @@ async def discover(index_id: str) -> list[dict]:
                 index_id, "", "lexical", 1, _SAMPLE_SIZE, exclude_vec=True,
             )
     except Exception:
+        # Feeds discover_and_save (called after every rebuild) — a silent
+        # failure here means affinity discovery quietly produces nothing,
+        # which later just looks like "no affinity data" for this index.
+        log.error("affinity discover: sample fetch failed for index_id=%s", index_id, exc_info=True)
         return []
 
     hits = raw.get("hits", [])
