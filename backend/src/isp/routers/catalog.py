@@ -11,6 +11,7 @@ via Typesense ``multi_search`` and results are merged with Reciprocal Rank Fusio
 """
 from __future__ import annotations
 import json
+import logging
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from isp.models.search import CustomerAction
@@ -28,6 +29,7 @@ from isp.services.domain.settings_service import (
 )
 
 router = APIRouter(tags=["catalog-api"])
+log = logging.getLogger(__name__)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -137,6 +139,10 @@ def _rrf_search(
     try:
         resp = ts.get_client().multi_search.perform({"searches": searches}, {})
     except Exception:
+        # A real Typesense failure here (auth, timeout, bad field) looks
+        # identical to a genuine zero-result search from the caller's side —
+        # log so the two are distinguishable.
+        log.error("_rrf_search: multi_search failed for collections=%s q=%r", collections, q, exc_info=True)
         return {"hits": [], "found": 0}
 
     results = resp.get("results", [])
@@ -311,7 +317,7 @@ async def intent_tab(q: str = Query(..., description="Search query")):
             confidence = round(label_score[best] / total, 4)
             return {"tab": best, "confidence": confidence, "scores": {k: round(v, 4) for k, v in label_score.items()}}
     except Exception:
-        pass
+        log.warning("intent_tab: detection failed for q=%r, falling back to tab=None", q_stripped, exc_info=True)
 
     return {"tab": None, "confidence": 0.0, "scores": {}}
 
@@ -503,6 +509,7 @@ async def get_facets(type: str = Query(default="device")):
     try:
         resp = ts.get_client().multi_search.perform({"searches": searches}, {})
     except Exception:
+        log.error("get_facets: multi_search failed for type=%r collections=%s", type, collections, exc_info=True)
         return {"facets": {}}
 
     manufacturer_counts: dict[str, int] = {}
@@ -572,6 +579,8 @@ async def _resolve_suggest_category(index_id: str | None) -> str | None:
         label = (row["intent_label"] or "").strip() if row else ""
         return label or None
     except Exception:
+        log.warning("_resolve_suggest_category: DB lookup failed for index_id=%s — "
+                    "degrading to unscoped suggestions", index_id, exc_info=True)
         return None
 
 
@@ -608,7 +617,8 @@ async def suggest(
             return {"suggestions": [], "query": q}
     except Exception:
         # suggestions collection unavailable — fall through to product-title search
-        pass
+        log.debug("suggest: search_suggestions lookup failed for q=%r, falling back "
+                  "to product-title search", q, exc_info=True)
 
     # Fallback path: scan ISP-managed collections by title when suggestions are absent.
     collections = _get_isp_collections()
@@ -632,6 +642,7 @@ async def suggest(
     try:
         resp = ts.get_client().multi_search.perform({"searches": searches}, {})
     except Exception:
+        log.error("suggest: fallback multi_search failed for q=%r collections=%s", q, collections, exc_info=True)
         return {"suggestions": [], "query": q}
 
     seen: set[str] = set()

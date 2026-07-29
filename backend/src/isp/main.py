@@ -19,6 +19,16 @@ import re
 from pathlib import Path
 from contextlib import asynccontextmanager
 
+# Without this, the root logger defaults to WARNING and every log.info()/
+# log.debug() call across the app is silently dropped — only log.error()/
+# log.warning() would ever reach `docker logs`. Must run before any other
+# ISP module is imported so their module-level `logging.getLogger(__name__)`
+# calls inherit this configuration from the start.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+
 # Bootstrap secrets before any ISP module loads config.py
 from isp.services.infra.secrets import bootstrap_secrets
 bootstrap_secrets()
