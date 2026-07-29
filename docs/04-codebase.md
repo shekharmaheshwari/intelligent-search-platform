@@ -154,10 +154,12 @@ All configuration is read from environment variables or `.env`:
 | PATCH | `/v1/indexes/{id}/fields/{field_name}` | Toggle facet / multi_value / searchable for a field; persists to `field_config` |
 
 Key internal functions:
-- `_generic_catalog_mapper(item, idx)` — packages extension output (flat dict) into Typesense catalog schema. Makes no assumptions about API field names; that is the extension's job.
+- `_resolve_doc_id(raw_id, fallback)` — returns a Typesense-safe document ID. If the extension provides a clean string (alphanumeric, hyphens, underscores) it is used as-is so external analytics systems can reference documents by their native key (e.g. SKU, familyCode). Integer or special-character IDs are hashed to a stable 16-char hex string as a fallback.
+- `_generic_catalog_mapper(item, idx)` — passes the full extension output through as-is. No field names hardcoded; all fields land in the catalog collection via the `.*` wildcard. The extension is the single source of truth for field names and values.
+- `_ensure_isp_schema(docs)` — normalises docs for ISP-managed collections. Promotes every scalar extra field to top-level via `.*` wildcard. Uses `_resolve_doc_id` for ID resolution.
 - `_map_external_doc(raw, meta)` — converts raw Typesense doc to ISP DocumentItem shape for search results.
 - `_run_ingest(idx_id, connector_cfg)` — background task: acquire job lock → heartbeat → fetch → extensions → embed → upsert → release lock.
-- `_run_rebuild(idx_id, cfg_dict)` — background task: acquire job lock → heartbeat → three branches: catalog write-back (REST), ISP-managed sitemap (crawl via `sitemap_connector`), ISP-managed REST; all branches embed → drop+recreate collection → upsert → release lock.
+- `_run_rebuild(idx_id, cfg_dict)` — background task: acquire job lock → heartbeat → three branches: catalog write-back (REST), ISP-managed sitemap (crawl via `sitemap_connector`), ISP-managed REST; all branches embed → drop+recreate collection → upsert → re-apply `field_config` → release lock.
 - `_list_docs(idx_id, page, per_page, exclude_vec)` — shared helper for `/documents` and `/documents/public`.
 
 ### `routers/catalog.py` — PLP Product Search

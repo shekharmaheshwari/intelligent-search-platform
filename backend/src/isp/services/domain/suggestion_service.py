@@ -134,6 +134,11 @@ async def seed_suggestions_from_index(index_id: str) -> int:
                 "page": page,
             })
         except Exception:
+            # Silently truncates the suggestion corpus at whatever page failed —
+            # log so a partial-seed run is distinguishable from "index just has this
+            # many docs."
+            log.error("seed_suggestions_from_index: doc fetch failed at page=%d for index_id=%s "
+                      "— suggestion corpus truncated to %d docs", page, index_id, len(docs), exc_info=True)
             break
         hits = raw.get("hits", [])
         docs.extend(hit.get("document", {}) for hit in hits)
