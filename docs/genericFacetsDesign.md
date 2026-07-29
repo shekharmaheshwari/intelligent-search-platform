@@ -11,6 +11,7 @@ The original implementation had facet fields hardcoded at every layer:
 - `routers/search.py` — explicit `if req.manufacturer: ...` blocks
 - Frontend `FilterSidebar.svelte` — dedicated render blocks per field
 - PLP `catalogController.ts` — named keys in the filter state
+- `typesense_client.py` — `category` and `manufacturer` hardcoded in `create_collection()` and `migrate_isp_fields()`
 
 Adding a new facetable field (e.g. `customer_group`, `plan_tier`) required code changes in at least four files. This made the filter system an extension point that required engineering involvement to change.
 
@@ -19,6 +20,14 @@ Adding a new facetable field (e.g. `customer_group`, `plan_tier`) required code 
 ## Solution
 
 A single generic `filters: dict[str, list[str]]` field replaces all named filter fields. The backend loops over the dict; the frontend builds it from whatever facet state is active. Adding a new facetable field requires only enabling the **Facet** toggle in the Fields tab — no code changes.
+
+### Collection schema — no hardcoded domain fields
+
+`category` and `manufacturer` have been removed from the hardcoded base schema in `create_collection()` and `migrate_isp_fields()`. Every ISP collection now has only a structural base schema (`title`, `content`, `url`, `source_type`, `indexed_at`, `metadata`, `vec`, editorial signals) plus a `.*` auto wildcard. Domain-specific fields (`category`, `manufacturer`, `product_type`, `vendor`, `form_factor`, etc.) are indexed via the wildcard from whatever the extension or connector returns — no Python changes needed for new data sources.
+
+The shared catalog collection also has the `.*` wildcard added, so extensions writing to it (phones, accessories) can return any field without schema changes.
+
+**To make a field facetable after the first rebuild:** go to the Fields tab in the ISP console and toggle Facet ON. This calls `PATCH /v1/indexes/{id}/fields/{field_name}` which updates the Typesense schema immediately and persists the setting to `field_config` so it is re-applied automatically on every future rebuild.
 
 ---
 

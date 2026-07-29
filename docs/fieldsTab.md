@@ -120,6 +120,18 @@ What it no longer does:
 
 ---
 
+## Where fields come from
+
+Fields shown in the Fields tab come from two sources:
+
+1. **Extension / connector output** — every scalar field the extension returns is promoted to top-level in Typesense via the `.*` auto wildcard in `create_collection()`. No Python code changes are needed to add a new field; the extension is the single source of truth for field names.
+
+2. **Structural base schema** — a fixed set of fields every ISP collection always has: `title`, `content`, `url`, `source_type`, `indexed_at`, `metadata`, `vec`, `popularity`, `is_featured`, `version_score`, `boost_queries_equal`, `boost_queries_contains`.
+
+Fields like `category`, `manufacturer`, `product_type`, `vendor`, `form_factor` are **not** hardcoded in the base schema. They appear in the Fields tab only because the extension returned them. Their `facet` setting defaults to `false`; use the Facet toggle to enable it.
+
+---
+
 ## Persistence across rebuilds
 
 Field configuration must survive a rebuild (which drops and recreates the

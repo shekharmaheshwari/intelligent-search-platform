@@ -6,6 +6,7 @@ POST /v1/agent/preview → JSON: analyse only, return artifacts without executin
 """
 from __future__ import annotations
 import json
+import logging
 import os
 import glob
 from fastapi import APIRouter, HTTPException
@@ -16,6 +17,7 @@ from isp.services.infra.agent import json_sampler, schema_extractor, claude_anal
 from isp.services.domain.settings_service import get_chat_api_key_for_agent
 
 router = APIRouter(prefix="/v1/agent", tags=["Agent"])
+log = logging.getLogger(__name__)
 
 _DATA_DIR = "/app/data"
 
@@ -271,7 +273,8 @@ async def agent_preview(body: AgentPreviewRequest):
             from isp.services.infra.agent.setup_executor import _flatten_objects
             preview_doc = _flatten_objects(result[0])
     except Exception:
-        pass  # fall back to raw sample on any JS error
+        # fall back to raw sample on any JS error
+        log.debug("agent_setup preview: normalizer JS execution failed, showing raw sample", exc_info=True)
 
     return {
         "root_key":    detected_root or body.root_key,

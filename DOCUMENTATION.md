@@ -559,7 +559,7 @@ vec         (float[], num_dim=1024, optional)
 | `get_vec_dim()` | Return the currently configured vector dimension |
 | `get_client()` | Returns the lazy singleton Typesense client |
 | `collection_name(index_id)` | Returns `"isp_{index_id}"` |
-| `create_collection(index_id)` | Provisions a new ISP collection (idempotent). Includes `metadata`, `popularity` (sort=true), and `is_featured` fields in addition to the core schema |
+| `create_collection(index_id)` | Provisions a new ISP collection (idempotent). Base schema: `title`, `content`, `url`, `source_type`, `indexed_at`, `metadata`, `vec`, editorial signals, plus a `.*` auto wildcard. No domain fields (`category`, `manufacturer`, etc.) hardcoded — all come from extension/connector output via the wildcard. |
 | `drop_collection(index_id)` | Deletes an ISP-managed collection |
 | `upsert_documents(index_id, docs)` | Bulk upsert into ISP collection; returns count of successful upserts |
 | `count_documents(index_id)` | Returns document count for ISP collection |

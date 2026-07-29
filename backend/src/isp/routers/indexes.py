@@ -12,7 +12,7 @@ Key design decisions:
   in the UI can display vec, tags, aliases, etc.
 """
 from __future__ import annotations
-import asyncio, hashlib, json, re, time
+import asyncio, hashlib, json, logging, re, time
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from pydantic import BaseModel
 from isp.models import (
@@ -28,6 +28,7 @@ from isp.services.infra.extension_runner import apply_extensions
 from isp.services.infra.agent.setup_executor import _flatten_objects, _repair_doc
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
+log = logging.getLogger(__name__)
 
 
 async def _resolve_index(id_or_slug: str) -> IndexMeta | None:
@@ -95,7 +96,7 @@ def _infer_isp_type(cfg_dict: dict) -> str:
             if family:  # CELLPHONES, TABLETS, SMARTWATCHES → device
                 return "device"
         except Exception:
-            pass
+            log.debug("Could not parse familyCategory from connector body", exc_info=True)
     return "item"
 
 
@@ -106,6 +107,29 @@ _ISP_FIELDS = {
 }
 # Internal pipeline flags injected before extensions run — never surfaced to Typesense.
 _INTERNAL_FIELDS = {"_isp_type"}
+
+# Typesense accepts alphanumeric characters, hyphens, and underscores in document IDs.
+_TS_ID_RE = re.compile(r'^[A-Za-z0-9_-]+$')
+
+
+def _resolve_doc_id(raw_id, fallback: str) -> str:
+    """
+    Return a Typesense-safe document ID.
+
+    If the extension (or data source) provides a clean string ID — alphanumeric,
+    hyphens, underscores — it is used as-is so external systems (analytics, BI
+    tools, personalisation pipelines) can reference documents by their native key
+    without a mapping table.
+
+    Integer IDs and IDs containing spaces or special characters are hashed to a
+    stable 16-char hex string as a fallback.
+    """
+    if raw_id is None:
+        return hashlib.md5(fallback.encode()).hexdigest()[:16]
+    s = str(raw_id)
+    if _TS_ID_RE.match(s):
+        return s
+    return hashlib.md5(s.encode()).hexdigest()[:16]
 
 
 def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
@@ -140,7 +164,7 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
             try:
                 meta = json.loads(meta_raw) if isinstance(meta_raw, str) else (meta_raw or {})
             except Exception:
-                pass
+                log.debug("Could not parse pre-existing metadata JSON for doc id=%s", doc.get("id"), exc_info=True)
 
         title = str(doc.get("title") or doc.get("display") or doc.get("name") or "")
 
@@ -157,14 +181,7 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
         if not url:
             url = str(meta.get("url") or meta.get("url_name") or doc.get("url_name") or "")
 
-        # id must be a string for Typesense; hash integer ids to a stable hex string
-        raw_id = doc.get("id")
-        if raw_id is None:
-            doc_id = hashlib.md5(title.encode()).hexdigest()[:16]
-        elif isinstance(raw_id, int) or (isinstance(raw_id, str) and not raw_id.isalnum()):
-            doc_id = hashlib.md5(str(raw_id).encode()).hexdigest()[:16]
-        else:
-            doc_id = str(raw_id)
+        doc_id = _resolve_doc_id(doc.get("id"), title)
 
         # Collect every field that isn't a declared ISP schema field or an internal
         # pipeline flag. Merge on top of any pre-existing metadata so extension output
@@ -228,14 +245,12 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
 
 def _generic_catalog_mapper(item: dict, idx: int) -> dict | None:
     """
-    Package an extension-normalised flat dict into the Typesense catalog schema.
+    Package an extension-normalised flat dict into the shared catalog collection.
 
-    Expects the item to already have standard keys (``display``, ``type``, ``url``,
-    ``manufacturer``, ``price``, etc.) — all field normalisation must happen in the
-    JS extension before this function is called.
-
-    ``metadata`` is stored as a JSON string because Typesense does not support nested
-    objects as indexed fields.  The ``catalog.py`` router parses it back for search results.
+    The extension is the single source of truth for all field names and values.
+    Every field the extension returns passes through as-is — the catalog collection's
+    ``.*`` wildcard indexes them all.  Operators enable faceting via the ISP console;
+    no field names are hardcoded here.
 
     Returns None for items with no displayable name so they are silently skipped.
     """
@@ -243,51 +258,22 @@ def _generic_catalog_mapper(item: dict, idx: int) -> dict | None:
     if not display:
         return None
 
-    raw_id  = str(item.get("id") or idx)
-    doc_id  = f"dev_{hashlib.md5(raw_id.encode()).hexdigest()[:12]}"
-    now     = int(time.time())
+    now = int(time.time())
 
-    price = item.get("price")
-    metadata: dict = {
-        "manufacturer":    str(item.get("manufacturer") or ""),
-        "category":        str(item.get("category") or ""),
-        "url":             str(item.get("url") or ""),
-        "url_name":        str(item.get("url_name") or ""),
-        "images":          list(item.get("images") or [])[:3],
-        "color_options":   list(item.get("color_options") or []),
-        "skus":            list(item.get("skus") or [])[:5],
-        "description":     str(item.get("description") or ""),
-        "operating_system": str(item.get("operating_system") or ""),
-        "in_stock":        bool(item.get("in_stock", True)),
-    }
-    if price is not None:
-        try:
-            metadata["price"] = float(price)
-        except (ValueError, TypeError):
-            pass
+    # Pass everything from the extension through; override structural fields.
+    out = {k: v for k, v in item.items() if k not in _INTERNAL_FIELDS}
+    out["id"]         = _resolve_doc_id(item.get("id") or idx, display)
+    out["display"]    = display
+    out["created_at"] = now
+    out["updated_at"] = now
+    out.setdefault("type",       str(item.get("type") or "device"))
+    out.setdefault("segment",    ["all"])
+    out.setdefault("popularity", int(item.get("popularity") or 0))
+    out.setdefault("is_featured", bool(item.get("is_featured", False)))
 
-    out: dict = {
-        "id":           doc_id,
-        "display":      display,
-        "type":         str(item.get("type") or "device"),
-        "aliases":      list(item.get("aliases") or []),
-        "tags":         list(item.get("tags") or []),
-        "segment":      ["all"],
-        "popularity":   int(item.get("popularity") or 0),
-        "is_featured":  bool(item.get("is_featured", False)),
-        "created_at":   now,
-        "updated_at":   now,
-        "metadata":     json.dumps(metadata),
-    }
-    # Prefer extension-computed version_score; fall back to Python extraction.
     vs = float(item.get("version_score") or 0) or _version_score(display)
     if vs > 0:
         out["version_score"] = round(vs, 4)
-    # Merchandising boost queries (stamped by merchandising_rules.js extension)
-    for bq_field in ("boost_queries_equal", "boost_queries_contains"):
-        val = item.get(bq_field)
-        if isinstance(val, list) and val:
-            out[bq_field] = [str(v) for v in val if v]
     return out
 
 
@@ -313,7 +299,8 @@ def _map_external_doc(raw: dict, meta: IndexMeta) -> dict:
                 md = json.loads(meta_raw) if isinstance(meta_raw, str) else meta_raw
                 content = str(md.get("description") or "")
             except Exception:
-                pass
+                log.debug("Could not parse metadata JSON for content extraction: doc id=%s",
+                          raw.get("id"), exc_info=True)
     # 3. Fall back to tags/aliases
     if not content:
         parts = []
@@ -331,7 +318,8 @@ def _map_external_doc(raw: dict, meta: IndexMeta) -> dict:
             md = json.loads(meta_raw) if isinstance(meta_raw, str) else meta_raw
             url = str(md.get("url") or "")
         except Exception:
-            pass
+            log.debug("Could not parse metadata JSON for url extraction: doc id=%s",
+                      raw.get("id"), exc_info=True)
     if not url:
         url = str(raw.get("url") or raw.get("link") or "")
 
@@ -1013,6 +1001,10 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
     except Exception as exc:
         s.state = "error"
         s.error = str(exc)
+        # Only visible to a client if it happens to poll ingest status — log
+        # here too so a failure isn't invisible in server-side monitoring.
+        log.error("Ingest failed: index_id=%s connector_type=%s",
+                  idx_id, connector_cfg.get("type"), exc_info=True)
 
     finally:
         hb.cancel()
@@ -1200,7 +1192,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
             texts = [
-                d["display"] + " " + json.loads(d.get("metadata", "{}")).get("description", "")
+                d["display"] + " " + str(d.get("content") or d.get("description") or "")
                 for d in catalog_docs
             ]
             vectors = await embedding_service.embed_texts(texts, model=effective_model)
@@ -1452,14 +1444,15 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                             current_type=current["type"],
                         )
             except Exception:
-                pass
+                log.error("Post-rebuild field_config re-apply failed for index_id=%s — schema "
+                          "defaults are in effect instead of operator settings", idx_id, exc_info=True)
 
         # Seed the search_suggestions collection from newly indexed documents.
         # Non-critical: a failure here must never abort a successful rebuild.
         try:
             await suggestion_service.seed_suggestions_from_index(idx_id)
         except Exception:
-            pass
+            log.error("Suggestion seeding failed after rebuild: index_id=%s", idx_id, exc_info=True)
 
         # Discover affinity dimensions from the newly indexed documents.
         # Non-critical: runs after suggestions so a failure here never blocks rebuild.
@@ -1467,11 +1460,14 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             from isp.services.domain import affinity_service
             await affinity_service.discover_and_save(idx_id)
         except Exception:
-            pass
+            log.error("Affinity dimension discovery failed after rebuild: index_id=%s", idx_id, exc_info=True)
 
     except Exception as exc:
         s.state = "error"
         s.error = str(exc)
+        # Only visible to a client if it happens to poll rebuild status — log
+        # here too so a failure isn't invisible in server-side monitoring.
+        log.error("Rebuild failed: index_id=%s", idx_id, exc_info=True)
 
     finally:
         hb.cancel()
@@ -1588,6 +1584,12 @@ async def update_document(idx_id: str, doc_id: str, patch: DocPatchRequest):
     try:
         meta_dict = json.loads(meta_raw)
     except Exception:
+        # Silently discarding here means the write below replaces the doc's
+        # entire metadata blob (images, price, manufacturer, ...) with just
+        # the patch fields — a real data-loss risk, so log it loudly.
+        log.error("update_document: existing metadata is not valid JSON — it will be "
+                  "DROPPED and replaced by this patch: index_id=%s doc_id=%s",
+                  idx_id, doc_id, exc_info=True)
         meta_dict = {}
 
     if patch.popularity is not None:

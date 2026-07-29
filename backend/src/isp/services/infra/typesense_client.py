@@ -85,10 +85,6 @@ def create_collection(index_id: str, vec_dim: int | None = None) -> None:
             # metadata stores a JSON string so rich catalog data (images, price,
             # manufacturer, etc.) survives into ISP-managed collections intact.
             {"name": "metadata",    "type": "string", "optional": True, "index": False},
-            # Filterable catalog signals — top-level so Typesense can apply
-            # filter_by natively without scanning the metadata JSON string.
-            {"name": "category",     "type": "string", "optional": True, "facet": True},
-            {"name": "manufacturer", "type": "string", "optional": True, "facet": True},
             # Editorial signals — top-level so Typesense can sort and filter on them.
             {"name": "popularity",            "type": "int32",    "optional": True, "sort": True},
             {"name": "is_featured",           "type": "bool",     "optional": True},
@@ -120,16 +116,18 @@ def migrate_isp_fields() -> None:
     updated without requiring a full rebuild.  Errors are swallowed — a missing
     field means the feature is simply inactive for that collection until rebuilt.
     """
+    import logging
+    log = logging.getLogger(__name__)
     _new_fields = [
         {"name": "version_score",          "type": "float",    "optional": True},
         {"name": "boost_queries_equal",    "type": "string[]", "optional": True},
         {"name": "boost_queries_contains", "type": "string[]", "optional": True},
-        {"name": "category",               "type": "string",   "optional": True, "facet": True},
-        {"name": "manufacturer",           "type": "string",   "optional": True, "facet": True},
     ]
     try:
         client = get_client()
-        for col in client.collections.retrieve():
+        collections = client.collections.retrieve()
+        log.info("migrate_isp_fields: checking %d collections", len(collections))
+        for col in collections:
             name = col["name"]
             # Migrate ISP-managed collections and the shared catalog collection.
             if not name.startswith("isp_") and name != "catalog":
@@ -138,8 +136,15 @@ def migrate_isp_fields() -> None:
             to_add = [f for f in _new_fields if f["name"] not in existing]
             if to_add:
                 client.collections[name].update({"fields": to_add})
+                log.info("migrate_isp_fields: added %s to collection=%s",
+                          [f["name"] for f in to_add], name)
     except Exception:
-        pass
+        # Swallowed intentionally — a missing field means the feature is simply
+        # inactive for that collection until rebuilt. Logged so a startup-time
+        # failure (e.g. Typesense unreachable) is still visible somewhere,
+        # since it otherwise leaves every isp_* collection silently un-migrated.
+        log.error("migrate_isp_fields: migration failed, one or more collections "
+                   "may be left un-migrated", exc_info=True)
 
 
 def upsert_documents(index_id: str, docs: list[dict]) -> int:
@@ -398,11 +403,18 @@ def _parse_facet_counts(raw_counts: list) -> dict:
 
 def get_all_fields(index_id: str) -> list[dict]:
     """Return all fields from the collection schema with their current properties."""
+    import logging
+    log = logging.getLogger(__name__)
     _SYSTEM = {"id", "vec", "indexed_at"}
     name = collection_name(index_id)
     try:
         schema = get_client().collections[name].retrieve()
     except Exception:
+        # Callers (e.g. update_index_field) treat an empty list the same as
+        # "field not in schema", which then surfaces as a misleading 404
+        # instead of the real retrieval failure. Log it so that distinction
+        # is recoverable from the server logs.
+        log.error("get_all_fields: schema retrieve failed for collection=%s", name, exc_info=True)
         return []
     fields = []
     for f in schema.get("fields", []):
@@ -435,7 +447,14 @@ def update_field_properties(
     Typesense cannot mutate these properties in-place — the only supported path
     is to drop the field and re-declare it.  Existing document data is preserved
     because Typesense re-indexes it from stored values automatically.
+
+    These two calls are not atomic: if the re-add fails after the drop has
+    already succeeded, the field is left missing from the schema until someone
+    re-adds it manually. Logged loudly here since that failure mode otherwise
+    surfaces later as an unrelated-looking 500 on search.
     """
+    import logging
+    log = logging.getLogger(__name__)
     name = collection_name(index_id)
     client = get_client()
     # Determine the target type: honour multi_value only for string fields.
@@ -444,13 +463,30 @@ def update_field_properties(
         target_type = "string[]" if multi_value else "string"
     else:
         target_type = current_type  # don't change numeric/bool types
+
+    log.info(
+        "Field property update starting: collection=%s field=%s current_type=%s "
+        "target_type=%s facet=%s multi_value=%s",
+        name, field_name, current_type, target_type, facet, multi_value,
+    )
     client.collections[name].update({"fields": [{"name": field_name, "drop": True}]})
-    client.collections[name].update({"fields": [{
-        "name":     field_name,
-        "type":     target_type,
-        "optional": True,
-        "facet":    facet,
-    }]})
+    log.info("Field dropped: collection=%s field=%s — re-adding now", name, field_name)
+    try:
+        client.collections[name].update({"fields": [{
+            "name":     field_name,
+            "type":     target_type,
+            "optional": True,
+            "facet":    facet,
+        }]})
+    except Exception:
+        log.error(
+            "Field re-add FAILED after drop — field '%s' is now MISSING from "
+            "collection '%s' schema and all searches against it will fail until "
+            "it is manually re-added (target_type=%s, facet=%s).",
+            field_name, name, target_type, facet, exc_info=True,
+        )
+        raise
+    log.info("Field property update complete: collection=%s field=%s", name, field_name)
 
 
 def get_facet_fields(index_id: str) -> list[str]:
@@ -731,6 +767,11 @@ def update_document_fields(col_name: str, doc_id: str, fields: dict) -> bool:
         )
         return bool(results and results[0].get("success"))
     except Exception:
+        import logging
+        logging.getLogger(__name__).error(
+            "update_document_fields failed: collection=%s doc_id=%s fields=%s",
+            col_name, doc_id, list(fields.keys()), exc_info=True,
+        )
         return False
 
 
@@ -738,7 +779,17 @@ def retrieve_document(col_name: str, doc_id: str) -> dict | None:
     """Fetch a single document by id from a named collection. Returns None if not found."""
     try:
         return get_client().collections[col_name].documents[doc_id].retrieve()
-    except Exception:
+    except Exception as e:
+        import logging
+        import typesense.exceptions
+        log = logging.getLogger(__name__)
+        if isinstance(e, typesense.exceptions.ObjectNotFound):
+            log.debug("retrieve_document: not found: collection=%s doc_id=%s", col_name, doc_id)
+        else:
+            # Callers treat None as "not found" — a non-404 failure here (auth,
+            # connectivity, bad collection name) is otherwise indistinguishable
+            # from a genuinely missing document.
+            log.error("retrieve_document failed: collection=%s doc_id=%s", col_name, doc_id, exc_info=True)
         return None
 
 
@@ -751,6 +802,12 @@ def delete_from_collection(col_name: str, filter_by: str) -> int:
         result = get_client().collections[col_name].documents.delete(params)
         return result.get("num_deleted", 0)
     except Exception:
+        import logging
+        logging.getLogger(__name__).error(
+            # A caller cannot distinguish this from "filter matched 0 documents",
+            # so a delete can silently no-op while looking like it succeeded.
+            "delete_from_collection failed: collection=%s filter_by=%s", col_name, filter_by, exc_info=True,
+        )
         return 0
 
 
@@ -770,6 +827,10 @@ def count_external(col: str, filter_by: str) -> int:
             params["filter_by"] = filter_by
         return get_client().collections[col].documents.search(params).get("found", 0)
     except Exception:
+        import logging
+        logging.getLogger(__name__).error(
+            "count_external failed: collection=%s filter_by=%s", col, filter_by, exc_info=True,
+        )
         return 0
 
 
@@ -975,6 +1036,10 @@ def update_suggestion(suggestion_id: str, fields: dict) -> bool:
         get_client().collections["search_suggestions"].documents[suggestion_id].update(fields)
         return True
     except Exception:
+        import logging
+        logging.getLogger(__name__).error(
+            "update_suggestion failed: suggestion_id=%s fields=%s", suggestion_id, fields, exc_info=True,
+        )
         return False
 
 

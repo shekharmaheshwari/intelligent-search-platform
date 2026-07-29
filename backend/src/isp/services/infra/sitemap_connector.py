@@ -21,11 +21,13 @@ Page IDs are MD5 hashes of the URL, truncated to 16 hex chars.  This means
 re-crawling the same URL overwrites the existing document (upsert behaviour).
 """
 from __future__ import annotations
-import asyncio, hashlib, json, time
+import asyncio, hashlib, json, logging, time
 from typing import Callable
 import httpx
 from bs4 import BeautifulSoup
 from isp.models import SitemapConnectorConfig
+
+log = logging.getLogger(__name__)
 
 # Ordered fallback list of CSS selectors used when the user has not configured
 # a custom content_selector.  The first selector that matches a non-empty element wins.
@@ -39,6 +41,10 @@ async def _fetch(client: httpx.AsyncClient, url: str) -> str | None:
         r.raise_for_status()
         return r.text
     except Exception:
+        # Caller silently excludes pages that return no content — log at debug
+        # so a systematic failure (auth wall, rate limit) is distinguishable
+        # from a handful of genuinely broken links.
+        log.debug("sitemap _fetch failed for url=%s", url, exc_info=True)
         return None
 
 
