@@ -18,12 +18,13 @@
   import FieldsTab                from './FieldsTab.svelte';
   import AffinityDimensionsPanel  from './AffinityDimensionsPanel.svelte';
   import BoostRulesTab            from './BoostRulesTab.svelte';
+  import SynonymsTab              from './SynonymsTab.svelte';
 
   export let indexId: string;
-  export let tab: 'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' = 'overview';
+  export let tab: 'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' | 'synonyms' = 'overview';
 
-  const tabs: Array<'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules'> =
-    ['overview', 'connector', 'mapping', 'fields', 'documents', 'search', 'api', 'suggestions', 'personalisation', 'boost-rules'];
+  const tabs: Array<'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' | 'synonyms'> =
+    ['overview', 'connector', 'mapping', 'fields', 'documents', 'search', 'api', 'suggestions', 'personalisation', 'boost-rules', 'synonyms'];
 
   const dispatch = createEventDispatcher<{ back: void; tabchange: typeof tab }>();
 
@@ -128,6 +129,9 @@
 
       {:else if tab === 'boost-rules'}
         <BoostRulesTab {indexId} />
+
+      {:else if tab === 'synonyms'}
+        <SynonymsTab {indexId} />
       {/if}
     </div>
   {/if}
