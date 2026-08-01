@@ -751,6 +751,54 @@ async def get_boost_rule_fields(idx_id: str):
     return {"fields": fields}
 
 
+class SynonymUpdate(BaseModel):
+    synonyms: list[str]
+    root:     str | None = None
+
+
+@router.get("/{idx_id}/synonyms", summary="List synonym sets for an index")
+async def get_synonyms(idx_id: str):
+    """
+    Return all synonym sets defined on this index's Typesense collection.
+
+    Unlike Fields, this works for external indexes too — synonyms are a pure
+    Typesense-collection feature, not an ISP-managed concept.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    return {"synonyms": ts.list_synonyms(meta.id)}
+
+
+@router.put("/{idx_id}/synonyms/{synonym_id}", summary="Create or update a synonym set")
+async def put_synonym(idx_id: str, synonym_id: str, body: SynonymUpdate):
+    """
+    Create or update a synonym set. Applies immediately — no rebuild required.
+
+    ``root`` unset: every word in ``synonyms`` is mutually interchangeable
+    (e.g. wire = cable = cord). ``root`` set: searching the root also matches
+    the synonyms, but not vice versa.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    if len(body.synonyms) < 2:
+        raise HTTPException(400, "A synonym set needs at least 2 words")
+    try:
+        result = ts.upsert_synonym(meta.id, synonym_id, body.synonyms, body.root)
+    except Exception as e:
+        raise HTTPException(500, f"Synonym save failed: {e}")
+    return result
+
+
+@router.delete("/{idx_id}/synonyms/{synonym_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a synonym set")
+async def delete_synonym_endpoint(idx_id: str, synonym_id: str):
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    ts.delete_synonym(meta.id, synonym_id)
+
+
 @router.post("/{idx_id}/affinity-dimensions/discover", summary="Re-run affinity dimension discovery")
 async def rediscover_affinity_dimensions(idx_id: str):
     """
