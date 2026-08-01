@@ -228,8 +228,16 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
             out["vec"] = doc["vec"]
         # Promote scalar extra fields (e.g. from SitemapConnectorConfig.meta_fields)
         # to top-level so the Typesense wildcard field (.*) indexes them as filterable.
+        # Also promotes string-list fields (e.g. an extension-computed
+        # compatible_devices array) the same way boost_queries_* already are above —
+        # otherwise an array-valued extension field is silently dropped here, present
+        # in `metadata` but invisible to the Fields tab, faceting, and search.
         for k, v in extra.items():
-            if isinstance(v, (str, int, float, bool)) and k not in out:
+            if k in out:
+                continue
+            if isinstance(v, (str, int, float, bool)):
+                out[k] = v
+            elif isinstance(v, list) and all(isinstance(x, str) for x in v):
                 out[k] = v
 
         result.append(out)
