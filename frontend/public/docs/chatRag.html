@@ -1191,6 +1191,8 @@ These two systems share no state. You can:
       </table>
       <p>To improve chat quality for an index: edit the relevant extension to add or reword attribute labels, then trigger a rebuild. No Python code changes needed.</p>
 
+      <div class="notice"><strong>Accessories device compatibility.</strong> <code>chat_content_accessories.js</code> originally derived "Compatible with: ..." by matching brand-level keywords in the product name (<code>samsung</code>/<code>galaxy</code> → "Samsung Galaxy") — a Galaxy S21 case and a Galaxy S24 Ultra case both produced the same "Samsung Galaxy" text, so chat couldn't distinguish which specific model a product actually fit. <code>device_compatibility_accessories.js</code> (<code>@run_order 2</code>, runs before <code>chat_content_accessories.js</code> at run_order 3) fixes this by extracting the actual device model(s) from the product name — the <code>"... for Samsung Galaxy S24 Ultra"</code> pattern already present in most titles — into a structured <code>compatible_devices</code> field, with an explicit <code>device_universal</code> flag for accessories that genuinely aren't phone-model-specific (USB-C chargers, Bluetooth audio). <code>chat_content_accessories.js</code> now reads these fields directly instead of re-deriving a weaker brand-only signal itself, falling back to the old keyword matching only if the compatibility extension isn't assigned to the index. Assign both extensions to Accessories for full model-level precision.</div>
+
       <!-- ── Section 16 ── -->
       <h2 id="s16">16. chatContent — Extension-Driven Context</h2>
 
@@ -1239,6 +1241,7 @@ service context building:
           <tr><td>Phones / Tablets</td><td><code>chat_content_phones.js</code></td><td>3 (after <code>catalog_mapper</code>, <code>version_score</code>)</td></tr>
           <tr><td>Smartwatches</td><td><code>chat_content_watches.js</code></td><td>3 (after <code>catalog_mapper</code>, <code>version_score</code>)</td></tr>
           <tr><td>Accessories</td><td><code>chat_content_accessories.js</code></td><td>3 (after <code>catalog_mapper</code>, <code>version_score</code>)</td></tr>
+          <tr><td>Accessories</td><td><code>device_compatibility_accessories.js</code></td><td>2 (after <code>catalog_mapper</code>, before <code>chat_content_accessories</code>)</td></tr>
         </tbody>
       </table>
       <p>All use <code>@assign none</code> — assigned manually per index via the Extensions tab or API.</p>

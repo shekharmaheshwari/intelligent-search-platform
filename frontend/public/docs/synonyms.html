@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Synonyms — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#141414;
+      --border:#222;--border2:#1a1a1a;
+      --text:#eee;--text-h2:#ccc;--text-h3:#aaa;--text-p:#777;--text-td:#888;
+      --text-muted:#555;--text-faint:#444;--text-ghost:#333;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#b4a4f8;--pre-fg:#bbb;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f0f0f8;
+      --border:#ddd;--border2:#e8e8ed;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#666;
+      --text-muted:#666;--text-faint:#888;--text-ghost:#aaa;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;--pre-fg:#444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1060px; margin: 0 auto; padding: 48px 32px 80px; gap: 48px; }
+    nav.sidebar { flex-shrink: 0; width: 190px; }
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 24px; }
+    nav.sidebar li a { display: block; padding: 7px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    nav.sidebar li a:hover { color: var(--text); background: var(--bg-hover); }
+    nav.sidebar li a.active { color: var(--accent); background: var(--accent-dim); }
+    .content { flex: 1; min-width: 0; }
+    h1 { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 17px; font-weight: 600; color: var(--text-h2); margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 22px 0 8px; }
+    h4 { font-size: 13px; font-weight: 600; color: var(--text-h3); margin: 18px 0 6px; }
+    p { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; }
+    ol, ul { font-size: 14px; color: var(--text-p); line-height: 1.8; margin-left: 20px; margin-bottom: 16px; }
+    li { margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th { text-align: left; padding: 9px 14px; background: var(--bg3); color: var(--text-h3); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border2); color: var(--text-td); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); overflow-x: auto; line-height: 1.6; margin-bottom: 20px; white-space: pre; }
+    .notice { background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 7px; padding: 14px 16px; font-size: 13px; color: var(--code-fg); line-height: 1.6; margin-bottom: 20px; }
+    .notice strong { color: var(--accent); }
+    .warn { background: #1a120a; border: 1px solid #3a2a10; border-radius: 7px; padding: 14px 16px; font-size: 13px; color: #c9903a; line-height: 1.6; margin-bottom: 20px; }
+    .warn strong { color: #e0aa55; }
+    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; display: inline-block; margin-bottom: 32px; }
+    .back-link:hover { text-decoration: underline; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 700px) { .layout { flex-direction: column; gap: 24px; } nav.sidebar { width: 100%; } nav.sidebar ul { flex-direction: row; flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+<header>
+  <span class="logo-icon">⬡</span>
+  <span class="logo-name">Intelligent Search Platform</span>
+  <div class="breadcrumb">
+    <a href="index.html">Docs</a>
+    <span>/</span>
+    <span>Synonyms</span>
+    <button class="theme-btn" id="theme-toggle" title="Toggle theme">☀</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <ul>
+      <li><a href="#what-it-is">What it is</a></li>
+      <li><a href="#why">Why</a></li>
+      <li><a href="#modes">Two synonym modes</a></li>
+      <li><a href="#backend">Backend</a></li>
+      <li><a href="#api">API endpoints</a></li>
+      <li><a href="#frontend">Frontend</a></li>
+      <li><a href="#decisions">Decisions</a></li>
+    </ul>
+  </nav>
+
+  <div class="content">
+    <a href="index.html" class="back-link">← Back to docs</a>
+    <h1>Synonyms</h1>
+    <p class="page-subtitle">Vocabulary equivalence for search — a thin UI + API wrapper around Typesense's native per-collection synonym feature, so queries like "wire" can match products described as "cable."</p>
+
+    <!-- WHAT IT IS -->
+    <h2 id="what-it-is">What it is</h2>
+    <p>The Synonyms tab lets an operator declare that different words should be treated as equivalent during search — e.g. <code>wire = cable = cord</code>. It's a thin UI + API wrapper around Typesense's own native per-collection synonym feature; ISP doesn't reimplement synonym matching itself, it just exposes Typesense's existing mechanism per index.</p>
+    <p>Changes apply immediately at query time — <strong>no rebuild required</strong>, since synonyms are resolved by Typesense during query parsing, not baked into indexed documents.</p>
+
+    <!-- WHY -->
+    <h2 id="why">Why</h2>
+    <p>While testing chat retrieval on the Accessories index, "iphone charging wire" returned nothing useful — every product in the catalog says "Cable," never "wire." The chat retrieval pipeline (see <a href="chatRag.html">Chat RAG</a>) weights its three passes lex-facets 0.6 / lex-all 0.3 / semantic 0.1. A word that appears in zero product text gets zero signal from the two lexical passes (90% of the ranking weight), leaving only the weak 10%-weighted semantic pass to carry the entire query — not reliable enough to consistently rank the right product above semantically-adjacent-but-wrong ones.</p>
+    <p>No synonym infrastructure existed anywhere in the codebase before this feature. The fix is Typesense's own synonym feature, not a bespoke query-rewriting layer — it's already there, already applied natively by the search engine, and generalizes to any future vocabulary gap without further code changes.</p>
+
+    <!-- MODES -->
+    <h2 id="modes">Two synonym modes</h2>
+    <p>Typesense supports both, and the Synonyms tab exposes both:</p>
+    <h3>Multi-way (no root)</h3>
+    <p>Every listed word is mutually interchangeable.</p>
+    <pre>{"synonyms": ["wire", "cable", "cord"]}</pre>
+    <p>Searching any one of the three matches documents containing any of the others.</p>
+    <h3>One-way (root set)</h3>
+    <p>Searching the root also matches the synonyms, but not the reverse.</p>
+    <pre>{"root": "tv", "synonyms": ["television", "telly"]}</pre>
+    <p>Useful when blanket bidirectional equivalence would be too broad — you want "tv" to also find "television," but not necessarily every unrelated use of "television" to surface "tv"-tagged content.</p>
+
+    <!-- BACKEND -->
+    <h2 id="backend">Backend</h2>
+    <p>Three thin wrapper functions in <code>backend/src/isp/services/infra/typesense_client.py</code>, proxying directly to Typesense's native <code>collections[name].synonyms</code> API (same logging conventions as the rest of the file — errors are logged with <code>exc_info=True</code> rather than silently swallowed):</p>
+    <ul>
+      <li><code>list_synonyms(index_id) -&gt; list[dict]</code></li>
+      <li><code>upsert_synonym(index_id, synonym_id, synonyms, root=None) -&gt; dict</code></li>
+      <li><code>delete_synonym(index_id, synonym_id) -&gt; bool</code></li>
+    </ul>
+    <div class="warn"><strong>Typesense server version note:</strong> this stack runs Typesense <strong>0.25.2</strong> (<code>docker-compose.yml</code>), which pre-dates Typesense's newer top-level <code>synonym_sets</code> API. The installed Python client (<code>typesense==2.0.0</code>) marks the per-collection <code>synonyms</code> API "deprecated" in favor of <code>synonym_sets</code>, but that newer API isn't available on this server version — the per-collection API is the correct and only viable choice for this deployment, not a legacy shortcut. Verified directly against the running server before building anything: created a real <code>{"synonyms": ["wire","cable","cord"]}</code> set, confirmed it changed search results correctly, then deleted the test set.</div>
+
+    <!-- API -->
+    <h2 id="api">API endpoints</h2>
+    <pre>GET    /v1/indexes/{idx_id}/synonyms                → { "synonyms": [...] }
+PUT    /v1/indexes/{idx_id}/synonyms/{synonym_id}    → create or update one set
+DELETE /v1/indexes/{idx_id}/synonyms/{synonym_id}    → 204 on success</pre>
+    <p><code>PUT</code> body: <code>{"synonyms": ["wire", "cable", "cord"]}</code> (multi-way) or <code>{"synonyms": ["television", "telly"], "root": "tv"}</code> (one-way). Requires at least 2 words in <code>synonyms</code>.</p>
+    <div class="notice"><strong>Note:</strong> unlike the Fields endpoints, these are not restricted for external indexes — synonyms are a pure Typesense-collection feature and apply the same way regardless of whether ISP considers the index "managed" or "external."</div>
+
+    <!-- FRONTEND -->
+    <h2 id="frontend">Frontend</h2>
+    <p>Mirrors the <a href="boostRules.html">Boost Rules</a> tab's file layout, adapted for <strong>per-item CRUD</strong> instead of Boost Rules' "edit the whole array, Save once" model — Typesense's synonym API is inherently per-ID, so each add/delete is its own API call, not a batch save.</p>
+    <table>
+      <thead><tr><th>File</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td><code>lib/types/index.types.ts</code></td><td><code>Synonym { id, synonyms, root? }</code></td></tr>
+        <tr><td><code>lib/api.ts</code></td><td><code>getSynonyms</code>, <code>upsertSynonym</code>, <code>deleteSynonym</code></td></tr>
+        <tr><td><code>lib/stores/synonyms-store.ts</code></td><td><code>load</code>, <code>upsert(id, synonyms, root?)</code>, <code>remove(id)</code></td></tr>
+        <tr><td><code>components/sources/SynonymsTab.svelte</code></td><td>List of existing sets + delete button, plus an "Add synonym set" form (comma-separated words, optional "One-way" root input)</td></tr>
+        <tr><td><code>components/sources/IndexDetail.svelte</code></td><td>Tab registered next to Boost Rules — both are search-tuning tools</td></tr>
+      </tbody>
+    </table>
+
+    <!-- DECISIONS -->
+    <h2 id="decisions">Decisions summary</h2>
+    <ul>
+      <li><strong>Typesense-native, not a custom query-rewrite layer</strong> — reuses an existing, correct mechanism instead of building a parallel one.</li>
+      <li><strong>Per-collection API, not <code>synonym_sets</code></strong> — matches the actual Typesense server version running in this stack; verified directly rather than assumed from the client library.</li>
+      <li><strong>Per-item CRUD, not batch-save</strong> — matches Typesense's own per-ID synonym model, unlike Boost Rules' Postgres-JSONB-backed batch model.</li>
+      <li><strong>No rebuild required</strong> — synonyms are query-time, not document-time, so changes are live immediately.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  (function(){
+    var btn = document.getElementById('theme-toggle');
+    function apply(t) {
+      if (t === 'light') { document.documentElement.setAttribute('data-theme','light'); btn.textContent = '☾'; }
+      else { document.documentElement.removeAttribute('data-theme'); btn.textContent = '☀'; }
+    }
+    apply(localStorage.getItem('isp-theme') || 'dark');
+    btn.addEventListener('click', function(){
+      var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      localStorage.setItem('isp-theme', next); apply(next);
+    });
+    var sections = document.querySelectorAll('h2[id], h3[id]');
+    var links = document.querySelectorAll('nav.sidebar a');
+    window.addEventListener('scroll', function(){
+      var pos = window.scrollY + 80;
+      var cur = '';
+      sections.forEach(function(s){ if (s.offsetTop <= pos) cur = s.id; });
+      links.forEach(function(a){ a.classList.toggle('active', a.getAttribute('href') === '#'+cur); });
+    }, {passive:true});
+  })();
+</script>
+</body>
+</html>
