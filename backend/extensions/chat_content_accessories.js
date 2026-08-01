@@ -14,11 +14,15 @@
  *   - "I need a charger cable for my phone"                  → type + compatibility
  *   - "cheapest case for Samsung Galaxy"                     → price + brand compat
  *
- * Device compatibility is inferred from the product display name and category
- * because the raw catalog API does not expose a discrete compatibility field.
+ * Device compatibility: prefers the compatible_devices / device_universal
+ * fields computed upstream by device_compatibility_accessories.js (assign
+ * that extension too, at a lower run_order, for model-level precision).
+ * Falls back to brand-level keyword matching on the display name if that
+ * extension isn't assigned.
  *
  * Input: mapped catalog document (output of catalog_mapper.js, type='accessory').
- *   Key fields: display, manufacturer, category, price, in_stock, is_featured.
+ *   Key fields: display, manufacturer, category, price, in_stock, is_featured,
+ *   compatible_devices, device_universal.
  */
 function transform(doc) {
   var parts = [];
@@ -36,28 +40,39 @@ function transform(doc) {
   // ── Accessory type ────────────────────────────────────────────────────────
   if (cat) parts.push('Type: ' + cat + '.');
 
-  // ── Device compatibility (inferred from name keywords) ────────────────────
-  var compat = [];
-  var compatKeywords = [
-    ['iphone',        'iPhone'],
-    ['apple watch',   'Apple Watch'],
-    ['apple',         'Apple devices'],
-    ['samsung',       'Samsung Galaxy'],
-    ['galaxy',        'Samsung Galaxy'],
-    ['pixel',         'Google Pixel'],
-    ['android',       'Android phones'],
-    ['universal',     'Universal — all phones'],
-  ];
-  var seenCompat = {};
-  for (var i = 0; i < compatKeywords.length; i++) {
-    var kw = compatKeywords[i][0];
-    var label = compatKeywords[i][1];
-    if (displayLower.indexOf(kw) >= 0 && !seenCompat[label]) {
-      seenCompat[label] = true;
-      compat.push(label);
+  // ── Device compatibility ──────────────────────────────────────────────────
+  // Prefers the precise, structured compatible_devices field computed by
+  // device_compatibility_accessories.js (run_order 2, runs before this
+  // extension) — extracted from the actual "for <device>" text in the
+  // product name, not guessed. Falls back to brand-level keyword matching
+  // only if that extension isn't assigned to this index.
+  if (Array.isArray(doc.compatible_devices) && doc.compatible_devices.length) {
+    parts.push('Compatible with: ' + doc.compatible_devices.join(', ') + '.');
+  } else if (doc.device_universal === true) {
+    parts.push('Compatible with: any phone or device (universal).');
+  } else if (doc.compatible_devices === undefined) {
+    var compat = [];
+    var compatKeywords = [
+      ['iphone',        'iPhone'],
+      ['apple watch',   'Apple Watch'],
+      ['apple',         'Apple devices'],
+      ['samsung',       'Samsung Galaxy'],
+      ['galaxy',        'Samsung Galaxy'],
+      ['pixel',         'Google Pixel'],
+      ['android',       'Android phones'],
+      ['universal',     'Universal — all phones'],
+    ];
+    var seenCompat = {};
+    for (var i = 0; i < compatKeywords.length; i++) {
+      var kw = compatKeywords[i][0];
+      var label = compatKeywords[i][1];
+      if (displayLower.indexOf(kw) >= 0 && !seenCompat[label]) {
+        seenCompat[label] = true;
+        compat.push(label);
+      }
     }
+    if (compat.length) parts.push('Compatible with: ' + compat.join(', ') + '.');
   }
-  if (compat.length) parts.push('Compatible with: ' + compat.join(', ') + '.');
 
   // ── Watch band / size (from display name) ────────────────────────────────
   var sizeMatch = display.match(/(\d+\s*mm)/i);

@@ -55,6 +55,17 @@ export interface BoostRule {
 }
 
 /**
+ * One Typesense-native synonym set for an index's collection.
+ * ``root`` unset: every word in ``synonyms`` is mutually interchangeable.
+ * ``root`` set: searching the root also matches the synonyms, but not vice versa.
+ */
+export interface Synonym {
+  id:       string;
+  synonyms: string[];
+  root?:    string;
+}
+
+/**
  * Full metadata for one ISP source, mirroring the backend ``IndexMeta`` Pydantic model.
  * ``is_external=true`` means ISP reads/writes a pre-existing Typesense collection;
  * ``collection_name`` is empty for external sources, ``isp_{id}`` for managed ones.
