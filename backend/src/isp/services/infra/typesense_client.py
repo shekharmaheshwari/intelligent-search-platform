@@ -489,6 +489,48 @@ def update_field_properties(
     log.info("Field property update complete: collection=%s field=%s", name, field_name)
 
 
+def list_synonyms(index_id: str) -> list[dict]:
+    """Return all synonym sets defined for a collection."""
+    import logging
+    log = logging.getLogger(__name__)
+    name = collection_name(index_id)
+    try:
+        result = get_client().collections[name].synonyms.retrieve()
+        return result.get("synonyms", [])
+    except Exception:
+        log.error("list_synonyms failed: collection=%s", name, exc_info=True)
+        return []
+
+
+def upsert_synonym(index_id: str, synonym_id: str, synonyms: list[str], root: str | None = None) -> dict:
+    """
+    Create or update a synonym set.
+
+    ``root`` unset means multi-way — every listed word is mutually interchangeable
+    (e.g. wire = cable = cord). ``root`` set means one-way — searching the root
+    also matches the synonyms, but not vice versa (e.g. root "tv" -> synonyms
+    ["television", "telly"]).
+    """
+    name = collection_name(index_id)
+    body: dict = {"synonyms": synonyms}
+    if root:
+        body["root"] = root
+    return get_client().collections[name].synonyms.upsert(synonym_id, body)
+
+
+def delete_synonym(index_id: str, synonym_id: str) -> bool:
+    """Delete a synonym set. Returns False if it didn't exist or the delete failed."""
+    import logging
+    log = logging.getLogger(__name__)
+    name = collection_name(index_id)
+    try:
+        get_client().collections[name].synonyms[synonym_id].delete()
+        return True
+    except Exception:
+        log.error("delete_synonym failed: collection=%s synonym_id=%s", name, synonym_id, exc_info=True)
+        return False
+
+
 def get_facet_fields(index_id: str) -> list[str]:
     """Return names of all fields marked facet=True in the collection schema."""
     name = collection_name(index_id)
