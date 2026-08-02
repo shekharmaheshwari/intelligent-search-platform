@@ -494,6 +494,20 @@ export const api = {
   getBoostRuleFields: (indexId: string) =>
     req<{ fields: string[] }>(`/indexes/${indexId}/boost-rules/fields`),
 
+  getSynonyms: (indexId: string) =>
+    req<{ synonyms: import('./types').Synonym[] }>(`/indexes/${indexId}/synonyms`),
+
+  upsertSynonym: (indexId: string, synonymId: string, synonyms: string[], root?: string) =>
+    req<import('./types').Synonym>(`/indexes/${indexId}/synonyms/${encodeURIComponent(synonymId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(root ? { synonyms, root } : { synonyms }),
+    }),
+
+  deleteSynonym: (indexId: string, synonymId: string) =>
+    req<void>(`/indexes/${indexId}/synonyms/${encodeURIComponent(synonymId)}`, {
+      method: 'DELETE',
+    }),
+
   getFields: (indexId: string) =>
     req<{ fields: FieldEntry[] }>(`/indexes/${indexId}/fields`),
 

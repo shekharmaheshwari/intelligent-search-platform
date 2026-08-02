@@ -1338,6 +1338,8 @@ The primary lever is the **`chatContent` JS extension** assigned to each index. 
 
 To improve chat quality for an index: edit the relevant extension to add or reword attribute labels, then trigger a rebuild. No Python code changes needed.
 
+**Accessories device compatibility.** `chat_content_accessories.js` originally derived "Compatible with: ..." by matching brand-level keywords in the product name (`samsung`/`galaxy` → "Samsung Galaxy") — a Galaxy S21 case and a Galaxy S24 Ultra case both produced the same "Samsung Galaxy" text, so chat couldn't distinguish which specific model a product actually fit. `device_compatibility_accessories.js` (`@run_order 2`, runs before `chat_content_accessories.js` at run_order 3) fixes this by extracting the actual device model(s) from the product name — the `"... for Samsung Galaxy S24 Ultra"` pattern already present in most titles — into a structured `compatible_devices` field, with an explicit `device_universal` flag for accessories that genuinely aren't phone-model-specific (USB-C chargers, Bluetooth audio). `chat_content_accessories.js` now reads these fields directly instead of re-deriving a weaker brand-only signal itself, falling back to the old keyword matching only if the compatibility extension isn't assigned to the index. Assign both extensions to Accessories for full model-level precision.
+
 ---
 
 ## 16. chatContent — Extension-Driven Context
@@ -1393,6 +1395,7 @@ service context building:
 | Phones / Tablets | `chat_content_phones.js` | 3 (after `catalog_mapper`, `version_score`) |
 | Smartwatches | `chat_content_watches.js` | 3 (after `catalog_mapper`, `version_score`) |
 | Accessories | `chat_content_accessories.js` | 3 (after `catalog_mapper`, `version_score`) |
+| Accessories | `device_compatibility_accessories.js` | 2 (after `catalog_mapper`, before `chat_content_accessories`) |
 
 All use `@assign none` — assigned manually per index via the Extensions tab or API.
 
