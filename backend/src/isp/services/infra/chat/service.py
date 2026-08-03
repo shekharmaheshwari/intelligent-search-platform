@@ -71,11 +71,11 @@ def set_chat_config(
 # ── Price filter ───────────────────────────────────────────────────────────────
 
 _PRICE_BETWEEN = re.compile(
-    r'between\s*\$?(\d+(?:\.\d+)?)\s*(?:and|to|-)\s*\$?(\d+(?:\.\d+)?)', re.IGNORECASE)
+    r'between[\s.,]*\$?(\d+(?:\.\d+)?)\s*(?:and|to|-)[\s.,]*\$?(\d+(?:\.\d+)?)', re.IGNORECASE)
 _PRICE_LT = re.compile(
-    r'(?:less than|under|cheaper than|below)\s*\$?(\d+(?:\.\d+)?)', re.IGNORECASE)
+    r'(?:less than|under|cheaper than|below)[\s.,]*\$?(\d+(?:\.\d+)?)', re.IGNORECASE)
 _PRICE_GT = re.compile(
-    r'(?:more than|over|above|at least)\s*\$?(\d+(?:\.\d+)?)', re.IGNORECASE)
+    r'(?:more than|over|above|at least)[\s.,]*\$?(\d+(?:\.\d+)?)', re.IGNORECASE)
 
 
 def _extract_price_filter(query: str) -> str | None:
@@ -419,15 +419,25 @@ async def _search_context(
     facet_query_by: str | None = None,
     price_filter: str | None = None,
 ) -> tuple[list[dict], str]:
+    log.debug("chat vector embedding request: query=%r", query)
     vec    = await _embed_query(query)
+    log.debug("chat vector embedding response: dim=%s", len(vec) if vec else 0)
+
     col    = ts.collection_name(index_id)
     client = ts.get_client()
 
     searches = _build_search_params(
         query, col, vec, query_by, query_by_weights, facet_query_by, price_filter,
     )
+    log.debug("chat typesense request: collection=%s searches=%s",
+              col, json.dumps([{k: v for k, v in s.items() if k != "vector_query"}
+                               for s in searches]))
     resp = await asyncio.to_thread(
         lambda: client.multi_search.perform({"searches": searches}, {})
+    )
+    log.debug(
+        "chat typesense response: hit_counts=%s",
+        [len(r.get("hits", [])) for r in resp.get("results", [])],
     )
     hits = _rrf_merge(
         resp.get("results", []),
@@ -453,7 +463,11 @@ def _system_prompt(context: str) -> str:
         "do NOT rely on general knowledge about these products. "
         "Each product has labelled attributes; use those exact values when answering "
         "attribute-specific questions. "
-        "Be concise — 2 to 3 sentences maximum. "
+        "Be concise: for a single-fact question, answer in 1 to 3 sentences. "
+        "For a list or comparison, include every matching product from the data below — "
+        "never omit one just to keep the answer short; a numbered list longer than 3 lines is fine. "
+        "If asked to compare more than 2 products, compare all of them (briefly per product) "
+        "rather than silently picking a subset. "
         "If no product matches the question, say so honestly.\n\n"
         f"Products:\n{context}"
     )
@@ -499,6 +513,8 @@ async def chat_stream(
     facet_query_by: str | None = None,
 ) -> AsyncIterator[dict]:
     """Yield SSE-ready dicts: products → text tokens → (on error) error."""
+    log.debug("chat request: index_id=%s query=%r messages=%s", index_id, query, messages)
+
     if _chat_provider == "none":
         yield {"type": "error", "content": "Chat is not configured. Go to Settings → Chat to choose a provider."}
         return
@@ -513,14 +529,22 @@ async def chat_stream(
     if _smart_followup_enabled:
         cards = _merge_cards(cards, _pinned_cards(messages))
 
+    log.debug("chat response products: %s", [{"id": c.get("id"), "title": c.get("title")} for c in cards])
     yield {"type": "products", "products": cards}
 
     system  = _system_prompt(context)
     history = [{"role": m["role"], "content": m.get("content", "")} for m in messages] + \
               [{"role": "user", "content": query}]
 
+    log.debug("chat LLM request: provider=%s model=%s system=%r history=%s",
+              _chat_provider, _chat_model, system, history)
+
     try:
+        full_response = ""
         async for chunk in _route_llm_stream(system, history):
+            full_response += chunk
             yield {"type": "text", "content": chunk}
+        log.debug("chat LLM response: index_id=%s response=%r", index_id, full_response)
     except Exception as exc:
+        log.error("chat LLM request failed: index_id=%s", index_id, exc_info=True)
         yield {"type": "error", "content": _friendly_error(str(exc))}

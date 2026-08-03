@@ -15,6 +15,7 @@ external indexes at runtime.
 """
 from __future__ import annotations
 import logging
+import os
 import re
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -23,9 +24,18 @@ from contextlib import asynccontextmanager
 # log.debug() call across the app is silently dropped — only log.error()/
 # log.warning() would ever reach `docker logs`. Must run before any other
 # ISP module is imported so their module-level `logging.getLogger(__name__)`
-# calls inherit this configuration from the start.
+# calls inherit this configuration from the start — which is also why this
+# reads LOG_LEVEL directly from the environment rather than via isp.config.settings:
+# that module must not be imported before secrets bootstrap runs below, but this
+# needs to run before that import too.
+_LOG_LEVEL_NAME = os.environ.get("LOG_LEVEL", "INFO").upper()
+_LOG_LEVEL = getattr(logging, _LOG_LEVEL_NAME, None)
+if not isinstance(_LOG_LEVEL, int):
+    logging.warning("Invalid LOG_LEVEL=%r, falling back to INFO", _LOG_LEVEL_NAME)
+    _LOG_LEVEL = logging.INFO
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=_LOG_LEVEL,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
