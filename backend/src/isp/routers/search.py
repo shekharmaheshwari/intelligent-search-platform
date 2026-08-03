@@ -121,11 +121,17 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
 
     ts_filter: str | None = None
     if not meta.is_external:
-        _parts = [
-            f"{field}:=[{','.join(f'`{v}`' for v in values)}]"
-            for field, values in (req.filters or {}).items()
-            if values
-        ]
+        # Backtick-quoting is required for string facet values but Typesense rejects it
+        # on numeric fields ("invalid comparator") — only quote fields whose schema type
+        # is a string type; numeric/bool values are emitted bare.
+        _field_types = {f["name"]: f["type"] for f in ts.get_all_fields(meta.id)}
+        _parts = []
+        for field, values in (req.filters or {}).items():
+            if not values:
+                continue
+            _is_string = _field_types.get(field, "string").startswith("string")
+            _vals = ",".join(f"`{v}`" for v in values) if _is_string else ",".join(str(v) for v in values)
+            _parts.append(f"{field}:=[{_vals}]")
         if _parts:
             ts_filter = " && ".join(_parts)
 
