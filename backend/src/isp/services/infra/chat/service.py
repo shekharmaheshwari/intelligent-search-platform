@@ -120,6 +120,17 @@ def _is_vague_preference_query(query: str) -> bool:
     return bool(_RELATIVE_TERM_RE.search(query)) and not _HAS_NUMBER_RE.search(query)
 
 
+async def _index_has_price_field(index_id: str) -> bool:
+    """
+    True when this index's Typesense schema has a `price` field. Lets the
+    vague-preference note invite a budget only for catalogs that actually have
+    one to filter on — inviting "share a budget" for an index with no price
+    field (documentation, listings, anything non-commerce) would be a mismatch.
+    """
+    fields = await asyncio.to_thread(ts.get_all_fields, index_id)
+    return any(f.get("name") == "price" for f in fields)
+
+
 # ── Follow-up detection — Tier 1 (unambiguous pronoun / intent phrases) ───────
 
 _T1_RE = re.compile(
@@ -528,10 +539,11 @@ def _filter_cards_by_response(cards: list[dict], response_text: str) -> list[dic
     return used or cards
 
 
-def _system_prompt(context: str, note_vague_preference: bool = False) -> str:
+def _system_prompt(context: str, note_vague_preference: bool = False, has_price_field: bool = True) -> str:
     prompt = _PROMPTS["system_prompt"]["base"]
     if note_vague_preference:
-        prompt += _PROMPTS["system_prompt"]["vague_preference_note"]
+        key = "vague_preference_note" if has_price_field else "vague_preference_note_no_price"
+        prompt += _PROMPTS["system_prompt"][key]
     return prompt + f"\n\nProducts:\n{context}"
 
 
@@ -592,7 +604,9 @@ async def chat_stream(
     if _smart_followup_enabled:
         cards = _merge_cards(cards, _pinned_cards(messages))
 
-    system  = _system_prompt(context, note_vague_preference=_is_vague_preference_query(query))
+    is_vague = _is_vague_preference_query(query)
+    has_price = await _index_has_price_field(index_id) if is_vague else True
+    system  = _system_prompt(context, note_vague_preference=is_vague, has_price_field=has_price)
     history = [{"role": m["role"], "content": m.get("content", "")} for m in hist_messages] + \
               [{"role": "user", "content": query}]
 
