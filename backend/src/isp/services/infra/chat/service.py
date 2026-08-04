@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import re
+from pathlib import Path
 from typing import AsyncIterator
 
 log = logging.getLogger(__name__)
@@ -30,6 +31,11 @@ from isp.services.infra.embedding_service import embed_query as _embed_query
 from isp.services.infra.chat.providers import anthropic_chat, google_chat, openai_compat
 
 _GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+
+# All LLM-facing prompt text and user-facing chat copy lives in prompts.json,
+# not inline in code — keeps wording changes a data edit, not a code change,
+# and is the basis for making it operator-configurable per index later.
+_PROMPTS: dict = json.loads((Path(__file__).with_name("prompts.json")).read_text(encoding="utf-8"))
 
 _chat_provider:          str  = "none"
 _chat_model:             str  = ""
@@ -89,6 +95,29 @@ def _extract_price_filter(query: str) -> str | None:
     if m:
         return f"price:>{m.group(1)}"
     return None
+
+
+_RELATIVE_TERM_RE = re.compile(
+    r'\b(' + '|'.join(re.escape(t) for t in _PROMPTS["vague_preference_terms"]) + r')\b',
+    re.IGNORECASE,
+)
+
+_HAS_NUMBER_RE = re.compile(r'\d')
+
+
+def _is_vague_preference_query(query: str) -> bool:
+    """
+    True when the query expresses a relative/comparative preference — not just
+    price ("cheap", "premium"), but any vague quality dimension ("fast", "good
+    camera", "durable") — without any concrete number attached (a price, a spec
+    value, a model number). A single closed class of comparative/relative
+    adjectives covers this regardless of which attribute they modify, so one
+    regex generalizes across every dimension rather than needing a separate
+    hardcoded check per attribute. Signals the LLM to answer with its best guess
+    but flag that it's inferring the user's preference, rather than silently
+    presenting a guess as certain.
+    """
+    return bool(_RELATIVE_TERM_RE.search(query)) and not _HAS_NUMBER_RE.search(query)
 
 
 # ── Follow-up detection — Tier 1 (unambiguous pronoun / intent phrases) ───────
@@ -195,6 +224,30 @@ def _ids_from_history(messages: list[dict]) -> str | None:
     return None
 
 
+def _scoped_history(messages: list[dict]) -> list[dict]:
+    """
+    Trim history to the current follow-up chain, so the LLM doesn't see turns
+    from an earlier, unrelated topic.
+
+    Walks backward from the most recent turn. A turn stays in scope as long as
+    it was itself a follow-up relative to what preceded it — re-testing each
+    historical query with the same heuristic used for the live query. The walk
+    stops at (and keeps) the first turn, going backward, that was NOT a
+    follow-up: that's the turn that actually started the current topic, so
+    everything before it belongs to a different conversation and is dropped.
+    """
+    user_idxs = [i for i, m in enumerate(messages) if m.get("role") == "user"]
+    if not user_idxs:
+        return messages
+    boundary = user_idxs[0]  # no topic boundary found → the whole thing is one chain
+    for i in reversed(user_idxs):
+        prior = messages[:i]
+        if not _is_follow_up_heuristic(messages[i].get("content", ""), prior):
+            boundary = i
+            break
+    return messages[boundary:]
+
+
 def _resolve_retrieval_filter(
     query: str, messages: list[dict], is_follow_up: bool,
 ) -> str | None:
@@ -244,17 +297,7 @@ async def _llm_rewrite_query(query: str, messages: list[dict]) -> str:
     context = _build_rewrite_context(messages)
     if not context:
         return _normalize_query(query)
-    system = (
-        "You are a search query optimizer. "
-        "Rewrite the current user query as a single standalone search query.\n"
-        "Rules:\n"
-        "- Resolve pronouns (it, them, those) to the actual product names from history.\n"
-        "- For comparisons ('compare X with Y'), you MUST name BOTH sides using exact "
-        "product names from history AND the new product/brand. "
-        "Example: 'Samsung Galaxy Buds vs Google Pixel Buds Pro2'.\n"
-        "- For new topics unrelated to history, return the query unchanged.\n"
-        "Output ONLY the rewritten query. No explanation. No prefix. Max 15 words."
-    )
+    system = _PROMPTS["query_rewrite_system"]
     prompt = f"History:\n{context}\n\nCurrent query: {query}\n\nRewritten query:"
     try:
         result = ""
@@ -275,19 +318,25 @@ def _price_filter_for_smart(query: str, messages: list[dict]) -> str | None:
 
 async def _resolve_retrieval_params(
     query: str, messages: list[dict],
-) -> tuple[str, str | None]:
+) -> tuple[str, str | None, list[dict]]:
     """
-    Return (search_query, filter_by) for the Typesense call.
+    Return (search_query, filter_by, history) for the Typesense call and the LLM prompt.
 
-    Smart ON : LLM-rewritten query + price-only filter (no ID pinning).
-    Smart OFF: original query + heuristic filter (ID + price if follow-up).
+    Smart ON : LLM-rewritten query + price-only filter (no ID pinning) + full history —
+               smart mode's own rewrite step already reasons over the whole
+               conversation, so the chat history mirrors that.
+    Smart OFF: original query + heuristic filter (ID + price if follow-up) + history
+               scoped to the current follow-up chain — a new topic gets no prior
+               turns; a follow-up gets back to (and including) whichever turn
+               actually started the topic it's continuing.
     """
     if _smart_followup_enabled:
         search_query = await _llm_rewrite_query(query, messages)
-        return search_query, _price_filter_for_smart(query, messages)
+        return search_query, _price_filter_for_smart(query, messages), messages
     is_fu = _is_follow_up_heuristic(query, messages)
     search_query = query if is_fu else _normalize_query(query)
-    return search_query, _resolve_retrieval_filter(query, messages, is_fu)
+    history = _scoped_history(messages) if is_fu else []
+    return search_query, _resolve_retrieval_filter(query, messages, is_fu), history
 
 
 def _pinned_cards(messages: list[dict]) -> list[dict]:
@@ -456,21 +505,34 @@ async def _search_context(
 
 # ── LLM streaming ──────────────────────────────────────────────────────────────
 
-def _system_prompt(context: str) -> str:
-    return (
-        "You are a helpful product expert assistant. "
-        "Answer questions using ONLY the structured product data listed below — "
-        "do NOT rely on general knowledge about these products. "
-        "Each product has labelled attributes; use those exact values when answering "
-        "attribute-specific questions. "
-        "Be concise: for a single-fact question, answer in 1 to 3 sentences. "
-        "For a list or comparison, include every matching product from the data below — "
-        "never omit one just to keep the answer short; a numbered list longer than 3 lines is fine. "
-        "If asked to compare more than 2 products, compare all of them (briefly per product) "
-        "rather than silently picking a subset. "
-        "If no product matches the question, say so honestly.\n\n"
-        f"Products:\n{context}"
-    )
+def _filter_cards_by_response(cards: list[dict], response_text: str) -> list[dict]:
+    """
+    Keep only cards whose title is actually mentioned in the LLM's finished answer.
+
+    Word-boundary match against the full response, case-insensitive — plain substring
+    containment would let a shorter title falsely match inside a longer, different
+    one (e.g. "Pixel 9" is a substring of "Pixel 9a"; "iPhone 16" of "iPhone 16 Plus").
+    \b fails to match between two word characters, so "Pixel 9" won't match inside
+    "Pixel 9a" (no boundary between "9" and "a") but will still match a real
+    standalone mention. If nothing matches (e.g. the model paraphrased every name,
+    or named no product at all), fall back to the original unfiltered list rather
+    than showing an empty carousel.
+    """
+    if not response_text:
+        return cards
+    low = response_text.lower()
+    used = [
+        c for c in cards
+        if c.get("title") and re.search(r'\b' + re.escape(c["title"].lower()) + r'\b', low)
+    ]
+    return used or cards
+
+
+def _system_prompt(context: str, note_vague_preference: bool = False) -> str:
+    prompt = _PROMPTS["system_prompt"]["base"]
+    if note_vague_preference:
+        prompt += _PROMPTS["system_prompt"]["vague_preference_note"]
+    return prompt + f"\n\nProducts:\n{context}"
 
 
 def _route_llm_stream(system: str, history: list[dict]):
@@ -491,15 +553,16 @@ def _route_llm_stream(system: str, history: list[dict]):
 
 def _friendly_error(raw: str) -> str:
     low = raw.lower()
+    errors = _PROMPTS["errors"]
     if "rate_limit" in low or "rate limit" in low or "429" in raw:
-        return "The AI provider is temporarily rate-limited. Please wait a moment and try again, or switch to a different model in Settings → Chat."
+        return errors["rate_limited"]
     if "401" in raw or "authentication" in low or "api key" in low or "invalid_api_key" in low:
-        return "Invalid API key. Please update your key in Settings → Chat."
+        return errors["invalid_api_key"]
     if "503" in raw or "overloaded" in low or "unavailable" in low:
-        return "The AI provider is temporarily unavailable. Please try again in a moment."
+        return errors["unavailable"]
     if "context_length" in low or "too long" in low or "max_tokens" in low:
-        return "The conversation is too long for this model. Please start a new chat."
-    return "Something went wrong with the AI provider. Please try again."
+        return errors["context_too_long"]
+    return errors["generic"]
 
 
 # ── Public entry point ─────────────────────────────────────────────────────────
@@ -516,10 +579,10 @@ async def chat_stream(
     log.debug("chat request: index_id=%s query=%r messages=%s", index_id, query, messages)
 
     if _chat_provider == "none":
-        yield {"type": "error", "content": "Chat is not configured. Go to Settings → Chat to choose a provider."}
+        yield {"type": "error", "content": _PROMPTS["errors"]["not_configured"]}
         return
 
-    search_query, combined_filter = await _resolve_retrieval_params(query, messages)
+    search_query, combined_filter, hist_messages = await _resolve_retrieval_params(query, messages)
 
     cards, context = await _search_context(
         search_query, index_id, query_by, query_by_weights, facet_query_by,
@@ -529,11 +592,8 @@ async def chat_stream(
     if _smart_followup_enabled:
         cards = _merge_cards(cards, _pinned_cards(messages))
 
-    log.debug("chat response products: %s", [{"id": c.get("id"), "title": c.get("title")} for c in cards])
-    yield {"type": "products", "products": cards}
-
-    system  = _system_prompt(context)
-    history = [{"role": m["role"], "content": m.get("content", "")} for m in messages] + \
+    system  = _system_prompt(context, note_vague_preference=_is_vague_preference_query(query))
+    history = [{"role": m["role"], "content": m.get("content", "")} for m in hist_messages] + \
               [{"role": "user", "content": query}]
 
     log.debug("chat LLM request: provider=%s model=%s system=%r history=%s",
@@ -547,4 +607,12 @@ async def chat_stream(
         log.debug("chat LLM response: index_id=%s response=%r", index_id, full_response)
     except Exception as exc:
         log.error("chat LLM request failed: index_id=%s", index_id, exc_info=True)
+        yield {"type": "products", "products": cards}
         yield {"type": "error", "content": _friendly_error(str(exc))}
+        return
+
+    used_cards = _filter_cards_by_response(cards, full_response)
+    log.debug("chat response products: kept %d of %d based on LLM text: %s",
+              len(used_cards), len(cards),
+              [{"id": c.get("id"), "title": c.get("title")} for c in used_cards])
+    yield {"type": "products", "products": used_cards}
