@@ -48,8 +48,10 @@ async def chat(index_id: str, body: ChatRequest) -> StreamingResponse:
             query_by = ",".join(extra_qb) + ",chatContent,title,content"
             query_by_weights = ",".join(["10"] * len(extra_qb)) + ",5,1,1"
 
+    persona_config = meta.chat_persona_config if meta else None
+
     async def generate():
-        async for chunk in chat_service.chat_stream(body.query, body.messages, index_id, query_by, query_by_weights, facet_query_by="chatContent"):
+        async for chunk in chat_service.chat_stream(body.query, body.messages, index_id, query_by, query_by_weights, facet_query_by="chatContent", persona_config=persona_config):
             yield f"data: {json.dumps(chunk)}\n\n"
         yield "data: [DONE]\n\n"
 

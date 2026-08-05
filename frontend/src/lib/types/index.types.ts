@@ -66,6 +66,19 @@ export interface Synonym {
 }
 
 /**
+ * Per-index chat persona config — how the chat assistant refers to items, whether it
+ * compares them, and any additional operator-written instructions. Unset fields fall
+ * back to defaults server-side (item_noun: "product", enable_comparison: true,
+ * additional_instructions: ""), so GET always returns fully-populated values.
+ * Stored in ``indexes.chat_persona_config``.
+ */
+export interface ChatPersonaConfig {
+  item_noun:               string;
+  enable_comparison:       boolean;
+  additional_instructions: string;
+}
+
+/**
  * Full metadata for one ISP source, mirroring the backend ``IndexMeta`` Pydantic model.
  * ``is_external=true`` means ISP reads/writes a pre-existing Typesense collection;
  * ``collection_name`` is empty for external sources, ``isp_{id}`` for managed ones.
