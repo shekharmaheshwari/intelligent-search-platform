@@ -37,6 +37,15 @@ _GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 # and is the basis for making it operator-configurable per index later.
 _PROMPTS: dict = json.loads((Path(__file__).with_name("prompts.json")).read_text(encoding="utf-8"))
 
+# Defaults applied whenever an index's chat_persona_config doesn't set a given key —
+# {} behaves identically to the fixed prompt this replaced. Imported by routers/indexes.py
+# so the GET /chat-persona endpoint returns the same effective values chat_stream uses.
+CHAT_PERSONA_DEFAULTS: dict = {
+    "item_noun": "product",
+    "enable_comparison": True,
+    "additional_instructions": "",
+}
+
 _chat_provider:          str  = "none"
 _chat_model:             str  = ""
 _chat_api_key:           str  = ""
@@ -539,12 +548,25 @@ def _filter_cards_by_response(cards: list[dict], response_text: str) -> list[dic
     return used or cards
 
 
-def _system_prompt(context: str, note_vague_preference: bool = False, has_price_field: bool = True) -> str:
-    prompt = _PROMPTS["system_prompt"]["base"]
+def _system_prompt(
+    context: str,
+    note_vague_preference: bool = False,
+    has_price_field: bool = True,
+    persona: dict | None = None,
+) -> str:
+    cfg = {**CHAT_PERSONA_DEFAULTS, **(persona or {})}
+    item_noun = (cfg["item_noun"] or CHAT_PERSONA_DEFAULTS["item_noun"]).strip()
+
+    prompt = _PROMPTS["system_prompt"]["base"].format(item_noun=item_noun)
+    if cfg["enable_comparison"]:
+        prompt += _PROMPTS["system_prompt"]["comparison_note"]
     if note_vague_preference:
         key = "vague_preference_note" if has_price_field else "vague_preference_note_no_price"
         prompt += _PROMPTS["system_prompt"][key]
-    return prompt + f"\n\nProducts:\n{context}"
+    extra = (cfg["additional_instructions"] or "").strip()
+    if extra:
+        prompt += extra + " "
+    return prompt + f"\n\n{item_noun.capitalize()} data:\n{context}"
 
 
 def _route_llm_stream(system: str, history: list[dict]):
@@ -586,6 +608,7 @@ async def chat_stream(
     query_by: str = "title,content",
     query_by_weights: str | None = None,
     facet_query_by: str | None = None,
+    persona_config: dict | None = None,
 ) -> AsyncIterator[dict]:
     """Yield SSE-ready dicts: products → text tokens → (on error) error."""
     log.debug("chat request: index_id=%s query=%r messages=%s", index_id, query, messages)
@@ -606,7 +629,8 @@ async def chat_stream(
 
     is_vague = _is_vague_preference_query(query)
     has_price = await _index_has_price_field(index_id) if is_vague else True
-    system  = _system_prompt(context, note_vague_preference=is_vague, has_price_field=has_price)
+    system  = _system_prompt(context, note_vague_preference=is_vague, has_price_field=has_price,
+                              persona=persona_config)
     history = [{"role": m["role"], "content": m.get("content", "")} for m in hist_messages] + \
               [{"role": "user", "content": query}]
 

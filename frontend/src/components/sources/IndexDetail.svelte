@@ -19,12 +19,13 @@
   import AffinityDimensionsPanel  from './AffinityDimensionsPanel.svelte';
   import BoostRulesTab            from './BoostRulesTab.svelte';
   import SynonymsTab              from './SynonymsTab.svelte';
+  import ChatPersonaTab           from './ChatPersonaTab.svelte';
 
   export let indexId: string;
-  export let tab: 'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' | 'synonyms' = 'overview';
+  export let tab: 'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' | 'synonyms' | 'chat-persona' = 'overview';
 
-  const tabs: Array<'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' | 'synonyms'> =
-    ['overview', 'connector', 'mapping', 'fields', 'documents', 'search', 'api', 'suggestions', 'personalisation', 'boost-rules', 'synonyms'];
+  const tabs: Array<'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' | 'synonyms' | 'chat-persona'> =
+    ['overview', 'connector', 'mapping', 'fields', 'documents', 'search', 'api', 'suggestions', 'personalisation', 'boost-rules', 'synonyms', 'chat-persona'];
 
   const dispatch = createEventDispatcher<{ back: void; tabchange: typeof tab }>();
 
@@ -80,7 +81,7 @@
     <div class="tabs">
       {#each tabs as t}
         <button class:active={tab === t} on:click={() => { tab = t; dispatch('tabchange', t); }}>
-          {t === 'boost-rules' ? 'Boost Rules' : t.charAt(0).toUpperCase() + t.slice(1)}
+          {t === 'boost-rules' ? 'Boost Rules' : t === 'chat-persona' ? 'Chat Persona' : t.charAt(0).toUpperCase() + t.slice(1)}
         </button>
       {/each}
     </div>
@@ -132,6 +133,9 @@
 
       {:else if tab === 'synonyms'}
         <SynonymsTab {indexId} />
+
+      {:else if tab === 'chat-persona'}
+        <ChatPersonaTab {indexId} />
       {/if}
     </div>
   {/if}

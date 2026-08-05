@@ -26,6 +26,7 @@ from isp.services.infra import embedding_service, typesense_client as ts
 from isp.services.infra import rest_connector, sitemap_connector, gsheet_connector, json_file_connector
 from isp.services.infra.extension_runner import apply_extensions
 from isp.services.infra.agent.setup_executor import _flatten_objects, _repair_doc
+from isp.services.infra.chat.service import CHAT_PERSONA_DEFAULTS
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
 log = logging.getLogger(__name__)
@@ -732,6 +733,55 @@ async def update_boost_rules(idx_id: str, body: dict):
                         raise HTTPException(400, f"Invalid regex in rule '{rule.get('label', '')}' ({section}): {exc}")
     await index_service.set_boost_rules(meta.id, rules)
     return {"rules": rules}
+
+
+_CHAT_PERSONA_MAX_INSTRUCTIONS_LEN = 2000
+
+
+@router.get("/{idx_id}/chat-persona", summary="Get chat persona config for an index")
+async def get_chat_persona(idx_id: str):
+    """
+    Return the effective chat persona config for this index — stored overrides merged
+    over the defaults, so unset keys always come back with their default value rather
+    than being absent.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    return {**CHAT_PERSONA_DEFAULTS, **(meta.chat_persona_config or {})}
+
+
+@router.put("/{idx_id}/chat-persona", summary="Save chat persona config for an index")
+async def update_chat_persona(idx_id: str, body: dict):
+    """
+    Persist the chat persona config for this index. Takes effect on the next chat
+    request — no rebuild required.
+
+    Body: {"item_noun": str, "enable_comparison": bool, "additional_instructions": str}
+    Any key may be omitted; omitted keys fall back to CHAT_PERSONA_DEFAULTS at request time.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+
+    config: dict = {}
+    if "item_noun" in body:
+        item_noun = str(body["item_noun"]).strip()
+        if not item_noun:
+            raise HTTPException(400, "item_noun cannot be empty")
+        config["item_noun"] = item_noun
+    if "enable_comparison" in body:
+        config["enable_comparison"] = bool(body["enable_comparison"])
+    if "additional_instructions" in body:
+        instructions = str(body["additional_instructions"])
+        if len(instructions) > _CHAT_PERSONA_MAX_INSTRUCTIONS_LEN:
+            raise HTTPException(
+                400, f"additional_instructions must be under {_CHAT_PERSONA_MAX_INSTRUCTIONS_LEN} characters",
+            )
+        config["additional_instructions"] = instructions
+
+    await index_service.set_chat_persona_config(meta.id, config)
+    return {**CHAT_PERSONA_DEFAULTS, **config}
 
 
 @router.get("/{idx_id}/boost-rules/fields", summary="Get available fields for boost rule criteria")
