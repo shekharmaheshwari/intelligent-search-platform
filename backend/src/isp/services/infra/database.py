@@ -169,6 +169,10 @@ async def init_db() -> None:
             ALTER TABLE indexes
             ADD COLUMN IF NOT EXISTS field_config JSONB DEFAULT '[]';
         """)
+        await conn.execute("""
+            ALTER TABLE indexes
+            ADD COLUMN IF NOT EXISTS chat_persona_config JSONB DEFAULT '{}';
+        """)
         # Seed intent labels for the four known ISP indexes (idempotent).
         for col_name, label in [
             ("isp_22ffabfef4d1", "device"),

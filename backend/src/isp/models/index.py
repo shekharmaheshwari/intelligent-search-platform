@@ -211,6 +211,11 @@ class IndexMeta(BaseModel):
     # Persisted here so they survive rebuilds (which recreate the Typesense collection).
     # Each entry: {"name": str, "facet": bool, "multi_value": bool, "searchable": bool}
     field_config: list[dict] = []
+    # Per-index chat persona: how the chat assistant refers to items, whether it compares
+    # them, and any additional operator-written instructions. Unset keys fall back to
+    # defaults (see chat/service.py _CHAT_PERSONA_DEFAULTS) — {} behaves identically to
+    # today's fixed prompt.
+    chat_persona_config: dict = {}
 
 
 class IngestStatus(BaseModel):

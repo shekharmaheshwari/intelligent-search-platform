@@ -508,6 +508,15 @@ export const api = {
       method: 'DELETE',
     }),
 
+  getChatPersona: (indexId: string) =>
+    req<import('./types').ChatPersonaConfig>(`/indexes/${indexId}/chat-persona`),
+
+  updateChatPersona: (indexId: string, config: import('./types').ChatPersonaConfig) =>
+    req<import('./types').ChatPersonaConfig>(`/indexes/${indexId}/chat-persona`, {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    }),
+
   getFields: (indexId: string) =>
     req<{ fields: FieldEntry[] }>(`/indexes/${indexId}/fields`),
 
