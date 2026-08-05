@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     embed_model: str = "voyage-3"             # default Voyage AI model; overridden by app_settings DB row at runtime
     host: str = "0.0.0.0"
     port: int = 8001
+    log_level: str = "INFO"   # DEBUG | INFO | WARNING | ERROR | CRITICAL
 
     # ── Auth (Approach 3 — OAuth2 / OIDC SSO) ─────────────────────────────────
     # All disabled by default; existing behaviour is unchanged when auth_enabled=false.

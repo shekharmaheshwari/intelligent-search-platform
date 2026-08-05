@@ -106,6 +106,11 @@ def _row_to_meta(row: dict) -> IndexMeta:
             if isinstance(row.get("field_config"), str)
             else (row.get("field_config") or [])
         ),
+        chat_persona_config=(
+            json.loads(row["chat_persona_config"])
+            if isinstance(row.get("chat_persona_config"), str)
+            else (row.get("chat_persona_config") or {})
+        ),
     )
 
 
@@ -280,6 +285,16 @@ async def set_boost_rules(idx_id: str, rules: list[dict]) -> None:
         await conn.execute(
             "UPDATE indexes SET boost_rules = $1 WHERE id = $2",
             json.dumps(rules), idx_id,
+        )
+
+
+async def set_chat_persona_config(idx_id: str, config: dict) -> None:
+    """Persist the chat persona config for an index."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET chat_persona_config = $1 WHERE id = $2",
+            json.dumps(config), idx_id,
         )
 
 
