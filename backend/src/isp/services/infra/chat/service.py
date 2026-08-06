@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 from isp.services.infra import typesense_client as ts
 from isp.services.infra.embedding_service import embed_query as _embed_query
 from isp.services.infra.chat.providers import anthropic_chat, google_chat, openai_compat
+from isp.services.domain import index_service
 
 _GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
@@ -138,6 +139,133 @@ async def _index_has_price_field(index_id: str) -> bool:
     """
     fields = await asyncio.to_thread(ts.get_all_fields, index_id)
     return any(f.get("name") == "price" for f in fields)
+
+
+# ── Superlative queries ("cheapest", "most expensive", "newest") ───────────────
+#
+# See docs/superlativePriceDesign.md for the full design and why. Three layers,
+# each owned by the part of the system that actually knows the answer:
+#   1. Detection  — generic, linguistic (any superlative construction).
+#   2. Concept    — a small fixed table, because English fixes "cheapest" = price
+#                    regardless of catalog; NOT resolved via LLM or embeddings.
+#   3. Field      — schema-dependent per index, resolved deterministically
+#                    (exact name match, then numeric/date name-pattern match),
+#                    write-through cached on indexes.superlative_field_map so
+#                    repeat queries don't re-hit Typesense's schema endpoint.
+# A superlative with no fixed concept ("best", "nicest") or no resolvable field
+# on this index falls through to the existing vague-preference path rather
+# than guessing — caching a wrong guess would just make it wrong consistently.
+
+_SUPERLATIVE_RE = re.compile(r'\b(\w+est|most\s+\w+|least\s+\w+)\b', re.IGNORECASE)
+
+# phrase -> (concept, sort direction)
+_SUPERLATIVE_CONCEPT_MAP: dict[str, tuple[str, str]] = {
+    "cheapest":        ("price", "asc"),
+    "lowest price":    ("price", "asc"),
+    "lowest priced":   ("price", "asc"),
+    "least expensive": ("price", "asc"),
+    "most affordable": ("price", "asc"),
+    "lowest cost":     ("price", "asc"),
+    "most expensive":  ("price", "desc"),
+    "highest price":   ("price", "desc"),
+    "highest priced":  ("price", "desc"),
+    "priciest":        ("price", "desc"),
+    "most popular":    ("popularity", "desc"),
+    "best selling":    ("popularity", "desc"),
+    "bestselling":     ("popularity", "desc"),
+    "newest":          ("recency", "desc"),
+    "latest":          ("recency", "desc"),
+    "biggest":         ("size", "desc"),
+    "largest":         ("size", "desc"),
+    "smallest":        ("size", "asc"),
+    "top rated":       ("rating", "desc"),
+    "highest rated":   ("rating", "desc"),
+}
+
+# concept -> candidate field-name substrings, tried in order; exact match wins first
+_CONCEPT_FIELD_CANDIDATES: dict[str, list[str]] = {
+    "price":      ["price", "cost", "rate", "fee"],
+    "popularity": ["popularity", "popular"],
+    "recency":    ["release_date", "created_at", "date", "launched"],
+    "size":       ["size", "screen_size", "capacity"],
+    "rating":     ["rating", "review_score", "stars"],
+}
+
+_SORTABLE_TYPES = {"int32", "int64", "float"}
+
+
+def _detect_superlative_concept(query: str) -> tuple[str, str, str] | None:
+    """
+    Return (matched_phrase, concept, direction) for a recognized superlative
+    phrase, or None. Runs the generic superlative regex first purely as a
+    cheap short-circuit — the actual decision comes from the fixed concept
+    table, not the regex. The matched phrase is returned (not just the
+    concept) so the caller can strip it from the text sent to Typesense —
+    see _strip_structural_phrases.
+    """
+    if not _SUPERLATIVE_RE.search(query):
+        return None
+    low = query.lower()
+    for phrase, (concept, direction) in _SUPERLATIVE_CONCEPT_MAP.items():
+        if phrase in low:
+            return phrase, concept, direction
+    return None
+
+
+def _strip_structural_phrases(query: str, superlative_phrase: str) -> str:
+    """
+    Remove the matched superlative phrase and any price-range phrase from the
+    query text before it's used as Typesense's lexical `q`. Both are already
+    captured structurally (sort_by / filter_by) — leaving them in the text
+    only adds tokens that don't appear in any product's text, which degrades
+    or entirely breaks Typesense's default lexical matching as more such
+    "noise" tokens pile up (verified directly: "cheapest iphone" matches 8
+    documents; "cheapest iphone under $800" matches 0, purely from extra
+    unmatchable tokens). Falls back to the original query if stripping would
+    leave nothing (e.g. the query was just "cheapest" with no subject).
+    """
+    text = re.sub(re.escape(superlative_phrase), '', query, flags=re.IGNORECASE)
+    text = _PRICE_BETWEEN.sub('', text)
+    text = _PRICE_LT.sub('', text)
+    text = _PRICE_GT.sub('', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text or "*"
+
+
+def _match_field(fields: list[dict], candidates: list[str]) -> str | None:
+    """Exact name match first (any type); then a numeric/date field whose name
+    contains a candidate substring, preferring the shortest (most generic) name."""
+    names = {f.get("name"): f for f in fields}
+    for cand in candidates:
+        if cand in names:
+            return cand
+    substring_matches = [
+        f["name"] for f in fields
+        if f.get("type") in _SORTABLE_TYPES
+        and any(cand in (f.get("name") or "").lower() for cand in candidates)
+    ]
+    return min(substring_matches, key=len) if substring_matches else None
+
+
+async def _resolve_superlative_field(
+    index_id: str, concept: str, cached_map: dict,
+) -> str | None:
+    """
+    Resolve a concept to an actual field name on this index. Checks the
+    write-through cache first; on a miss, resolves live against the schema and
+    persists the result for next time (merged, not overwritten, so concurrent
+    requests resolving different concepts don't clobber each other).
+    """
+    if concept in cached_map:
+        return cached_map[concept] or None
+    fields = await asyncio.to_thread(ts.get_all_fields, index_id)
+    field = _match_field(fields, _CONCEPT_FIELD_CANDIDATES.get(concept, [concept]))
+    try:
+        await index_service.merge_superlative_field_map(index_id, concept, field or "")
+    except Exception:
+        log.warning("failed to cache superlative_field_map for index=%s concept=%s",
+                   index_id, concept, exc_info=True)
+    return field
 
 
 # ── Follow-up detection — Tier 1 (unambiguous pronoun / intent phrases) ───────
@@ -523,6 +651,49 @@ async def _search_context(
     return cards, "\n\n".join(parts)
 
 
+async def _search_context_sorted(
+    query: str, index_id: str, sort_field: str, sort_direction: str,
+    query_by: str = "title,content",
+    query_by_weights: str | None = None,
+    price_filter: str | None = None,
+) -> tuple[list[dict], str]:
+    """
+    Deterministic path for a resolved superlative query (see
+    docs/superlativePriceDesign.md). A single Typesense search sorted by
+    sort_field — RRF blending is skipped entirely, not reweighted, since
+    blending in a semantic-similarity signal that has no concept of the
+    target field is exactly what causes a superlative query to rank the
+    wrong item first. Text narrowing (e.g. "iphone" in "cheapest iphone")
+    still applies via query_by; only the ranking is overridden.
+    """
+    col    = ts.collection_name(index_id)
+    client = ts.get_client()
+    search: dict = {
+        "collection": col, "q": query, "query_by": query_by,
+        "sort_by": f"{sort_field}:{sort_direction}",
+        "per_page": "5", "exclude_fields": "vec",
+    }
+    if query_by_weights:
+        search["query_by_weights"] = query_by_weights
+    if price_filter:
+        search["filter_by"] = price_filter
+    log.debug("chat typesense request (superlative sort): collection=%s search=%s",
+              col, json.dumps(search))
+    resp = await asyncio.to_thread(
+        lambda: client.multi_search.perform({"searches": [search]}, {})
+    )
+    hits = resp.get("results", [{}])[0].get("hits", [])
+    log.debug("chat typesense response (superlative sort): hit_count=%s", len(hits))
+
+    cards, parts = [], []
+    for i, hit in enumerate(hits, 1):
+        card, block = _hit_to_card_and_block(hit, i)
+        cards.append(card)
+        parts.append(block)
+
+    return cards, "\n\n".join(parts)
+
+
 # ── LLM streaming ──────────────────────────────────────────────────────────────
 
 def _filter_cards_by_response(cards: list[dict], response_text: str) -> list[dict]:
@@ -553,6 +724,8 @@ def _system_prompt(
     note_vague_preference: bool = False,
     has_price_field: bool = True,
     persona: dict | None = None,
+    sorted_field: str | None = None,
+    sorted_direction: str = "",
 ) -> str:
     cfg = {**CHAT_PERSONA_DEFAULTS, **(persona or {})}
     item_noun = (cfg["item_noun"] or CHAT_PERSONA_DEFAULTS["item_noun"]).strip()
@@ -560,6 +733,10 @@ def _system_prompt(
     prompt = _PROMPTS["system_prompt"]["base"].format(item_noun=item_noun)
     if cfg["enable_comparison"]:
         prompt += _PROMPTS["system_prompt"]["comparison_note"]
+    if sorted_field:
+        direction_word = "ascending" if sorted_direction == "asc" else "descending"
+        prompt += _PROMPTS["system_prompt"]["superlative_sorted_note"].format(
+            field=sorted_field, direction=direction_word)
     if note_vague_preference:
         key = "vague_preference_note" if has_price_field else "vague_preference_note_no_price"
         prompt += _PROMPTS["system_prompt"][key]
@@ -609,6 +786,7 @@ async def chat_stream(
     query_by_weights: str | None = None,
     facet_query_by: str | None = None,
     persona_config: dict | None = None,
+    superlative_field_map: dict | None = None,
 ) -> AsyncIterator[dict]:
     """Yield SSE-ready dicts: products → text tokens → (on error) error."""
     log.debug("chat request: index_id=%s query=%r messages=%s", index_id, query, messages)
@@ -619,18 +797,42 @@ async def chat_stream(
 
     search_query, combined_filter, hist_messages = await _resolve_retrieval_params(query, messages)
 
-    cards, context = await _search_context(
-        search_query, index_id, query_by, query_by_weights, facet_query_by,
-        price_filter=combined_filter,
-    )
+    superlative = _detect_superlative_concept(search_query)
+    resolved_field: str | None = None
+    resolved_direction = ""
+    if superlative:
+        matched_phrase, concept, resolved_direction = superlative
+        resolved_field = await _resolve_superlative_field(
+            index_id, concept, superlative_field_map or {},
+        )
+
+    if resolved_field:
+        stripped_query = _strip_structural_phrases(search_query, matched_phrase)
+        log.debug("chat superlative resolved: index_id=%s concept=%s field=%s direction=%s "
+                  "query=%r -> stripped=%r",
+                  index_id, concept, resolved_field, resolved_direction, search_query, stripped_query)
+        cards, context = await _search_context_sorted(
+            stripped_query, index_id, resolved_field, resolved_direction,
+            query_by, query_by_weights, price_filter=combined_filter,
+        )
+    else:
+        cards, context = await _search_context(
+            search_query, index_id, query_by, query_by_weights, facet_query_by,
+            price_filter=combined_filter,
+        )
 
     if _smart_followup_enabled:
         cards = _merge_cards(cards, _pinned_cards(messages))
 
-    is_vague = _is_vague_preference_query(query)
+    # A resolved superlative already has a precise, deterministic answer —
+    # skip the vague-preference disclosure for this turn even if the query
+    # also happens to contain a word from vague_preference_terms (e.g.
+    # "most popular" matches both "popular" and the superlative concept map).
+    is_vague = _is_vague_preference_query(query) and not resolved_field
     has_price = await _index_has_price_field(index_id) if is_vague else True
     system  = _system_prompt(context, note_vague_preference=is_vague, has_price_field=has_price,
-                              persona=persona_config)
+                              persona=persona_config,
+                              sorted_field=resolved_field, sorted_direction=resolved_direction)
     history = [{"role": m["role"], "content": m.get("content", "")} for m in hist_messages] + \
               [{"role": "user", "content": query}]
 

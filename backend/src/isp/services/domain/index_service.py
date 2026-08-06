@@ -111,6 +111,11 @@ def _row_to_meta(row: dict) -> IndexMeta:
             if isinstance(row.get("chat_persona_config"), str)
             else (row.get("chat_persona_config") or {})
         ),
+        superlative_field_map=(
+            json.loads(row["superlative_field_map"])
+            if isinstance(row.get("superlative_field_map"), str)
+            else (row.get("superlative_field_map") or {})
+        ),
     )
 
 
@@ -295,6 +300,20 @@ async def set_chat_persona_config(idx_id: str, config: dict) -> None:
         await conn.execute(
             "UPDATE indexes SET chat_persona_config = $1 WHERE id = $2",
             json.dumps(config), idx_id,
+        )
+
+
+async def merge_superlative_field_map(idx_id: str, concept: str, field_name: str) -> None:
+    """
+    Write-through cache: merge one newly-resolved superlative concept into the
+    stored map. Uses Postgres JSONB `||` so two requests resolving different
+    concepts concurrently merge atomically instead of racing on a read-modify-write.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET superlative_field_map = superlative_field_map || $1::jsonb WHERE id = $2",
+            json.dumps({concept: field_name}), idx_id,
         )
 
 
