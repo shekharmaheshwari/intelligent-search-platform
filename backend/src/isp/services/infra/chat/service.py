@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 from isp.services.infra import typesense_client as ts
 from isp.services.infra.embedding_service import embed_query as _embed_query
 from isp.services.infra.chat.providers import anthropic_chat, google_chat, openai_compat
+from isp.services.domain import index_service
 
 _GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
@@ -140,6 +141,189 @@ async def _index_has_price_field(index_id: str) -> bool:
     return any(f.get("name") == "price" for f in fields)
 
 
+# ── Superlative queries ("cheapest", "most expensive", "newest") ───────────────
+#
+# See docs/superlativePriceDesign.md for the full design and why. Three layers,
+# each owned by the part of the system that actually knows the answer:
+#   1. Detection  — generic, linguistic (any superlative construction).
+#   2. Concept    — a small fixed table, because English fixes "cheapest" = price
+#                    regardless of catalog; NOT resolved via LLM or embeddings.
+#   3. Field      — schema-dependent per index, resolved deterministically
+#                    (exact name match, then numeric/date name-pattern match),
+#                    write-through cached on indexes.superlative_field_map so
+#                    repeat queries don't re-hit Typesense's schema endpoint.
+# A superlative with no fixed concept ("best", "nicest") or no resolvable field
+# on this index falls through to the existing vague-preference path rather
+# than guessing — caching a wrong guess would just make it wrong consistently.
+
+_SUPERLATIVE_RE = re.compile(r'\b(\w+est|most\s+\w+|least\s+\w+)\b', re.IGNORECASE)
+
+# phrase -> (concept, sort direction)
+_SUPERLATIVE_CONCEPT_MAP: dict[str, tuple[str, str]] = {
+    "cheapest":        ("price", "asc"),
+    "lowest price":    ("price", "asc"),
+    "lowest priced":   ("price", "asc"),
+    "least expensive": ("price", "asc"),
+    "most affordable": ("price", "asc"),
+    "lowest cost":     ("price", "asc"),
+    "most expensive":  ("price", "desc"),
+    "highest price":   ("price", "desc"),
+    "highest priced":  ("price", "desc"),
+    "priciest":        ("price", "desc"),
+    "most popular":    ("popularity", "desc"),
+    "best selling":    ("popularity", "desc"),
+    "bestselling":     ("popularity", "desc"),
+    "newest":          ("recency", "desc"),
+    "latest":          ("recency", "desc"),
+    "biggest":         ("size", "desc"),
+    "largest":         ("size", "desc"),
+    "smallest":        ("size", "asc"),
+    "top rated":       ("rating", "desc"),
+    "highest rated":   ("rating", "desc"),
+}
+
+# concept -> candidate field-name substrings, tried in order; exact match wins first
+_CONCEPT_FIELD_CANDIDATES: dict[str, list[str]] = {
+    "price":               ["price", "cost", "rate", "fee"],
+    "popularity":          ["popularity", "popular"],
+    "recency":             ["release_date", "created_at", "date", "launched"],
+    "size":                ["size", "screen_size", "capacity"],
+    "rating":              ["rating", "review_score", "stars"],
+    "device_compatibility": ["compatible_devices", "compatible_with", "device_compatibility"],
+}
+
+_SORTABLE_TYPES = {"int32", "int64", "float"}
+
+
+def _detect_superlative_concept(query: str) -> tuple[str, str, str] | None:
+    """
+    Return (matched_phrase, concept, direction) for a recognized superlative
+    phrase, or None. Runs the generic superlative regex first purely as a
+    cheap short-circuit — the actual decision comes from the fixed concept
+    table, not the regex. The matched phrase is returned (not just the
+    concept) so the caller can strip it from the text sent to Typesense —
+    see _strip_structural_phrases.
+    """
+    if not _SUPERLATIVE_RE.search(query):
+        return None
+    low = query.lower()
+    for phrase, (concept, direction) in _SUPERLATIVE_CONCEPT_MAP.items():
+        if phrase in low:
+            return phrase, concept, direction
+    return None
+
+
+def _strip_structural_phrases(query: str, superlative_phrase: str) -> str:
+    """
+    Remove the matched superlative phrase and any price-range phrase from the
+    query text before it's used as Typesense's lexical `q`. Both are already
+    captured structurally (sort_by / filter_by) — leaving them in the text
+    only adds tokens that don't appear in any product's text, which degrades
+    or entirely breaks Typesense's default lexical matching as more such
+    "noise" tokens pile up (verified directly: "cheapest iphone" matches 8
+    documents; "cheapest iphone under $800" matches 0, purely from extra
+    unmatchable tokens). Falls back to the original query if stripping would
+    leave nothing (e.g. the query was just "cheapest" with no subject).
+    """
+    text = re.sub(re.escape(superlative_phrase), '', query, flags=re.IGNORECASE)
+    text = _PRICE_BETWEEN.sub('', text)
+    text = _PRICE_LT.sub('', text)
+    text = _PRICE_GT.sub('', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text or "*"
+
+
+def _match_field(fields: list[dict], candidates: list[str]) -> str | None:
+    """Exact name match first (any type); then a numeric/date field whose name
+    contains a candidate substring, preferring the shortest (most generic) name."""
+    names = {f.get("name"): f for f in fields}
+    for cand in candidates:
+        if cand in names:
+            return cand
+    substring_matches = [
+        f["name"] for f in fields
+        if f.get("type") in _SORTABLE_TYPES
+        and any(cand in (f.get("name") or "").lower() for cand in candidates)
+    ]
+    return min(substring_matches, key=len) if substring_matches else None
+
+
+async def _resolve_concept_field(
+    index_id: str, concept: str, cached_map: dict,
+) -> str | None:
+    """
+    Resolve a concept (e.g. "price", "device_compatibility") to an actual
+    field name on this index. Checks the write-through cache first; on a
+    miss, resolves live against the schema and persists the result for next
+    time (merged, not overwritten, so concurrent requests resolving different
+    concepts don't clobber each other). Shared by both the superlative-price
+    feature and device-variant matching — same cache
+    (indexes.superlative_field_map), same resolution strategy, different
+    concepts. See docs/deviceCompatibilityMatchingDesign.md for the naming
+    note on reusing that column name for a non-superlative concept.
+    """
+    if concept in cached_map:
+        return cached_map[concept] or None
+    fields = await asyncio.to_thread(ts.get_all_fields, index_id)
+    field = _match_field(fields, _CONCEPT_FIELD_CANDIDATES.get(concept, [concept]))
+    try:
+        await index_service.merge_superlative_field_map(index_id, concept, field or "")
+    except Exception:
+        log.warning("failed to cache superlative_field_map for index=%s concept=%s",
+                   index_id, concept, exc_info=True)
+    return field
+
+
+def _combine_filters(*filters: str | None) -> str | None:
+    parts = [f for f in filters if f]
+    return " && ".join(parts) if parts else None
+
+
+async def _resolve_device_filter(query: str, index_id: str, field_name: str) -> str | None:
+    """
+    Two-step device-variant resolution (see
+    docs/deviceCompatibilityMatchingDesign.md). Step 1: let Typesense's own
+    typo tolerance resolve messy input ("ihpone17 promax") against the real
+    compatible_devices values on this index — no new fuzzy-matching code of
+    our own. Step 2: use the top hit's actual value, not the user's raw text,
+    to build a precise exact-match filter, so a query naming one specific
+    variant doesn't get blended with lexically-similar sibling variants
+    ("iPhone 17" vs "iPhone 17 Pro Max"). Returns None when there's no
+    confident match (e.g. a generic query that doesn't name a device), so the
+    caller falls through to normal, unfiltered retrieval rather than forcing
+    a wrong narrowing.
+    """
+    col    = ts.collection_name(index_id)
+    client = ts.get_client()
+    resp = await asyncio.to_thread(
+        lambda: client.multi_search.perform({"searches": [{
+            "collection": col, "q": query, "query_by": field_name,
+            "per_page": "1", "exclude_fields": "vec",
+        }]}, {})
+    )
+    hits = resp.get("results", [{}])[0].get("hits", [])
+    if not hits:
+        return None
+    resolved = hits[0]["document"].get(field_name)
+    values = resolved if isinstance(resolved, list) else [resolved]
+    values = [v for v in values if v]
+    if not values:
+        return None
+    # The top hit may be a multi-compatible product (e.g. a case listing both
+    # "iPhone 17" and "iPhone 16 Pro"). Taking the whole array unconditionally
+    # would widen the filter to admit items compatible ONLY with a co-listed
+    # device the query never asked about. When the query itself names a model
+    # number, narrow to values that share it — falls back to the full list if
+    # nothing shares a number (query didn't specify one, or nothing matches).
+    query_digits = set(re.findall(r'\d+', query))
+    if query_digits and len(values) > 1:
+        narrowed = [v for v in values if set(re.findall(r'\d+', v)) & query_digits]
+        if narrowed:
+            values = narrowed
+    quoted = ",".join(f"`{v}`" for v in values)
+    return f"{field_name}:=[{quoted}]"
+
+
 # ── Follow-up detection — Tier 1 (unambiguous pronoun / intent phrases) ───────
 
 _T1_RE = re.compile(
@@ -194,14 +378,29 @@ def _is_follow_up_tier2(query: str) -> bool:
 # Works identically for phones, plants, furniture, cars — any catalog.
 
 def _shown_product_tokens(messages: list[dict]) -> set[str]:
-    """All words (>2 chars) from titles of every product shown so far."""
-    tokens: set[str] = set()
-    for m in messages:
-        for p in (m.get("products") or []):
-            for w in (p.get("title") or "").lower().split():
-                if len(w) > 2:
-                    tokens.add(w)
-    return tokens
+    """
+    Words (>2 chars) from the titles of the products shown in the MOST RECENT
+    assistant turn only — not accumulated across the entire conversation.
+    Matches the same "most recent turn only" scoping _ids_from_history and
+    _pinned_cards already use elsewhere in this file.
+
+    Accumulating across all history let unrelated, non-adjacent topics bleed
+    into this guard: "iphone adapter" was wrongly classified as a follow-up
+    and ID-pinned to a *different* prior turn's Samsung adapters, because
+    "iphone" appeared in an even-earlier "iPhone cases" turn and "adapter"
+    appeared in the (unrelated) Samsung-adapter turn — neither together, and
+    neither in the actually-relevant most recent turn, but the accumulated
+    set couldn't tell the difference.
+    """
+    for m in reversed(messages):
+        if m.get("role") == "assistant" and m.get("products"):
+            return {
+                w.lower()
+                for p in m["products"]
+                for w in (p.get("title") or "").split()
+                if len(w) > 2
+            }
+    return set()
 
 
 def _is_follow_up_short_query(query: str, messages: list[dict]) -> bool:
@@ -209,7 +408,14 @@ def _is_follow_up_short_query(query: str, messages: list[dict]) -> bool:
     if len(words) > 5 or not messages:
         return False
     shown = _shown_product_tokens(messages)
-    content_words = [w.lower() for w in words if len(w) > 3]
+    # A token is "content" if it's long enough to be meaningful on its own, OR
+    # contains a digit — model/generation numbers ("16" vs "17", "S24" vs "S25",
+    # "4G" vs "5G") are almost never filler, and are often exactly the token
+    # that distinguishes a genuinely new query from the previous turn's topic,
+    # even though they're short. Dropping them let e.g. "iphone 17 case" be
+    # misread as a follow-up on an already-shown iPhone 16 case, because "17"
+    # never got compared against what was actually shown.
+    content_words = [w.lower() for w in words if len(w) > 3 or any(c.isdigit() for c in w)]
     if not content_words:
         return True  # "ok" / "yes" / "and?" — almost certainly a follow-up
     new_terms = [w for w in content_words if w not in shown]
@@ -523,6 +729,70 @@ async def _search_context(
     return cards, "\n\n".join(parts)
 
 
+def _ordinal_labels(phrase: str) -> list[str]:
+    """
+    ("cheapest", "2nd cheapest", "3rd cheapest") for the matched superlative
+    phrase — works generically for any matched phrase, including multi-word
+    ones ("most expensive" -> "2nd most expensive"), since English forms this
+    ordinal the same way regardless of the specific adjective.
+    """
+    return [phrase, f"2nd {phrase}", f"3rd {phrase}"]
+
+
+async def _search_context_sorted(
+    query: str, index_id: str, sort_field: str, sort_direction: str,
+    query_by: str = "title,content",
+    query_by_weights: str | None = None,
+    price_filter: str | None = None,
+    superlative_phrase: str | None = None,
+) -> tuple[list[dict], str]:
+    """
+    Deterministic path for a resolved superlative query (see
+    docs/superlativePriceDesign.md). A single Typesense search sorted by
+    sort_field — RRF blending is skipped entirely, not reweighted, since
+    blending in a semantic-similarity signal that has no concept of the
+    target field is exactly what causes a superlative query to rank the
+    wrong item first. Text narrowing (e.g. "iphone" in "cheapest iphone")
+    still applies via query_by; only the ranking is overridden.
+
+    The top 3 hits get an explicit rank label ("(cheapest)", "(2nd cheapest)",
+    "(3rd cheapest)") written directly into their context block, not just left
+    as positional order — the model only has to copy a label it can already
+    see, instead of inferring rank from list position, which is the exact
+    inference it's been shown to get wrong even on correctly sorted data.
+    """
+    col    = ts.collection_name(index_id)
+    client = ts.get_client()
+    search: dict = {
+        "collection": col, "q": query, "query_by": query_by,
+        "sort_by": f"{sort_field}:{sort_direction}",
+        "per_page": "5", "exclude_fields": "vec",
+    }
+    if query_by_weights:
+        search["query_by_weights"] = query_by_weights
+    if price_filter:
+        search["filter_by"] = price_filter
+    log.debug("chat typesense request (superlative sort): collection=%s search=%s",
+              col, json.dumps(search))
+    resp = await asyncio.to_thread(
+        lambda: client.multi_search.perform({"searches": [search]}, {})
+    )
+    hits = resp.get("results", [{}])[0].get("hits", [])
+    log.debug("chat typesense response (superlative sort): hit_count=%s", len(hits))
+
+    labels = _ordinal_labels(superlative_phrase) if superlative_phrase else []
+
+    cards, parts = [], []
+    for i, hit in enumerate(hits, 1):
+        card, block = _hit_to_card_and_block(hit, i)
+        if i <= len(labels):
+            block = block.replace(f"{i}. {card['title']}", f"{i}. {card['title']} ({labels[i - 1]})", 1)
+        cards.append(card)
+        parts.append(block)
+
+    return cards, "\n\n".join(parts)
+
+
 # ── LLM streaming ──────────────────────────────────────────────────────────────
 
 def _filter_cards_by_response(cards: list[dict], response_text: str) -> list[dict]:
@@ -553,6 +823,8 @@ def _system_prompt(
     note_vague_preference: bool = False,
     has_price_field: bool = True,
     persona: dict | None = None,
+    sorted_field: str | None = None,
+    sorted_direction: str = "",
 ) -> str:
     cfg = {**CHAT_PERSONA_DEFAULTS, **(persona or {})}
     item_noun = (cfg["item_noun"] or CHAT_PERSONA_DEFAULTS["item_noun"]).strip()
@@ -560,6 +832,10 @@ def _system_prompt(
     prompt = _PROMPTS["system_prompt"]["base"].format(item_noun=item_noun)
     if cfg["enable_comparison"]:
         prompt += _PROMPTS["system_prompt"]["comparison_note"]
+    if sorted_field:
+        direction_word = "ascending" if sorted_direction == "asc" else "descending"
+        prompt += _PROMPTS["system_prompt"]["superlative_sorted_note"].format(
+            field=sorted_field, direction=direction_word)
     if note_vague_preference:
         key = "vague_preference_note" if has_price_field else "vague_preference_note_no_price"
         prompt += _PROMPTS["system_prompt"][key]
@@ -609,6 +885,7 @@ async def chat_stream(
     query_by_weights: str | None = None,
     facet_query_by: str | None = None,
     persona_config: dict | None = None,
+    superlative_field_map: dict | None = None,
 ) -> AsyncIterator[dict]:
     """Yield SSE-ready dicts: products → text tokens → (on error) error."""
     log.debug("chat request: index_id=%s query=%r messages=%s", index_id, query, messages)
@@ -619,18 +896,60 @@ async def chat_stream(
 
     search_query, combined_filter, hist_messages = await _resolve_retrieval_params(query, messages)
 
-    cards, context = await _search_context(
-        search_query, index_id, query_by, query_by_weights, facet_query_by,
-        price_filter=combined_filter,
-    )
+    # Cheap pre-check (free regex, no I/O) before attempting device-variant
+    # resolution at all — most queries either have no digit or hit an index
+    # with no compatible_devices-equivalent field, so this keeps the added
+    # cost near zero for the common case. See
+    # docs/deviceCompatibilityMatchingDesign.md.
+    device_filter: str | None = None
+    if _HAS_NUMBER_RE.search(search_query):
+        device_field = await _resolve_concept_field(
+            index_id, "device_compatibility", superlative_field_map or {},
+        )
+        if device_field:
+            device_filter = await _resolve_device_filter(search_query, index_id, device_field)
+            if device_filter:
+                log.debug("chat device filter resolved: index_id=%s field=%s filter=%s",
+                          index_id, device_field, device_filter)
+    combined_filter = _combine_filters(combined_filter, device_filter)
+
+    superlative = _detect_superlative_concept(search_query)
+    resolved_field: str | None = None
+    resolved_direction = ""
+    if superlative:
+        matched_phrase, concept, resolved_direction = superlative
+        resolved_field = await _resolve_concept_field(
+            index_id, concept, superlative_field_map or {},
+        )
+
+    if resolved_field:
+        stripped_query = _strip_structural_phrases(search_query, matched_phrase)
+        log.debug("chat superlative resolved: index_id=%s concept=%s field=%s direction=%s "
+                  "query=%r -> stripped=%r",
+                  index_id, concept, resolved_field, resolved_direction, search_query, stripped_query)
+        cards, context = await _search_context_sorted(
+            stripped_query, index_id, resolved_field, resolved_direction,
+            query_by, query_by_weights, price_filter=combined_filter,
+            superlative_phrase=matched_phrase,
+        )
+    else:
+        cards, context = await _search_context(
+            search_query, index_id, query_by, query_by_weights, facet_query_by,
+            price_filter=combined_filter,
+        )
 
     if _smart_followup_enabled:
         cards = _merge_cards(cards, _pinned_cards(messages))
 
-    is_vague = _is_vague_preference_query(query)
+    # A resolved superlative already has a precise, deterministic answer —
+    # skip the vague-preference disclosure for this turn even if the query
+    # also happens to contain a word from vague_preference_terms (e.g.
+    # "most popular" matches both "popular" and the superlative concept map).
+    is_vague = _is_vague_preference_query(query) and not resolved_field
     has_price = await _index_has_price_field(index_id) if is_vague else True
     system  = _system_prompt(context, note_vague_preference=is_vague, has_price_field=has_price,
-                              persona=persona_config)
+                              persona=persona_config,
+                              sorted_field=resolved_field, sorted_direction=resolved_direction)
     history = [{"role": m["role"], "content": m.get("content", "")} for m in hist_messages] + \
               [{"role": "user", "content": query}]
 

@@ -216,6 +216,12 @@ class IndexMeta(BaseModel):
     # defaults (see chat/service.py _CHAT_PERSONA_DEFAULTS) — {} behaves identically to
     # today's fixed prompt.
     chat_persona_config: dict = {}
+    # Cache of resolved superlative-query concepts ("cheapest" -> price concept)
+    # to this index's actual field names. Write-through cache — populated lazily
+    # the first time a concept is resolved live, not recomputed on every request.
+    # {} is always safe: chat/service.py falls back to live resolution when a
+    # concept isn't (yet) in the cache. See docs/superlativePriceDesign.md.
+    superlative_field_map: dict = {}
 
 
 class IngestStatus(BaseModel):
