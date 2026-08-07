@@ -184,11 +184,12 @@ _SUPERLATIVE_CONCEPT_MAP: dict[str, tuple[str, str]] = {
 
 # concept -> candidate field-name substrings, tried in order; exact match wins first
 _CONCEPT_FIELD_CANDIDATES: dict[str, list[str]] = {
-    "price":      ["price", "cost", "rate", "fee"],
-    "popularity": ["popularity", "popular"],
-    "recency":    ["release_date", "created_at", "date", "launched"],
-    "size":       ["size", "screen_size", "capacity"],
-    "rating":     ["rating", "review_score", "stars"],
+    "price":               ["price", "cost", "rate", "fee"],
+    "popularity":          ["popularity", "popular"],
+    "recency":             ["release_date", "created_at", "date", "launched"],
+    "size":                ["size", "screen_size", "capacity"],
+    "rating":              ["rating", "review_score", "stars"],
+    "device_compatibility": ["compatible_devices", "compatible_with", "device_compatibility"],
 }
 
 _SORTABLE_TYPES = {"int32", "int64", "float"}
@@ -247,14 +248,19 @@ def _match_field(fields: list[dict], candidates: list[str]) -> str | None:
     return min(substring_matches, key=len) if substring_matches else None
 
 
-async def _resolve_superlative_field(
+async def _resolve_concept_field(
     index_id: str, concept: str, cached_map: dict,
 ) -> str | None:
     """
-    Resolve a concept to an actual field name on this index. Checks the
-    write-through cache first; on a miss, resolves live against the schema and
-    persists the result for next time (merged, not overwritten, so concurrent
-    requests resolving different concepts don't clobber each other).
+    Resolve a concept (e.g. "price", "device_compatibility") to an actual
+    field name on this index. Checks the write-through cache first; on a
+    miss, resolves live against the schema and persists the result for next
+    time (merged, not overwritten, so concurrent requests resolving different
+    concepts don't clobber each other). Shared by both the superlative-price
+    feature and device-variant matching — same cache
+    (indexes.superlative_field_map), same resolution strategy, different
+    concepts. See docs/deviceCompatibilityMatchingDesign.md for the naming
+    note on reusing that column name for a non-superlative concept.
     """
     if concept in cached_map:
         return cached_map[concept] or None
@@ -266,6 +272,56 @@ async def _resolve_superlative_field(
         log.warning("failed to cache superlative_field_map for index=%s concept=%s",
                    index_id, concept, exc_info=True)
     return field
+
+
+def _combine_filters(*filters: str | None) -> str | None:
+    parts = [f for f in filters if f]
+    return " && ".join(parts) if parts else None
+
+
+async def _resolve_device_filter(query: str, index_id: str, field_name: str) -> str | None:
+    """
+    Two-step device-variant resolution (see
+    docs/deviceCompatibilityMatchingDesign.md). Step 1: let Typesense's own
+    typo tolerance resolve messy input ("ihpone17 promax") against the real
+    compatible_devices values on this index — no new fuzzy-matching code of
+    our own. Step 2: use the top hit's actual value, not the user's raw text,
+    to build a precise exact-match filter, so a query naming one specific
+    variant doesn't get blended with lexically-similar sibling variants
+    ("iPhone 17" vs "iPhone 17 Pro Max"). Returns None when there's no
+    confident match (e.g. a generic query that doesn't name a device), so the
+    caller falls through to normal, unfiltered retrieval rather than forcing
+    a wrong narrowing.
+    """
+    col    = ts.collection_name(index_id)
+    client = ts.get_client()
+    resp = await asyncio.to_thread(
+        lambda: client.multi_search.perform({"searches": [{
+            "collection": col, "q": query, "query_by": field_name,
+            "per_page": "1", "exclude_fields": "vec",
+        }]}, {})
+    )
+    hits = resp.get("results", [{}])[0].get("hits", [])
+    if not hits:
+        return None
+    resolved = hits[0]["document"].get(field_name)
+    values = resolved if isinstance(resolved, list) else [resolved]
+    values = [v for v in values if v]
+    if not values:
+        return None
+    # The top hit may be a multi-compatible product (e.g. a case listing both
+    # "iPhone 17" and "iPhone 16 Pro"). Taking the whole array unconditionally
+    # would widen the filter to admit items compatible ONLY with a co-listed
+    # device the query never asked about. When the query itself names a model
+    # number, narrow to values that share it — falls back to the full list if
+    # nothing shares a number (query didn't specify one, or nothing matches).
+    query_digits = set(re.findall(r'\d+', query))
+    if query_digits and len(values) > 1:
+        narrowed = [v for v in values if set(re.findall(r'\d+', v)) & query_digits]
+        if narrowed:
+            values = narrowed
+    quoted = ",".join(f"`{v}`" for v in values)
+    return f"{field_name}:=[{quoted}]"
 
 
 # ── Follow-up detection — Tier 1 (unambiguous pronoun / intent phrases) ───────
@@ -322,14 +378,29 @@ def _is_follow_up_tier2(query: str) -> bool:
 # Works identically for phones, plants, furniture, cars — any catalog.
 
 def _shown_product_tokens(messages: list[dict]) -> set[str]:
-    """All words (>2 chars) from titles of every product shown so far."""
-    tokens: set[str] = set()
-    for m in messages:
-        for p in (m.get("products") or []):
-            for w in (p.get("title") or "").lower().split():
-                if len(w) > 2:
-                    tokens.add(w)
-    return tokens
+    """
+    Words (>2 chars) from the titles of the products shown in the MOST RECENT
+    assistant turn only — not accumulated across the entire conversation.
+    Matches the same "most recent turn only" scoping _ids_from_history and
+    _pinned_cards already use elsewhere in this file.
+
+    Accumulating across all history let unrelated, non-adjacent topics bleed
+    into this guard: "iphone adapter" was wrongly classified as a follow-up
+    and ID-pinned to a *different* prior turn's Samsung adapters, because
+    "iphone" appeared in an even-earlier "iPhone cases" turn and "adapter"
+    appeared in the (unrelated) Samsung-adapter turn — neither together, and
+    neither in the actually-relevant most recent turn, but the accumulated
+    set couldn't tell the difference.
+    """
+    for m in reversed(messages):
+        if m.get("role") == "assistant" and m.get("products"):
+            return {
+                w.lower()
+                for p in m["products"]
+                for w in (p.get("title") or "").split()
+                if len(w) > 2
+            }
+    return set()
 
 
 def _is_follow_up_short_query(query: str, messages: list[dict]) -> bool:
@@ -337,7 +408,14 @@ def _is_follow_up_short_query(query: str, messages: list[dict]) -> bool:
     if len(words) > 5 or not messages:
         return False
     shown = _shown_product_tokens(messages)
-    content_words = [w.lower() for w in words if len(w) > 3]
+    # A token is "content" if it's long enough to be meaningful on its own, OR
+    # contains a digit — model/generation numbers ("16" vs "17", "S24" vs "S25",
+    # "4G" vs "5G") are almost never filler, and are often exactly the token
+    # that distinguishes a genuinely new query from the previous turn's topic,
+    # even though they're short. Dropping them let e.g. "iphone 17 case" be
+    # misread as a follow-up on an already-shown iPhone 16 case, because "17"
+    # never got compared against what was actually shown.
+    content_words = [w.lower() for w in words if len(w) > 3 or any(c.isdigit() for c in w)]
     if not content_words:
         return True  # "ok" / "yes" / "and?" — almost certainly a follow-up
     new_terms = [w for w in content_words if w not in shown]
@@ -651,11 +729,22 @@ async def _search_context(
     return cards, "\n\n".join(parts)
 
 
+def _ordinal_labels(phrase: str) -> list[str]:
+    """
+    ("cheapest", "2nd cheapest", "3rd cheapest") for the matched superlative
+    phrase — works generically for any matched phrase, including multi-word
+    ones ("most expensive" -> "2nd most expensive"), since English forms this
+    ordinal the same way regardless of the specific adjective.
+    """
+    return [phrase, f"2nd {phrase}", f"3rd {phrase}"]
+
+
 async def _search_context_sorted(
     query: str, index_id: str, sort_field: str, sort_direction: str,
     query_by: str = "title,content",
     query_by_weights: str | None = None,
     price_filter: str | None = None,
+    superlative_phrase: str | None = None,
 ) -> tuple[list[dict], str]:
     """
     Deterministic path for a resolved superlative query (see
@@ -665,6 +754,12 @@ async def _search_context_sorted(
     target field is exactly what causes a superlative query to rank the
     wrong item first. Text narrowing (e.g. "iphone" in "cheapest iphone")
     still applies via query_by; only the ranking is overridden.
+
+    The top 3 hits get an explicit rank label ("(cheapest)", "(2nd cheapest)",
+    "(3rd cheapest)") written directly into their context block, not just left
+    as positional order — the model only has to copy a label it can already
+    see, instead of inferring rank from list position, which is the exact
+    inference it's been shown to get wrong even on correctly sorted data.
     """
     col    = ts.collection_name(index_id)
     client = ts.get_client()
@@ -685,9 +780,13 @@ async def _search_context_sorted(
     hits = resp.get("results", [{}])[0].get("hits", [])
     log.debug("chat typesense response (superlative sort): hit_count=%s", len(hits))
 
+    labels = _ordinal_labels(superlative_phrase) if superlative_phrase else []
+
     cards, parts = [], []
     for i, hit in enumerate(hits, 1):
         card, block = _hit_to_card_and_block(hit, i)
+        if i <= len(labels):
+            block = block.replace(f"{i}. {card['title']}", f"{i}. {card['title']} ({labels[i - 1]})", 1)
         cards.append(card)
         parts.append(block)
 
@@ -797,12 +896,29 @@ async def chat_stream(
 
     search_query, combined_filter, hist_messages = await _resolve_retrieval_params(query, messages)
 
+    # Cheap pre-check (free regex, no I/O) before attempting device-variant
+    # resolution at all — most queries either have no digit or hit an index
+    # with no compatible_devices-equivalent field, so this keeps the added
+    # cost near zero for the common case. See
+    # docs/deviceCompatibilityMatchingDesign.md.
+    device_filter: str | None = None
+    if _HAS_NUMBER_RE.search(search_query):
+        device_field = await _resolve_concept_field(
+            index_id, "device_compatibility", superlative_field_map or {},
+        )
+        if device_field:
+            device_filter = await _resolve_device_filter(search_query, index_id, device_field)
+            if device_filter:
+                log.debug("chat device filter resolved: index_id=%s field=%s filter=%s",
+                          index_id, device_field, device_filter)
+    combined_filter = _combine_filters(combined_filter, device_filter)
+
     superlative = _detect_superlative_concept(search_query)
     resolved_field: str | None = None
     resolved_direction = ""
     if superlative:
         matched_phrase, concept, resolved_direction = superlative
-        resolved_field = await _resolve_superlative_field(
+        resolved_field = await _resolve_concept_field(
             index_id, concept, superlative_field_map or {},
         )
 
@@ -814,6 +930,7 @@ async def chat_stream(
         cards, context = await _search_context_sorted(
             stripped_query, index_id, resolved_field, resolved_direction,
             query_by, query_by_weights, price_filter=combined_filter,
+            superlative_phrase=matched_phrase,
         )
     else:
         cards, context = await _search_context(
