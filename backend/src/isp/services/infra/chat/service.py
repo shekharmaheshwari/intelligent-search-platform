@@ -799,22 +799,37 @@ def _filter_cards_by_response(cards: list[dict], response_text: str) -> list[dic
     """
     Keep only cards whose title is actually mentioned in the LLM's finished answer.
 
-    Word-boundary match against the full response, case-insensitive — plain substring
-    containment would let a shorter title falsely match inside a longer, different
-    one (e.g. "Pixel 9" is a substring of "Pixel 9a"; "iPhone 16" of "iPhone 16 Plus").
-    \b fails to match between two word characters, so "Pixel 9" won't match inside
-    "Pixel 9a" (no boundary between "9" and "a") but will still match a real
-    standalone mention. If nothing matches (e.g. the model paraphrased every name,
-    or named no product at all), fall back to the original unfiltered list rather
-    than showing an empty carousel.
+    Plain substring containment would let a shorter title falsely match inside a
+    longer, different one (e.g. "Pixel 9" is a substring of "Pixel 9a"; "Galaxy S26"
+    of "Galaxy S26+"). \b can't be used for this: it anchors on a \w/\W transition,
+    which breaks down whenever a title ends in punctuation ("Galaxy S26+") — the
+    character after "+" is a space, both non-word, so \b never matches there and
+    the title fails to match even its own literal, correct mention. Anchoring on
+    "not adjacent to an alphanumeric character" instead (regardless of what
+    character sits at the title's own edge) fixes that self-match, but titles can
+    still contain one another as substrings ("Galaxy S26" inside "Galaxy S26+").
+    So titles are checked longest-first, and each match claims its text span —
+    a shorter title only counts if it has a real standalone occurrence outside any
+    span a longer title already claimed. If nothing matches (e.g. the model
+    paraphrased every name, or named no product at all), fall back to the original
+    unfiltered list rather than showing an empty carousel.
     """
     if not response_text:
         return cards
     low = response_text.lower()
-    used = [
-        c for c in cards
-        if c.get("title") and re.search(r'\b' + re.escape(c["title"].lower()) + r'\b', low)
-    ]
+    claimed = bytearray(len(low))
+    used_ids: set[int] = set()
+    for c in sorted(cards, key=lambda c: -len(c.get("title") or "")):
+        title = c.get("title")
+        if not title:
+            continue
+        pattern = r'(?<![A-Za-z0-9])' + re.escape(title.lower()) + r'(?![A-Za-z0-9])'
+        for m in re.finditer(pattern, low):
+            if not any(claimed[m.start():m.end()]):
+                used_ids.add(id(c))
+                claimed[m.start():m.end()] = b'\x01' * (m.end() - m.start())
+                break
+    used = [c for c in cards if id(c) in used_ids]
     return used or cards
 
 
