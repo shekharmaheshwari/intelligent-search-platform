@@ -16,6 +16,7 @@
 
   const curlPublicSearch = curls.publicSearch;
   const curlPublicDocs   = curls.publicDocs;
+  const curlSuggest      = curls.suggest;
   const curlHybrid       = curls.hybrid;
   const curlLexical      = curls.lexical;
   const curlDocs         = curls.docs;
@@ -94,6 +95,40 @@
   ],
   "found": 42,
   "page": 1
+}`}</code></pre>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div class="endpoint-line">
+          <span class="method get">GET</span>
+          <span class="path">/v1/suggest</span>
+        </div>
+        <button class="copy-btn" on:click={() => copy(curlSuggest, 'suggest')}>
+          {copied === 'suggest' ? '✓ Copied' : 'Copy'}
+        </button>
+      </div>
+      <p class="desc">
+        Autocomplete / typeahead suggestions — already unauthenticated, no <code>/public</code>
+        variant needed. Note the URL shape differs from the endpoints above: it's not nested
+        under <code>/indexes/{'{'}id{'}'}</code> — pass the index via the <code>index_id</code> query param instead.
+      </p>
+      <pre class="code-block"><code>{curlSuggest}</code></pre>
+      <p class="desc">
+        Query params: <code>q</code> (required, min 2 chars), <code>index_id</code>,
+        <code>limit</code> (default 8, max 20), <code>session_id</code> (optional).
+      </p>
+      <p class="desc">
+        Scope to one category via <code>index_id</code> (resolved server-side to that
+        index's <code>intent_label</code>) or <code>category</code> directly (e.g. isolated
+        stores). When scoped, results are strictly limited to that category — no
+        cross-category fallback.
+      </p>
+      <pre class="code-block"><code>{`{
+  "suggestions": [
+    { "text": "iphone 17 pro case", "type": "query", "score": 12.4 }
+  ],
+  "query": "iphone"
 }`}</code></pre>
     </section>
   </div>
