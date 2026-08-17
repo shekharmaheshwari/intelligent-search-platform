@@ -103,6 +103,8 @@ export interface IndexMeta {
   version_boost?: boolean;
   /** Inferred intent category label (e.g. "product_search") used to pre-fill the suggestions category field. */
   intent_label?: string | null;
+  /** URL-friendly identifier — usable anywhere {id_or_slug} is accepted in the public API. */
+  slug?: string;
   /** Affinity dimensions discovered after the last rebuild. Drives per-index personalisation. */
   affinity_dimensions?: AffinityDimension[];
 }

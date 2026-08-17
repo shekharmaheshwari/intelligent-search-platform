@@ -25,6 +25,7 @@ export function mapIndexMetaToIndex(dto: IndexMeta): Index {
     embedModel: dto.embed_model ?? '',
     versionBoost: dto.version_boost ?? false,
     intentLabel: dto.intent_label ?? null,
+    slug: dto.slug ?? '',
     affinityDimensions: dto.affinity_dimensions ?? [],
   };
 }
