@@ -3,6 +3,15 @@
 // Assign to the Account index (GSheet connector).
 
 /**
+ * Pass-through transform — this extension only implements extractSuggestions.
+ * @param {Object} doc
+ * @returns {Object}
+ */
+function transform(doc) {
+  return doc;
+}
+
+/**
  * Generate typeahead suggestions from an account support page document.
  *
  * Uses only the Triggers column — comma-separated search phrases hand-curated
