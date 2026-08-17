@@ -20,6 +20,8 @@ export interface Index {
   versionBoost?: boolean;
   /** Inferred intent category label; null when the backend has not yet classified the index. */
   intentLabel?: string | null;
+  /** URL-friendly identifier — usable anywhere a hex id is accepted in the public API. */
+  slug: string;
   /** Affinity dimensions discovered after the last rebuild. */
   affinityDimensions?: AffinityDimension[];
 }

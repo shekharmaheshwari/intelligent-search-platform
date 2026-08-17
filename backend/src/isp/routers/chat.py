@@ -18,7 +18,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from isp.services.infra.chat import service as chat_service
-from isp.services.domain import index_service
+from isp.routers.indexes import _resolve_index
 
 router = APIRouter(tags=["chat"])
 
@@ -30,11 +30,14 @@ class ChatRequest(BaseModel):
 
 @router.post("/indexes/{index_id}/chat")
 async def chat(index_id: str, body: ChatRequest) -> StreamingResponse:
-    """Stream a chat response grounded in the given ISP index."""
+    """Stream a chat response grounded in the given ISP index. Accepts hex id or slug."""
     # Derive query_by from operator-marked searchable fields in field_config.
     # chatContent is always the facet pass target — it is built by the JS extension
     # at index time and contains all structured, labelled attributes for this index type.
-    meta = await index_service.get_index(index_id)
+    meta = await _resolve_index(index_id)
+    # Downstream calls key the Typesense collection as isp_{hex id} — always resolve
+    # to the canonical hex id here so a slug-form index_id still hits the right collection.
+    resolved_id = meta.id if meta else index_id
     query_by: str = "chatContent,title,content"
     query_by_weights: str | None = None
     if meta and meta.field_config:
@@ -52,7 +55,7 @@ async def chat(index_id: str, body: ChatRequest) -> StreamingResponse:
     superlative_field_map = meta.superlative_field_map if meta else None
 
     async def generate():
-        async for chunk in chat_service.chat_stream(body.query, body.messages, index_id, query_by, query_by_weights, facet_query_by="chatContent", persona_config=persona_config, superlative_field_map=superlative_field_map):
+        async for chunk in chat_service.chat_stream(body.query, body.messages, resolved_id, query_by, query_by_weights, facet_query_by="chatContent", persona_config=persona_config, superlative_field_map=superlative_field_map):
             yield f"data: {json.dumps(chunk)}\n\n"
         yield "data: [DONE]\n\n"
 

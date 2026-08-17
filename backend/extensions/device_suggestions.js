@@ -3,6 +3,15 @@
 // Assign to Phones, Tablets, or Smartwatches indexes.
 
 /**
+ * Pass-through transform — this extension only implements extractSuggestions.
+ * @param {Object} doc
+ * @returns {Object}
+ */
+function transform(doc) {
+  return doc;
+}
+
+/**
  * Generate typeahead suggestions from an ISP catalog device document.
  * Extracts the product title and any aliases stored in metadata.
  *

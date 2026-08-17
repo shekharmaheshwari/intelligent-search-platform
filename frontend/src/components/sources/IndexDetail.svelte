@@ -120,7 +120,7 @@
         <SearchPanel {indexId} />
 
       {:else if tab === 'api'}
-        <ApiPanel {indexId} />
+        <ApiPanel {indexId} slug={meta.slug} />
 
       {:else if tab === 'suggestions'}
         <SuggestionsTab {indexId} category={meta.intentLabel ?? undefined} />
