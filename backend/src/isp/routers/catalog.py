@@ -558,10 +558,10 @@ async def _resolve_suggest_category(index_id: str | None) -> str | None:
     ``indexes`` DB table.  When suggestion documents are seeded from that index,
     they are tagged with the same label in their ``category`` field.
 
-    This function translates an opaque index ID into that label so the
-    ``/v1/suggest`` endpoint can scope autocomplete results to only the entries
-    that belong to the caller's index — without any hardcoded slug-to-category
-    mapping in application code.
+    This function translates an opaque index ID (or human-readable slug) into
+    that label so the ``/v1/suggest`` endpoint can scope autocomplete results
+    to only the entries that belong to the caller's index — without any
+    hardcoded slug-to-category mapping in application code.
 
     Returns ``None`` when:
     - ``index_id`` is absent (caller wants cross-category suggestions).
@@ -574,7 +574,7 @@ async def _resolve_suggest_category(index_id: str | None) -> str | None:
         pool = await get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT intent_label FROM indexes WHERE id = $1", index_id
+                "SELECT intent_label FROM indexes WHERE id = $1 OR slug = $1", index_id
             )
         label = (row["intent_label"] or "").strip() if row else ""
         return label or None
@@ -589,7 +589,7 @@ async def suggest(
     q:          str = Query(..., description="Partial query (min 2 chars)"),
     session_id: str = Query(default=""),
     limit:      int = Query(default=8, ge=1, le=20),
-    index_id:   str | None = Query(default=None, description="ISP index ID — resolved to intent_label for category scoping"),
+    index_id:   str | None = Query(default=None, description="ISP index ID or slug — resolved to intent_label for category scoping"),
     category:   str | None = Query(default=None, description="Direct category filter (used by isolated stores like plants)"),
 ):
     """

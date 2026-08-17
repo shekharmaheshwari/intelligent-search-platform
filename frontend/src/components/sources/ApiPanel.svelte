@@ -10,9 +10,14 @@
   import { getApiBase, buildApiCurls } from './ApiPanel.helpers';
 
   export let indexId: string;
+  /** Human-readable identifier, e.g. "accessories". Falls back to indexId when unset (legacy indexes). */
+  export let slug: string = '';
 
-  const base  = getApiBase();
-  const curls = buildApiCurls(base, indexId);
+  const base = getApiBase();
+  // Prefer the slug everywhere an identifier is shown or sent — every endpoint below
+  // resolves either form, but the slug reads far better in docs and curl examples.
+  const id    = slug || indexId;
+  const curls = buildApiCurls(base, id);
 
   const curlPublicSearch = curls.publicSearch;
   const curlPublicDocs   = curls.publicDocs;
@@ -50,7 +55,7 @@
       <div class="section-head">
         <div class="endpoint-line">
           <span class="method post">POST</span>
-          <span class="path">/v1/indexes/{indexId}/search/public</span>
+          <span class="path">/v1/indexes/{id}/search/public</span>
         </div>
         <button class="copy-btn" on:click={() => copy(curlPublicSearch, 'pub-search')}>
           {copied === 'pub-search' ? '✓ Copied' : 'Copy'}
@@ -64,7 +69,7 @@
       <div class="section-head">
         <div class="endpoint-line">
           <span class="method get">GET</span>
-          <span class="path">/v1/indexes/{indexId}/documents/public</span>
+          <span class="path">/v1/indexes/{id}/documents/public</span>
         </div>
         <button class="copy-btn" on:click={() => copy(curlPublicDocs, 'pub-docs')}>
           {copied === 'pub-docs' ? '✓ Copied' : 'Copy'}
@@ -150,7 +155,7 @@
       <div class="section-head">
         <div class="endpoint-line">
           <span class="method post">POST</span>
-          <span class="path">/v1/indexes/{indexId}/search</span>
+          <span class="path">/v1/indexes/{id}/search</span>
         </div>
       </div>
       <p class="desc">Request body — all fields optional except <code>q</code>.</p>
@@ -166,7 +171,7 @@
       <div class="section-head">
         <div class="endpoint-line">
           <span class="method post">POST</span>
-          <span class="path">/v1/indexes/{indexId}/search</span>
+          <span class="path">/v1/indexes/{id}/search</span>
           <span class="mode-tag">hybrid</span>
         </div>
         <button class="copy-btn" on:click={() => copy(curlHybrid, 'hybrid')}>
@@ -180,7 +185,7 @@
       <div class="section-head">
         <div class="endpoint-line">
           <span class="method post">POST</span>
-          <span class="path">/v1/indexes/{indexId}/search</span>
+          <span class="path">/v1/indexes/{id}/search</span>
           <span class="mode-tag">lexical</span>
         </div>
         <button class="copy-btn" on:click={() => copy(curlLexical, 'lexical')}>
@@ -194,7 +199,7 @@
       <div class="section-head">
         <div class="endpoint-line">
           <span class="method get">GET</span>
-          <span class="path">/v1/indexes/{indexId}/documents</span>
+          <span class="path">/v1/indexes/{id}/documents</span>
         </div>
         <button class="copy-btn" on:click={() => copy(curlDocs, 'docs')}>
           {copied === 'docs' ? '✓ Copied' : 'Copy'}
@@ -245,7 +250,7 @@
       <div class="section-head">
         <div class="endpoint-line">
           <span class="method post">POST</span>
-          <span class="path">/v1/indexes/{indexId}/chat</span>
+          <span class="path">/v1/indexes/{id}/chat</span>
         </div>
         <button class="copy-btn" on:click={() => copy(curlChat, 'chat')}>
           {copied === 'chat' ? '✓ Copied' : 'Copy'}
@@ -259,7 +264,7 @@
       <div class="section-head">
         <div class="endpoint-line">
           <span class="method post">POST</span>
-          <span class="path">/v1/indexes/{indexId}/chat</span>
+          <span class="path">/v1/indexes/{id}/chat</span>
           <span class="mode-tag">multi-turn</span>
         </div>
         <button class="copy-btn" on:click={() => copy(curlChatTurn, 'chat-turn')}>
