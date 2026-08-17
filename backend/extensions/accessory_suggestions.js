@@ -3,6 +3,15 @@
 // Assign to the Accessories index.
 
 /**
+ * Pass-through transform — this extension only implements extractSuggestions.
+ * @param {Object} doc
+ * @returns {Object}
+ */
+function transform(doc) {
+  return doc;
+}
+
+/**
  * Generate typeahead suggestions from an ISP catalog accessory document.
  *
  * Phrase strategy:
