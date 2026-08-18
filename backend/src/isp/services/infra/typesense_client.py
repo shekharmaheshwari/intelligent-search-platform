@@ -244,9 +244,11 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
     fb_params: dict = {"filter_by": filter_by} if filter_by else {}
     pin_params: dict = {"pinned_hits": ",".join(f"{d}:{i+1}" for i, d in enumerate(pinned_hits))} if pinned_hits else {}
     facet_params: dict = {"facet_by": ",".join(facet_fields), "max_facet_values": 100} if facet_fields else {}
-    _qb = query_by or "title,content"
+    _qb = query_by or "title,content,aliases"
     _qb_fields = _qb.split(",")
-    _qb_weights = ",".join(["2" if f == "title" else "1" for f in _qb_fields])
+    _qb_weights = ",".join(
+        "3" if f == "aliases" else "2" if f == "title" else "1" for f in _qb_fields
+    )
     base_params: dict = {
         "q": q, "query_by": _qb,
         "query_by_weights": _qb_weights,
@@ -303,9 +305,11 @@ def search_with_vec(
     # Typesense hard cap is 250 per page; 3× over-fetch improves RRF recall
     # but must be clamped so we never exceed the limit.
     fetch_n = min(per_page * 3, 250)
-    _qb = query_by or "title,content"
+    _qb = query_by or "title,content,aliases"
     _qb_fields = _qb.split(",")
-    _qb_weights = ",".join(["2" if f == "title" else "1" for f in _qb_fields])
+    _qb_weights = ",".join(
+        "3" if f == "aliases" else "2" if f == "title" else "1" for f in _qb_fields
+    )
     resp = client.multi_search.perform({"searches": [
         {
             "collection": name,
