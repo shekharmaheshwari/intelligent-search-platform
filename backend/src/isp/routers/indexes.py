@@ -554,7 +554,7 @@ async def update_affinity_dimensions(idx_id: str, body: AffinityDimensionUpdate)
 
 
 _FIELD_SYSTEM = {"id", "vec", "indexed_at"}
-_FIELD_ALWAYS_SEARCHABLE = {"title", "content"}
+_FIELD_ALWAYS_SEARCHABLE = {"title", "content", "aliases"}
 
 def _build_embed_text(doc: dict) -> str:
     """Build the text to embed for a document.
