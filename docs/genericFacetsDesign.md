@@ -59,15 +59,17 @@ _parts = [
 filter_by = " && ".join(_parts) if _parts else None
 ```
 
-`query_by` is also derived dynamically from `field_config`:
+`query_by` is also derived dynamically from `field_config`. `title`, `content`, and
+`aliases` are always the base (see `docs/02-typesense-integration.md` for why
+`aliases` was added):
 
 ```python
 _extra_qb = [
     fc["name"]
     for fc in (meta.field_config or [])
-    if fc.get("searchable") and fc["name"] not in {"title", "content"}
+    if fc.get("searchable") and fc["name"] not in {"title", "content", "aliases"}
 ]
-ts_query_by = ("title,content," + ",".join(_extra_qb)) if _extra_qb else None
+ts_query_by = "title,content,aliases" + ("," + ",".join(_extra_qb) if _extra_qb else "")
 ```
 
 ---
