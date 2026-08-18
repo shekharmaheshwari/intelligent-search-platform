@@ -1294,7 +1294,7 @@ POST /v1/indexes/{id}/search  {"q": "iphone 15", "mode": "hybrid"}
             typesense_client.search_with_vec(index_id, q, vec, page, per_page)
             │
             │   multi_search (two passes in parallel):
-            │   ┌─ lexical:  query_by="title,content", num_results = per_page * 3
+            │   ┌─ lexical:  query_by="title,content,aliases", num_results = per_page * 3
             │   └─ semantic: vector_query="vec:([...],k=per_page*3)"
             │
             │   RRF merge:
