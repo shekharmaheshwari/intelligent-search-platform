@@ -37,7 +37,8 @@ _SKIP_FIELDS = {
 _MIN_DISTINCT = 2    # fields with fewer distinct values are too uniform to be useful
 _MAX_DISTINCT = 50   # fields with more distinct values are too specific (free-text risk)
 _SAMPLE_SIZE  = 250  # documents to scan during discovery
-_PRICE_TIER_BOOST = 0.10  # fixed boost for the derived price_tier dimension
+_PRICE_TIER_BOOST   = 0.10  # fixed boost for the derived price_tier dimension
+_NUMERIC_TIER_BOOST = 0.10  # fixed boost for any other derived {field}_tier dimension
 
 
 def _cardinality_boost(num_distinct: int) -> float:
@@ -71,19 +72,17 @@ def _safe_json(raw) -> dict:
     return {}
 
 
-def _price_tier_thresholds(prices: list[float]) -> dict:
+def _percentile_split(values: list[float]) -> tuple[float, float] | None:
     """
-    Derive budget/mid/premium cut points from this index's own sampled prices
-    (33rd / 66th percentile) instead of a fixed dollar amount — catalogs span
-    very different price scales (e.g. accessories vs. phones), so a global
-    <30 / <=80 split leaves some indexes with every item in one tier.
-
-    Falls back to the old fixed 30/80 split when there isn't enough price
-    variety in the sample to derive a meaningful split.
+    33rd / 66th percentile split of a numeric field's distinct sampled values.
+    Shared by price_tier and any other derived {field}_tier dimension so both
+    use the same per-index, data-derived cut points instead of a guessed
+    constant. Returns None when there isn't enough distinct data (or the
+    split degenerates) to produce a meaningful 3-way tier.
     """
-    distinct = sorted(set(prices))
+    distinct = sorted(set(values))
     if len(distinct) < 3:
-        return {"budget_max": 30.0, "mid_max": 80.0}
+        return None
 
     def _percentile(pct: float) -> float:
         idx = pct * (len(distinct) - 1)
@@ -91,10 +90,44 @@ def _price_tier_thresholds(prices: list[float]) -> dict:
         hi = min(lo + 1, len(distinct) - 1)
         return round(distinct[lo] + (distinct[hi] - distinct[lo]) * (idx - lo), 2)
 
-    budget_max, mid_max = _percentile(1 / 3), _percentile(2 / 3)
-    if budget_max >= mid_max:
+    lo_cut, hi_cut = _percentile(1 / 3), _percentile(2 / 3)
+    return None if lo_cut >= hi_cut else (lo_cut, hi_cut)
+
+
+def _price_tier_thresholds(prices: list[float]) -> dict:
+    """
+    Derive budget/mid/premium cut points from this index's own sampled prices
+    instead of a fixed dollar amount — catalogs span very different price
+    scales (e.g. accessories vs. phones), so a global <30 / <=80 split leaves
+    some indexes with every item in one tier.
+
+    Falls back to the old fixed 30/80 split when there isn't enough price
+    variety in the sample to derive a meaningful split.
+    """
+    split = _percentile_split(prices)
+    if split is None:
         return {"budget_max": 30.0, "mid_max": 80.0}
+    budget_max, mid_max = split
     return {"budget_max": budget_max, "mid_max": mid_max}
+
+
+def _numeric_tier_thresholds(values: list[float]) -> dict | None:
+    """
+    Derive low/mid/high cut points for an arbitrary numeric metadata field —
+    e.g. a service catalog's sla_hours, a docs index's word_count — the same
+    percentile approach as price_tier, generalised beyond price so
+    non-commerce catalogs (no price field at all) still get comparable
+    tiering on whatever numeric field they actually have.
+
+    Unlike price, there's no universal fallback split for an arbitrary
+    field, so this returns None (caller skips the dimension) when the
+    sample doesn't have enough variety to derive one.
+    """
+    split = _percentile_split(values)
+    if split is None:
+        return None
+    low_max, mid_max = split
+    return {"low_max": low_max, "mid_max": mid_max}
 
 
 async def discover(index_id: str) -> list[dict]:
@@ -108,7 +141,11 @@ async def discover(index_id: str) -> list[dict]:
         "boost":       float,     # default additive score weight
         "enabled":     bool,      # whether this dimension is active
         "values":      list[str], # distinct values found during discovery
-        "derived_from": str | None  # set to "price" for the price_tier dimension
+        "derived_from": str | None  # source numeric field this dimension's value
+                                     # is computed from — "price" for price_tier,
+                                     # or the field name itself for any other
+                                     # generic {field}_tier dimension; None for
+                                     # plain categorical dimensions
       }
 
     Returns [] when no documents are found or the index doesn't exist.
@@ -147,9 +184,9 @@ async def discover(index_id: str) -> list[dict]:
     if not hits:
         return []
 
-    # ── Collect distinct string values per field ───────────────────────────────
+    # ── Collect distinct string values per field, and any numeric field ────────
     field_values: dict[str, set[str]] = {}
-    prices: list[float] = []
+    numeric_values: dict[str, list[float]] = {}
 
     for hit in hits:
         doc = hit.get("document", {})
@@ -161,12 +198,17 @@ async def discover(index_id: str) -> list[dict]:
             if isinstance(v, str) and v.strip():
                 field_values.setdefault(k, set()).add(v.lower().strip())
 
-        # Metadata JSON blob
+        # Metadata JSON blob — numeric fields are collected regardless of
+        # commerce-specific naming (price is just the first/most common
+        # example) so non-commerce catalogs (service SLAs, doc word counts…)
+        # get the same tiering treatment via numeric_values below.
         m = _safe_json(doc.get("metadata"))
         for k, v in m.items():
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                if k not in _SKIP_FIELDS or k == "price":
+                    numeric_values.setdefault(k, []).append(float(v))
+                continue
             if k in _SKIP_FIELDS:
-                if k == "price" and isinstance(v, (int, float)):
-                    prices.append(float(v))
                 continue
             if isinstance(v, str) and v.strip():
                 field_values.setdefault(k, set()).add(v.lower().strip())
@@ -201,6 +243,7 @@ async def discover(index_id: str) -> list[dict]:
     # Add price_tier as a derived dimension when raw price data is present.
     # Its cardinality is always 3 (budget/mid/premium) so we use the fixed boost.
     # Thresholds are derived per-index from the sampled price distribution.
+    prices = numeric_values.pop("price", [])
     if prices and not any(d["field"] == "price_tier" for d in dims):
         dims.append({
             "field":        "price_tier",
@@ -210,6 +253,27 @@ async def discover(index_id: str) -> list[dict]:
             "values":       ["budget", "mid", "premium"],
             "derived_from": "price",
             "thresholds":   _price_tier_thresholds(prices),
+        })
+
+    # Add a generic {field}_tier dimension for every other numeric metadata
+    # field with enough variety to split meaningfully — same mechanism as
+    # price_tier, generalised for catalogs with no commerce-specific fields
+    # at all (e.g. a service index's sla_hours, a docs index's word_count).
+    for field, values in numeric_values.items():
+        tier_field = f"{field}_tier"
+        if any(d["field"] == tier_field for d in dims):
+            continue
+        thresholds = _numeric_tier_thresholds(values)
+        if thresholds is None:
+            continue
+        dims.append({
+            "field":        tier_field,
+            "label":        f"{field.replace('_', ' ').title()} Tier",
+            "boost":        _NUMERIC_TIER_BOOST,
+            "enabled":      True,
+            "values":       ["low", "mid", "high"],
+            "derived_from": field,
+            "thresholds":   thresholds,
         })
 
     # Sort by boost descending so the highest-signal dimensions appear first in the UI
