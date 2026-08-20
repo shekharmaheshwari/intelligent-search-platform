@@ -208,6 +208,17 @@ def _apply_lexical_hook(raw: dict, hook) -> dict:
     ]}
 
 
+def _qb_and_weights(qb: str) -> tuple[str, str]:
+    """Build the query_by_weights string matching a comma-separated query_by field list."""
+    fields = qb.split(",")
+    weights = ",".join("3" if f == "aliases" else "2" if f == "title" else "1" for f in fields)
+    return qb, weights
+
+
+def _drop_field(qb: str, field: str) -> str:
+    return ",".join(f for f in qb.split(",") if f != field)
+
+
 def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
                      exclude_vec: bool = False, post_rrf_hook=None,
                      filter_by: str | None = None,
@@ -244,11 +255,7 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
     fb_params: dict = {"filter_by": filter_by} if filter_by else {}
     pin_params: dict = {"pinned_hits": ",".join(f"{d}:{i+1}" for i, d in enumerate(pinned_hits))} if pinned_hits else {}
     facet_params: dict = {"facet_by": ",".join(facet_fields), "max_facet_values": 100} if facet_fields else {}
-    _qb = query_by or "title,content,aliases"
-    _qb_fields = _qb.split(",")
-    _qb_weights = ",".join(
-        "3" if f == "aliases" else "2" if f == "title" else "1" for f in _qb_fields
-    )
+    _qb, _qb_weights = _qb_and_weights(query_by or "title,content,aliases")
     base_params: dict = {
         "q": q, "query_by": _qb,
         "query_by_weights": _qb_weights,
@@ -257,10 +264,18 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
     }
 
     def _search_with_sort(sort_by: str) -> dict:
+        params = base_params
         try:
-            raw = client.collections[name].documents.search({**base_params, "sort_by": sort_by})
-        except Exception:
-            raw = client.collections[name].documents.search({**base_params, "sort_by": "_text_match:desc"})
+            raw = client.collections[name].documents.search({**params, "sort_by": sort_by})
+        except Exception as e:
+            # Collections created before `aliases` existed in the schema
+            # (not yet rebuilt since it was added) 404 on any query_by that
+            # references it — retry once without it rather than repeating
+            # an identical failing request.
+            if "aliases" in params["query_by"].split(",") and "aliases" in str(e):
+                qb, weights = _qb_and_weights(_drop_field(params["query_by"], "aliases"))
+                params = {**params, "query_by": qb, "query_by_weights": weights}
+            raw = client.collections[name].documents.search({**params, "sort_by": "_text_match:desc"})
         result = _apply_lexical_hook(raw, post_rrf_hook) if post_rrf_hook else raw
         # Promote facet_counts to a normalized dict if Typesense returned them
         if facet_fields and "facet_counts" in result:
@@ -305,27 +320,38 @@ def search_with_vec(
     # Typesense hard cap is 250 per page; 3× over-fetch improves RRF recall
     # but must be clamped so we never exceed the limit.
     fetch_n = min(per_page * 3, 250)
-    _qb = query_by or "title,content,aliases"
-    _qb_fields = _qb.split(",")
-    _qb_weights = ",".join(
-        "3" if f == "aliases" else "2" if f == "title" else "1" for f in _qb_fields
-    )
-    resp = client.multi_search.perform({"searches": [
-        {
-            "collection": name,
-            "q": q, "query_by": _qb,
-            "query_by_weights": _qb_weights,
-            "per_page": str(fetch_n), **extra, **fb, **facet_params,
-        },
-        {
-            "collection": name,
-            "q": "*", "query_by": "title",
-            "vector_query": f"vec:([{vec_str}], k:{fetch_n})",
-            "per_page": str(fetch_n), **extra, **fb,
-        },
-    ]}, {})
+    _qb, _qb_weights = _qb_and_weights(query_by or "title,content,aliases")
+
+    def _run_multi_search(qb: str, weights: str) -> dict:
+        return client.multi_search.perform({"searches": [
+            {
+                "collection": name,
+                "q": q, "query_by": qb,
+                "query_by_weights": weights,
+                "per_page": str(fetch_n), **extra, **fb, **facet_params,
+            },
+            {
+                "collection": name,
+                "q": "*", "query_by": "title",
+                "vector_query": f"vec:([{vec_str}], k:{fetch_n})",
+                "per_page": str(fetch_n), **extra, **fb,
+            },
+        ]}, {})
+
+    resp = _run_multi_search(_qb, _qb_weights)
     results = resp.get("results", [{}, {}])
     lex_result = results[0]
+    # multi_search doesn't raise on a per-sub-search failure — a failed
+    # lexical pass just comes back as {"code": ..., "error": ...} with no
+    # "hits" key, which would otherwise silently degrade this into a
+    # semantic-only search (zero lexical/BM25 contribution to RRF) for any
+    # collection created before `aliases` existed in the schema. Retry once
+    # without it rather than letting that fail silently.
+    if "code" in lex_result and "aliases" in str(lex_result.get("error", "")) and "aliases" in _qb.split(","):
+        qb, weights = _qb_and_weights(_drop_field(_qb, "aliases"))
+        resp = _run_multi_search(qb, weights)
+        results = resp.get("results", [{}, {}])
+        lex_result = results[0]
     lex_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(lex_result.get("hits", []))}
     sem_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(results[1].get("hits", []))}
     # Carry facet counts from the lexical pass (facet_by was only applied there)

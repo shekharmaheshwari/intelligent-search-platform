@@ -148,6 +148,9 @@ def context_boost(
 
     ``affinity_dims`` — the index's affinity dimension config list, each entry:
       { "field": str, "boost": float, "enabled": bool, "derived_from": str|None }
+      ``derived_from`` is "price" for the price_tier dimension, the source
+      numeric field's own name for any other generic {field}_tier dimension
+      (e.g. "sla_hours"), or None for a plain categorical dimension.
 
     ``viewed_item_policy`` — per-index config controlling how viewed items are scored:
       { "mode": "penalise"|"neutral"|"boost", "value": float }
@@ -178,12 +181,20 @@ def context_boost(
         derived = dim.get("derived_from")
 
         if derived == "price":
-            # price_tier is derived from the raw price stored in metadata
+            # price_tier is derived from the raw price stored in metadata.
+            # Thresholds are per-index (set by affinity_service.discover from
+            # that index's own price distribution) since catalogs span very
+            # different price scales (e.g. accessories vs. phones) — falls
+            # back to the old fixed 30/80 split for indexes discovered before
+            # per-index thresholds existed.
             raw_price = meta.get("price")
             if raw_price is not None:
                 try:
                     p = float(raw_price)
-                    doc_val = "budget" if p < 30 else ("mid" if p <= 80 else "premium")
+                    thresholds = dim.get("thresholds") or {}
+                    budget_max = float(thresholds.get("budget_max", 30))
+                    mid_max    = float(thresholds.get("mid_max", 80))
+                    doc_val = "budget" if p < budget_max else ("mid" if p <= mid_max else "premium")
                 except (TypeError, ValueError):
                     doc_val = None
             else:
@@ -191,6 +202,28 @@ def context_boost(
 
         elif field_name == "type":
             doc_val = (doc.get("source_type") or meta.get("type") or "").lower() or None
+
+        elif derived:
+            # Generic {field}_tier dimension (e.g. sla_hours_tier,
+            # word_count_tier) — same low/mid/high split as price_tier,
+            # generalised to any numeric metadata field so non-commerce
+            # catalogs (no "price" field at all) still get comparable
+            # tiering. `derived` here is the source field's own name.
+            # Unlike price_tier there's no universal fallback split, so a
+            # dimension with no thresholds yet (not re-discovered since this
+            # field was added) simply contributes no boost.
+            raw_val = meta.get(derived)
+            thresholds = dim.get("thresholds") or {}
+            if raw_val is not None and thresholds:
+                try:
+                    n = float(raw_val)
+                    low_max = float(thresholds.get("low_max", 0))
+                    mid_max = float(thresholds.get("mid_max", 0))
+                    doc_val = "low" if n < low_max else ("mid" if n <= mid_max else "high")
+                except (TypeError, ValueError):
+                    doc_val = None
+            else:
+                doc_val = None
 
         else:
             # Check top-level doc fields first, then metadata
