@@ -71,14 +71,30 @@ def _safe_json(raw) -> dict:
     return {}
 
 
-def _derive_price_tier(price) -> str | None:
-    try:
-        p = float(price)
-        if p < 30:   return "budget"
-        if p <= 80:  return "mid"
-        return "premium"
-    except (TypeError, ValueError):
-        return None
+def _price_tier_thresholds(prices: list[float]) -> dict:
+    """
+    Derive budget/mid/premium cut points from this index's own sampled prices
+    (33rd / 66th percentile) instead of a fixed dollar amount — catalogs span
+    very different price scales (e.g. accessories vs. phones), so a global
+    <30 / <=80 split leaves some indexes with every item in one tier.
+
+    Falls back to the old fixed 30/80 split when there isn't enough price
+    variety in the sample to derive a meaningful split.
+    """
+    distinct = sorted(set(prices))
+    if len(distinct) < 3:
+        return {"budget_max": 30.0, "mid_max": 80.0}
+
+    def _percentile(pct: float) -> float:
+        idx = pct * (len(distinct) - 1)
+        lo = int(idx)
+        hi = min(lo + 1, len(distinct) - 1)
+        return round(distinct[lo] + (distinct[hi] - distinct[lo]) * (idx - lo), 2)
+
+    budget_max, mid_max = _percentile(1 / 3), _percentile(2 / 3)
+    if budget_max >= mid_max:
+        return {"budget_max": 30.0, "mid_max": 80.0}
+    return {"budget_max": budget_max, "mid_max": mid_max}
 
 
 async def discover(index_id: str) -> list[dict]:
@@ -133,7 +149,7 @@ async def discover(index_id: str) -> list[dict]:
 
     # ── Collect distinct string values per field ───────────────────────────────
     field_values: dict[str, set[str]] = {}
-    has_numeric_price = False
+    prices: list[float] = []
 
     for hit in hits:
         doc = hit.get("document", {})
@@ -150,7 +166,7 @@ async def discover(index_id: str) -> list[dict]:
         for k, v in m.items():
             if k in _SKIP_FIELDS:
                 if k == "price" and isinstance(v, (int, float)):
-                    has_numeric_price = True
+                    prices.append(float(v))
                 continue
             if isinstance(v, str) and v.strip():
                 field_values.setdefault(k, set()).add(v.lower().strip())
@@ -184,7 +200,8 @@ async def discover(index_id: str) -> list[dict]:
 
     # Add price_tier as a derived dimension when raw price data is present.
     # Its cardinality is always 3 (budget/mid/premium) so we use the fixed boost.
-    if has_numeric_price and not any(d["field"] == "price_tier" for d in dims):
+    # Thresholds are derived per-index from the sampled price distribution.
+    if prices and not any(d["field"] == "price_tier" for d in dims):
         dims.append({
             "field":        "price_tier",
             "label":        "Price Tier",
@@ -192,6 +209,7 @@ async def discover(index_id: str) -> list[dict]:
             "enabled":      True,
             "values":       ["budget", "mid", "premium"],
             "derived_from": "price",
+            "thresholds":   _price_tier_thresholds(prices),
         })
 
     # Sort by boost descending so the highest-signal dimensions appear first in the UI

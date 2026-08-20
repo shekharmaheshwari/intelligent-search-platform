@@ -27,6 +27,8 @@ export interface AffinityDimension {
   enabled:      boolean;
   values:       string[];
   derived_from: string | null;
+  /** Only set when derived_from === 'price' — auto-computed per-index cut points, operator-editable. */
+  thresholds?:  { budget_max: number; mid_max: number } | null;
 }
 
 /** One criterion in a boost rule — field + operator + value. */
