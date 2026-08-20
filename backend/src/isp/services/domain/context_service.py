@@ -178,12 +178,20 @@ def context_boost(
         derived = dim.get("derived_from")
 
         if derived == "price":
-            # price_tier is derived from the raw price stored in metadata
+            # price_tier is derived from the raw price stored in metadata.
+            # Thresholds are per-index (set by affinity_service.discover from
+            # that index's own price distribution) since catalogs span very
+            # different price scales (e.g. accessories vs. phones) — falls
+            # back to the old fixed 30/80 split for indexes discovered before
+            # per-index thresholds existed.
             raw_price = meta.get("price")
             if raw_price is not None:
                 try:
                     p = float(raw_price)
-                    doc_val = "budget" if p < 30 else ("mid" if p <= 80 else "premium")
+                    thresholds = dim.get("thresholds") or {}
+                    budget_max = float(thresholds.get("budget_max", 30))
+                    mid_max    = float(thresholds.get("mid_max", 80))
+                    doc_val = "budget" if p < budget_max else ("mid" if p <= mid_max else "premium")
                 except (TypeError, ValueError):
                     doc_val = None
             else:
