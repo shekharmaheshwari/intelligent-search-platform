@@ -3,7 +3,7 @@
   import { personalisationStore } from '../../lib/stores/personalisation-store';
   import type { AffinityDimension, ViewedItemPolicy } from '../../lib/types';
   import ViewedItemBehaviourPanel from './ViewedItemBehaviourPanel.svelte';
-  import { toggleDimension, setDimensionBoost } from './AffinityDimensionsPanel.helpers';
+  import { toggleDimension, setDimensionBoost, setDimensionThreshold } from './AffinityDimensionsPanel.helpers';
 
   export let indexId: string;
 
@@ -56,6 +56,11 @@
     if (updated) { dims = updated; saved = false; }
   }
 
+  function onThresholdInput(i: number, key: 'budget_max' | 'mid_max', e: Event) {
+    const updated = setDimensionThreshold(dims, i, key, (e.currentTarget as HTMLInputElement).value);
+    if (updated) { dims = updated; saved = false; }
+  }
+
 
 </script>
 
@@ -90,6 +95,7 @@
           <th>Enabled</th>
           <th>Field</th>
           <th>Boost weight</th>
+          <th>Price tier thresholds</th>
           <th>Sample values</th>
         </tr>
       </thead>
@@ -125,6 +131,39 @@
                 on:input={e => onBoostInput(idx, e)}
                 disabled={!dim.enabled}
               />
+            </td>
+
+            <td class="td-thresholds">
+              {#if dim.derived_from === 'price'}
+                <div class="threshold-inputs">
+                  <label>
+                    <span>Budget &lt;</span>
+                    <input
+                      class="threshold-input"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={dim.thresholds?.budget_max ?? 30}
+                      on:input={e => onThresholdInput(idx, 'budget_max', e)}
+                      disabled={!dim.enabled}
+                    />
+                  </label>
+                  <label>
+                    <span>Mid &le;</span>
+                    <input
+                      class="threshold-input"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={dim.thresholds?.mid_max ?? 80}
+                      on:input={e => onThresholdInput(idx, 'mid_max', e)}
+                      disabled={!dim.enabled}
+                    />
+                  </label>
+                </div>
+              {:else}
+                <span class="dash">—</span>
+              {/if}
             </td>
 
             <td class="td-values">
@@ -252,6 +291,27 @@
   }
   .boost-input:focus { outline: none; border-color: var(--accent); }
   .boost-input:disabled { opacity: 0.4; }
+
+  .td-thresholds { width: 190px; }
+
+  .threshold-inputs { display: flex; flex-direction: column; gap: 4px; }
+  .threshold-inputs label { display: flex; align-items: center; gap: 6px; }
+  .threshold-inputs span { font-size: 11px; color: var(--text-5); width: 44px; flex-shrink: 0; }
+
+  .threshold-input {
+    width: 72px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 5px;
+    padding: 4px 7px;
+    font-size: 12px;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .threshold-input:focus { outline: none; border-color: var(--accent); }
+  .threshold-input:disabled { opacity: 0.4; }
+
+  .dash { color: var(--text-6); font-size: 12px; }
 
   .td-values { max-width: 340px; }
 
