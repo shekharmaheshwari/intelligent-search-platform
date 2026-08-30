@@ -46,7 +46,7 @@ bootstrap_secrets()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router, analytics, chat as chat_router_module
+from isp.routers import indexes, search, content, catalog, extensions, settings as settings_router, analytics, training as training_router, chat as chat_router_module
 from isp.routers import auth as auth_router_module, api_keys as api_keys_router_module
 from isp.routers import agent_setup as agent_setup_router
 from isp.routers.admin import router as admin_router
@@ -231,6 +231,7 @@ app.include_router(catalog.router, prefix="/v1")
 app.include_router(extensions.router, prefix="/v1")
 app.include_router(settings_router.router, prefix="/v1")
 app.include_router(analytics.router, prefix="/v1")
+app.include_router(training_router.router, prefix="/v1")
 app.include_router(admin_router, prefix="/v1/admin")
 # Auth routes are always registered so /auth/login, /auth/callback etc. exist;
 # the middleware only enforces guards when AUTH_ENABLED=true.
