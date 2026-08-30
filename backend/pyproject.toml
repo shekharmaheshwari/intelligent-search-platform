@@ -26,6 +26,8 @@ dependencies = [
     "anthropic>=0.40.0",                     # Anthropic Claude (paid)
     "openai>=1.50.0",                        # OpenAI + Groq + self-hosted (OpenAI-compat)
     "google-genai>=1.0.0",                   # Google Gemini (paid) — replaces deprecated google-generativeai
+    "scikit-learn>=1.4.0",                   # Trained re-scorer (Case A) — imported lazily, see popularity_trainer.py
+    "numpy>=1.26.0",                         # scikit-learn dependency, also imported lazily
 ]
 
 [build-system]
