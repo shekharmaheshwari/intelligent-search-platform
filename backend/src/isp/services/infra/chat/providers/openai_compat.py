@@ -13,6 +13,22 @@ from __future__ import annotations
 from typing import AsyncIterator
 
 
+async def list_models(api_key: str, base_url: str | None = None) -> list[str]:
+    """
+    Return the model ids this key currently has access to, per the
+    provider's own live catalog — used to validate a chat-model choice at
+    save time instead of discovering it's deprecated at chat time.
+    """
+    from openai import AsyncOpenAI
+
+    kwargs: dict = {"api_key": api_key or "none"}
+    if base_url:
+        kwargs["base_url"] = base_url
+    client = AsyncOpenAI(**kwargs)
+    resp = await client.models.list()
+    return [m.id for m in resp.data]
+
+
 async def stream(
     system: str,
     messages: list[dict],

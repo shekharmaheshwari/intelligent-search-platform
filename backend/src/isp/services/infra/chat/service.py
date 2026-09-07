@@ -860,6 +860,51 @@ def _system_prompt(
     return prompt + f"\n\n{item_noun.capitalize()} data:\n{context}"
 
 
+async def validate_chat_model(provider: str, model: str, api_key: str, endpoint: str = "") -> None:
+    """
+    Check a chat-model choice against the provider's own live catalog
+    before it's saved, so a deprecated/retired model is caught at Settings
+    save time instead of failing silently in front of a customer at chat
+    time — see docs/training.html for the incident this closes (Groq and
+    Google both retired the previously-configured model out from under a
+    live deployment).
+
+    Raises ValueError with a message suitable for a 400 response when the
+    model isn't in the provider's current catalog. "none" and "self_hosted"
+    are not validated: "none" has no model to check, and self-hosted
+    endpoints (Ollama / vLLM / LocalAI) vary too much in whether they even
+    implement a models-list route to make this a hard requirement — a
+    self-hosted misconfiguration still surfaces at chat time, same as
+    before this change.
+    """
+    if provider in ("none", "self_hosted"):
+        return
+    try:
+        if provider == "groq":
+            available = await openai_compat.list_models(api_key, base_url=_GROQ_BASE_URL)
+        elif provider == "openai":
+            available = await openai_compat.list_models(api_key)
+        elif provider == "google":
+            available = await google_chat.list_models(api_key)
+        elif provider == "anthropic":
+            available = await anthropic_chat.list_models(api_key)
+        else:
+            return
+    except Exception as exc:
+        # Can't reach the provider's catalog (bad key, network issue, provider
+        # outage) — don't block the save on an availability check that isn't
+        # itself available. The actual key/model still gets exercised for
+        # real on the first chat request either way.
+        log.warning("chat model validation skipped for provider=%s: %s", provider, exc)
+        return
+    if model not in available:
+        raise ValueError(
+            f"Model '{model}' was not found in {provider}'s current catalog for this API key. "
+            f"It may have been deprecated or retired. Available models include: "
+            f"{', '.join(available[:8]) or '(none returned)'}"
+        )
+
+
 def _route_llm_stream(system: str, history: list[dict]):
     if _chat_provider == "anthropic":
         return anthropic_chat.stream(system, history, _chat_model)

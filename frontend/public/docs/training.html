@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trained Popularity Re-Scorer — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#141414;
+      --border:#222;--border2:#1a1a1a;
+      --text:#eee;--text-h2:#ccc;--text-h3:#aaa;--text-p:#777;--text-td:#888;
+      --text-muted:#555;--text-faint:#444;--text-ghost:#333;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#b4a4f8;--pre-fg:#bbb;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f0f0f8;
+      --border:#ddd;--border2:#e8e8ed;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#666;
+      --text-muted:#666;--text-faint:#888;--text-ghost:#aaa;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;--pre-fg:#444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1060px; margin: 0 auto; padding: 48px 32px 80px; gap: 48px; }
+    nav.sidebar { flex-shrink: 0; width: 190px; }
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 24px; }
+    nav.sidebar li a { display: block; padding: 7px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    nav.sidebar li a:hover { color: var(--text); background: var(--bg-hover); }
+    nav.sidebar li a.active { color: var(--accent); background: var(--accent-dim); }
+    .content { flex: 1; min-width: 0; }
+    h1 { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 17px; font-weight: 600; color: var(--text-h2); margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 22px 0 8px; }
+    h4 { font-size: 13px; font-weight: 600; color: var(--text-h3); margin: 18px 0 6px; }
+    p { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; }
+    ol, ul { font-size: 14px; color: var(--text-p); line-height: 1.8; margin-left: 20px; margin-bottom: 16px; }
+    li { margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th { text-align: left; padding: 9px 14px; background: var(--bg3); color: var(--text-h3); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border2); color: var(--text-td); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); overflow-x: auto; line-height: 1.6; margin-bottom: 20px; white-space: pre; }
+    .notice { background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 7px; padding: 14px 16px; font-size: 13px; color: var(--code-fg); line-height: 1.6; margin-bottom: 20px; }
+    .notice strong { color: var(--accent); }
+    .warn { background: #1a120a; border: 1px solid #3a2a10; border-radius: 7px; padding: 14px 16px; font-size: 13px; color: #c9903a; line-height: 1.6; margin-bottom: 20px; }
+    .warn strong { color: #e0aa55; }
+    .done-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle; background: #0d1f12; color: #4ade80; border: 1px solid #1a3d22; }
+    .todo-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle; background: #1a1408; color: #e0aa55; border: 1px solid #3a2a10; }
+    .fix-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle; background: #150c1f; color: var(--code-fg); border: 1px solid var(--accent-border); }
+    .ref-block { border-left: 2px solid var(--accent-border); padding: 10px 0 10px 16px; margin-bottom: 20px; }
+    .ref-title { font-size: 13px; font-weight: 600; color: var(--text-h3); margin-bottom: 4px; }
+    .ref-cite { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 6px; }
+    .ref-cite a { color: var(--accent); text-decoration: none; }
+    .ref-cite a:hover { text-decoration: underline; }
+    .ref-note { font-size: 12px; color: var(--text-p); line-height: 1.6; font-style: italic; }
+    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; display: inline-block; margin-bottom: 32px; }
+    .back-link:hover { text-decoration: underline; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 700px) { .layout { flex-direction: column; gap: 24px; } nav.sidebar { width: 100%; } nav.sidebar ul { flex-direction: row; flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+<header>
+  <span class="logo-icon">⬡</span>
+  <span class="logo-name">Intelligent Search Platform</span>
+  <div class="breadcrumb">
+    <a href="index.html">Docs</a>
+    <span>/</span>
+    <span>Trained Popularity Re-Scorer</span>
+    <button class="theme-btn" id="theme-toggle" title="Toggle theme">☀</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <ul>
+      <li><a href="#what-it-is">What it is</a></li>
+      <li><a href="#endpoint">Endpoint</a></li>
+      <li><a href="#pipeline">Pipeline</a></li>
+      <li><a href="#features">Feature building</a></li>
+      <li><a href="#model">Model &amp; calibration</a></li>
+      <li><a href="#review-fixes">Review fixes</a></li>
+      <li><a href="#scope">Deliberate v1 scope</a></li>
+      <li><a href="#verification">Verification</a></li>
+      <li><a href="#not-yet">What this doesn't do yet</a></li>
+      <li><a href="#status">Implementation status</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+  </nav>
+
+  <div class="content">
+    <a href="index.html" class="back-link">← Back to docs</a>
+    <h1>Trained Popularity Re-Scorer <span class="done-badge">Case A — Done</span></h1>
+    <p class="page-subtitle">A <code>LogisticRegression</code> model trained on real browse behavior replaces one piece of <code>aggregate_popularity()</code>'s hand-written CTR formula — decoupled from the existing analytics pipeline, its own module, its own router, its own table.</p>
+
+    <!-- WHAT IT IS -->
+    <h2 id="what-it-is">What it is</h2>
+    <p>ISP's editorial <code>popularity</code> field was previously produced by a fixed formula: <code>1/log2(rank+2)</code> decay summed per impression, hand-tuned rather than learned. This feature trains a real model on logged browse behavior instead — same field, same write path (<code>update_document_fields</code>), same downstream consumer (RRF post-scoring) — but the number written now comes from a calibrated model's predicted click probability, not a summed heuristic.</p>
+    <p>It is deliberately <strong>decoupled</strong>: <code>analytics_service.py</code> and <code>routers/analytics.py</code> have a zero diff. This is its own module (<code>popularity_trainer.py</code>), its own router (<code>routers/training.py</code>), its own table (<code>training_runs</code>) — deletable without touching the existing formula-based path.</p>
+
+    <!-- ENDPOINT -->
+    <h2 id="endpoint">Endpoint</h2>
+    <pre>POST /v1/training/popularity?index_id=&lt;slug-or-id&gt;&amp;days=30</pre>
+    <p>On-demand only, same operational model as <code>/v1/analytics/aggregate</code> — no scheduler is built. Triggering it repeatedly (cron, k8s CronJob, manual) is an operational decision outside this codebase.</p>
+    <table>
+      <thead><tr><th>Response field</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>docs_scored</code></td><td>Documents that received a written-back <code>popularity</code> value this run</td></tr>
+        <tr><td><code>n_events</code></td><td>Raw <code>search_events</code> rows matched by the query window (not the post-join usable-example count — see <a href="#review-fixes">Review fixes</a>)</td></tr>
+        <tr><td><code>auc</code></td><td>Held-out AUC from the grouped eval split, or <code>null</code> if skipped/degenerate</td></tr>
+      </tbody>
+    </table>
+
+    <!-- PIPELINE -->
+    <h2 id="pipeline">Pipeline</h2>
+    <ol>
+      <li><strong>Resolve the index</strong> (slug or hex id, same <code>_resolve_index</code> helper every other admin endpoint uses) and pull its stored <code>affinity_dimensions</code> config — the same dimensions <code>affinity_service.discover()</code> already computes. No rediscovery, no hardcoded field list.</li>
+      <li><strong>Pull training data</strong>: query <code>search_events</code> for this index, filtered to <code>query = ''</code> (browse-only impressions/clicks) within the lookback window. Fewer than 5 raw rows → log an empty <code>training_runs</code> row, return <code>docs_scored: 0</code>.</li>
+      <li><strong>Fetch every document's current fields</strong> via <code>ts.list_documents()</code> — the same call backing <code>GET /v1/indexes/{id}/documents</code> — paginated across the whole index.</li>
+      <li><strong>Build one feature dict per document</strong> — see <a href="#features">Feature building</a>.</li>
+      <li><strong>Join events to features, weighted by position</strong>: each event becomes one training example — <code>clicked</code> (0/1) as the label, the document's feature dict as <code>X</code>, and <code>1/log2(rank+2)</code> as the training <code>sample_weight</code>. Events referencing a doc no longer in Typesense are dropped here.</li>
+      <li><strong>Vectorize and train</strong>: <code>DictVectorizer</code> turns mixed categorical/numeric feature dicts into a sparse matrix. A held-out 20% split (grouped by <code>doc_id</code>) gives a rough AUC when there's enough data (≥10 events); the real model is fit on everything.</li>
+      <li><strong>Score every document</strong> — not just ones with events, the model generalizes from features — and <strong>calibrate</strong>: <code>popularity = round(raw / max_raw × 1,000,000)</code>, identical final normalization to the old formula.</li>
+      <li><strong>Write back</strong> via <code>ts.update_document_fields()</code> — the exact call <code>apply_popularity</code> already uses. No model inference in the search hot path; query time reads a flat field.</li>
+      <li><strong>Log the run</strong> to <code>training_runs</code> — index, model type, event/doc counts, held-out metric — so training history is queryable, not just the latest overwrite.</li>
+    </ol>
+
+    <!-- FEATURES -->
+    <h2 id="features">Feature building</h2>
+    <p><code>_doc_features(doc, affinity_dims)</code> builds a flat dict per document, with missing fields simply omitted — no per-vertical branching:</p>
+    <ul>
+      <li>Every enabled affinity dimension's categorical value (one-hot-able)</li>
+      <li>For a <em>derived</em> dimension like <code>price_tier</code> — the <strong>raw underlying numeric value</strong> (e.g. <code>price</code>), not the bucket. Strictly more information for the model, and avoids duplicating <code>context_service.py</code>'s threshold logic here</li>
+      <li><code>is_featured</code> as a 1.0/absent flag</li>
+      <li>A rating signal when present: <code>averageStarRating × log(1+ratingsCount)</code></li>
+      <li>A bounded recency feature from <code>indexed_at</code>: <code>1 / (1 + days_since_indexed)</code></li>
+    </ul>
+    <table>
+      <thead><tr><th>Feature key prefix</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td><code>cat__{field}</code></td><td>Categorical affinity dimension value</td></tr>
+        <tr><td><code>num__{field}</code></td><td>Raw numeric value behind a derived/tiered dimension</td></tr>
+        <tr><td><code>is_featured</code></td><td>Editorial flag</td></tr>
+        <tr><td><code>num__rating_weighted</code></td><td>Rating × log(1+count)</td></tr>
+        <tr><td><code>num__recency</code></td><td>Bounded launch-recency decay</td></tr>
+      </tbody>
+    </table>
+
+    <!-- MODEL -->
+    <h2 id="model">Model &amp; calibration</h2>
+    <p><code>LogisticRegression</code>, trained <strong>per index</strong> (not pooled), <code>sample_weight</code>-ed by the same <code>1/log2(rank+2)</code> position-decay curve <code>aggregate_popularity</code> already used — as a training weight now, not a hand-summed score.</p>
+    <pre>popularity = round(raw_predicted_probability / max_raw × 1_000_000)</pre>
+    <p>Identical 0–1,000,000 output range to the formula it replaces, so nothing downstream (RRF post-scoring, the "Sort by Popularity" UI) needed to change.</p>
+    <div class="warn"><strong>⚠ Honest framing:</strong> the <code>1/log2(rank+2)</code> weighting is a position-<em>weighted</em> heuristic, not propensity-corrected debiasing. Proper IPS/propensity correction is a documented, unbuilt v2 follow-up — see <a href="#scope">Deliberate v1 scope</a> and <code>researchTopic1ImplicitFeedbackRanking.md</code>. Don't describe this as "position-debiased at production scale" — that overstates what's implemented, a mistake already caught and corrected once in the research-paper track for this feature.</div>
+
+    <!-- REVIEW FIXES -->
+    <h2 id="review-fixes">Review fixes <span class="fix-badge">3 findings, all fixed</span></h2>
+    <p>A code review before this shipped found three real gaps between the "graceful empty" intent and what the code actually did. All three are fixed and covered by dedicated regression tests.</p>
+    <h3>1. Zero-feature-matrix crash</h3>
+    <p>An index with no discovered affinity dimensions and documents missing <code>is_featured</code>/rating/<code>indexed_at</code> produced an all-empty feature dict for every document. <code>DictVectorizer</code> then emits a zero-column matrix, and <code>LogisticRegression.fit()</code> raised <code>ValueError: Found array with 0 feature(s)</code> — reproduced directly before the fix. Now detected via <code>X.shape[1] == 0</code>, treated as the same graceful empty-run case as steps 2 and 5 of the pipeline.</p>
+    <h3>2. Post-join threshold recheck</h3>
+    <p>The 5-event minimum was checked against the <strong>raw</strong> query row count, before the event→document join dropped rows referencing deleted/missing docs. Five raw events could collapse to two usable examples post-join and still train — now re-checked as <code>len(y) &lt; _MIN_EVENTS</code> immediately after the join, before vectorization.</p>
+    <h3>3. Doc-grouped held-out AUC split</h3>
+    <p>The original held-out split was per-event and <code>stratify</code>d only on the label. Multiple events for the same document share an identical feature vector, so a random per-event split could leak the same document's features into both train and test, inflating the reported AUC. Switched to <code>GroupShuffleSplit</code> grouped by <code>doc_id</code> — verified this actually changes behavior, not just cosmetics: a 2-document, all-one-label-per-doc scenario now correctly produces <code>auc: None</code> (caught <code>ValueError</code>, single class landed on one side of the split) instead of the artificially-clean AUC the old stratified per-event split would have produced.</p>
+
+    <!-- SCOPE -->
+    <h2 id="scope">Deliberate v1 scope decisions</h2>
+    <table>
+      <thead><tr><th>Decision</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Trained per index, not pooled</td><td>Keeps consistency with the existing per-index <code>?index_id=</code> endpoint shape. Revisit if a specific index's traffic proves too sparse.</td></tr>
+        <tr><td>Position-weighting, not IPS/propensity correction</td><td>Same decay curve <code>aggregate_popularity</code> already used, applied as a training weight. Proper debiasing is a documented, unbuilt v2 follow-up.</td></tr>
+        <tr><td>Browse-only training data (<code>query = ''</code>)</td><td>Deliberate difference from the old formula, which pooled all traffic regardless of query.</td></tr>
+        <tr><td>Simple held-out AUC, not full counterfactual eval</td><td>Enough to sanity-check the pipeline; not enough to claim relevance quality without real production traffic.</td></tr>
+        <tr><td>Raw numeric value for derived dimensions</td><td>Model sees actual <code>price</code>, not <code>price_tier</code>'s bucket label — strictly more information, avoids duplicating threshold logic.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- VERIFICATION -->
+    <h2 id="verification">Verification</h2>
+    <ul>
+      <li><strong>6 router-level tests</strong> (<code>tests/routers/test_training.py</code>) — auth guard, unknown index, too-few-events, missing-Typesense-collection resilience, <code>training_runs</code> logging.</li>
+      <li><strong>7 domain-level tests</strong> (<code>tests/domain/test_popularity_trainer.py</code>), added specifically to close a coverage gap the router tests couldn't reach: they call <code>train_and_apply()</code> directly with Typesense mocked, driving the full path — vectorization, fit, calibration, write-back — and regression-guard each of the three review fixes above, including the grouped-split behavior change proven with a case that only fails under grouping.</li>
+      <li><strong>13 tests total, all passing</strong> alongside the rest of the backend suite.</li>
+      <li><strong>Live end-to-end run</strong> against the Phones index (<code>22ffabfef4d1</code>): seeded real <code>search_events</code>, called the endpoint, confirmed a trained model (AUC 0.75 on an 11-event seed set) wrote calibrated <code>popularity</code> values in range, logged a <code>training_runs</code> row. Seed data and resulting scores were removed/restored afterward — a mechanical pipeline check, not a relevance-quality claim.</li>
+    </ul>
+
+    <!-- NOT YET -->
+    <h2 id="not-yet">What this doesn't do yet</h2>
+    <ul>
+      <li><strong>Case B</strong> (query-conditional boost) and <strong>Case C</strong> (personalized affinity weights) <span class="todo-badge">Design only</span> — see <code>trainedRescorerDesign.md</code>.</li>
+      <li><strong>No scheduler</strong> — on-demand only, same as <code>/v1/analytics/aggregate</code>.</li>
+      <li><strong>No IPS/propensity correction</strong> — position-weighted, not position-debiased in the rigorous sense. Documented v2 follow-up.</li>
+    </ul>
+
+    <!-- STATUS -->
+    <h2 id="status">Implementation status</h2>
+    <table>
+      <thead><tr><th>Component</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>training_runs</code> table</td><td><span class="done-badge">Done</span></td><td><code>CREATE TABLE IF NOT EXISTS</code> in <code>database.py</code>'s <code>init_db()</code></td></tr>
+        <tr><td><code>popularity_trainer.py</code></td><td><span class="done-badge">Done</span></td><td>Fully decoupled from <code>analytics_service.py</code></td></tr>
+        <tr><td><code>POST /v1/training/popularity</code></td><td><span class="done-badge">Done</span></td><td><code>routers/training.py</code>, registered in <code>main.py</code></td></tr>
+        <tr><td>Zero-feature-matrix guard</td><td><span class="done-badge">Done</span></td><td>Code-review fix, tested</td></tr>
+        <tr><td>Post-join threshold recheck</td><td><span class="done-badge">Done</span></td><td>Code-review fix, tested</td></tr>
+        <tr><td>Doc-grouped held-out split</td><td><span class="done-badge">Done</span></td><td>Code-review fix, tested</td></tr>
+        <tr><td>Case B — query-conditional boost</td><td><span class="todo-badge">Proposed</span></td><td><code>trainedRescorerDesign.md</code></td></tr>
+        <tr><td>Case C — personalized affinity weights</td><td><span class="todo-badge">Proposed</span></td><td><code>trainedRescorerDesign.md</code></td></tr>
+        <tr><td>IPS/propensity debiasing</td><td><span class="todo-badge">Proposed</span></td><td><code>researchTopic1ImplicitFeedbackRanking.md</code></td></tr>
+      </tbody>
+    </table>
+
+    <!-- REFERENCES -->
+    <h2 id="references">References</h2>
+
+    <h3>Implicit feedback and click-through data</h3>
+    <div class="ref-block">
+      <div class="ref-title">Optimizing Search Engines Using Clickthrough Data</div>
+      <div class="ref-cite">Joachims, T. (2002). KDD 2002. <a href="https://doi.org/10.1145/775047.775067" target="_blank">doi.org/10.1145/775047.775067</a></div>
+      <div class="ref-note">Foundational justification for treating clicks as implicit relevance labels — the basis for using <code>clicked</code> as the training target here.</div>
+    </div>
+    <div class="ref-block">
+      <div class="ref-title">An Experimental Comparison of Click Position-Bias Models</div>
+      <div class="ref-cite">Craswell, N., Zoeter, O., Taylor, M., &amp; Ramsey, B. (2008). WSDM 2008. <a href="https://doi.org/10.1145/1341531.1341545" target="_blank">doi.org/10.1145/1341531.1341545</a></div>
+      <div class="ref-note">Formalizes position bias in click data — the reason a raw CTR formula (and this model's <code>1/log2(rank+2)</code> sample weight) needs the honest "position-weighted, not debiased" caveat above.</div>
+    </div>
+    <div class="ref-block">
+      <div class="ref-title">Unbiased Learning-to-Rank with Biased Feedback</div>
+      <div class="ref-cite">Joachims, T., Swaminathan, A., &amp; Schnabel, T. (2017). WSDM 2017. <a href="https://dl.acm.org/doi/10.1145/3018661.3018699" target="_blank">dl.acm.org</a></div>
+      <div class="ref-note">Defines inverse-propensity-scored (IPS) correction — the specific technique the "Deliberate v1 scope" section names as the unbuilt v2 follow-up.</div>
+    </div>
+
+    <h3>Model and tooling</h3>
+    <div class="ref-block">
+      <div class="ref-title">Applied Logistic Regression (3rd ed.)</div>
+      <div class="ref-cite">Hosmer, D. W., Lemeshow, S., &amp; Sturdivant, R. X. (2013). Wiley. ISBN: 978-0470582473.</div>
+      <div class="ref-note">Standard reference for the model class used here — chosen for interpretability and stability on the sparse-per-item interaction volume a single index typically has.</div>
+    </div>
+    <div class="ref-block">
+      <div class="ref-title">Scikit-learn: Machine Learning in Python</div>
+      <div class="ref-cite">Pedregosa, F. et al. (2011). Journal of Machine Learning Research, 12. <a href="https://jmlr.org/papers/v12/pedregosa11a.html" target="_blank">jmlr.org</a></div>
+      <div class="ref-note"><code>DictVectorizer</code> and <code>LogisticRegression</code> — chosen specifically because mixed categorical/numeric feature dicts are exactly what <code>DictVectorizer</code> is for, with no pandas dependency needed.</div>
+    </div>
+
+    <h3>Evaluation methodology</h3>
+    <div class="ref-block">
+      <div class="ref-title">Cross-Validation Strategies for Data with Temporal, Spatial, Hierarchical, or Phylogenetic Structure</div>
+      <div class="ref-cite">Roberts, D. R. et al. (2017). Ecography, 40(8). <a href="https://doi.org/10.1111/ecog.02881" target="_blank">doi.org/10.1111/ecog.02881</a></div>
+      <div class="ref-note">General treatment of the exact leakage problem the doc-grouped held-out split fixes: non-independent samples (here, multiple events per document sharing one feature vector) inflate held-out performance under a naive random split.</div>
+    </div>
+    <div class="ref-block">
+      <div class="ref-title">An Introduction to ROC Analysis</div>
+      <div class="ref-cite">Fawcett, T. (2006). Pattern Recognition Letters, 27(8). <a href="https://doi.org/10.1016/j.patrec.2005.10.010" target="_blank">doi.org/10.1016/j.patrec.2005.10.010</a></div>
+      <div class="ref-note">Standard reference for the AUC metric reported as this pipeline's held-out sanity check.</div>
+    </div>
+
+  </div><!-- .content -->
+</div><!-- .layout -->
+
+<script>
+  (function(){
+    var btn = document.getElementById('theme-toggle');
+    function apply(t) {
+      if (t === 'light') { document.documentElement.setAttribute('data-theme','light'); btn.textContent = '☾'; }
+      else { document.documentElement.removeAttribute('data-theme'); btn.textContent = '☀'; }
+    }
+    apply(localStorage.getItem('isp-theme') || 'dark');
+    btn.addEventListener('click', function(){
+      var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      localStorage.setItem('isp-theme', next); apply(next);
+    });
+    // Sidebar active highlight on scroll
+    var sections = document.querySelectorAll('h2[id], h3[id]');
+    var links = document.querySelectorAll('nav.sidebar a');
+    window.addEventListener('scroll', function(){
+      var pos = window.scrollY + 80;
+      var cur = '';
+      sections.forEach(function(s){ if (s.offsetTop <= pos) cur = s.id; });
+      links.forEach(function(a){ a.classList.toggle('active', a.getAttribute('href') === '#'+cur); });
+    }, {passive:true});
+  })();
+</script>
+</body>
+</html>
