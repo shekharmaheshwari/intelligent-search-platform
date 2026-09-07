@@ -1,6 +1,22 @@
 # ISP Score Boost Reference
 
-All ranking boosts applied after Reciprocal Rank Fusion (RRF). Each boost is additive on top of the RRF score.
+All ranking boosts are applied after Reciprocal Rank Fusion (RRF) by a single
+shared function — `typesense_client.apply_editorial_boosts(scores, all_docs, q, *, is_browse)`
+— used by every search path (lexical, hybrid `search_with_vec`, and
+cross-catalog `catalog._rrf_search`) so ranking behaviour is identical everywhere.
+
+**`is_featured` and the `boost_queries_*` signals are additive** — deliberate
+merchandising levers that may outrank pure relevance.
+
+**`popularity` is query-aware** (changed 2026-09 — see
+`docs/trainedRescorerDesign.md`):
+
+| Query intent | How popularity is applied | Rationale |
+|---|---|---|
+| **Empty-query browse** (`q` blank or `*`) | Additive, `popularity / 2_000_000` → up to **+0.5**. The dominant ordering signal. | No query relevance to respect — popularity *is* the ranking. |
+| **Non-empty query** | Bounded multiplicative: `relevance *= (1 + 0.25 · pop_norm)` where `pop_norm = popularity / max_popularity_in_result_set`. Max lift **×1.25**. | A learned CTR signal must not overturn a clear text match. An additive term on the RRF scale (max ≈ 0.016) can't guarantee that; a capped multiplier can. |
+
+Pinned hits are handled separately by the caller and always win.
 
 ---
 
@@ -21,6 +37,14 @@ score(doc) = 0.7 / (60 + lexical_rank + 1)
 
 Max possible RRF score (rank 1 in both passes): **≈ 0.0164**
 
+The pure-lexical path (`search_documents`, used for `mode=lexical` and for
+hybrid/semantic browse when no query vector is available) has no RRF merge; it
+retrieves by `sort_by=_text_match:desc` and `apply_editorial_boosts` re-ranks
+in Python over rank-based pseudo-scores `1 / (60 + rank + 1)`. On **browse** it
+instead asks Typesense for `sort_by=is_featured:desc,popularity:desc,_text_match:desc`
+so pagination stays correct across the whole collection, and skips the Python
+popularity pass (already baked into the sort).
+
 ---
 
 ## Boost signals (applied in order after RRF)
@@ -40,19 +64,39 @@ if doc.get("is_featured"):
 
 ---
 
-### 2. `popularity` — up to +0.5
+### 2. `popularity` — query-aware (browse: up to +0.5 · query: ≤ ×1.25)
 
-**What:** Linear scale based on the document's `popularity` integer score.  
-**Magnitude:** `min(popularity, 1_000_000) / 2_000_000` — popularity 1 000 000 → +0.5, popularity 890 → +0.000445.  
-**Set by:** Edit modal (Score field) → PATCH `/indexes/{id}/documents/{doc_id}`.  
-**Also set by:** `catalog_mapper.js` extension at index time: `popularity = max(0, 1000 - deviceRank × 10)`.  
-**Stored in:** Top-level Typesense field `popularity: int32`.  
+**What:** The document's `popularity` integer — either hand-edited or written by
+the trained browse re-scorer (`popularity_trainer.py`, Case A) / the formula
+`analytics_service.aggregate_popularity`.
+**Magnitude:**
+
+- **Browse** (`is_browse`): `min(popularity, 1_000_000) / 2_000_000` added — popularity 1 000 000 → +0.5.
+- **Query**: `relevance *= 1 + 0.25 · (popularity / max_popularity_in_result_set)` — the most-popular candidate gets ×1.25, everything else proportionally less. Never additive, so it can reorder near-ties but not overturn a clear relevance win.
+
+**Tuning:** the `0.25` coefficient is `_POP_QUERY_COEFF` in `typesense_client.py`.
+`0.10` is the conservative floor (barely reorders vague queries); `0.20–0.30`
+gives popular items real pull on broad queries while still protecting specific
+ones. Above ~1.0 the relevance guarantee breaks.
+**Set by:** Edit modal (Score field) → PATCH `/indexes/{id}/documents/{doc_id}`; `POST /v1/training/popularity`; `POST /v1/analytics/aggregate`; `catalog_mapper.js` at index time.
+**Stored in:** Top-level Typesense field `popularity: int32`.
 **Code:**
 ```python
-pop = doc.get("popularity") or 0
+# apply_editorial_boosts(), typesense_client.py
+pop = min(int(doc.get("popularity") or 0), 1_000_000)
 if pop > 0:
-    scores[did] += min(int(pop), 1_000_000) / 2_000_000
+    if is_browse:
+        base += pop / 2_000_000
+    elif max_pop > 0:
+        base *= 1.0 + _POP_QUERY_COEFF * (pop / max_pop)   # _POP_QUERY_COEFF = 0.25
 ```
+
+**Why it changed:** with the additive `+pop/2_000_000` rule a max-popularity
+document received +0.5 on *every* query — ~30× the entire RRF score range — so a
+popular-but-irrelevant item (e.g. a Galaxy fold with a trained popularity of
+1 000 000) ranked #1 for the query "iphone 17". See
+`docs/trainedRescorerDesign.md` and the regression tests in
+`backend/tests/services/infra/test_editorial_boosts.py`.
 
 ---
 
@@ -91,26 +135,46 @@ if isinstance(boost_ct, list) and any(t.lower() in q_lower for t in boost_ct if 
 
 ## Combined score formula
 
+**Non-empty query:**
+
 ```
-final_score(doc, query) =
-    RRF_score(doc)
-  + 0.5  × is_featured
-  + min(popularity, 1_000_000) / 2_000_000
-  + 0.5  × (query == any boost_queries_equal term)
-  + 0.3  × (query contains any boost_queries_contains term)
+base = RRF_score(doc)                      # or 1/(60+rank+1) on the pure-lexical path
+if popularity > 0:
+    base *= 1 + 0.25 × (popularity / max_popularity_in_result_set)
+final = base
+      + 0.5 × is_featured
+      + 0.5 × (query == any boost_queries_equal term)
+      + 0.3 × (query contains any boost_queries_contains term)
 ```
 
-### Example: iPhone 16 boosted for "iphone" query
+**Empty-query browse:**
 
-| Signal | Value | Contribution |
+```
+final = base
+      + min(popularity, 1_000_000) / 2_000_000     # up to +0.5, the dominant term
+      + 0.5 × is_featured
+# boost_queries_* never fire on an empty query
+```
+
+### Example: iPhone 16 for the query "iphone" (max popularity in result set = 1 000 000)
+
+| Signal | Value | Effect |
 |---|---|---|
-| RRF (lexical rank 1) | — | +0.0114 |
-| RRF (semantic rank 2) | — | +0.0046 |
+| RRF (lexical rank 1) | — | base = 0.0114 |
+| RRF (semantic rank 2) | — | base += 0.0046 → 0.0160 |
+| `popularity` | 660 000 | base ×= 1 + 0.25·(660 000 / 1 000 000) = ×1.165 → 0.0186 |
 | `is_featured` | false | +0.0 |
-| `popularity` | 660 | +0.00033 |
 | `boost_queries_equal` | ["iphone 16"] | +0.0 (query is "iphone", not exact) |
 | `boost_queries_contains` | ["iphone"] | **+0.3** |
-| **Total** | | **≈ 0.316** |
+| **Total** | | **≈ 0.319** |
+
+### Example: same iPhone 16 on empty-query browse
+
+| Signal | Value | Effect |
+|---|---|---|
+| base (browse pseudo-score) | — | ~0.016 |
+| `popularity` | 660 000 | + 660 000 / 2 000 000 = **+0.33** |
+| **Total** | | **≈ 0.346** — ordered essentially by popularity |
 
 ---
 
@@ -153,10 +217,24 @@ var BOOST_CONTAINS = [
 
 | File | Function | Path |
 |---|---|---|
-| Multi-collection catalog search | `_rrf_search` | `backend/src/isp/routers/catalog.py:75` |
-| Single-index ISP search | `search_with_vec` | `backend/src/isp/services/infra/typesense_client.py:196` |
-| Document PATCH endpoint | `update_document` | `backend/src/isp/routers/indexes.py:807` |
-| Edit modal (UI) | `SourceContent.svelte` | `frontend/src/components/sources/SourceContent.svelte:302` |
+| **Shared editorial boost logic** | `apply_editorial_boosts` | `backend/src/isp/services/infra/typesense_client.py` |
+| Multi-collection catalog search | `_rrf_search` | `backend/src/isp/routers/catalog.py` |
+| Single-index hybrid search | `search_with_vec` | `backend/src/isp/services/infra/typesense_client.py` |
+| Single-index lexical / browse search | `search_documents` | `backend/src/isp/services/infra/typesense_client.py` |
+| Regression tests | — | `backend/tests/services/infra/test_editorial_boosts.py` |
+| Document PATCH endpoint | `update_document` | `backend/src/isp/routers/indexes.py` |
+| Edit modal (UI) | `SourceContent.svelte` | `frontend/src/components/sources/SourceContent.svelte` |
+
+## Known follow-ups
+
+- `boost_rules` (per-index rule table, e.g. "+0.04 for all Apple") is still
+  **additive on the RRF scale** — the same scale mismatch `popularity` had. A
+  small rule boost can pin a whole brand to the top of browse above a
+  1 000 000-popularity item. Not yet migrated to the query-aware model.
+- `catalog._rrf_search` browse only sees `per_page × 3` candidates per
+  collection, so cross-catalog global browse ordering by popularity is
+  approximate. Single-index browse (`search_documents`) is exact — it sorts in
+  Typesense.
 
 ---
 

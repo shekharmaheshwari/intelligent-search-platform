@@ -29,6 +29,21 @@
 > pooled across indexes as the "Model" section below recommends longer-term
 > — kept consistent with the existing per-index `?index_id=` endpoint shape
 > for the first pass; pooling is a fast-follow, not a blocker.
+>
+> **2026-09 ranking-blend fix (post-implementation):** live testing on the
+> Phones index showed the trained score doing exactly what "Open decisions"
+> warned about — a Galaxy fold with a trained `popularity` of 1 000 000 ranked
+> #1 for the query "iphone 17", because the additive `+ pop/2_000_000` rule
+> gives the top-popularity doc +0.5 on *every* query, ~30× the entire RRF score
+> range. Fixed by making `popularity` **query-aware** in a single shared
+> `apply_editorial_boosts()` (used by all search paths): on a non-empty query it
+> is a bounded multiplier `relevance *= (1 + 0.25 · pop/max_pop)` (≤ ×1.25, can
+> reorder near-ties but never overturn a clear match); on empty-query browse it
+> keeps the full additive `pop/2_000_000` (≤ +0.5) and Typesense sorts the whole
+> collection by `is_featured,popularity` natively. `is_featured` and
+> `boost_queries_*` stay additive merchandising overrides. Regression tests:
+> `backend/tests/services/infra/test_editorial_boosts.py`. Full detail in
+> `docs/scoreBoost.md`. Still additive and unaddressed: per-index `boost_rules`.
 
 ## Problem
 
@@ -71,11 +86,17 @@ against `backend/src/isp/services/infra/typesense_client.py` and
 `backend/src/isp/routers/catalog.py`:
 
 ```
-score = RRF(lex_rank, sem_rank)                       [always]
-      + is_featured / popularity / boost_queries_*     [always]
-      + customer-context affinity / viewed-penalty      [browse only, q empty]
-      + operator boost_rules                            [search- or browse-triggered, per rule]
+base  = RRF(lex_rank, sem_rank)                       [always]
+base *= (1 + 0.25 · popularity/max_pop)               [non-empty query only]
+score = base
+      + popularity/2_000_000                          [empty-query browse only, ≤ +0.5]
+      + is_featured / boost_queries_*                  [always, additive merchandising]
+      + customer-context affinity / viewed-penalty     [browse only, q empty]
+      + operator boost_rules                           [search- or browse-triggered, per rule]
 ```
+
+(Updated 2026-09 — popularity was additive `+ pop/2_000_000` on all queries;
+see the fix note at the top of this doc and `docs/scoreBoost.md`.)
 
 - **RRF is rank-based, not score-based.** `0.7/(60+lex_rank+1) +
   0.3/(60+sem_rank+1)` (`typesense_client.py:336,338`) — raw BM25/cosine
@@ -257,11 +278,16 @@ per-index training threshold (see Open Decisions for how that threshold
 gets set).
 
 **Output calibration:** the model's raw output must be scaled to land in
-the same 0–1,000,000 range `aggregate_popularity()` already produces, since
-`popularity`'s contribution to the RRF formula is capped at
-`min(pop,1_000_000)/2_000_000` (≤ +0.5). This is a required, explicit
-training-time step — an uncalibrated score either gets drowned out or
-dominates the formula unpredictably.
+the same 0–1,000,000 range `aggregate_popularity()` already produces. What
+that range *does* to ranking is now query-aware (see the 2026-09 fix note at
+the top): on a non-empty query the score is normalised against the
+highest-popularity candidate and applied as a bounded multiplier
+(`× (1 + 0.25 · pop/max_pop)`), so absolute calibration matters less than
+getting the *ordering* right; on empty-query browse it is still the additive
+`min(pop,1_000_000)/2_000_000` (≤ +0.5) and calibration into that band
+matters directly. Either way an uncalibrated score that clusters at one
+end of the range collapses the signal — calibration stays a required
+training-time step.
 
 **Write-back:** unchanged — `analytics_service.apply_popularity()`'s
 existing loop over `ts.update_document_fields()`, just fed the trained

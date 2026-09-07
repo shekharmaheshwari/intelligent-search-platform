@@ -78,6 +78,14 @@ router, its own database table.
    formula, just fed by the model's predicted probability instead of a
    summed heuristic.
 
+   > **Note (2026-09):** how this `popularity` field then affects ranking
+   > changed. It is no longer a flat additive `+pop/2_000_000` on every
+   > query — on a non-empty query it is a bounded multiplier
+   > (`relevance *= 1 + 0.25 · pop/max_pop`), keeping a learned popularity
+   > score from overturning a clear text match; the full additive signal
+   > applies only on empty-query browse. See `docs/scoreBoost.md` and the
+   > fix note in `docs/trainedRescorerDesign.md`.
+
 8. **Write back**: `ts.update_document_fields(collection, doc_id,
    {"popularity": ...})` — the exact same call `apply_popularity` already
    uses. Query-time reads this as a flat field; no model inference happens
