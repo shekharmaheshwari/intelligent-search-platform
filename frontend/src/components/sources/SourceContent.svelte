@@ -18,7 +18,7 @@
   import {
     excerpt, fmtDate, connectorUrl, docFields,
     tryParseJson, isMetadataKey, formatValue, formatMetaValue,
-    getPopularity, getIsFeatured, getBoostQueries,
+    getPopularity, getIsFeatured, getBoostQueries, applyEditToDoc,
   } from './SourceContent.helpers';
 
   export let index: IndexMeta;
@@ -158,20 +158,13 @@
         editBoostEqual, editBoostContains,
       );
       const target = editDoc;
-      const bEq = [...editBoostEqual];
-      const bCt = [...editBoostContains];
-      docs = docs.map(d => {
-        if (d.id !== target.id) return d;
-        const meta = tryParseJson(d.metadata as string | null ?? null) ?? {};
-        meta.popularity = editPopularity;
-        meta.is_featured = editIsFeatured;
-        return {
-          ...d,
-          metadata: JSON.stringify(meta),
-          boost_queries_equal: bEq,
-          boost_queries_contains: bCt,
-        };
-      });
+      const patch = {
+        popularity: editPopularity,
+        isFeatured: editIsFeatured,
+        boostEqual: editBoostEqual,
+        boostContains: editBoostContains,
+      };
+      docs = docs.map(d => (d.id === target.id ? applyEditToDoc(d, patch) : d));
       closeEdit();
     } catch (e) {
       editErr = String(e);

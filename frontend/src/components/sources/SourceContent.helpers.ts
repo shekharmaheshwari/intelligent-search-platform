@@ -109,3 +109,36 @@ export function getBoostQueries(
   if (Array.isArray(val)) return val.map(String);
   return [];
 }
+
+/**
+ * Apply an edited-document patch to a doc object for the optimistic in-list
+ * update after a successful save.
+ *
+ * Mirrors the backend PATCH, which writes both the top-level Typesense fields
+ * (``popularity``, ``is_featured``) and the ``metadata`` blob. The top-level
+ * fields matter because {@link getPopularity} / {@link getIsFeatured} read them
+ * first — updating only the blob leaves a stale top-level value, so re-opening
+ * the edit modal shows the old score and an un-ticked Featured toggle even
+ * though the save succeeded.
+ */
+export function applyEditToDoc(
+  doc: DocumentItem,
+  patch: {
+    popularity: number;
+    isFeatured: boolean;
+    boostEqual: string[];
+    boostContains: string[];
+  }
+): DocumentItem {
+  const meta = tryParseJson(doc.metadata as string | null ?? null) ?? {};
+  meta.popularity = patch.popularity;
+  meta.is_featured = patch.isFeatured;
+  return {
+    ...doc,
+    popularity: patch.popularity,
+    is_featured: patch.isFeatured,
+    metadata: JSON.stringify(meta),
+    boost_queries_equal: [...patch.boostEqual],
+    boost_queries_contains: [...patch.boostContains],
+  };
+}
