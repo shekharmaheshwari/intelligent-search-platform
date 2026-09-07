@@ -1028,19 +1028,18 @@ chatStore.ts
         <thead><tr><th>Provider</th><th>Model</th><th>Cost</th></tr></thead>
         <tbody>
           <tr><td>Self-hosted (Ollama)</td><td>Llama 3.1 8B</td><td><strong>$0</strong> (server cost only)</td></tr>
-          <tr><td>Groq</td><td>Llama 3.3 70B</td><td><strong>$0</strong> (free tier — 14,400 req/day, no card needed)</td></tr>
-          <tr><td>Groq</td><td>Llama 3.1 8B</td><td><strong>$0</strong> (free tier — faster, slightly weaker)</td></tr>
-          <tr><td>Google</td><td>Gemini 2.0 Flash</td><td><strong>~$0.01</strong> (billing required)</td></tr>
-          <tr><td>Google</td><td>Gemini 2.5 Flash</td><td><strong>~$0.02</strong> (billing required)</td></tr>
-          <tr><td>Google</td><td>Gemini 2.5 Pro</td><td><strong>~$0.50</strong> (billing required)</td></tr>
+          <tr><td>Groq</td><td>GPT-OSS 20B</td><td><strong>$0</strong> (free tier — faster, lighter)</td></tr>
+          <tr><td>Groq</td><td>GPT-OSS 120B</td><td><strong>$0</strong> (free tier — stronger, still no card needed)</td></tr>
+          <tr><td>Google</td><td>Gemini 3.5 Flash-Lite</td><td><strong>~$0.01</strong> (billing required)</td></tr>
+          <tr><td>Google</td><td>Gemini 3.6 Flash</td><td><strong>~$0.02</strong> (billing required)</td></tr>
           <tr><td>OpenAI</td><td>GPT-4o mini</td><td><strong>~$0.08</strong></td></tr>
           <tr><td>OpenAI</td><td>GPT-4o</td><td><strong>~$2.00</strong></td></tr>
           <tr><td>Anthropic</td><td>Claude Haiku 4.5</td><td><strong>~$0.14</strong></td></tr>
           <tr><td>Anthropic</td><td>Claude Sonnet 4.6</td><td><strong>~$1.50</strong></td></tr>
         </tbody>
       </table>
-      <p><strong>Recommended starting point:</strong> Groq / Llama 3.3 70B — genuinely free (no credit card), 14,400 requests/day, fast streaming. Sign up at console.groq.com. For production with higher volume, Gemini 2.0 Flash is the best cost-to-quality ratio once billing is enabled.</p>
-      <div class="warn"><strong>Note:</strong> Gemini 1.5 models (Flash and Pro) are deprecated and will return a 404. Use Gemini 2.0 Flash or newer.</div>
+      <p><strong>Recommended starting point:</strong> Groq / GPT-OSS 120B — genuinely free (no credit card), fast streaming. Sign up at console.groq.com. For production with higher volume, Gemini 3.5 Flash-Lite is the best cost-to-quality ratio once billing is enabled.</p>
+      <div class="warn"><strong>Model deprecation moves fast on every provider — verified against production incidents, not just vendor changelogs.</strong> On 2026-08-30, ISP's own chat feature broke twice in one session: Groq retired <em>all</em> Llama-3.x models account-wide (both <code>llama-3.1-8b-instant</code> and <code>llama-3.3-70b-versatile</code> started 404-ing), and separately <code>gemini-2.5-flash</code> stopped working for a newly-created Gemini project even though it still appears in Google's own model-list API — Google's error response pointed to <code>gemini-3.6-flash</code> as the replacement. Since 2026-08-30, <code>PUT /v1/settings/chat</code> checks the chosen model against the provider's live catalog at save time and rejects an unavailable one immediately — see <a href="#s13">§13</a> below — but that check can't catch every provider-specific restriction (the Gemini "still listed, still blocked for new projects" case slipped past it too). Don't treat any model name in this doc as permanently valid; if chat starts failing, check `docker logs isp-api` for the actual provider error first.</div>
 
       <h3>How vector embedding and LLM are independent</h3>
 <pre>Voyage AI  →  converts query to 1024-d vector  →  Typesense finds products
@@ -1127,7 +1126,7 @@ These two systems share no state. You can:
 │  │                                                                   │  │
 │  │  Model                                                            │  │
 │  │  ┌─────────────────────────────────────────────────────────────┐ │  │
-│  │  │ Gemini 2.0 Flash                                          ▼ │ │  │
+│  │  │ Gemini 3.6 Flash                                          ▼ │ │  │
 │  │  └─────────────────────────────────────────────────────────────┘ │  │
 │  │                                                                   │  │
 │  │  API key  (stored — leave blank to keep)                         │  │
@@ -1138,7 +1137,7 @@ These two systems share no state. You can:
 │                                                                         │
 │  [Save]                                                                 │
 │                                                                         │
-│  ● google · gemini-2.0-flash · API key stored ✓                         │
+│  ● google · gemini-3.6-flash · API key stored ✓                         │
 │                                                                         │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │  Smart Follow-up Detection                         [ toggle OFF ] │  │
@@ -1146,6 +1145,21 @@ These two systems share no state. You can:
 │  │  history before retrieval. Improves comparison accuracy ("compare │  │
 │  │  it with Samsung") at the cost of one extra LLM call per turn.    │  │
 │  └───────────────────────────────────────────────────────────────────┘  │</pre>
+
+      <h3>Save-time model validation</h3>
+      <p>Added 2026-08-30, directly in response to the two production failures described in the warning box in <a href="#s12">§12</a>. Before <code>PUT /v1/settings/chat</code> persists a provider/model choice, it checks the model against that provider's own live catalog and rejects the save with a <code>400</code> if the model isn't there — catching a deprecated model at Settings-save time instead of discovering it mid-conversation.</p>
+      <table>
+        <thead><tr><th>Provider</th><th>Catalog source</th></tr></thead>
+        <tbody>
+          <tr><td>OpenAI / Groq</td><td><code>client.models.list()</code> via the OpenAI-compatible SDK (same client used for chat, different base URL for Groq)</td></tr>
+          <tr><td>Google</td><td><code>GET generativelanguage.googleapis.com/v1beta/models</code>, filtered to models supporting <code>generateContent</code></td></tr>
+          <tr><td>Anthropic</td><td><code>GET api.anthropic.com/v1/models</code></td></tr>
+          <tr><td>Self-hosted</td><td><strong>Not validated</strong> — Ollama/vLLM/LocalAI compliance with a models-list route varies too much to make this a hard requirement; a bad self-hosted config still surfaces at chat time, same as before this change</td></tr>
+        </tbody>
+      </table>
+      <div class="notice"><strong>Fails open on an unreachable catalog, not closed.</strong> If the availability check itself can't be reached (bad key, network issue, provider outage), the save proceeds anyway rather than blocking on a check that isn't itself available — the actual key/model still gets exercised for real on the first chat request either way.</div>
+      <div class="warn"><strong>Known gap, not a guarantee.</strong> This validated Google's own <code>gemini-2.5-flash</code> as fine — it's genuinely still in Google's catalog response — even though it's blocked for this specific (newly-created) project. The catalog check only catches models fully retired from a provider's list; it can't see per-account/per-project restrictions a provider applies on top of an otherwise-listed model. Chat-time errors remain the final authority.</div>
+      <p class="page-subtitle" style="margin-bottom:0;">One separate, pre-existing thing this surfaced: ISP stores a single global <code>chat_api_key</code>, not one per provider. Switching providers via the API without also supplying that provider's key silently reuses whatever key was last saved, which then fails authentication against the new provider — worth knowing if a provider switch behaves unexpectedly.</p>
 
       <!-- ── Section 14 ── -->
       <h2 id="s14">14. What the LLM Does and Does Not Do</h2>
