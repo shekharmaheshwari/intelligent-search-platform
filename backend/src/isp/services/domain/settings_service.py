@@ -398,16 +398,24 @@ AVAILABLE_CHAT_MODELS: list[dict] = [
     # Anthropic (paid)
     {"id": "claude-haiku-4-5",          "label": "Claude Haiku 4.5",       "provider": "anthropic",   "tier": "paid"},
     {"id": "claude-sonnet-4-6",         "label": "Claude Sonnet 4.6",      "provider": "anthropic",   "tier": "paid"},
-    # Google (paid) — 1.5 models deprecated; use 2.x+
-    {"id": "gemini-2.5-flash",          "label": "Gemini 2.5 Flash",       "provider": "google",      "tier": "paid"},
-    {"id": "gemini-2.0-flash",          "label": "Gemini 2.0 Flash",       "provider": "google",      "tier": "paid"},
-    {"id": "gemini-2.5-pro",            "label": "Gemini 2.5 Pro",         "provider": "google",      "tier": "paid"},
+    # Google (paid) — 1.5 and 2.x models deprecated/blocked as of 2026-08-30
+    # (gemini-2.0-flash fully retired; gemini-2.5-flash/-pro still listed in
+    # Google's catalog but 404 on generateContent for newer projects — see
+    # chatRag.html §12/§13). Both entries below verified live against a real
+    # generateContent call, not just presence in the catalog list.
+    {"id": "gemini-3.6-flash",          "label": "Gemini 3.6 Flash",       "provider": "google",      "tier": "paid"},
+    {"id": "gemini-3.5-flash-lite",     "label": "Gemini 3.5 Flash-Lite",  "provider": "google",      "tier": "paid"},
     # OpenAI (paid)
     {"id": "gpt-4o-mini",               "label": "GPT-4o Mini",            "provider": "openai",      "tier": "paid"},
     {"id": "gpt-4o",                    "label": "GPT-4o",                 "provider": "openai",      "tier": "paid"},
-    # Groq (paid — free tier available)
-    {"id": "llama-3.1-8b-instant",      "label": "Llama 3.1 8B (Groq)",   "provider": "groq",        "tier": "paid"},
-    {"id": "llama-3.3-70b-versatile",   "label": "Llama 3.3 70B (Groq)",  "provider": "groq",        "tier": "paid"},
+    # Groq (paid — free tier available) — all Llama-3.x models deprecated by
+    # Groq account-wide as of 2026-08-30 (confirmed via GET /openai/v1/models
+    # returning 404 model_not_found for both prior entries here); replaced
+    # with the models Groq's own catalog currently lists as active.
+    {"id": "openai/gpt-oss-120b",       "label": "GPT-OSS 120B (Groq)",   "provider": "groq",        "tier": "paid"},
+    {"id": "openai/gpt-oss-20b",        "label": "GPT-OSS 20B (Groq)",    "provider": "groq",        "tier": "paid"},
+    {"id": "groq/compound",             "label": "Compound (Groq)",       "provider": "groq",        "tier": "paid"},
+    {"id": "qwen/qwen3.8-27b",          "label": "Qwen3.8 27B (Groq)",    "provider": "groq",        "tier": "paid"},
     # Self-hosted (free — user provides endpoint)
     {"id": "self_hosted",               "label": "Self-hosted (Ollama / vLLM / LocalAI)", "provider": "self_hosted", "tier": "self_hosted"},
 ]
