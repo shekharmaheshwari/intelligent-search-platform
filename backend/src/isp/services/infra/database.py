@@ -97,6 +97,18 @@ async def init_db() -> None:
                 created_at  BIGINT
             );
 
+            CREATE TABLE IF NOT EXISTS training_runs (
+                id             BIGSERIAL    PRIMARY KEY,
+                index_id       VARCHAR(12)  REFERENCES indexes(id) ON DELETE CASCADE,
+                case_name      VARCHAR(8),
+                model_type     VARCHAR(64),
+                n_events       INTEGER,
+                n_docs_scored  INTEGER,
+                metric_name    TEXT,
+                metric_value   DOUBLE PRECISION,
+                trained_at     BIGINT
+            );
+
             CREATE TABLE IF NOT EXISTS api_keys (
                 id          VARCHAR(12)  PRIMARY KEY,
                 index_id    VARCHAR(12)  NOT NULL REFERENCES indexes(id) ON DELETE CASCADE,

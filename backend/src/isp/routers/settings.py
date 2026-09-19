@@ -38,8 +38,10 @@ from isp.services.domain.settings_service import (
     get_chat_config,
     set_chat_config,
     get_smart_followup_enabled,
+    get_setting,
 )
 from isp.services.infra import embedding_service
+from isp.services.infra.chat import service as chat_service
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -306,6 +308,19 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
             status_code=http_status.HTTP_400_BAD_REQUEST,
             detail="endpoint is required when provider is 'self_hosted'.",
         )
+
+    # Validate the chosen model against the provider's live catalog before
+    # persisting — catches a deprecated/retired model at save time instead
+    # of at chat time. Uses the newly-submitted key if one was given, else
+    # the already-stored key (the UI leaves the field blank to keep it).
+    effective_key = body.api_key or await get_setting("chat_api_key") or ""
+    try:
+        await chat_service.validate_chat_model(
+            body.provider, body.model, effective_key, body.endpoint or "",
+        )
+    except ValueError as exc:
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     await set_chat_config(
         provider=body.provider,

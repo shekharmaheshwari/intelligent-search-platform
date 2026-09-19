@@ -177,13 +177,96 @@ def count_documents(index_id: str) -> int:
         return 0
 
 
-def _apply_lexical_hook(raw: dict, hook) -> dict:
+# ── Editorial ranking signals ────────────────────────────────────────────────
+# All four post-retrieval ranking levers live in apply_editorial_boosts() so the
+# lexical, hybrid (search_with_vec) and cross-catalog (catalog._rrf_search) paths
+# stay in lock-step. See docs/scoreBoost.md and docs/trainedRescorerDesign.md.
+_POP_CAP            = 1_000_000   # popularity is clamped here before any scaling
+_POP_BROWSE_DIVISOR = 2_000_000   # empty-query browse: additive, up to +0.5
+_POP_QUERY_COEFF   = 0.25         # non-empty query: relevance *= (1 + coeff * pop_norm)
+
+
+def _is_browse(q: str) -> bool:
+    """A blank query or the Typesense ``*`` wildcard means "browse", not search."""
+    qs = (q or "").strip()
+    return not qs or qs == "*"
+
+
+def apply_editorial_boosts(scores: dict, all_docs: dict, q: str, *, is_browse: bool) -> None:
     """
-    Apply a post-retrieval scoring hook to a flat Typesense hit list and re-sort.
+    Apply the four editorial ranking signals in place on ``scores``.
+
+    Popularity's role depends on query intent:
+
+    * **Empty-query browse** (``is_browse``): popularity is an additive bonus of
+      up to +0.5 (``popularity / 2_000_000``) — the dominant ordering signal,
+      since there is no query relevance to respect.
+    * **Non-empty query**: popularity is a *bounded multiplicative* adjustment
+      only — ``relevance *= (1 + _POP_QUERY_COEFF * pop_norm)`` where ``pop_norm``
+      is the doc's popularity relative to the most-popular candidate in the
+      result set. With the default coefficient (see ``_POP_QUERY_COEFF``) a
+      perfectly popular doc gets a small capped lift, so it can reorder near-ties
+      but never overtake a clearly more relevant result. An additive term on the
+      RRF scale (max ≈ 0.016) cannot give that guarantee — see
+      docs/trainedRescorerDesign.md.
+
+    ``is_featured`` and ``boost_queries_equal``/``boost_queries_contains`` are
+    explicit merchandising levers: they stay additive and may outrank pure
+    relevance by design. Pinned hits are handled separately by the caller and
+    always win.
+    """
+    q_lower = (q or "").lower().strip()
+
+    pops = {did: min(int(doc.get("popularity") or 0), _POP_CAP)
+            for did, doc in all_docs.items()}
+    max_pop = max(pops.values(), default=0)
+
+    for did, doc in all_docs.items():
+        base = scores.get(did, 0.0)
+        pop  = pops[did]
+
+        # popularity — a learned signal; must not override query relevance
+        if pop > 0:
+            if is_browse:
+                base += pop / _POP_BROWSE_DIVISOR
+            elif max_pop > 0:
+                base *= 1.0 + _POP_QUERY_COEFF * (pop / max_pop)
+
+        # merchandising overrides — additive, intentionally allowed to win
+        if doc.get("is_featured"):
+            base += 0.5
+        boost_eq = doc.get("boost_queries_equal") or []
+        if q_lower and isinstance(boost_eq, list) and q_lower in [t.lower() for t in boost_eq if t]:
+            base += 0.5
+        boost_ct = doc.get("boost_queries_contains") or []
+        if q_lower and isinstance(boost_ct, list) and any(t.lower() in q_lower for t in boost_ct if t):
+            base += 0.3
+
+        scores[did] = base
+
+
+def _rerank_flat(raw: dict, q: str, is_browse: bool, hook=None, *,
+                 editorial: bool = True, pinned_hits: list[str] | None = None) -> dict:
+    """
+    Re-rank a flat Typesense hit list by editorial boosts (+ an optional
+    affinity hook), so the lexical path applies the same signals as RRF.
 
     Builds rank-based scores (1 / (K + rank + 1), K=60 — same constant as RRF)
-    so the hook's affinity boost values are in the correct relative magnitude.
-    The original hit objects are preserved; only their order changes.
+    so boost magnitudes are in the right relative range. The original hit
+    objects are preserved; only their order changes.
+
+    ``editorial=False`` skips apply_editorial_boosts — used on the browse path,
+    where Typesense has already sorted the whole collection by
+    ``is_featured,popularity`` natively, so only the affinity hook needs to run.
+
+    ``pinned_hits`` (in order) are forced back to the top after editorial boosts
+    and the affinity hook are applied — mirrors ``search_with_vec`` so an
+    editorial signal or affinity boost can never displace an operator-pinned
+    result. Only pins
+    already present in this page's hits are re-asserted; the caller's own
+    ``pinned_hits`` Typesense param is what puts them there. (``search_with_vec``
+    additionally fetches a pinned doc missing from the candidate set; the flat
+    path relies on Typesense positioning instead.)
     """
     hits = raw.get("hits", [])
     if not hits:
@@ -196,10 +279,19 @@ def _apply_lexical_hook(raw: dict, hook) -> dict:
         did = doc.get("id", str(rank))
         scores[did] = 1.0 / (K + rank + 1)
         all_docs[did] = doc
-    hook(scores, all_docs)
+    if editorial:
+        apply_editorial_boosts(scores, all_docs, q, is_browse=is_browse)
+    if hook is not None:
+        hook(scores, all_docs)
+    if pinned_hits:
+        pin_base = max(scores.values(), default=0.0) + 10.0
+        n = len(pinned_hits)
+        for pos, pid in enumerate(pinned_hits):
+            if pid in scores:
+                scores[pid] = pin_base + (n - pos)
     hit_by_id = {hit["document"]["id"]: hit for hit in hits if "document" in hit}
     ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
-    # Stamp text_match from the hook-adjusted score so PLP clients that sort by
+    # Stamp text_match from the adjusted score so PLP clients that sort by
     # hit.text_match preserve the backend's ranking rather than reverting to the
     # original Typesense text-match order.
     return {**raw, "hits": [
@@ -243,27 +335,33 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
     client = get_client()
     extra: dict = {"exclude_fields": "vec"} if exclude_vec else {}
 
+    _pin_param: dict = (
+        {"pinned_hits": ",".join(f"{d}:{i + 1}" for i, d in enumerate(pinned_hits))}
+        if pinned_hits else {}
+    )
+
     if mode == "semantic":
         fb_params: dict = {"filter_by": filter_by} if filter_by else {}
         raw = client.collections[name].documents.search({
             "q": "*", "query_by": "title",
             "vector_query": f"vec:([],  k:{per_page})",
-            "page": page, "per_page": per_page, **extra, **fb_params,
+            "page": page, "per_page": per_page, **extra, **fb_params, **_pin_param,
         })
-        return _apply_lexical_hook(raw, post_rrf_hook) if post_rrf_hook else raw
+        return _rerank_flat(raw, q, _is_browse(q), post_rrf_hook, pinned_hits=pinned_hits)
 
     fb_params: dict = {"filter_by": filter_by} if filter_by else {}
-    pin_params: dict = {"pinned_hits": ",".join(f"{d}:{i+1}" for i, d in enumerate(pinned_hits))} if pinned_hits else {}
     facet_params: dict = {"facet_by": ",".join(facet_fields), "max_facet_values": 100} if facet_fields else {}
     _qb, _qb_weights = _qb_and_weights(query_by or "title,content,aliases")
     base_params: dict = {
         "q": q, "query_by": _qb,
         "query_by_weights": _qb_weights,
         "num_typos": 2,
-        "page": page, "per_page": per_page, **extra, **fb_params, **pin_params, **facet_params,
+        "page": page, "per_page": per_page, **extra, **fb_params, **_pin_param, **facet_params,
     }
 
-    def _search_with_sort(sort_by: str) -> dict:
+    browse = _is_browse(q)
+
+    def _search_with_sort(sort_by: str, *, editorial: bool) -> dict:
         params = base_params
         try:
             raw = client.collections[name].documents.search({**params, "sort_by": sort_by})
@@ -276,17 +374,23 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
                 qb, weights = _qb_and_weights(_drop_field(params["query_by"], "aliases"))
                 params = {**params, "query_by": qb, "query_by_weights": weights}
             raw = client.collections[name].documents.search({**params, "sort_by": "_text_match:desc"})
-        result = _apply_lexical_hook(raw, post_rrf_hook) if post_rrf_hook else raw
+        result = _rerank_flat(raw, q, browse, post_rrf_hook, editorial=editorial, pinned_hits=pinned_hits)
         # Promote facet_counts to a normalized dict if Typesense returned them
         if facet_fields and "facet_counts" in result:
             result = {**result, "facet_counts": _parse_facet_counts(result["facet_counts"])}
         return result
 
-    if mode == "lexical":
-        return _search_with_sort("is_featured:desc,_text_match:desc")
+    if browse:
+        # Empty-query browse: let Typesense order the whole collection by the
+        # editorial signals so pagination is correct across every page. The
+        # Python pass only runs the affinity hook (editorial=False) — popularity
+        # is already baked into the sort, re-adding it would double-count.
+        return _search_with_sort("is_featured:desc,popularity:desc,_text_match:desc", editorial=False)
 
-    # hybrid — default
-    return _search_with_sort("is_featured:desc,_text_match:desc")
+    # Non-empty query: retrieve by pure text relevance, then _rerank_flat applies
+    # the query-aware editorial rule (bounded multiplicative popularity, additive
+    # merchandising) identically to the RRF path.
+    return _search_with_sort("_text_match:desc", editorial=True)
 
 
 def search_with_vec(
@@ -365,24 +469,8 @@ def search_with_vec(
     all_docs = {**{d: doc for d, (_, doc) in lex_hits.items()},
                 **{d: doc for d, (_, doc) in sem_hits.items()}}
 
-    # Editorial boosts — mirror the same logic in catalog.py _rrf_search.
-    # is_featured: large fixed bonus that overrides pure relevance order.
-    # popularity: linear scale (1 000 000 pop ≈ +0.5, same magnitude as featured).
-    # boost_queries_equal: +0.5 when the full query exactly matches a merchandising term.
-    # boost_queries_contains: +0.3 when the query contains a merchandising term.
-    q_lower = q.lower().strip()
-    for did, doc in all_docs.items():
-        if doc.get("is_featured"):
-            scores[did] = scores.get(did, 0) + 0.5
-        pop = doc.get("popularity") or 0
-        if pop > 0:
-            scores[did] = scores.get(did, 0) + min(int(pop), 1_000_000) / 2_000_000
-        boost_eq = doc.get("boost_queries_equal") or []
-        if isinstance(boost_eq, list) and q_lower in [t.lower() for t in boost_eq if t]:
-            scores[did] = scores.get(did, 0) + 0.5
-        boost_ct = doc.get("boost_queries_contains") or []
-        if isinstance(boost_ct, list) and any(t.lower() in q_lower for t in boost_ct if t):
-            scores[did] = scores.get(did, 0) + 0.3
+    # Editorial boosts — shared with the lexical path and catalog._rrf_search.
+    apply_editorial_boosts(scores, all_docs, q, is_browse=_is_browse(q))
 
     # Context hook — caller may pass a callable(scores, all_docs) to apply
     # customer-action-history boosts after all editorial signals are applied.
