@@ -256,22 +256,28 @@ class ChatConfigUpdate(BaseModel):
     - ``model``          — model id; empty string for self_hosted
     - ``api_key``        — cloud API key; omit to keep the previously stored key
     - ``endpoint``       — required only when provider is "self_hosted"
-    - ``smart_followup`` — when True, route every follow-up query through the LLM classifier
+    - ``smart_followup``      — when True, route every follow-up query through the LLM classifier
+    - ``multi_intent_split``  — when True, a message naming multiple product categories
+                                ("cases and headphones") is split into a search per
+                                category instead of one blended search — see
+                                docs/multiIntentConjunctionSearchDesign.md
     """
-    provider:       str
-    model:          str        = ""
-    api_key:        str | None = None
-    endpoint:       str | None = None
-    smart_followup: bool       = False
+    provider:           str
+    model:              str        = ""
+    api_key:            str | None = None
+    endpoint:           str | None = None
+    smart_followup:     bool       = False
+    multi_intent_split: bool       = False
 
 
 class ChatConfigResponse(BaseModel):
-    provider:         str
-    model:            str
-    endpoint:         str | None
-    api_key_set:      bool
-    smart_followup:   bool
-    available_models: list[dict]
+    provider:           str
+    model:              str
+    endpoint:           str | None
+    api_key_set:        bool
+    smart_followup:     bool
+    multi_intent_split: bool
+    available_models:   list[dict]
 
 
 @router.get("/chat", response_model=ChatConfigResponse)
@@ -284,6 +290,7 @@ async def get_chat_settings() -> ChatConfigResponse:
         endpoint=cfg["endpoint"] or None,
         api_key_set=cfg["api_key_set"],
         smart_followup=cfg.get("smart_followup", False),
+        multi_intent_split=cfg.get("multi_intent_split", False),
         available_models=AVAILABLE_CHAT_MODELS,
     )
 
@@ -328,6 +335,7 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
         api_key=body.api_key,
         endpoint=body.endpoint,
         smart_followup=body.smart_followup,
+        multi_intent_split=body.multi_intent_split,
     )
     cfg = await get_chat_config()
     return ChatConfigResponse(
@@ -336,6 +344,7 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
         endpoint=cfg["endpoint"] or None,
         api_key_set=cfg["api_key_set"],
         smart_followup=cfg.get("smart_followup", False),
+        multi_intent_split=cfg.get("multi_intent_split", False),
         available_models=AVAILABLE_CHAT_MODELS,
     )
 

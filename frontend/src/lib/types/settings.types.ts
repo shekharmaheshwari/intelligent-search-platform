@@ -32,12 +32,13 @@ export interface ChatModelOption {
 }
 
 export interface ChatConfig {
-  provider:         string;
-  model:            string;
-  endpoint:         string | null;
-  api_key_set:      boolean;
-  smart_followup:   boolean;
-  available_models: ChatModelOption[];
+  provider:            string;
+  model:               string;
+  endpoint:            string | null;
+  api_key_set:         boolean;
+  smart_followup:      boolean;
+  multi_intent_split:  boolean;
+  available_models:    ChatModelOption[];
 }
 
 export interface AppSettings {
