@@ -1373,11 +1373,15 @@ Extension: chat_content_plants.js  (run_order 2, runs after plants_transformer)
 ```
 chat.py router:
   facet_query_by = "chatContent"    ← always, no field_config inspection needed
-  query_by = "chatContent,title,content"  (+ extra searchable fields at weight 10)
+  query_by = "chatContent,title,content"  (+ extra searchable fields, weight
+             10 if facet=True, weight 1 if facet=False — see the 2026-09
+             revision note under "RRF merge weights" below for why prose
+             fields dropped out of the 10x tier)
                     │
                     ▼
 service._search_context():
-  Pass 2 (lex-facets, weight 0.6): query chatContent with num_typos=0
+  Pass 2 (lex-facets, weight 0.2 — see "RRF merge weights" below for the
+    2026-09 reweight from 0.6): query chatContent with num_typos=0
     → "plants which are pet safe" → matches "Pet safety: Pet safe" exactly
                     │
                     ▼
@@ -1426,12 +1430,12 @@ The same query also breaks naive semantic search because "plants which are" domi
 Every chat context search runs up to three Typesense passes in a single `multi_search` POST, then merges with RRF:
 
 ```
-Pass 1 — lex-all  (weight 0.3)
-  query_by: chatContent, <extra searchable fields>, title, content
-  query_by_weights: chatContent=5, extra=10, title/content=1
+Pass 1 — lex-all  (weight 0.2)
+  query_by: <facet-typed extra fields>, <prose-typed extra fields>, chatContent, title, content
+  query_by_weights: facet-typed=10, prose-typed=1, chatContent=5, title/content=1
   Purpose: broad BM25 coverage of all text fields
 
-Pass 2 — lex-chatContent  (weight 0.6)
+Pass 2 — lex-chatContent  (weight 0.2)
   query_by: chatContent
   num_typos: 0  ← exact word matching only
   Purpose: precise attribute matching — "pet safe" → matches
@@ -1439,10 +1443,23 @@ Pass 2 — lex-chatContent  (weight 0.6)
            num_typos=0 prevents "plants" from fuzzy-matching "plant"
            in labels like "Growth style: trailing plant"
 
-Pass 3 — semantic  (weight 0.1)
+Pass 3 — semantic  (weight 0.6)
   vector_query: vec:([<embedded query>], k:15)
   Purpose: semantic similarity for general queries
 ```
+
+**2026-09 revision — every extra field was getting the same `10x` boost.**
+`chat.py` originally gave *every* searchable non-core field the same weight-10
+boost as `chatContent`'s facet-shaped attributes, without distinguishing a
+genuinely categorical field (`compatible_devices`, facet=True — a device name
+list, appropriate for a heavy boost) from a free-text prose field
+(`description`, facet=False — no different from `content`). A plans catalog's
+"GoTo Device Cleaning Kit for **AirPods**, smartphones..." mentions AirPods in
+its `description`; at weight 10 that beat a real AirPods product's own
+`title` match (weight 1), pushing genuine AirPods products out of the top-5
+window entirely — reproduced live before fixing. Fields are now split: only
+`facet=True` fields keep the 10x boost; `facet=False` searchable fields
+(prose) drop to the same weight as `content`.
 
 ### Why num_typos=0 matters
 
@@ -1458,11 +1475,36 @@ With `chatContent`, there is one string field, always present when an extension 
 
 | Pass | Weight | Reasoning |
 |------|--------|-----------|
-| lex-facets | 0.6 | Highest — precise exact-word attribute matching |
-| lex-all | 0.3 | Medium — broad BM25 for general text queries |
-| semantic | 0.1 | Lowest — used as tiebreaker; accuracy depends on rebuild |
+| semantic | **0.6** | Highest — the most reliable signal for a bare product-name or attribute query (see the 2026-09 revision below) |
+| lex-all | **0.2** | Broad BM25 for general text queries |
+| lex-facets (chatContent, num_typos=0) | **0.2** | Precise exact-word attribute matching — but see below for why this dropped from 0.6 |
 
 When `lex-facets` returns 0 results (e.g. query has no words matching any facet value), only `lex-all` and `semantic` contribute — behaviour unchanged from a two-pass system.
+
+**2026-09 revision — `lex-facets` at 0.6 was designed for short categorical
+values, but chatContent is prose.** The 0.6 weight was set when this pass
+targeted genuinely short, exact facet values (`pet_safety_label = "Pet
+safe"`) — a real match there is a clean, trustworthy signal worth
+overweighting. Once the target moved to `chatContent` (§17, "Why chatContent
+is the right target"), that assumption stopped holding for a single common
+word: querying "airpods" with `num_typos=0` against every product's
+`chatContent` doesn't distinguish "this product *is* AirPods" from "this
+product's blurb *mentions* AirPods" — every containing document ties at an
+identical score, and Typesense breaks that tie by document order, not
+relevance. At weight 0.6 that arbitrary order dominated the final ranking:
+reproduced live, a charger and a cleaning kit (both merely AirPods-compatible)
+outranked the actual AirPods products for the query "airpods".
+
+Verified the semantic pass doesn't have this problem for the same query —
+real AirPods products clustered at cosine distance ~0.44–0.49, chargers/kits
+at ~0.53+, a clean separation — so it took the plurality instead. Re-ran 7
+representative queries across two indexes (generic product name, category,
+device+category, and — importantly — the two genuine short-facet attribute
+queries this weighting was originally tuned for, "plants which are pet safe"
+and "snake plant") before shipping the change: identical or better results on
+every one, including both of the original short-facet cases, confirming the
+reweight doesn't regress the scenario `lex-facets` was built for — it only
+stops that pass from dominating on the case it was never actually suited to.
 
 ---
 

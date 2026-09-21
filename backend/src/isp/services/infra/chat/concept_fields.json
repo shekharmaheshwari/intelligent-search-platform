@@ -1,0 +1,9 @@
+{
+  "price":                ["price", "cost", "rate", "fee"],
+  "popularity":           ["popularity", "popular"],
+  "recency":              ["release_date", "created_at", "date", "launched"],
+  "size":                 ["size", "screen_size", "capacity"],
+  "rating":               ["rating", "review_score", "stars"],
+  "device_compatibility": ["compatible_devices", "compatible_with", "device_compatibility"],
+  "customer_eligibility":  ["customer_group", "eligibility", "customer_segment", "audience"]
+}

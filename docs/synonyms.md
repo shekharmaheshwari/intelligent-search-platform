@@ -13,12 +13,13 @@ resolved by Typesense during query parsing, not baked into indexed documents.
 ## Why
 
 While testing chat retrieval on the Accessories index, "iphone charging wire" returned
-nothing useful — every product in the catalog says "Cable," never "wire." The chat
-retrieval pipeline (see `chat-rag.md`) weights its three passes lex-facets 0.6 / lex-all 0.3
-/ semantic 0.1. A word that appears in zero product text gets zero signal from the two
-lexical passes (90% of the ranking weight), leaving only the weak 10%-weighted semantic
-pass to carry the entire query — not reliable enough to consistently rank the right product
-above semantically-adjacent-but-wrong ones.
+nothing useful — every product in the catalog says "Cable," never "wire." (The chat
+retrieval pipeline's RRF weights — see `chat-rag.md` — have since been rebalanced toward
+semantic, which happens to help this exact case more than it used to; the underlying gap
+this feature closes still applies whenever a word appears in zero product text at all.) A
+word with zero lexical signal leaves ranking entirely to whatever a general-purpose
+embedding happens to consider "wire" close to — not reliable enough to consistently rank
+the right product above semantically-adjacent-but-wrong ones.
 
 No synonym infrastructure existed anywhere in the codebase before this feature. The fix is
 Typesense's own synonym feature, not a bespoke query-rewriting layer — it's already there,
