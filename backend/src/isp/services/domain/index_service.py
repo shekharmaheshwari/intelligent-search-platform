@@ -317,6 +317,43 @@ async def merge_superlative_field_map(idx_id: str, concept: str, field_name: str
         )
 
 
+async def set_concept_field(idx_id: str, field_name: str, concept: str) -> dict:
+    """
+    Atomically move one field's concept tag — the Fields tab's "Concept"
+    control (see routers/indexes.py).
+
+    Within a single UPDATE: remove any existing concept key that currently
+    points to ``field_name`` (a field is single-select in the UI — it can't
+    claim two concepts at once), then set ``concept`` -> ``field_name`` when
+    ``concept`` is non-empty (empty string clears without setting a
+    replacement).
+
+    This runs entirely in SQL as one statement, keyed off the row's current
+    value under Postgres's row-level UPDATE lock — not a Python-side
+    read -> mutate -> full-replace. The latter lets two concurrent PATCHes
+    (e.g. tagging Price and Popularity at nearly the same time) both read the
+    same starting map and then have the second write silently discard the
+    first's change. Returns the map as stored after the update.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("""
+            UPDATE indexes
+            SET superlative_field_map = COALESCE(
+                (
+                    SELECT jsonb_object_agg(kv.key, kv.value)
+                    FROM jsonb_each(COALESCE(superlative_field_map, '{}'::jsonb)) AS kv(key, value)
+                    WHERE kv.value <> to_jsonb($3::text)
+                ),
+                '{}'::jsonb
+            ) || CASE WHEN $2 <> '' THEN jsonb_build_object($2, $3) ELSE '{}'::jsonb END
+            WHERE id = $1
+            RETURNING superlative_field_map
+        """, idx_id, concept, field_name)
+    raw = row["superlative_field_map"]
+    return json.loads(raw) if isinstance(raw, str) else (raw or {})
+
+
 async def set_intent_label(idx_id: str, label: str) -> None:
     """Set the intent_label for an index (e.g. 'device', 'accessory', 'smartwatch', 'tablet')."""
     pool = await get_pool()
@@ -379,7 +416,14 @@ async def get_status(idx_id: str) -> IngestStatus:
 
 
 async def set_status(status: IngestStatus) -> None:
-    """Upsert an ingest status row (insert on first call, update on subsequent calls)."""
+    """
+    Upsert an ingest status row (insert on first call, update on subsequent calls).
+
+    Every ingest/rebuild path in the codebase (routers/indexes.py's several
+    connector flows, infra/agent/setup_executor.py) reports its progress
+    through this one function, which makes it the single chokepoint for
+    reacting to a completed ingest regardless of which path produced it.
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("""
@@ -393,6 +437,18 @@ async def set_status(status: IngestStatus) -> None:
         """,
             status.index_id, status.state, status.total, status.indexed, status.error,
         )
+        if status.state == "done":
+            # A completed ingest/rebuild may have changed this index's
+            # document set — chat/service.py's in-memory per-index caches
+            # (category classification vectors, customer-eligibility facet
+            # values) are populated once and kept for the process lifetime,
+            # so without this a changed/added eligibility value or category
+            # goes unrecognized by chat until the process happens to
+            # restart. Deferred import: chat/service.py already imports
+            # this module at load time, so importing it back at module
+            # level here would be circular.
+            from isp.services.infra.chat import service as _chat_service
+            _chat_service.invalidate_index_caches(status.index_id)
 
 
 # ── External collection discovery ─────────────────────────────────────────────

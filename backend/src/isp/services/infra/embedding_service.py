@@ -77,9 +77,24 @@ def set_current_model(model_id: str) -> None:
     Updates ``_current_model`` so subsequent ``embed_texts`` and ``embed_query``
     calls use the new model.  Because the model name is part of every cache key,
     stale vectors from the previous model become unreachable and evict naturally.
+
+    Also drops chat/service.py's category-classification vector cache when
+    the model actually changes: that cache is keyed by index id only (not by
+    model) and embeds with whatever model was globally active when each
+    entry was first resolved, so leaving it in place across a switch would
+    compare a fresh query's new-model vector against a stale old-model
+    category vector — silently wrong regardless of whether the two models'
+    dimensions happen to match. See clear_all_category_vectors for the
+    full detail.
     """
     global _current_model
+    changed = model_id != _current_model
     _current_model = model_id
+    if changed:
+        # Deferred import: chat/service.py imports this module at load
+        # time, so importing it back here at module level would be circular.
+        from isp.services.infra.chat import service as _chat_service
+        _chat_service.clear_all_category_vectors()
 
 
 def set_openai_api_key(api_key: str) -> None:

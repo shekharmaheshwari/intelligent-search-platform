@@ -11,6 +11,7 @@ via the write-back path during rebuild.
 from __future__ import annotations
 import typesense
 from isp.config import settings
+from isp.services.domain import search_relevance
 
 # Vector dimension for newly created ISP collections.
 # Updated at runtime by settings_service.set_embed_model() when the operator
@@ -406,6 +407,7 @@ def search_with_vec(
     pinned_hits: list[str] | None = None,
     query_by: str | None = None,
     facet_fields: list[str] | None = None,
+    embed_model: str | None = None,
 ) -> dict:
     """
     Hybrid search via Typesense multi_search + Reciprocal Rank Fusion.
@@ -414,6 +416,11 @@ def search_with_vec(
     then merges with RRF weights (lexical 0.7, semantic 0.3) before slicing the
     requested page.  Fetching 3× more candidates before slicing avoids the
     page-boundary problem where RRF reordering would otherwise miss relevant docs.
+
+    ``embed_model`` should be the model that produced ``vec`` (pass the
+    caller's already-resolved ``meta.embed_model or
+    embedding_service.get_current_model()``) — it only affects which semantic
+    relevance floor gets applied, see search_relevance.py.
     """
     name = collection_name(index_id)
     vec_str = ",".join(str(v) for v in vec)
@@ -456,8 +463,16 @@ def search_with_vec(
         resp = _run_multi_search(qb, weights)
         results = resp.get("results", [{}, {}])
         lex_result = results[0]
-    lex_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(lex_result.get("hits", []))}
-    sem_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(results[1].get("hits", []))}
+    # Relevance floors — see search_relevance.py. Without these, a query with
+    # zero genuine matches (a typo-mashed string, an unrelated product name)
+    # still fills the result list: the vector leg always returns its
+    # k-nearest neighbours regardless of how weak the match actually is, and
+    # Typesense's typo-tolerant lexical matching can "hit" on a single
+    # incidental word overlap (e.g. a bare number matching a price).
+    raw_lex_hits = search_relevance.filter_lexical_hits(lex_result.get("hits", []), q)
+    raw_sem_hits = search_relevance.filter_semantic_hits(results[1].get("hits", []), embed_model)
+    lex_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(raw_lex_hits)}
+    sem_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(raw_sem_hits)}
     # Carry facet counts from the lexical pass (facet_by was only applied there)
     _facet_counts = _parse_facet_counts(lex_result.get("facet_counts", []))
     K = 60
