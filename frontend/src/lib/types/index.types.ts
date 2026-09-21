@@ -201,6 +201,13 @@ export interface FieldConfig {
   multi_value: boolean;
   searchable:  boolean;
   chat:        boolean;
+  /**
+   * Which superlative/filter concept (e.g. "price", "customer_eligibility")
+   * this field represents on this index, or "" if none — an explicit
+   * operator declaration read/written via the Fields tab's Concept control,
+   * persisted to indexes.superlative_field_map on the backend.
+   */
+  concept?:    string;
 }
 
 /** One field entry returned by GET /indexes/{id}/fields. */
