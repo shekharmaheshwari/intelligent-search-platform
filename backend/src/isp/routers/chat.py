@@ -41,15 +41,33 @@ async def chat(index_id: str, body: ChatRequest) -> StreamingResponse:
     query_by: str = "chatContent,title,content"
     query_by_weights: str | None = None
     if meta and meta.field_config:
+        # Only a genuinely structured/categorical field (facet=True, e.g.
+        # compatible_devices) earns the aggressive x10 boost — it exists so a
+        # device-in-query ("iPhone 17 case") matches strongly on that exact
+        # attribute. A searchable-but-not-faceted field (e.g. description) is
+        # free-text prose, not an attribute lookup: boosting it the same 10x
+        # let a product's own marketing copy ("...Kit for AirPods...")
+        # outscore a real AirPods product's title match (weight 1) on a bare
+        # "airpods" query, crowding real hits out of the top-5 RRF window.
+        # Route it through content's tier instead.
         extra_qb = [
             fc["name"] for fc in meta.field_config
             if fc.get("searchable")
             and fc["name"] not in {"title", "content", "chatContent"}
             and fc.get("type", "string").startswith("string")
         ]
+        boosted_qb = [name for name in extra_qb if next(
+            fc.get("facet") for fc in meta.field_config if fc["name"] == name
+        )]
+        prose_qb = [name for name in extra_qb if name not in boosted_qb]
         if extra_qb:
-            query_by = ",".join(extra_qb) + ",chatContent,title,content"
-            query_by_weights = ",".join(["10"] * len(extra_qb)) + ",5,1,1"
+            query_by = ",".join(boosted_qb + prose_qb) + ",chatContent,title,content"
+            query_by_weights = (
+                ",".join(["10"] * len(boosted_qb))
+                + ("," if boosted_qb and prose_qb else "")
+                + ",".join(["1"] * len(prose_qb))
+                + ",5,1,1"
+            )
 
     persona_config = meta.chat_persona_config if meta else None
     superlative_field_map = meta.superlative_field_map if meta else None

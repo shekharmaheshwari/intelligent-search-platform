@@ -19,6 +19,14 @@
     "light", "lightweight", "heavy", "compact", "big", "large", "small", "slim",
     "popular", "latest", "newest"
   ],
+  "generic_category_values": [
+    "others", "other", "misc", "miscellaneous", "n/a", "none"
+  ],
+  "persona_defaults": {
+    "item_noun": "product",
+    "enable_comparison": true,
+    "additional_instructions": ""
+  },
   "errors": {
     "not_configured": "Chat is not configured. Go to Settings → Chat to choose a provider.",
     "rate_limited": "The AI provider is temporarily rate-limited. Please wait a moment and try again, or switch to a different model in Settings → Chat.",

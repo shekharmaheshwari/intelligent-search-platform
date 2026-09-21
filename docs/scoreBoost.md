@@ -72,23 +72,28 @@ the trained browse re-scorer (`popularity_trainer.py`, Case A) / the formula
 **Magnitude:**
 
 - **Browse** (`is_browse`): `min(popularity, 1_000_000) / 2_000_000` added — popularity 1 000 000 → +0.5.
-- **Query**: `relevance *= 1 + 0.25 · (popularity / max_popularity_in_result_set)` — the most-popular candidate gets ×1.25, everything else proportionally less. Never additive, so it can reorder near-ties but not overturn a clear relevance win.
+- **Query**: `relevance *= 1 + 0.25 · pop_norm`, where `pop_norm = popularity / max_popularity_in_result_set` — the most-popular candidate gets ×1.25, everything else proportionally less. Never additive, so it can reorder near-ties but not overturn a clear relevance win.
+- **Exact-match protection (query only):** if the doc's normalized title *or* any alias **equals the query**, `pop_norm` is forced to `1.0` regardless of the doc's actual popularity. So a sibling variant's popularity can't out-boost it — `q="iphone 17"` keeps "iPhone 17" above "iPhone 17 Pro Max" even when the Pro Max is more popular. The exact match still only gets the same capped ×1.25, so base relevance decides between an exact and a partial match (a low-ranked exact match won't leapfrog a much-more-relevant partial one). This is the "exact match" slice of Tier 1a in `docs/queryAwareGroupPopularityPlan.md`, shipped early. Normalization is lower-case + whitespace-collapse only — `"Galaxy S25+"` ≠ `"Galaxy S25"`.
 
 **Tuning:** the `0.25` coefficient is `_POP_QUERY_COEFF` in `typesense_client.py`.
 `0.10` is the conservative floor (barely reorders vague queries); `0.20–0.30`
 gives popular items real pull on broad queries while still protecting specific
-ones. Above ~1.0 the relevance guarantee breaks.
+ones. Above ~1.0 the relevance guarantee breaks. (Before exact-match protection,
+`0.25` let "iphone 17" surface "iPhone 17 Pro Max" first — the protection is
+what makes `0.25` safe for specific-model queries.)
 **Set by:** Edit modal (Score field) → PATCH `/indexes/{id}/documents/{doc_id}`; `POST /v1/training/popularity`; `POST /v1/analytics/aggregate`; `catalog_mapper.js` at index time.
 **Stored in:** Top-level Typesense field `popularity: int32`.
 **Code:**
 ```python
 # apply_editorial_boosts(), typesense_client.py
 pop = min(int(doc.get("popularity") or 0), 1_000_000)
-if pop > 0:
-    if is_browse:
+if is_browse:
+    if pop > 0:
         base += pop / 2_000_000
-    elif max_pop > 0:
-        base *= 1.0 + _POP_QUERY_COEFF * (pop / max_pop)   # _POP_QUERY_COEFF = 0.25
+elif max_pop > 0:
+    pop_norm = 1.0 if _is_exact_match(doc) else (pop / max_pop)
+    if pop_norm > 0:
+        base *= 1.0 + _POP_QUERY_COEFF * pop_norm          # _POP_QUERY_COEFF = 0.25
 ```
 
 **Why it changed:** with the additive `+pop/2_000_000` rule a max-popularity
