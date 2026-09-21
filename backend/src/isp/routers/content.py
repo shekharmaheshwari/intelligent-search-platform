@@ -131,7 +131,7 @@ async def search_content(
         if mode in ("hybrid", "semantic"):
             vec = await embedding_service.embed_query(q, model=effective_model)
             if vec:
-                result = ts.search_with_vec(idx.id, q, vec, page, per_page)
+                result = ts.search_with_vec(idx.id, q, vec, page, per_page, embed_model=effective_model)
             else:
                 result = ts.search_documents(idx.id, q, "lexical", page, per_page)
         else:

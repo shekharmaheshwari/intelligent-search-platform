@@ -26,7 +26,10 @@ from isp.services.infra import embedding_service, typesense_client as ts
 from isp.services.infra import rest_connector, sitemap_connector, gsheet_connector, json_file_connector
 from isp.services.infra.extension_runner import apply_extensions
 from isp.services.infra.agent.setup_executor import _flatten_objects, _repair_doc
-from isp.services.infra.chat.service import CHAT_PERSONA_DEFAULTS
+from isp.services.infra.chat.service import (
+    CHAT_PERSONA_DEFAULTS, _CONCEPT_FIELD_CANDIDATES,
+    _SORT_CONCEPTS, _SORTABLE_TYPES, _FILTER_CONCEPT_VALUE_TYPES,
+)
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
 log = logging.getLogger(__name__)
@@ -239,6 +242,14 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
             if isinstance(v, (str, int, float, bool)):
                 out[k] = v
             elif isinstance(v, list) and all(isinstance(x, str) for x in v):
+                out[k] = v
+            # Numeric-list extension fields (e.g. eligible_lines/line_prices for a
+            # multi-value "number of lines" facet) were previously dropped here —
+            # only string lists were promoted — leaving them stranded, invisible,
+            # inside `metadata` (present for the doc-expand view, unusable for
+            # faceting). bool excluded: it's already caught by the scalar branch
+            # above and Python's bool is technically an int subtype.
+            elif isinstance(v, list) and v and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v):
                 out[k] = v
 
         result.append(out)
@@ -556,6 +567,7 @@ async def update_affinity_dimensions(idx_id: str, body: AffinityDimensionUpdate)
 _FIELD_SYSTEM = {"id", "vec", "indexed_at"}
 _FIELD_ALWAYS_SEARCHABLE = {"title", "content", "aliases"}
 
+
 def _build_embed_text(doc: dict) -> str:
     """Build the text to embed for a document.
 
@@ -575,6 +587,19 @@ class FieldUpdate(BaseModel):
     multi_value: bool | None = None
     searchable:  bool | None = None
     chat:        bool | None = None
+    # Which superlative/filter concept (see chat/service.py's
+    # _CONCEPT_FIELD_CANDIDATES) this field represents on this index, e.g.
+    # "price" or "customer_eligibility" — an explicit operator declaration,
+    # persisted to indexes.superlative_field_map, checked before the
+    # heuristic name-match the chat runtime otherwise falls back on.
+    # None = leave unchanged; "" = clear whatever concept this field has.
+    concept:     str | None = None
+
+
+# Concepts an operator can tag a field with from the Fields tab — the same
+# table the chat runtime's superlative/filter resolution already uses, so a
+# UI-set value and an auto-resolved one are indistinguishable to that code.
+_KNOWN_SUPERLATIVE_CONCEPTS = set(_CONCEPT_FIELD_CANDIDATES.keys())
 
 
 @router.get("/{idx_id}/fields", summary="Get all fields for an index")
@@ -593,12 +618,17 @@ async def get_index_fields(idx_id: str):
         return {"fields": []}
     # Build a lookup from stored field_config
     cfg_by_name = {fc["name"]: fc for fc in (meta.field_config or [])}
+    # Reverse the concept -> field_name map so each field row can show
+    # "this field IS the price concept" directly, without the UI having to
+    # know the map's shape.
+    concept_by_field = {v: k for k, v in (meta.superlative_field_map or {}).items() if v}
     for f in schema_fields:
         stored = cfg_by_name.get(f["name"], {})
         f["searchable"] = stored.get("searchable", f["name"] in _FIELD_ALWAYS_SEARCHABLE)
         if f["name"] in _FIELD_ALWAYS_SEARCHABLE:
             f["searchable"] = True   # always on, cannot be disabled
         f["chat"] = stored.get("chat", False)
+        f["concept"] = concept_by_field.get(f["name"], "")
     return {"fields": schema_fields}
 
 
@@ -641,6 +671,12 @@ async def update_index_field(idx_id: str, field_name: str, body: FieldUpdate):
         raise HTTPException(400, f"'{field_name}' is a system field and cannot be modified")
     if field_name in _FIELD_ALWAYS_SEARCHABLE and body.searchable is False:
         raise HTTPException(400, f"'{field_name}' is always searchable and cannot be disabled")
+    if body.concept and body.concept not in _KNOWN_SUPERLATIVE_CONCEPTS:
+        raise HTTPException(
+            400,
+            f"Unknown concept '{body.concept}' — must be one of "
+            f"{sorted(_KNOWN_SUPERLATIVE_CONCEPTS)} or empty to clear",
+        )
 
     # Get current schema state for the field
     schema_fields = ts.get_all_fields(meta.id)
@@ -652,6 +688,43 @@ async def update_index_field(idx_id: str, field_name: str, body: FieldUpdate):
     # Resolve new values, defaulting to current state
     new_facet       = body.facet       if body.facet       is not None else current["facet"]
     new_multi_value = body.multi_value if body.multi_value is not None else current["multi_value"]
+    field_type = current.get("type", "string")
+    if body.searchable and not field_type.startswith("string"):
+        raise HTTPException(400, f"'{field_name}' is type '{field_type}' — only string fields can be searchable")
+
+    # A concept mapping — whether this PATCH is the one setting it, or it was
+    # already sitting on this field from an earlier PATCH — must still fit
+    # the field's EFFECTIVE type/facet state after this PATCH, not just
+    # whatever shape it happened to have before. Two distinct ways this can
+    # go wrong without this check: (1) body.concept names a concept whose
+    # required shape this field doesn't have (e.g. tagging a string field as
+    # "price"), and (2) an unrelated PATCH that only flips facet/type on a
+    # field some OTHER earlier request already mapped a filter concept onto
+    # (device_compatibility, customer_eligibility) — chat would then build
+    # an invalid Typesense filter, or attempt to sort by a field it can't
+    # sort by, the next time it resolves that concept.
+    if body.concept is not None:
+        effective_concept = body.concept or None
+    else:
+        concept_by_field_pre = {f: c for c, f in (meta.superlative_field_map or {}).items() if f}
+        effective_concept = concept_by_field_pre.get(field_name) or None
+    if effective_concept in _SORT_CONCEPTS:
+        if field_type not in _SORTABLE_TYPES:
+            raise HTTPException(
+                400,
+                f"Concept '{effective_concept}' needs a numeric field "
+                f"({sorted(_SORTABLE_TYPES)}) — '{field_name}' is type '{field_type}'",
+            )
+    elif effective_concept is not None:
+        if not new_facet or field_type not in _FILTER_CONCEPT_VALUE_TYPES:
+            raise HTTPException(
+                400,
+                f"Concept '{effective_concept}' needs a faceted field of type "
+                f"{sorted(_FILTER_CONCEPT_VALUE_TYPES)} — '{field_name}' is type "
+                f"'{field_type}' with facet={new_facet}",
+            )
+
+    # ── All validation is above this line — everything below commits a write. ──
 
     # Apply schema change if facet or multi_value changed
     if body.facet is not None or body.multi_value is not None:
@@ -666,9 +739,6 @@ async def update_index_field(idx_id: str, field_name: str, body: FieldUpdate):
             raise HTTPException(500, f"Schema update failed: {e}")
 
     # Persist searchable + chat + any facet/multi_value change into field_config.
-    field_type = current.get("type", "string")
-    if body.searchable and not field_type.startswith("string"):
-        raise HTTPException(400, f"'{field_name}' is type '{field_type}' — only string fields can be searchable")
     existing = next((fc for fc in (meta.field_config or []) if fc.get("name") == field_name), {})
     cfg_list = [fc for fc in (meta.field_config or []) if fc.get("name") != field_name]
     entry: dict = {
@@ -685,12 +755,28 @@ async def update_index_field(idx_id: str, field_name: str, body: FieldUpdate):
     meta.field_config = cfg_list
     await index_service.update_index(meta)
 
+    # Concept tagging — a separate column (superlative_field_map), so it's
+    # written independently of the field_config save above. body.concept is
+    # None when the request didn't touch it at all (leave as-is); "" clears
+    # whatever concept this field currently has; anything else must be a
+    # concept the chat runtime actually knows how to resolve (validated above,
+    # before any write). set_concept_field does the remove-old/set-new swap
+    # atomically in one UPDATE so two concurrent concept PATCHes can't lose
+    # one of the two writes (see its docstring).
+    if body.concept is not None:
+        await index_service.set_concept_field(meta.id, field_name, body.concept)
+        new_concept = body.concept
+    else:
+        concept_by_field = {f: c for c, f in (meta.superlative_field_map or {}).items() if f}
+        new_concept = concept_by_field.get(field_name, "")
+
     # Return the refreshed field
     refreshed = ts.get_all_fields(meta.id)
     refreshed_map = {f["name"]: f for f in refreshed}
     result = refreshed_map.get(field_name, current)
     result["searchable"] = entry["searchable"]
     result["chat"]       = entry["chat"]
+    result["concept"]    = new_concept
     return result
 
 

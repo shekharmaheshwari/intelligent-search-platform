@@ -15,6 +15,41 @@
 
   const ALWAYS_SEARCHABLE = new Set(['title', 'content']);
 
+  // Mirrors chat/service.py's _CONCEPT_FIELD_CANDIDATES keys — the backend
+  // is the source of truth and rejects anything else, so a mismatch here
+  // just surfaces as a save error rather than silently doing the wrong thing.
+  // Fixed, small list (7 concepts) — rendered as its own panel keyed by
+  // concept rather than a column on every field row, since at most a
+  // handful of an index's fields will ever be one of these.
+  const CONCEPTS: { value: string; label: string; hint: string }[] = [
+    { value: 'price',                label: 'Price',                hint: '"cheapest", "most expensive"' },
+    { value: 'popularity',           label: 'Popularity',           hint: '"most popular", "best selling"' },
+    { value: 'recency',              label: 'Recency',              hint: '"newest", "latest"' },
+    { value: 'size',                 label: 'Size',                 hint: '"biggest", "smallest"' },
+    { value: 'rating',               label: 'Rating',               hint: '"top rated"' },
+    { value: 'device_compatibility', label: 'Device compatibility', hint: 'e.g. "iPhone 17 case"' },
+    { value: 'customer_eligibility', label: 'Customer eligibility', hint: '"cheapest military plan"' },
+  ];
+  const SORT_CONCEPTS = new Set(['price', 'popularity', 'recency', 'size', 'rating']);
+
+  // Candidate fields per concept, narrowed by shape so a 30-field index
+  // doesn't dump every field into every dropdown: sort concepts need a
+  // numeric field to sort by; the two filter concepts need a faceted
+  // categorical field to filter by. Mirrors the backend's own
+  // _SORTABLE_TYPES check and how device_compatibility/customer_eligibility
+  // actually resolve (a facet field, never a number).
+  function candidateFieldsFor(concept: string): FieldEntry[] {
+    if (SORT_CONCEPTS.has(concept)) {
+      return fields.filter(f => !f.system && ['int32', 'int64', 'float'].includes(f.type));
+    }
+    return fields.filter(f => !f.system && f.facet && (f.type === 'string' || f.type === 'string[]'));
+  }
+
+  // Per-concept saving/error state — separate from the per-field `saving`/
+  // `rowError` above since a concept row isn't keyed by a single field.
+  let savingConcepts: Record<string, string> = {};
+  let conceptErrors: Record<string, string> = {};
+
   onMount(async () => {
     try {
       const res = await indexService.getFields(indexId);
@@ -50,6 +85,39 @@
     }
   }
 
+  function onConceptFieldChange(e: Event, concept: string) {
+    setConceptField(concept, (e.currentTarget as HTMLSelectElement).value);
+  }
+
+  async function setConceptField(concept: string, fieldName: string) {
+    savingConcepts = { ...savingConcepts, [concept]: '1' };
+    conceptErrors = { ...conceptErrors, [concept]: '' };
+
+    try {
+      if (fieldName) {
+        await indexService.updateField(indexId, fieldName, { concept });
+      } else {
+        // Clearing — find whichever field currently holds this concept.
+        // Nothing to do if none does (already cleared, or never set).
+        const current = fields.find(f => f.concept === concept);
+        if (current) await indexService.updateField(indexId, current.name, { concept: '' });
+      }
+      // Assigning a concept to a new field silently un-assigns it from
+      // whichever field held it before (superlative_field_map is keyed by
+      // concept, so a concept can only point at one field) — that changes a
+      // field OTHER than the one just patched, so patching one local entry
+      // isn't enough; refetch the whole list instead.
+      const res = await indexService.getFields(indexId);
+      fields = res.fields;
+    } catch (e: unknown) {
+      conceptErrors = { ...conceptErrors, [concept]: e instanceof Error ? e.message : 'Update failed' };
+    } finally {
+      const next = { ...savingConcepts };
+      delete next[concept];
+      savingConcepts = next;
+    }
+  }
+
   function isBusy(fieldName: string, prop: string): boolean {
     return !!saving[`${fieldName}:${prop}`];
   }
@@ -70,13 +138,29 @@
     <div>
       <h2 class="tab-title">Fields</h2>
       <p class="tab-desc">
-        Configure search and filter behaviour per field. Facet and Multi-value changes
-        update the Typesense schema immediately. Searchable takes effect on the next search.
-        Chat controls which fields appear as labelled attributes in the RAG chat context.
-        Changes persist across rebuilds.
+        Configure search and filter behaviour per field. Changes persist across rebuilds.
       </p>
     </div>
   </div>
+
+  <dl class="legend">
+    <div class="legend-item">
+      <dt>Searchable</dt>
+      <dd>Included when matching what a customer typed. Turn on for text a shopper might search by.</dd>
+    </div>
+    <div class="legend-item">
+      <dt>Facet</dt>
+      <dd>Shown as a filter customers can check in the sidebar (e.g. brand, color). Takes effect immediately.</dd>
+    </div>
+    <div class="legend-item">
+      <dt>Multi-value</dt>
+      <dd>This field holds a list, not one value (e.g. several colors) — turn on so each value filters separately.</dd>
+    </div>
+    <div class="legend-item">
+      <dt>Chat</dt>
+      <dd>Shown to the AI assistant as a labelled fact it can answer questions from.</dd>
+    </div>
+  </dl>
 
   {#if loading}
     <div class="state-msg">Loading fields…</div>
@@ -87,16 +171,52 @@
       No fields yet. Run a rebuild to populate the schema.
     </div>
   {:else}
+    <div class="concepts-card">
+      <div class="concepts-head">
+        <h3>Concepts</h3>
+        <p>
+          Tag which field on this index answers each concept the chat assistant can sort or
+          filter by — e.g. "cheapest X" resolves the Price concept's field. Set once per index.
+        </p>
+      </div>
+      {#each CONCEPTS as c (c.value)}
+        {@const candidates = candidateFieldsFor(c.value)}
+        {@const currentField = fields.find(f => f.concept === c.value)?.name ?? ''}
+        <div class="concept-row">
+          <div>
+            <div class="concept-name">{c.label}</div>
+            <div class="concept-hint">{c.hint}</div>
+          </div>
+          <select
+            class="concept-select"
+            class:tagged={!!currentField}
+            disabled={!!savingConcepts[c.value]}
+            value={currentField}
+            on:change={(e) => onConceptFieldChange(e, c.value)}
+            aria-label="Field for {c.label}"
+          >
+            <option value="">— none —</option>
+            {#each candidates as f (f.name)}
+              <option value={f.name}>{f.name}</option>
+            {/each}
+          </select>
+        </div>
+        {#if conceptErrors[c.value]}
+          <div class="concept-err">{conceptErrors[c.value]}</div>
+        {/if}
+      {/each}
+    </div>
+
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th class="col-name">Field</th>
             <th class="col-type">Type</th>
-            <th class="col-toggle" title="Include in query_by for BM25/hybrid text search">Searchable</th>
-            <th class="col-toggle" title="Enable facet counts for filtering">Facet</th>
-            <th class="col-toggle" title="Store as an array of values (string[])">Multi-value</th>
-            <th class="col-toggle" title="Include this field as a labelled attribute in the chat RAG context">Chat</th>
+            <th class="col-toggle">Searchable</th>
+            <th class="col-toggle">Facet</th>
+            <th class="col-toggle">Multi-value</th>
+            <th class="col-toggle">Chat</th>
           </tr>
         </thead>
         <tbody>
@@ -229,6 +349,27 @@
     font-size: 12px; color: var(--text-5); margin: 0; line-height: 1.6;
   }
 
+  /* Always-visible column legend — replaces hover-only header tooltips,
+     which a user has no way to discover without already knowing to hover. */
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px 16px;
+    margin: 0;
+    padding: 12px 14px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .legend-item dt {
+    font-size: 11px; font-weight: 700; color: var(--text-2);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+  .legend-item dd {
+    font-size: 11.5px; color: var(--text-5); line-height: 1.5; margin: 0;
+  }
+
   .state-msg {
     text-align: center; padding: 48px 0;
     font-size: 13px; color: var(--text-5);
@@ -274,6 +415,60 @@
   .col-name { width: 220px; }
   .col-type { width: 120px; }
   .col-toggle { width: 100px; }
+
+  /* Concepts panel — 7 fixed rows keyed by concept, not one column per
+     field row (most fields are never a concept; see FieldsTab history). */
+  .concepts-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+  .concepts-head {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+  }
+  .concepts-head h3 {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--text-2); margin: 0 0 4px;
+  }
+  .concepts-head p {
+    font-size: 11.5px; color: var(--text-5); margin: 0; line-height: 1.5;
+  }
+  .concept-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 10px 14px; border-bottom: 1px solid var(--border);
+  }
+  .concept-row:last-child { border-bottom: none; }
+  .concept-row:hover { background: var(--bg-2); }
+  .concept-name { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+  .concept-hint { font-size: 11px; color: var(--text-5); margin-top: 1px; }
+  .concept-err {
+    font-size: 11px; color: var(--danger-text);
+    background: var(--danger-bg, #fef2f2);
+    padding: 5px 14px; margin: -1px 0 0;
+  }
+
+  .concept-select {
+    min-width: 180px;
+    font-size: 11.5px;
+    font-family: inherit;
+    color: var(--text-4);
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 4px 6px;
+    cursor: pointer;
+  }
+  .concept-select.tagged {
+    color: var(--accent);
+    background: var(--accent-faint, #fce4f0);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .concept-select:disabled { cursor: wait; opacity: 0.6; }
+  .concept-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
   .field-name {
     font-weight: 500; color: var(--text-2);

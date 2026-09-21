@@ -1,0 +1,22 @@
+{
+  "cheapest":        ["price", "asc"],
+  "lowest price":    ["price", "asc"],
+  "lowest priced":   ["price", "asc"],
+  "least expensive": ["price", "asc"],
+  "most affordable": ["price", "asc"],
+  "lowest cost":     ["price", "asc"],
+  "most expensive":  ["price", "desc"],
+  "highest price":   ["price", "desc"],
+  "highest priced":  ["price", "desc"],
+  "priciest":        ["price", "desc"],
+  "most popular":    ["popularity", "desc"],
+  "best selling":    ["popularity", "desc"],
+  "bestselling":     ["popularity", "desc"],
+  "newest":          ["recency", "desc"],
+  "latest":          ["recency", "desc"],
+  "biggest":         ["size", "desc"],
+  "largest":         ["size", "desc"],
+  "smallest":        ["size", "asc"],
+  "top rated":       ["rating", "desc"],
+  "highest rated":   ["rating", "desc"]
+}

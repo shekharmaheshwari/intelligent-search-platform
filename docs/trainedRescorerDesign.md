@@ -44,6 +44,16 @@
 > `boost_queries_*` stay additive merchandising overrides. Regression tests:
 > `backend/tests/services/infra/test_editorial_boosts.py`. Full detail in
 > `docs/scoreBoost.md`. Still additive and unaddressed: per-index `boost_rules`.
+>
+> **2026-09 follow-up — exact-match protection:** at `0.25` the multiplier still
+> flipped sibling variants — "iphone 17" surfaced "iPhone 17 Pro Max" first
+> because the base-relevance gap between an exact title match and a partial one
+> (~3%) is smaller than the popularity-multiplier gap (~12%). Fixed in the same
+> `apply_editorial_boosts()`: a doc whose normalized title/alias **equals the
+> query** gets `pop_norm = 1.0`, so no sibling's popularity can out-boost it and
+> base relevance decides. Coefficient tuning alone couldn't fix this (would need
+> `< 0.064`, which neuters the signal for broad queries). This is the "exact
+> match" slice of Tier 1a from `docs/queryAwareGroupPopularityPlan.md`.
 
 ## Problem
 

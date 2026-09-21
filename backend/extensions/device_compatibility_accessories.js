@@ -81,6 +81,32 @@ function hasBalancedParens(s) {
   return open === close;
 }
 
+// A part that's a generic descriptor rather than an actual model name means
+// "for X" here is a universal catch-all phrase or a product-variant
+// descriptor, not a real compatibility list. Left unguarded, the
+// shared-prefix propagation below treats each generic fragment as its own
+// device and prepends the first part onto it verbatim — producing nonsense
+// entries for a product that's actually device_universal (or, for
+// "Magnetic", for a plain attachment-style variant with no device
+// reference at all). Checked against every part (including a lone one,
+// e.g. "... for mobile devices" with no list at all) so this bails to
+// tier 2/3 instead of fabricating a compatibility claim.
+//
+// Found by auditing every accessory title in this catalog against this
+// function directly, not by waiting for each phrasing to surface through a
+// live chat query one at a time — see the source-data audit appendix in
+// docs/deviceCompatibilityMatchingDesign.md (the audit script itself is a
+// throwaway, not checked in; re-run the same way after catalog changes).
+// Observed live:
+//   "for AirPods, smartphones, and other mobile devices" (cleaning kit)
+//   "for UNIVERSAL" / "for Universal"                    (wallet, sticker,
+//                                                          kickstand, cleaning kit)
+//   "for Magnetic"                                        (PopSockets grips —
+//                                                          the magnetic-attach
+//                                                          variant, not a device)
+var _GENERIC_DEVICE_RE =
+  /^(other\s+|any\s+)?(smart)?phones?$|^(other\s+|any\s+)?mobile\s+devices?$|^(other\s+|any\s+)?devices?$|^tablets?$|^universal$|^magnetic$/i;
+
 // Tier 1: parse the "for <device>" suffix, splitting and re-aligning
 // multi-device references so abbreviated later parts (e.g. "15 Plus", "M4")
 // inherit the right shared prefix from the first part instead of being left
@@ -96,6 +122,9 @@ function extractTier1(display) {
     .filter(function (p) { return p.length > 0; });
 
   if (rawParts.length === 0) return null;
+  for (var g = 0; g < rawParts.length; g++) {
+    if (_GENERIC_DEVICE_RE.test(rawParts[g])) return null;
+  }
   if (rawParts.length === 1) return hasBalancedParens(rawParts[0]) ? rawParts : null;
 
   var first = rawParts[0];

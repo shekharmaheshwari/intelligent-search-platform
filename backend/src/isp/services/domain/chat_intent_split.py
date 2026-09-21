@@ -177,16 +177,37 @@ class ConfirmationResult:
     shared_span: str | None
 
 
-def parse_and_validate_confirmation(
+async def parse_and_validate_confirmation(
     raw_text: str,
     query: str,
     segments: list[str],
     candidate_indices: set[int],
+    resolve_span: Callable[[str], Awaitable[bool]] | None = None,
 ) -> ConfirmationResult | None:
     """
-    Server-side validation (§7) — any failure returns None, which the caller
-    must treat exactly like a failed/timed-out call: fail open to the
-    existing single-search fallback, never partial trust of a bad response.
+    Server-side validation (§7), in two tiers.
+
+    Tier 1 — structural failures on `confirmed_segments` itself (malformed
+    JSON, an invented or duplicate index, fewer than 2 survivors). Any Tier 1
+    failure discards the whole response: returns None, which the caller must
+    treat exactly like a failed/timed-out call — fail open to the existing
+    single-search fallback, never partial trust of a bad response.
+
+    Tier 2 — failures specific to `shared_span` alone (not verbatim, purely
+    numeric, identical to one whole confirmed segment's own text, or not
+    recognized by `resolve_span`). A Tier 2 failure degrades `shared_span`
+    to None and still returns the `confirmed_indices` validated by Tier 1 —
+    it never discards them. A bad guess about what's "shared" says nothing
+    about whether the confirmed segments themselves are trustworthy.
+
+    `resolve_span`, if given, is called with the candidate shared_span and
+    must return True only if it names something this index actually
+    recognizes (e.g. a device/brand value already in its catalog) — see
+    chat/service.py's `_resolve_span_for_index`, which returns False
+    unconditionally for an index with no device-compatibility field at all,
+    so a shared_span is never accepted there regardless of what the
+    confirmation call returns. Omitting `resolve_span` entirely (None) skips
+    this check rather than failing it, for callers that don't wire it up.
     """
     try:
         start, end = raw_text.index("{"), raw_text.rindex("}") + 1
@@ -194,6 +215,8 @@ def parse_and_validate_confirmation(
     except (ValueError, json.JSONDecodeError):
         return None
 
+    # Tier 1 — confirmed_segments structural checks. Any failure here
+    # discards the whole response.
     indices = data.get("confirmed_segments")
     if not isinstance(indices, list) or not indices:
         return None
@@ -201,15 +224,18 @@ def parse_and_validate_confirmation(
         return None  # duplicates
     if not all(isinstance(i, int) and i in candidate_indices for i in indices):
         return None  # invented an index that wasn't a candidate
+    if len(indices) < 2:
+        return None  # same as never having triggered — fallback
 
+    # Tier 2 — shared_span checks. Any failure here degrades shared_span to
+    # None; it never discards the indices validated above.
     shared_span = data.get("shared_span")
     if shared_span is not None:
-        if not isinstance(shared_span, str) or not shared_span.strip():
-            return None
-        shared_span = shared_span.strip()
-        if shared_span.lower() not in query.lower():
-            return None  # not verbatim in the original message
-        if _NUMERIC_RE.match(shared_span):
+        valid = isinstance(shared_span, str) and bool(shared_span.strip())
+        if valid:
+            shared_span = shared_span.strip()
+            valid = shared_span.lower() in query.lower()  # verbatim in the message
+        if valid and _NUMERIC_RE.match(shared_span):
             # A shared span is only ever legitimate as identity/context (a
             # device or brand named once) — never as a quantity or price.
             # Each item can carry its own different number; a bare numeric
@@ -217,10 +243,30 @@ def parse_and_validate_confirmation(
             # exists to make impossible — a model attaching one segment's
             # own price to every intent. Reject outright, no positional
             # heuristic needed: a real shared span is never purely numeric.
-            return None
-
-    if len(indices) < 2:
-        return None  # same as never having triggered — fallback
+            valid = False
+        if valid and any(shared_span.lower() == segments[i].strip().lower() for i in indices):
+            # Observed failure: with only 2 of 3 segments confirmed (the
+            # third dropped earlier by classification), there's sometimes no
+            # genuine cross-segment modifier left at all — but the model
+            # answered "shared_span" anyway by echoing one confirmed
+            # segment's own full text back. build_search_plans then prefixes
+            # or suffixes that text onto every other confirmed segment,
+            # producing garbled, duplicated queries ("screen protector
+            # screen protector"). A real shared span is a sub-phrase common
+            # to multiple segments' own descriptions (e.g. "iphone 17"); it
+            # is never identical to one segment's entire text.
+            valid = False
+        if valid and resolve_span is not None:
+            # Independent of what the model claims, verify the span names
+            # something this index actually recognizes (e.g. a real device
+            # value) — closes the gap the checks above can't: "apple
+            # airpods" is verbatim, non-numeric, and not a whole confirmed
+            # segment's text, yet is still not a legitimate shared modifier
+            # for an unrelated segment (docs/multiIntentConjunctionSearchDesign.md
+            # §7, Control G).
+            valid = await resolve_span(shared_span)
+        if not valid:
+            shared_span = None
 
     return ConfirmationResult(confirmed_indices=sorted(indices), shared_span=shared_span)
 
@@ -234,14 +280,6 @@ class SearchPlan:
     query: str
     filter_by: str
     top_n: int
-
-
-def allocate_top_n(n_intents: int, global_cap: int = 5) -> list[int]:
-    """§11's budget formula: base = cap // n, remainder distributed to the
-    first `remainder` intents in order. With MAX_INTENTS=4 and cap=5,
-    base is always >= 1."""
-    base, remainder = divmod(global_cap, n_intents)
-    return [base + 1 if i < remainder else base for i in range(n_intents)]
 
 
 def build_search_plans(
@@ -259,6 +297,17 @@ def build_search_plans(
     logic (e.g. price extraction), invoked once per intent's own text —
     never on the whole message — so a local modifier can never leak into
     another intent's filter.
+
+    Each confirmed intent gets its own independent `global_cap` — each
+    bucket is a genuinely separate search against a different category, not
+    N shares of one combined result list, so there's no reason one bucket's
+    budget should shrink just because more categories were named in the
+    same message. (An earlier version divided one shared total across all
+    intents — e.g. 3 intents got 2/2/1 instead of 5/5/5 — inherited from the
+    single flat-list display this feature replaced; that division stopped
+    making sense once each intent renders as its own independent carousel.)
+    A single-intent message is unaffected either way: it never reaches this
+    function at all, and always got its own full `_rrf_merge` cap of 5.
     """
     shared = confirmed.shared_span
     first_seg_pos = query.lower().find(segments[confirmed.confirmed_indices[0]].lower())
@@ -267,11 +316,16 @@ def build_search_plans(
         shared_pos = query.lower().find(shared.lower())
         shared_is_prefix = shared_pos <= first_seg_pos if first_seg_pos != -1 else True
 
-    top_ns = allocate_top_n(len(confirmed.confirmed_indices), global_cap)
     plans: list[SearchPlan] = []
-    for slot, i in enumerate(confirmed.confirmed_indices):
+    for i in confirmed.confirmed_indices:
         seg_text = segments[i]
-        if shared:
+        # A segment whose own text already contains the shared span (e.g.
+        # the segment the span was originally lifted from, "iphone 17
+        # screen protector" when shared_span="iphone 17") must not have it
+        # attached again — that would duplicate the phrase
+        # ("iphone 17 iphone 17 screen protector") instead of leaving the
+        # segment's own text as the correct, already-complete query.
+        if shared and shared.lower() not in seg_text.lower():
             text = f"{shared} {seg_text}".strip() if shared_is_prefix else f"{seg_text} {shared}".strip()
         else:
             text = seg_text
@@ -285,7 +339,7 @@ def build_search_plans(
             label=label_by_category.get(category, category),
             query=text,
             filter_by=filter_by,
-            top_n=top_ns[slot],
+            top_n=global_cap,
         ))
     return plans
 
@@ -296,6 +350,56 @@ EmbedFn = Callable[[str], Awaitable[list[float] | None]]
 ConfirmFn = Callable[[str, str], Awaitable[str]]   # (system, prompt) -> raw text
 
 
+def _strip_phrases(text: str, phrases: list[str]) -> str:
+    """
+    Remove each phrase's individual words (case-insensitive, whole-word)
+    from text and collapse the resulting whitespace.
+
+    Used ONLY to build the text handed to the classifier's embedding call —
+    a device/model phrase inside a segment (e.g. "iphone 17 case") measurably
+    dilutes its embedding away from the actual category concept ("case"),
+    since two of the three tokens are device identity, not category meaning.
+    The original segment text (with the phrase intact) is untouched and is
+    still what becomes the final search query in build_search_plans — a
+    device-specific search is exactly what we still want there.
+
+    Token-based, not exact-phrase-substring: `phrases` is Typesense's
+    *resolved, canonical* device value (e.g. "Apple iPhone 17"), which often
+    isn't verbatim what the customer typed (e.g. "iphone 17" — no "Apple"
+    prefix). Matching the phrase as one substring then silently strips
+    nothing on that mismatch, leaving the segment fully diluted — observed
+    live (docs/multiIntentConjunctionSearchDesign.md §4's known-gap note).
+    Stripping word-by-word means any of the phrase's own words that DO
+    appear ("iPhone", "17") still get removed even when others ("Apple")
+    don't.
+
+    Each word's trailing punctuation is stripped before matching (e.g.
+    "S25+" -> "S25") — a second, distinct instance of the same canonical-vs-
+    typed mismatch: the retailer's own model name genuinely carries a
+    trailing "+" ("Samsung Galaxy S25+" is that phone's real name, not bad
+    data — confirmed against the product's own title), but a customer
+    typing "s25" in chat naturally drops it. `\bS25\b` still matches "S25+"
+    in text too, since "+" is itself a non-word character and satisfies the
+    trailing `\b` — so this loses nothing for a canonical form that does
+    appear verbatim, while gaining the common case where a trailing symbol
+    was dropped in the customer's own phrasing.
+    """
+    words: set[str] = set()
+    for phrase in phrases:
+        for w in phrase.split():
+            core = re.sub(r"[^0-9A-Za-z]+$", "", w)
+            if core:
+                words.add(core)
+    out = text
+    for word in words:
+        out = re.sub(rf"\b{re.escape(word)}\b", "", out, flags=re.IGNORECASE)
+    # A word stripped from inside a symbol-suffixed token (e.g. "S25" out of
+    # a customer-typed "S25+") can leave the bare trailing symbol behind as
+    # its own orphaned token — drop anything with no alphanumeric content
+    # rather than embed stray punctuation alongside the real category words.
+    return " ".join(w for w in out.split() if re.search(r"[0-9A-Za-z]", w))
+
+
 async def maybe_build_plans(
     query: str,
     *,
@@ -304,6 +408,14 @@ async def maybe_build_plans(
     embed: EmbedFn,
     confirm: ConfirmFn,
     constraint_extractor: Callable[[str], str | None],
+    # Device/model phrases already resolved from the full message (e.g.
+    # ["iPhone 17"]) — stripped from each segment before it's embedded for
+    # classification only. See _strip_phrases.
+    strip_phrases: list[str] | None = None,
+    # Validates a candidate shared_span against this index's own vocabulary
+    # (e.g. a device/brand value) — see parse_and_validate_confirmation and
+    # chat/service.py's _resolve_span_for_index. None skips that check.
+    resolve_span: Callable[[str], Awaitable[bool]] | None = None,
     # Empirically calibrated against voyage-3 (the embed model configured in
     # this deployment — see docs/multiIntentConjunctionSearchDesign.md §6/§13):
     # a genuine category match for a short segment against a short category
@@ -330,7 +442,8 @@ async def maybe_build_plans(
 
     segment_vectors = []
     for seg in segments:
-        vec = await embed(seg)
+        classify_text = _strip_phrases(seg, strip_phrases) if strip_phrases else seg
+        vec = await embed(classify_text or seg)  # never embed an empty string
         if vec is None:
             return None
         segment_vectors.append(vec)
@@ -351,9 +464,10 @@ async def maybe_build_plans(
     except Exception:
         return None  # provider error/timeout — fail open
 
-    confirmed = parse_and_validate_confirmation(
-        raw, query, segments, set(candidates.keys()),
+    confirmed = await parse_and_validate_confirmation(
+        raw, query, segments, set(candidates.keys()), resolve_span,
     )
+    log.debug("chat_intent_split: raw_confirmation=%r parsed=%s", raw, confirmed)
     if confirmed is None:
         return None
 
