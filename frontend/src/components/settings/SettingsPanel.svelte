@@ -42,18 +42,20 @@
   let chatModel         = '';
   let chatApiKey        = '';
   let chatEndpoint      = '';
-  let chatSmartFollowup = false;
+  let chatSmartFollowup    = false;
+  let chatMultiIntentSplit = false;
   let chatSaving        = false;
   let chatSaved         = false;
   let chatErr           = '';
 
   async function loadChat() {
     try {
-      chatConfig        = await api.getChatConfig();
-      chatProvider      = chatConfig.provider;
-      chatModel         = chatConfig.model;
-      chatEndpoint      = chatConfig.endpoint ?? '';
-      chatSmartFollowup = chatConfig.smart_followup ?? false;
+      chatConfig           = await api.getChatConfig();
+      chatProvider         = chatConfig.provider;
+      chatModel            = chatConfig.model;
+      chatEndpoint         = chatConfig.endpoint ?? '';
+      chatSmartFollowup    = chatConfig.smart_followup ?? false;
+      chatMultiIntentSplit = chatConfig.multi_intent_split ?? false;
     } catch { /* ignore — chat may not be deployed yet */ }
   }
 
@@ -61,16 +63,18 @@
     chatSaving = true; chatSaved = false; chatErr = '';
     try {
       chatConfig   = await api.updateChatConfig({
-        provider:       chatProvider,
-        model:          chatModel,
-        apiKey:         chatApiKey.trim() || undefined,
-        endpoint:       chatEndpoint.trim() || undefined,
-        smartFollowup:  chatSmartFollowup,
+        provider:          chatProvider,
+        model:             chatModel,
+        apiKey:            chatApiKey.trim() || undefined,
+        endpoint:          chatEndpoint.trim() || undefined,
+        smartFollowup:     chatSmartFollowup,
+        multiIntentSplit:  chatMultiIntentSplit,
       });
-      chatProvider      = chatConfig.provider;
-      chatModel         = chatConfig.model;
-      chatEndpoint      = chatConfig.endpoint ?? '';
-      chatSmartFollowup = chatConfig.smart_followup ?? false;
+      chatProvider         = chatConfig.provider;
+      chatModel            = chatConfig.model;
+      chatEndpoint         = chatConfig.endpoint ?? '';
+      chatSmartFollowup    = chatConfig.smart_followup ?? false;
+      chatMultiIntentSplit = chatConfig.multi_intent_split ?? false;
       chatApiKey        = '';
       chatSaved         = true;
     } catch (e) {
@@ -82,9 +86,10 @@
 
   $: chatIsSelfHosted = chatProvider === 'self_hosted';
   $: chatIsPaid       = ['anthropic','google','openai','groq'].includes(chatProvider);
-  $: chatIsDirty      = chatProvider      !== (chatConfig?.provider      ?? 'none') ||
-                        chatModel         !== (chatConfig?.model         ?? '')     ||
-                        chatSmartFollowup !== (chatConfig?.smart_followup ?? false)  ||
+  $: chatIsDirty      = chatProvider         !== (chatConfig?.provider           ?? 'none') ||
+                        chatModel            !== (chatConfig?.model              ?? '')     ||
+                        chatSmartFollowup    !== (chatConfig?.smart_followup     ?? false)  ||
+                        chatMultiIntentSplit !== (chatConfig?.multi_intent_split ?? false)  ||
                         chatApiKey.trim() !== ''                                     ||
                         (chatIsSelfHosted && chatEndpoint !== (chatConfig?.endpoint ?? ''));
 
@@ -897,6 +902,30 @@
             <input
               type="checkbox"
               bind:checked={chatSmartFollowup}
+              disabled={chatSaving}
+            />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+
+        <!-- Multi-intent query splitting toggle -->
+        <div class="cc-row" style="margin-top:20px">
+          <div class="cc-label-col">
+            <span class="cc-label">Multi-intent query splitting</span>
+            <span class="cc-desc">
+              When ON, a message naming multiple product categories in one go
+              (e.g. "screen protector and cases and headphones") is split into a
+              separate search per category, so one dominant category can't crowd
+              the others out of the answer. When OFF (default), the message is
+              searched as a single blended query, as it is today.
+            </span>
+          </div>
+          <label class="toggle">
+            <input
+              type="checkbox"
+              bind:checked={chatMultiIntentSplit}
               disabled={chatSaving}
             />
             <span class="toggle-track">

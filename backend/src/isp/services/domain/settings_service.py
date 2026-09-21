@@ -422,6 +422,8 @@ AVAILABLE_CHAT_MODELS: list[dict] = [
 
 
 _smart_followup_enabled: bool = False
+# See docs/multiIntentConjunctionSearchDesign.md §15.1. Off by default.
+_multi_intent_split_enabled: bool = False
 
 
 def get_smart_followup_enabled() -> bool:
@@ -430,15 +432,18 @@ def get_smart_followup_enabled() -> bool:
 
 async def get_chat_config() -> dict:
     """Return the stored chat provider configuration."""
-    provider       = await get_setting("chat_provider")       or "none"
-    model          = await get_setting("chat_model")          or ""
-    endpoint       = await get_setting("chat_endpoint")       or ""
-    key_set        = bool(await get_setting("chat_api_key"))
-    raw_sf         = await get_setting("chat_smart_followup") or "false"
-    smart_followup = raw_sf.lower() == "true"
+    provider           = await get_setting("chat_provider")           or "none"
+    model              = await get_setting("chat_model")              or ""
+    endpoint           = await get_setting("chat_endpoint")           or ""
+    key_set            = bool(await get_setting("chat_api_key"))
+    raw_sf             = await get_setting("chat_smart_followup")     or "false"
+    smart_followup     = raw_sf.lower() == "true"
+    raw_mis            = await get_setting("chat_multi_intent_split") or "false"
+    multi_intent_split = raw_mis.lower() == "true"
     return {
         "provider": provider, "model": model, "endpoint": endpoint,
         "api_key_set": key_set, "smart_followup": smart_followup,
+        "multi_intent_split": multi_intent_split,
     }
 
 
@@ -449,9 +454,10 @@ async def set_chat_config(
     api_key: str | None = None,
     endpoint: str | None = None,
     smart_followup: bool | None = None,
+    multi_intent_split: bool | None = None,
 ) -> None:
     """Persist chat provider configuration and apply it immediately at runtime."""
-    global _smart_followup_enabled
+    global _smart_followup_enabled, _multi_intent_split_enabled
     await set_setting("chat_provider", provider)
     await set_setting("chat_model",    model)
     if api_key is not None:
@@ -461,6 +467,9 @@ async def set_chat_config(
     if smart_followup is not None:
         _smart_followup_enabled = smart_followup
         await set_setting("chat_smart_followup", "true" if smart_followup else "false")
+    if multi_intent_split is not None:
+        _multi_intent_split_enabled = multi_intent_split
+        await set_setting("chat_multi_intent_split", "true" if multi_intent_split else "false")
 
     from isp.services.infra.chat import service as chat_service
     stored_key      = await get_setting("chat_api_key")  or ""
@@ -471,18 +480,21 @@ async def set_chat_config(
         api_key=stored_key,
         endpoint=stored_endpoint,
         smart_followup=_smart_followup_enabled,
+        multi_intent_split=_multi_intent_split_enabled,
     )
 
 
 async def load_chat_config() -> None:
     """Restore chat provider state from DB on startup."""
-    global _smart_followup_enabled
-    provider  = await get_setting("chat_provider")       or "none"
-    model     = await get_setting("chat_model")          or ""
-    api_key   = await get_setting("chat_api_key")        or ""
-    endpoint  = await get_setting("chat_endpoint")       or ""
-    raw_sf    = await get_setting("chat_smart_followup") or "false"
+    global _smart_followup_enabled, _multi_intent_split_enabled
+    provider  = await get_setting("chat_provider")           or "none"
+    model     = await get_setting("chat_model")              or ""
+    api_key   = await get_setting("chat_api_key")            or ""
+    endpoint  = await get_setting("chat_endpoint")           or ""
+    raw_sf    = await get_setting("chat_smart_followup")     or "false"
     _smart_followup_enabled = raw_sf.lower() == "true"
+    raw_mis   = await get_setting("chat_multi_intent_split") or "false"
+    _multi_intent_split_enabled = raw_mis.lower() == "true"
 
     from isp.services.infra.chat import service as chat_service
     chat_service.set_chat_config(
@@ -491,6 +503,7 @@ async def load_chat_config() -> None:
         api_key=api_key,
         endpoint=endpoint,
         smart_followup=_smart_followup_enabled,
+        multi_intent_split=_multi_intent_split_enabled,
     )
 
 
