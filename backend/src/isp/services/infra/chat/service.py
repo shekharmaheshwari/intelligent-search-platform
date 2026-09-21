@@ -30,6 +30,7 @@ from isp.services.infra import typesense_client as ts
 from isp.services.infra.embedding_service import embed_query as _embed_query
 from isp.services.infra.chat.providers import anthropic_chat, google_chat, openai_compat
 from isp.services.domain import index_service
+from isp.services.domain import chat_intent_split
 
 _GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
@@ -52,6 +53,9 @@ _chat_model:             str  = ""
 _chat_api_key:           str  = ""
 _chat_endpoint:          str  = ""
 _smart_followup_enabled: bool = False
+# See docs/multiIntentConjunctionSearchDesign.md. Off by default — opt-in,
+# same convention as smart_followup.
+_multi_intent_split_enabled: bool = False
 
 _FILLER_RE = re.compile(
     r"^\s*(show me|find me|can you (show|find)|give me|what are|i('m| am) looking for"
@@ -71,13 +75,16 @@ def get_provider() -> str:
 def set_chat_config(
     *, provider: str, model: str, api_key: str, endpoint: str,
     smart_followup: bool = False,
+    multi_intent_split: bool = False,
 ) -> None:
-    global _chat_provider, _chat_model, _chat_api_key, _chat_endpoint, _smart_followup_enabled
-    _chat_provider          = provider
-    _chat_model             = model
-    _chat_api_key           = api_key
-    _chat_endpoint          = endpoint
-    _smart_followup_enabled = smart_followup
+    global _chat_provider, _chat_model, _chat_api_key, _chat_endpoint
+    global _smart_followup_enabled, _multi_intent_split_enabled
+    _chat_provider              = provider
+    _chat_model                 = model
+    _chat_api_key               = api_key
+    _chat_endpoint              = endpoint
+    _smart_followup_enabled     = smart_followup
+    _multi_intent_split_enabled = multi_intent_split
     if provider == "anthropic":
         anthropic_chat.configure(api_key)
     elif provider == "google":
@@ -139,6 +146,173 @@ async def _index_has_price_field(index_id: str) -> bool:
     """
     fields = await asyncio.to_thread(ts.get_all_fields, index_id)
     return any(f.get("name") == "price" for f in fields)
+
+
+# ── Multi-intent conjunction splitting ──────────────────────────────────────
+# See docs/multiIntentConjunctionSearchDesign.md. The actual pipeline lives in
+# the decoupled isp.services.domain.chat_intent_split module; everything here
+# is just the I/O this chat service injects into it (Typesense facets, the
+# embedding model, the configured LLM provider).
+#
+# V1 (§15.1 of the design doc): the category field is detected at request
+# time (a faceted field literally named "category" with a small, bounded
+# value count) rather than the persisted, auto-discovered, per-index config
+# the fuller design describes (§8/§8.1) — a smaller first cut behind one
+# global toggle. Category-value embeddings are cached in memory per index,
+# computed lazily on first use (a documented simplification of the design's
+# precompute-only lifecycle — acceptable cold-start cost for a first version).
+
+_CATEGORY_FIELD_NAME = "category"
+_CATEGORY_MAX_VALUES = 20
+# A catch-all bucket has no coherent semantic content of its own, so its
+# embedding sits ambiguously close to many unrelated segments (observed:
+# "others" out-scored "cases-&-covers" for the segment "cases"). Excluding
+# it from the classification vocabulary removes that noise; it was never a
+# category a customer could ask for by name anyway.
+_GENERIC_CATEGORY_VALUES = {"others", "other", "misc", "miscellaneous", "n/a", "none"}
+
+_category_vectors_cache: dict[str, tuple[dict[str, list[float]], dict[str, str]]] = {}
+
+
+def _display_label(value: str) -> str:
+    return value.replace("-", " ").replace("&", "and").title()
+
+
+async def _category_vectors_for_index(index_id: str) -> tuple[dict[str, list[float]], dict[str, str]] | None:
+    """
+    Returns (category -> embedding, category -> display label) for this
+    index's category-like field, or None if it doesn't have one shaped like
+    a small, closed vocabulary. Cached per index for the process lifetime.
+    """
+    if index_id in _category_vectors_cache:
+        return _category_vectors_cache[index_id]
+
+    facet_fields = await asyncio.to_thread(ts.get_facet_fields, index_id)
+    if _CATEGORY_FIELD_NAME not in facet_fields:
+        return None
+    facets = await asyncio.to_thread(ts.get_facets, index_id, [_CATEGORY_FIELD_NAME])
+    all_values = [c["value"] for c in facets.get(_CATEGORY_FIELD_NAME, []) if c.get("value")]
+    if not (1 < len(all_values) <= _CATEGORY_MAX_VALUES):
+        return None
+    values = [v for v in all_values if v.strip().lower() not in _GENERIC_CATEGORY_VALUES]
+    if len(values) < 2:
+        return None
+
+    vectors: dict[str, list[float]] = {}
+    for v in values:
+        vec = await _embed_query(v.replace("-", " ").replace("&", " and "))
+        if vec:
+            vectors[v] = vec
+    if len(vectors) < 2:
+        return None
+
+    labels = {v: _display_label(v) for v in values}
+    result = (vectors, labels)
+    _category_vectors_cache[index_id] = result
+    return result
+
+
+async def _confirm_intents(system: str, prompt: str) -> str:
+    """One-shot (non-streaming) LLM call for the confirmation step, §7.
+    Reuses the already-configured chat provider — no separate model/key."""
+    result = ""
+    async for token in _route_llm_stream(system, [{"role": "user", "content": prompt}]):
+        result += token
+        if len(result) > 500:
+            break
+    return result
+
+
+async def _try_multi_intent_context(
+    search_query: str, index_id: str,
+    query_by: str, query_by_weights: str | None, facet_query_by: str | None,
+    price_filter: str | None, device_filter: str | None,
+) -> tuple[list[dict], str] | None:
+    """
+    Attempt the multi-intent split (§3-§11). Returns None on any gate miss
+    or failure — the caller falls back to the single _search_context call
+    exactly as it did before this feature existed; nothing here can make a
+    chat response worse than the pre-existing behavior, only better.
+
+    Note-worthy v1 simplification: `category` is observed to be a
+    single-value string field on every index checked (phones, accessories,
+    plants), never a multi-value array, so a product cannot land in two
+    category buckets at once — the design's `deduped_empty` bucket state
+    doesn't arise for this shape and isn't implemented here.
+    """
+    if not _multi_intent_split_enabled:
+        log.debug("chat multi-intent split: skipped — toggle disabled")
+        return None
+    resources = await _category_vectors_for_index(index_id)
+    if resources is None:
+        log.debug("chat multi-intent split: skipped — no category vectors for index_id=%s", index_id)
+        return None
+    category_vectors, labels = resources
+    log.debug("chat multi-intent split: category_vectors=%s query=%r", list(category_vectors.keys()), search_query)
+
+    plans = await chat_intent_split.maybe_build_plans(
+        search_query,
+        category_vectors=category_vectors,
+        label_by_category=labels,
+        embed=_embed_query,
+        confirm=_confirm_intents,
+        constraint_extractor=_extract_price_filter,
+    )
+    log.debug("chat multi-intent split: plans=%s", plans)
+    if not plans:
+        return None
+
+    async def _run(plan: chat_intent_split.SearchPlan):
+        base_filter = _combine_filters(price_filter, plan.filter_by)
+        filter_by = _combine_filters(base_filter, device_filter)
+        try:
+            cards, context = await _search_context(
+                plan.query, index_id, query_by, query_by_weights, facet_query_by,
+                price_filter=filter_by,
+            )
+            if not cards and device_filter:
+                # The device filter was resolved once from the whole message
+                # and applies well to device-specific categories (cases,
+                # screen protectors), but a category like headphones is
+                # often sold as a universal accessory with no per-device
+                # tagging at all — AND-ing the filter in then wrongly zeroes
+                # it out. Retry without it rather than report a false
+                # "we don't carry this" for a category that just isn't
+                # device-scoped in the catalog.
+                cards, context = await _search_context(
+                    plan.query, index_id, query_by, query_by_weights, facet_query_by,
+                    price_filter=base_filter,
+                )
+            return plan, cards, context, None
+        except Exception as exc:
+            return plan, [], "", exc
+
+    results = await asyncio.gather(*(_run(p) for p in plans))
+
+    all_cards: list[dict] = []
+    sections: list[str] = []
+    for plan, cards, context, err in results:
+        capped = cards[:plan.top_n]
+        all_cards.extend(capped)
+        if err is not None:
+            sections.append(
+                f"## {plan.label}\n"
+                f"(The search for {plan.label} could not be completed right now — "
+                f"mention this as a temporary issue, never as a lack of matching products.)"
+            )
+        elif not capped:
+            sections.append(
+                f"## {plan.label}\n"
+                f"(No matching {plan.label} found for this request — say you couldn't "
+                f"find a match; never imply the catalog doesn't carry {plan.label}.)"
+            )
+        else:
+            block_texts = context.split("\n\n")[:plan.top_n]
+            sections.append(f"## {plan.label}\n" + "\n\n".join(block_texts))
+
+    log.debug("chat multi-intent split: index_id=%s query=%r categories=%s",
+              index_id, search_query, [p.category for p in plans])
+    return all_cards[:5], "\n\n".join(sections)
 
 
 # ── Superlative queries ("cheapest", "most expensive", "newest") ───────────────
@@ -624,16 +798,57 @@ def _build_search_params(
     return searches
 
 
+# Typesense's vector leg always returns its k-nearest neighbours, even when
+# nothing in the catalog is genuinely related to the query — for a mismatched
+# query (e.g. "iphone screen protector" against a plants catalog) it still
+# hands back "the least dissimilar plants" rather than nothing. Left
+# unfiltered, those weak neighbours were the *only* signal for a zero-match
+# query and so filled the whole top-5 card carousel, directly contradicting
+# the LLM's own (correct) "we don't have anything matching that" text.
+#
+# Calibrated empirically against this deployment's embed model (voyage-3):
+# a real category/product match measured 0.47-0.50 vector_distance, a
+# genuine mismatch measured 0.87-0.88 — a wide gap, so this floor has
+# margin on both sides. `vector_distance` is cosine distance (0 = identical,
+# 2 = opposite); Typesense returns it per-hit whenever a vector_query ran.
+_SEM_MAX_DISTANCE = 0.75
+
+# The lexical/structured legs have the same failure mode as the semantic leg
+# above, for a different reason: Typesense's default OR-matching with typo
+# tolerance will return a "hit" on a single incidental token overlap even
+# when the rest of the query has nothing to do with the document. Observed
+# case: "iphone screen protector" (3 tokens) matched a plant's care
+# instructions ("...avoid overwatering and protect variegated leaves...") on
+# the single stemmed token "protect" — tokens_matched=1 of 3. A genuine
+# match on the same query matched tokens_matched=3 of 3. Requiring at least
+# half the query's tokens to have actually matched keeps that genuine case
+# and drops the one-incidental-word coincidence.
+_LEX_MIN_TOKEN_COVERAGE = 0.5
+
+
+def _passes_token_coverage(hit: dict, query_token_count: int) -> bool:
+    if query_token_count <= 1:
+        return True  # a single-token query already requires that token to match
+    matched = hit.get("text_match_info", {}).get("tokens_matched")
+    if matched is None:
+        return True  # fail open — no info to judge by, don't drop a hit over it
+    return (matched / query_token_count) >= _LEX_MIN_TOKEN_COVERAGE
+
+
 def _rrf_merge(
-    results_list: list[dict], has_struct: bool, has_vec: bool,
+    results_list: list[dict], has_struct: bool, has_vec: bool, query: str = "",
 ) -> list[dict]:
+    query_token_count = len(query.split())
     idx = 0
     lex_hits    = results_list[idx].get("hits", []) if idx < len(results_list) else []
+    lex_hits    = [h for h in lex_hits if _passes_token_coverage(h, query_token_count)]
     idx += 1
     struct_hits = results_list[idx].get("hits", []) if (has_struct and idx < len(results_list)) else []
+    struct_hits = [h for h in struct_hits if _passes_token_coverage(h, query_token_count)]
     if has_struct:
         idx += 1
     sem_hits    = results_list[idx].get("hits", []) if (has_vec and idx < len(results_list)) else []
+    sem_hits    = [h for h in sem_hits if h.get("vector_distance", 0) <= _SEM_MAX_DISTANCE]
 
     if not has_struct and not has_vec:
         return lex_hits[:5]
@@ -718,6 +933,7 @@ async def _search_context(
         resp.get("results", []),
         has_struct=facet_query_by is not None,
         has_vec=vec is not None,
+        query=query,
     )
 
     cards, parts = [], []
@@ -845,6 +1061,30 @@ def _system_prompt(
     item_noun = (cfg["item_noun"] or CHAT_PERSONA_DEFAULTS["item_noun"]).strip()
 
     prompt = _PROMPTS["system_prompt"]["base"].format(item_noun=item_noun)
+    # Applies whenever real context was retrieved, independent of the
+    # multi-intent split toggle (docs/multiIntentConjunctionSearchDesign.md
+    # §2) — every miss/fallback in that feature still returns to this same
+    # prompt, so the guardrail against confident false-unavailability claims
+    # has to live here, not only in the split path.
+    #
+    # Gated on non-empty context on purpose: this note tells the model the
+    # sample below isn't exhaustive, which is only true when a sample was
+    # actually retrieved. With truly empty context (every candidate was
+    # correctly filtered out as irrelevant — see _rrf_merge's relevance
+    # floors), the note instead licensed the model to avoid saying "we don't
+    # have that" by fabricating specific plausible-sounding products from
+    # general knowledge — a worse failure than the one it was added to fix.
+    # The base prompt's own "if no {item_noun} matches, say so" instruction
+    # is the correct behavior for a genuinely empty context — but that alone
+    # was not a strong enough deterrent in practice: with the data section
+    # blank, the model would still fabricate specific, plausible-sounding
+    # products from general knowledge rather than say it found nothing.
+    # empty_context_note makes the "don't invent one" instruction explicit
+    # for exactly this case.
+    if context:
+        prompt += _PROMPTS["system_prompt"]["context_not_exhaustive_note"]
+    else:
+        prompt += _PROMPTS["system_prompt"]["empty_context_note"].format(item_noun=item_noun)
     if cfg["enable_comparison"]:
         prompt += _PROMPTS["system_prompt"]["comparison_note"]
     if sorted_field:
@@ -971,6 +1211,7 @@ async def chat_stream(
             if device_filter:
                 log.debug("chat device filter resolved: index_id=%s field=%s filter=%s",
                           index_id, device_field, device_filter)
+    pre_device_filter = combined_filter
     combined_filter = _combine_filters(combined_filter, device_filter)
 
     superlative = _detect_superlative_concept(search_query)
@@ -993,10 +1234,17 @@ async def chat_stream(
             superlative_phrase=matched_phrase,
         )
     else:
-        cards, context = await _search_context(
+        multi = await _try_multi_intent_context(
             search_query, index_id, query_by, query_by_weights, facet_query_by,
-            price_filter=combined_filter,
+            pre_device_filter, device_filter,
         )
+        if multi is not None:
+            cards, context = multi
+        else:
+            cards, context = await _search_context(
+                search_query, index_id, query_by, query_by_weights, facet_query_by,
+                price_filter=combined_filter,
+            )
 
     if _smart_followup_enabled:
         cards = _merge_cards(cards, _pinned_cards(messages))
