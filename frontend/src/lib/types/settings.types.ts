@@ -38,6 +38,7 @@ export interface ChatConfig {
   api_key_set:         boolean;
   smart_followup:      boolean;
   multi_intent_split:  boolean;
+  llm_response:        boolean;
   available_models:    ChatModelOption[];
 }
 

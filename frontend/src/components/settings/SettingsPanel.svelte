@@ -44,6 +44,7 @@
   let chatEndpoint      = '';
   let chatSmartFollowup    = false;
   let chatMultiIntentSplit = false;
+  let chatLlmResponse      = true;
   let chatSaving        = false;
   let chatSaved         = false;
   let chatErr           = '';
@@ -56,6 +57,7 @@
       chatEndpoint         = chatConfig.endpoint ?? '';
       chatSmartFollowup    = chatConfig.smart_followup ?? false;
       chatMultiIntentSplit = chatConfig.multi_intent_split ?? false;
+      chatLlmResponse      = chatConfig.llm_response ?? true;
     } catch { /* ignore — chat may not be deployed yet */ }
   }
 
@@ -69,12 +71,14 @@
         endpoint:          chatEndpoint.trim() || undefined,
         smartFollowup:     chatSmartFollowup,
         multiIntentSplit:  chatMultiIntentSplit,
+        llmResponse:       chatLlmResponse,
       });
       chatProvider         = chatConfig.provider;
       chatModel            = chatConfig.model;
       chatEndpoint         = chatConfig.endpoint ?? '';
       chatSmartFollowup    = chatConfig.smart_followup ?? false;
       chatMultiIntentSplit = chatConfig.multi_intent_split ?? false;
+      chatLlmResponse      = chatConfig.llm_response ?? true;
       chatApiKey        = '';
       chatSaved         = true;
     } catch (e) {
@@ -90,6 +94,7 @@
                         chatModel            !== (chatConfig?.model              ?? '')     ||
                         chatSmartFollowup    !== (chatConfig?.smart_followup     ?? false)  ||
                         chatMultiIntentSplit !== (chatConfig?.multi_intent_split ?? false)  ||
+                        chatLlmResponse      !== (chatConfig?.llm_response       ?? true)   ||
                         chatApiKey.trim() !== ''                                     ||
                         (chatIsSelfHosted && chatEndpoint !== (chatConfig?.endpoint ?? ''));
 
@@ -926,6 +931,29 @@
             <input
               type="checkbox"
               bind:checked={chatMultiIntentSplit}
+              disabled={chatSaving}
+            />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+
+        <!-- LLM answer toggle -->
+        <div class="cc-row" style="margin-top:20px">
+          <div class="cc-label-col">
+            <span class="cc-label">LLM-generated answers</span>
+            <span class="cc-desc">
+              When ON (default), chat calls the LLM to write an answer alongside the
+              matched products. When OFF, chat returns matched products only — no
+              answer text, no follow-up rewrite call, and no provider needs to be
+              configured at all. Use this for a cards-only search UI with no LLM cost.
+            </span>
+          </div>
+          <label class="toggle">
+            <input
+              type="checkbox"
+              bind:checked={chatLlmResponse}
               disabled={chatSaving}
             />
             <span class="toggle-track">

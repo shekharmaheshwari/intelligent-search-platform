@@ -16,12 +16,12 @@ to the plain price-filtered path via the shared _remove_price_phrase.
 """
 from __future__ import annotations
 
-from isp.services.infra.chat.service import (
-    _extract_price_filter,
-    _strip_price_phrase,
+from isp.services.infra.chat.service import _resolve_retrieval_params
+from isp.services.infra.chat.query_filters import (
+    extract_price_filter as _extract_price_filter,
+    strip_price_phrase as _strip_price_phrase,
     _remove_price_phrase,
-    _strip_structural_phrases,
-    _resolve_retrieval_params,
+    strip_structural_phrases as _strip_structural_phrases,
 )
 
 
@@ -83,12 +83,18 @@ def test_remove_price_phrase_has_no_fallback():
 # ── End-to-end through _resolve_retrieval_params ────────────────────────────
 
 async def test_resolve_retrieval_params_strips_price_phrase_from_search_query():
-    search_query, filter_by, _ = await _resolve_retrieval_params("iphone under $1000", [])
+    search_query, multi_intent_query, filter_by, _ = await _resolve_retrieval_params("iphone under $1000", [])
     assert search_query == "iphone"
     assert filter_by == "price:<1000"
+    # multi_intent_query deliberately keeps the price phrase — multi-intent
+    # segmentation needs it present to extract a per-segment constraint from
+    # (see _resolve_retrieval_params's docstring); only search_query (used
+    # for the single-search/superlative Typesense `q`) has it stripped.
+    assert multi_intent_query == "iphone under $1000"
 
 
 async def test_resolve_retrieval_params_leaves_plain_query_untouched():
-    search_query, filter_by, _ = await _resolve_retrieval_params("iphone 17 case", [])
+    search_query, multi_intent_query, filter_by, _ = await _resolve_retrieval_params("iphone 17 case", [])
     assert search_query == "iphone 17 case"
+    assert multi_intent_query == "iphone 17 case"
     assert filter_by is None

@@ -289,6 +289,7 @@ def build_search_plans(
     category_by_index: dict[int, str],
     label_by_category: dict[str, str],
     constraint_extractor: Callable[[str], str | None],
+    strip_constraint_phrase: Callable[[str], str] | None = None,
     global_cap: int = 5,
 ) -> list[SearchPlan]:
     """
@@ -297,6 +298,17 @@ def build_search_plans(
     logic (e.g. price extraction), invoked once per intent's own text —
     never on the whole message — so a local modifier can never leak into
     another intent's filter.
+
+    `strip_constraint_phrase`, if given, is applied to each intent's own
+    text before it becomes that plan's `query` — the matched constraint
+    phrase (e.g. "under $20") is already captured structurally in
+    `filter_by` via `constraint_extractor` above, so leaving it in the
+    lexical query text too is pure noise for text matching (the same
+    reasoning as the caller's own single-search price-stripping; see
+    chat/query_filters.py's strip_price_phrase). Applied unconditionally to
+    every segment (not just ones where a constraint was found) since it's
+    self-preserving — a no-op wherever there's nothing to strip. None skips
+    this entirely, for a caller with no such phrase-stripping of its own.
 
     Each confirmed intent gets its own independent `global_cap` — each
     bucket is a genuinely separate search against a different category, not
@@ -334,10 +346,11 @@ def build_search_plans(
         filter_by = f"category:=[{category}]"
         if constraint:
             filter_by = f"({filter_by}) && ({constraint})"
+        plan_query = strip_constraint_phrase(text) if strip_constraint_phrase else text
         plans.append(SearchPlan(
             category=category,
             label=label_by_category.get(category, category),
-            query=text,
+            query=plan_query,
             filter_by=filter_by,
             top_n=global_cap,
         ))
@@ -406,8 +419,25 @@ async def maybe_build_plans(
     category_vectors: dict[str, list[float]],
     label_by_category: dict[str, str],
     embed: EmbedFn,
-    confirm: ConfirmFn,
+    # None skips the LLM confirmation call entirely (§7) — classify_segments'
+    # own confidence+margin gate (similarity_threshold/similarity_margin
+    # below) is trusted directly as "confirmed," with shared_span always
+    # None. Reasonable once nothing downstream still depends on an
+    # LLM-guessed shared_span (see chat/multi_intent.py, which resolves
+    # device-per-category deterministically from the live catalog's own data
+    # instead) — the remaining risk this call used to catch (a modifier-only
+    # segment like
+    # "wireless" in "wireless and durable case" slipping through as its own
+    # confirmed intent) is already unlikely to clear classify_segments' own
+    # bar, since a bare adjective rarely embeds confidently+with-margin
+    # against any single category.
+    confirm: ConfirmFn | None = None,
     constraint_extractor: Callable[[str], str | None],
+    # Applied to each intent's own text before it becomes that plan's
+    # `query` — see build_search_plans's docstring. None (the default) skips
+    # it, matching the pre-existing behavior for a caller with no such
+    # phrase-stripping of its own.
+    strip_constraint_phrase: Callable[[str], str] | None = None,
     # Device/model phrases already resolved from the full message (e.g.
     # ["iPhone 17"]) — stripped from each segment before it's embedded for
     # classification only. See _strip_phrases.
@@ -443,6 +473,21 @@ async def maybe_build_plans(
     segment_vectors = []
     for seg in segments:
         classify_text = _strip_phrases(seg, strip_phrases) if strip_phrases else seg
+        # Same dilution problem strip_phrases solves for a device name inside
+        # a segment ("iphone 17 case" scoring weaker against "cases" than
+        # bare "case" does) applies just as much to a price phrase left in
+        # ("cases under $20" vs. bare "cases") — strip_constraint_phrase must
+        # stay in the segment's own text for constraint_extractor to find
+        # (see build_search_plans) and is only removed from the final
+        # plan.query there, but classification never needs it and is
+        # measurably hurt by it.
+        if strip_constraint_phrase:
+            classify_text = strip_constraint_phrase(classify_text)
+        # Conversational articles carry no category meaning and can dilute a
+        # one-word intent after its device phrase is removed ("an iPhone 17
+        # case" -> "an case"). This is classifier-only; the final retrieval
+        # query retains the user's original wording.
+        classify_text = re.sub(r"^(?:a|an|the)\s+", "", classify_text, flags=re.IGNORECASE)
         vec = await embed(classify_text or seg)  # never embed an empty string
         if vec is None:
             return None
@@ -457,19 +502,23 @@ async def maybe_build_plans(
     if len(distinct_categories) < 2:
         return None
 
-    candidate_map = {i: (segments[i], cat) for i, cat in candidates.items()}
-    prompt = build_confirmation_prompt(query, candidate_map)
-    try:
-        raw = await confirm(_CONFIRM_SYSTEM_PROMPT, prompt)
-    except Exception:
-        return None  # provider error/timeout — fail open
+    if confirm is None:
+        confirmed = ConfirmationResult(confirmed_indices=sorted(candidates.keys()), shared_span=None)
+        log.debug("chat_intent_split: confirm=None, auto-confirmed=%s", confirmed)
+    else:
+        candidate_map = {i: (segments[i], cat) for i, cat in candidates.items()}
+        prompt = build_confirmation_prompt(query, candidate_map)
+        try:
+            raw = await confirm(_CONFIRM_SYSTEM_PROMPT, prompt)
+        except Exception:
+            return None  # provider error/timeout — fail open
 
-    confirmed = await parse_and_validate_confirmation(
-        raw, query, segments, set(candidates.keys()), resolve_span,
-    )
-    log.debug("chat_intent_split: raw_confirmation=%r parsed=%s", raw, confirmed)
-    if confirmed is None:
-        return None
+        confirmed = await parse_and_validate_confirmation(
+            raw, query, segments, set(candidates.keys()), resolve_span,
+        )
+        log.debug("chat_intent_split: raw_confirmation=%r parsed=%s", raw, confirmed)
+        if confirmed is None:
+            return None
 
     # A duplicate category across confirmed segments collapses (§5) — keep
     # only the first occurrence's index per category.
@@ -487,5 +536,5 @@ async def maybe_build_plans(
 
     return build_search_plans(
         query, segments, confirmed, candidates, label_by_category,
-        constraint_extractor, global_cap,
+        constraint_extractor, strip_constraint_phrase, global_cap,
     )
