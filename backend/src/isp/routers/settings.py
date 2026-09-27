@@ -261,6 +261,10 @@ class ChatConfigUpdate(BaseModel):
                                 ("cases and headphones") is split into a search per
                                 category instead of one blended search — see
                                 docs/multiIntentConjunctionSearchDesign.md
+    - ``llm_response``        — when False, chat returns matched products only, with no
+                                LLM call of any kind (no follow-up rewrite, no answer
+                                text) and no provider needs to be configured at all.
+                                True by default — opt-out, unlike the two toggles above.
     """
     provider:           str
     model:              str        = ""
@@ -268,6 +272,7 @@ class ChatConfigUpdate(BaseModel):
     endpoint:           str | None = None
     smart_followup:     bool       = False
     multi_intent_split: bool       = False
+    llm_response:       bool       = True
 
 
 class ChatConfigResponse(BaseModel):
@@ -277,6 +282,7 @@ class ChatConfigResponse(BaseModel):
     api_key_set:        bool
     smart_followup:     bool
     multi_intent_split: bool
+    llm_response:       bool
     available_models:   list[dict]
 
 
@@ -291,6 +297,7 @@ async def get_chat_settings() -> ChatConfigResponse:
         api_key_set=cfg["api_key_set"],
         smart_followup=cfg.get("smart_followup", False),
         multi_intent_split=cfg.get("multi_intent_split", False),
+        llm_response=cfg.get("llm_response", True),
         available_models=AVAILABLE_CHAT_MODELS,
     )
 
@@ -336,6 +343,7 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
         endpoint=body.endpoint,
         smart_followup=body.smart_followup,
         multi_intent_split=body.multi_intent_split,
+        llm_response=body.llm_response,
     )
     cfg = await get_chat_config()
     return ChatConfigResponse(
@@ -345,6 +353,7 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
         api_key_set=cfg["api_key_set"],
         smart_followup=cfg.get("smart_followup", False),
         multi_intent_split=cfg.get("multi_intent_split", False),
+        llm_response=cfg.get("llm_response", True),
         available_models=AVAILABLE_CHAT_MODELS,
     )
 

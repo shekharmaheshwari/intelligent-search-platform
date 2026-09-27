@@ -26,9 +26,12 @@ from isp.services.infra import embedding_service, typesense_client as ts
 from isp.services.infra import rest_connector, sitemap_connector, gsheet_connector, json_file_connector
 from isp.services.infra.extension_runner import apply_extensions
 from isp.services.infra.agent.setup_executor import _flatten_objects, _repair_doc
-from isp.services.infra.chat.service import (
-    CHAT_PERSONA_DEFAULTS, _CONCEPT_FIELD_CANDIDATES,
-    _SORT_CONCEPTS, _SORTABLE_TYPES, _FILTER_CONCEPT_VALUE_TYPES,
+from isp.services.infra.chat.service import CHAT_PERSONA_DEFAULTS
+from isp.services.infra.chat.concept_resolution import (
+    CONCEPT_FIELD_CANDIDATES as _CONCEPT_FIELD_CANDIDATES,
+    SORT_CONCEPTS as _SORT_CONCEPTS,
+    SORTABLE_TYPES as _SORTABLE_TYPES,
+    FILTER_CONCEPT_VALUE_TYPES as _FILTER_CONCEPT_VALUE_TYPES,
 )
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])

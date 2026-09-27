@@ -71,9 +71,10 @@ async def chat(index_id: str, body: ChatRequest) -> StreamingResponse:
 
     persona_config = meta.chat_persona_config if meta else None
     superlative_field_map = meta.superlative_field_map if meta else None
+    boost_rules = meta.boost_rules if meta else None
 
     async def generate():
-        async for chunk in chat_service.chat_stream(body.query, body.messages, resolved_id, query_by, query_by_weights, facet_query_by="chatContent", persona_config=persona_config, superlative_field_map=superlative_field_map):
+        async for chunk in chat_service.chat_stream(body.query, body.messages, resolved_id, query_by, query_by_weights, facet_query_by="chatContent", persona_config=persona_config, superlative_field_map=superlative_field_map, boost_rules=boost_rules):
             yield f"data: {json.dumps(chunk)}\n\n"
         yield "data: [DONE]\n\n"
 
