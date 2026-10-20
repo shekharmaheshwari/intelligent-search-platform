@@ -3,6 +3,8 @@ name = "intelligent-search-platform"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "spacy>=3.8,<3.9",  # Local query segmentation; no external NLP API
+
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
     "typesense>=0.21.0",

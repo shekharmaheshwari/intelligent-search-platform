@@ -703,6 +703,45 @@ def get_facets(index_id: str, facet_fields: list[str]) -> dict:
     return facets
 
 
+def get_field_occurrence_ratio(index_id: str, filter_by: str, facet_field: str) -> tuple[int, float]:
+    """
+    Among documents matching `filter_by`, what fraction have `facet_field`
+    populated -- e.g. "of this category's products, how many actually name a
+    compatible device?" Returns (matched_doc_count, ratio) with ratio in
+    [0, 1]; (0, 0.0) if the filter matches nothing or the request fails.
+
+    Counts each matching document once, by fetching up to 250 of them
+    (Typesense's per-page cap) with only `facet_field` included and checking
+    presence directly, rather than summing facet_counts[].counts[].count --
+    that sum counts (document, value) pairs, not documents, and badly
+    OVERcounts a field where populated documents hold several values each
+    (20 of 100 products each listing 5 compatible devices sums to 100,
+    reading as 100% coverage via that method when the true, per-document
+    figure is 20%). Typesense has no native "field is non-empty" filter to
+    push this count entirely server-side (confirmed: compatible_devices:!=[]
+    and :!=null both silently match every document, filter ignored) -- for
+    a category with more than 250 documents this is a sample over the first
+    page rather than an exact count, an accepted trade-off for staying one
+    cheap request instead of paginating the whole category.
+    """
+    name = collection_name(index_id)
+    try:
+        result = get_client().collections[name].documents.search({
+            "q": "*",
+            "filter_by": filter_by,
+            "per_page": 250,
+            "include_fields": f"id,{facet_field}",
+        })
+    except Exception:
+        return 0, 0.0
+    found = result.get("found", 0)
+    hits = result.get("hits", [])
+    if not found or not hits:
+        return found, 0.0
+    populated = sum(1 for h in hits if h.get("document", {}).get(facet_field))
+    return found, populated / len(hits)
+
+
 def get_boost_rule_fields(index_id: str) -> list[str]:
     """
     Return a filtered list of field names from the Typesense collection schema

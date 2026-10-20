@@ -453,6 +453,8 @@ export const api = {
     endpoint?:         string;
     smartFollowup?:    boolean;
     multiIntentSplit?: boolean;
+    llmResponse?:      boolean;
+    localQueryRouter?: boolean;
   }) =>
     req<import('./types/settings.types').ChatConfig>('/settings/chat', {
       method: 'PUT',
@@ -463,6 +465,8 @@ export const api = {
         endpoint:            opts.endpoint          ?? null,
         smart_followup:      opts.smartFollowup     ?? false,
         multi_intent_split:  opts.multiIntentSplit  ?? false,
+        llm_response:        opts.llmResponse       ?? true,
+        local_query_router:  opts.localQueryRouter  ?? false,
       }),
     }),
 

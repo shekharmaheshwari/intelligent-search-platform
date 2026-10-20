@@ -29,8 +29,14 @@
     { value: 'rating',               label: 'Rating',               hint: '"top rated"' },
     { value: 'device_compatibility', label: 'Device compatibility', hint: 'e.g. "iPhone 17 case"' },
     { value: 'customer_eligibility', label: 'Customer eligibility', hint: '"cheapest military plan"' },
+    { value: 'unit_count',           label: 'Quantity offered',     hint: '"plan for 3 lines", "room for 2 guests"' },
+    { value: 'unit_price',           label: 'Price per quantity',   hint: 'aligned with Quantity offered' },
+    { value: 'feature_list',         label: 'Feature list',         hint: '"cheapest plan with Netflix for 2 lines"' },
   ];
   const SORT_CONCEPTS = new Set(['price', 'popularity', 'recency', 'size', 'rating']);
+  // Quantity concepts map to numeric ARRAY fields (mirrors backend
+  // concept_resolution.UNIT_CONCEPTS / NUMERIC_ARRAY_TYPES).
+  const UNIT_CONCEPTS = new Set(['unit_count', 'unit_price']);
 
   // Candidate fields per concept, narrowed by shape so a 30-field index
   // doesn't dump every field into every dropdown: sort concepts need a
@@ -39,6 +45,9 @@
   // _SORTABLE_TYPES check and how device_compatibility/customer_eligibility
   // actually resolve (a facet field, never a number).
   function candidateFieldsFor(concept: string): FieldEntry[] {
+    if (UNIT_CONCEPTS.has(concept)) {
+      return fields.filter(f => !f.system && ['int32[]', 'int64[]', 'float[]'].includes(f.type));
+    }
     if (SORT_CONCEPTS.has(concept)) {
       return fields.filter(f => !f.system && ['int32', 'int64', 'float'].includes(f.type));
     }

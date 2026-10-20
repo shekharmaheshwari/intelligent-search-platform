@@ -424,6 +424,12 @@ AVAILABLE_CHAT_MODELS: list[dict] = [
 _smart_followup_enabled: bool = False
 # See docs/multiIntentConjunctionSearchDesign.md §15.1. Off by default.
 _multi_intent_split_enabled: bool = False
+# On by default — opt-OUT, unlike the two toggles above, so an existing
+# deployment keeps its current chat behavior unless someone deliberately
+# turns LLM responses off. False makes chat_stream return cards only, with
+# no chat provider required at all. See chat/service.py's _llm_response_enabled.
+_llm_response_enabled: bool = True
+_local_query_router_enabled: bool = False
 
 
 def get_smart_followup_enabled() -> bool:
@@ -440,10 +446,13 @@ async def get_chat_config() -> dict:
     smart_followup     = raw_sf.lower() == "true"
     raw_mis            = await get_setting("chat_multi_intent_split") or "false"
     multi_intent_split = raw_mis.lower() == "true"
+    raw_llm            = await get_setting("chat_llm_response")       or "true"
+    llm_response       = raw_llm.lower() == "true"
     return {
         "provider": provider, "model": model, "endpoint": endpoint,
         "api_key_set": key_set, "smart_followup": smart_followup,
-        "multi_intent_split": multi_intent_split,
+        "multi_intent_split": multi_intent_split, "llm_response": llm_response,
+        "local_query_router": (await get_setting("chat_local_query_router") or "false").lower() == "true",
     }
 
 
@@ -455,9 +464,11 @@ async def set_chat_config(
     endpoint: str | None = None,
     smart_followup: bool | None = None,
     multi_intent_split: bool | None = None,
+    llm_response: bool | None = None,
+    local_query_router: bool | None = None,
 ) -> None:
     """Persist chat provider configuration and apply it immediately at runtime."""
-    global _smart_followup_enabled, _multi_intent_split_enabled
+    global _smart_followup_enabled, _multi_intent_split_enabled, _llm_response_enabled, _local_query_router_enabled
     await set_setting("chat_provider", provider)
     await set_setting("chat_model",    model)
     if api_key is not None:
@@ -470,6 +481,13 @@ async def set_chat_config(
     if multi_intent_split is not None:
         _multi_intent_split_enabled = multi_intent_split
         await set_setting("chat_multi_intent_split", "true" if multi_intent_split else "false")
+    if llm_response is not None:
+        _llm_response_enabled = llm_response
+        await set_setting("chat_llm_response", "true" if llm_response else "false")
+
+    if local_query_router is not None:
+        _local_query_router_enabled = local_query_router
+        await set_setting("chat_local_query_router", "true" if local_query_router else "false")
 
     from isp.services.infra.chat import service as chat_service
     stored_key      = await get_setting("chat_api_key")  or ""
@@ -481,12 +499,14 @@ async def set_chat_config(
         endpoint=stored_endpoint,
         smart_followup=_smart_followup_enabled,
         multi_intent_split=_multi_intent_split_enabled,
+        llm_response=_llm_response_enabled,
+        local_query_router=_local_query_router_enabled,
     )
 
 
 async def load_chat_config() -> None:
     """Restore chat provider state from DB on startup."""
-    global _smart_followup_enabled, _multi_intent_split_enabled
+    global _smart_followup_enabled, _multi_intent_split_enabled, _llm_response_enabled, _local_query_router_enabled
     provider  = await get_setting("chat_provider")           or "none"
     model     = await get_setting("chat_model")              or ""
     api_key   = await get_setting("chat_api_key")            or ""
@@ -495,6 +515,9 @@ async def load_chat_config() -> None:
     _smart_followup_enabled = raw_sf.lower() == "true"
     raw_mis   = await get_setting("chat_multi_intent_split") or "false"
     _multi_intent_split_enabled = raw_mis.lower() == "true"
+    raw_llm   = await get_setting("chat_llm_response")       or "true"
+    _llm_response_enabled = raw_llm.lower() == "true"
+    _local_query_router_enabled = (await get_setting("chat_local_query_router") or "false").lower() == "true"
 
     from isp.services.infra.chat import service as chat_service
     chat_service.set_chat_config(
@@ -504,6 +527,8 @@ async def load_chat_config() -> None:
         endpoint=endpoint,
         smart_followup=_smart_followup_enabled,
         multi_intent_split=_multi_intent_split_enabled,
+        llm_response=_llm_response_enabled,
+        local_query_router=_local_query_router_enabled,
     )
 
 
