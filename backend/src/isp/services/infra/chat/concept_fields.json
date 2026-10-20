@@ -5,5 +5,8 @@
   "size":                 ["size", "screen_size", "capacity"],
   "rating":               ["rating", "review_score", "stars"],
   "device_compatibility": ["compatible_devices", "compatible_with", "device_compatibility"],
-  "customer_eligibility":  ["customer_group", "eligibility", "customer_segment", "audience"]
+  "customer_eligibility":  ["customer_group", "eligibility", "customer_segment", "audience"],
+  "unit_count":            ["eligible_lines", "quantities", "seat_counts", "guest_counts", "pack_sizes"],
+  "unit_price":            ["line_prices", "unit_prices", "quantity_prices"],
+  "feature_list":          []
 }

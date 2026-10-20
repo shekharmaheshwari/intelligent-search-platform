@@ -61,6 +61,15 @@ function pre_process(response) {
     }).filter(Boolean);
   });
 
+  // billingSoc → shopper-facing highlight strings, from featuresByCategory
+  // (richer than featuresByRank: streaming, hotspot, travel, perks).
+  var highlightMap = {};
+  (response.ratePlanFeatures || []).forEach(function(rpf) {
+    if (!rpf || !rpf.soc) return;
+    var h = extractHighlights(rpf.featuresByCategory);
+    if (h.length) highlightMap[rpf.soc] = h;
+  });
+
   // First pass: collect every (lineCount -> price) pair per PLAN NAME across
   // every line-count group and every sibling billingSoc, keeping the
   // first-seen raw offer object (and the ordered list of billingSocs seen)
@@ -103,10 +112,18 @@ function pre_process(response) {
       }
     }
 
+    var highlights = [];
+    for (var h = 0; h < entry.socs.length; h++) {
+      if (highlightMap[entry.socs[h]]) { highlights = highlightMap[entry.socs[h]]; break; }
+    }
+
     offer.rankedFeatures = ranked;
+    offer.highlight_features = highlights;
     offer.price_by_lines = entry.priceByLines;
     planOffers.push(offer);
   });
+
+  markPriceExtremesForLines(planOffers);
 
   // Return planOffers as the FIRST key so _auto_detect_path picks it up
   // without needing result_path to be configured.
@@ -115,4 +132,81 @@ function pre_process(response) {
     ratePlans:        response.ratePlans,
     ratePlanFeatures: response.ratePlanFeatures
   };
+}
+
+/**
+ * Tag each offer with `cheapest_for_lines` / `premium_for_lines`: the line
+ * counts at which it is the lowest- / highest-priced plan. Only the
+ * pre-processor sees every plan at once — the per-item transform/card-summary
+ * extensions cannot make this comparison.
+ *
+ * Compared within the same customer group (first customerGroups entry, same
+ * rule as plans_transformer's customer_group) so a student/military plan is
+ * never ranked against consumer plans. A line count with only one plan in the
+ * group gets no tag (cheapest and most premium at once is meaningless). Ties
+ * tag every tied plan. Zero/missing prices are ignored (the first pass stores
+ * 0 for unparseable).
+ */
+function markPriceExtremesForLines(planOffers) {
+  function groupOf(offer) {
+    var groups = Array.isArray(offer.customerGroups) ? offer.customerGroups : [];
+    return groups.length > 0 ? String(groups[0]).toLowerCase() : 'consumer';
+  }
+
+  var stats = {}; // "<group>|<lineCount>" -> {min, max, count}
+  planOffers.forEach(function(offer) {
+    var group = groupOf(offer);
+    Object.keys(offer.price_by_lines).forEach(function(lc) {
+      var price = offer.price_by_lines[lc];
+      if (!(price > 0)) return;
+      var key = group + '|' + lc;
+      var s = stats[key] || (stats[key] = { min: price, max: price, count: 0 });
+      if (price < s.min) s.min = price;
+      if (price > s.max) s.max = price;
+      s.count++;
+    });
+  });
+
+  function linesWhere(offer, pick) {
+    var group = groupOf(offer);
+    return Object.keys(offer.price_by_lines)
+      .filter(function(lc) {
+        var price = offer.price_by_lines[lc];
+        var s = stats[group + '|' + lc];
+        return price > 0 && s && s.count > 1 && s.min !== s.max && price === s[pick];
+      })
+      .map(Number)
+      .filter(function(n) { return n > 0; })
+      .sort(function(a, b) { return a - b; });
+  }
+
+  planOffers.forEach(function(offer) {
+    offer.cheapest_for_lines = linesWhere(offer, 'min');
+    offer.premium_for_lines  = linesWhere(offer, 'max');
+  });
+}
+
+// Feature codes shoppers compare plans on, in display order. Anything whose
+// value is "Not included" (or has no shortDescription) is skipped, so each
+// plan only lists perks it actually has.
+var HIGHLIGHT_CODES = [
+  'MGTPST_PREMDATA', 'MGTPST_MH', 'MGTPST_NOU', 'MGTPST_HULU1', 'MGTPST_ATV3',
+  'MGTPST_VSQ', 'MGTPST_SATELLITE', 'MGTPST_PG5', 'MGTPST_UPGR',
+  'MGTPST_CANMEX', 'MGTPST_SGTD1', 'MGTPST_1YAAA', 'MGTPST_SSP',
+  'MGTPST_SLICEFR', 'MGTPST_BTSFN'
+];
+
+function extractHighlights(categories) {
+  var byCode = {};
+  (Array.isArray(categories) ? categories : []).forEach(function(cat) {
+    (cat && Array.isArray(cat.features) ? cat.features : []).forEach(function(f) {
+      if (!f || !f.code || byCode[f.code]) return;
+      var desc = String(f.shortDescription || '').trim();
+      if (!desc || /^not included$/i.test(String(f.name || '').trim())) return;
+      if (/not (included|available)/i.test(desc)) return;
+      byCode[f.code] = desc;
+    });
+  });
+  return HIGHLIGHT_CODES.filter(function(c) { return byCode[c]; })
+                        .map(function(c) { return byCode[c]; });
 }
