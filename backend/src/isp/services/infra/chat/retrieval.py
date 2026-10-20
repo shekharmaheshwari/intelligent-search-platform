@@ -8,6 +8,7 @@ the equivalent merge used by the listing page's search. See that module for
 the full rationale and calibration notes.
 """
 from __future__ import annotations
+from isp.services.domain.reasoning_data import read_reasoning_data, reasoning_context
 import asyncio
 import json
 import logging
@@ -161,6 +162,8 @@ def _hit_to_card_and_block(hit: dict, i: int) -> tuple[dict, str]:
 
     chat_ctx = doc.get("chatContent") or doc.get("content", "")[:300]
     block = f"{i}. {title}\n  {chat_ctx}" if chat_ctx else f"{i}. {title}"
+    reasoning = read_reasoning_data(doc.get("reasoningData", meta.get("reasoningData")))
+    block += reasoning_context(reasoning)
     # Fields beyond the original 4 (id/title/price/url/image) exist so the
     # PLP's chat widget can render the same rich product card used on the
     # main grid (swatches, manufacturer, stock badge) instead of a
@@ -168,6 +171,8 @@ def _hit_to_card_and_block(hit: dict, i: int) -> tuple[dict, str]:
     # the original fields are unaffected.
     card = {
         "id": doc.get("id", ""), "title": title, "price": price, "url": url, "image": image,
+        "bundle_price": doc.get("price"),
+        "reasoningData": reasoning,
         "manufacturer": meta.get("manufacturer", ""),
         "category": meta.get("category", ""),
         "color_options": meta.get("color_options") or [],
@@ -293,6 +298,114 @@ async def search_context_sorted(
         cards.append(card)
         parts.append(block)
 
+    return cards, "\n\n".join(parts)
+
+
+_QTY_PAGE_SIZE = 250          # Typesense's per_page maximum
+_QTY_MAX_CANDIDATES = 5000
+
+
+def _price_at_quantity(doc: dict, count_field: str, price_field: str, n: int) -> float | None:
+    """Price aligned with quantity n in the doc's parallel arrays, else None."""
+    counts, prices = doc.get(count_field), doc.get(price_field)
+    if not isinstance(counts, list) or not isinstance(prices, list) or len(counts) != len(prices):
+        return None
+    for c, p in zip(counts, prices):
+        try:
+            if int(c) == n and p is not None:
+                return float(p)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+async def search_context_at_quantity(
+    query: str, index_id: str, count_field: str, price_field: str, n: int,
+    sort_direction: str,
+    query_by: str = "title,content",
+    query_by_weights: str | None = None,
+    base_filter: str | None = None,
+    superlative_phrase: str | None = None,
+    unapplied_terms: list[str] | None = None,
+) -> tuple[list[dict], str]:
+    """
+    Price superlative at a specific quantity ("cheapest plan for 3 lines").
+    search_context_sorted sorts by a scalar price, which for quantity-priced
+    items is only the lowest starting price — the wrong number to rank by.
+    Instead: filter to items offered at n (base_filter already carries
+    count_field:=n), read each item's price at n from the aligned
+    count/price arrays, and sort on that. Quantity-filtered result sets are
+    small, so one page of candidates is fetched and sorted in Python. Items
+    whose arrays don't yield a price at n are dropped rather than guessed.
+
+    The candidate set is defined by the hard filters only (q="*"): leftover
+    free text is NOT used to narrow. Measured on the plans index, the
+    leftover is mostly the catalog's own entity noun ("plan"), which appears
+    in only some docs' text — narrowing on it silently drops the true
+    cheapest item (Essentials Saver for 1 line, Essentials for 4 lines).
+    A superlative over an incomplete candidate set is wrong, not just
+    weaker, so completeness wins. Constraints the leftover text names
+    ("netflix", "without hulu", "Essentials") arrive as structured clauses
+    inside base_filter instead (see query_filters.text_constraint_filters);
+    words that resolved to nothing are passed as `unapplied_terms` and stated
+    in the context so the model can say they were not applied, rather than
+    answering as if they had been. `query` is used for logging only.
+    """
+    col    = ts.collection_name(index_id)
+    client = ts.get_client()
+    search: dict = {"collection": col, "q": "*", "query_by": query_by,
+                    "per_page": str(_QTY_PAGE_SIZE), "exclude_fields": "vec"}
+    if base_filter:
+        search["filter_by"] = base_filter
+    log.debug("chat typesense request (quantity superlative): collection=%s n=%s text=%r search=%s",
+              col, n, query, json.dumps(search))
+    # Rank over the COMPLETE filtered set: the true min/max can sit on any
+    # page, so page through all of it (capped — a quantity filter normally
+    # leaves a small set; hitting the cap is logged, not silently truncated).
+    hits: list[dict] = []
+    page = 1
+    while True:
+        page_search = {**search, "page": str(page)}
+        resp = await asyncio.to_thread(
+            lambda: client.multi_search.perform({"searches": [page_search]}, {})
+        )
+        result = resp.get("results", [{}])[0]
+        if result.get("error") or result.get("message"):
+            # multi_search reports per-search failures in-band; an unnoticed
+            # one would look exactly like "no matching products".
+            log.warning("quantity superlative search failed: index=%s filter=%r error=%s",
+                        index_id, search.get("filter_by"), result.get("error") or result.get("message"))
+            break
+        page_hits = result.get("hits", [])
+        hits.extend(page_hits)
+        found = int(result.get("found", 0) or 0)
+        if len(page_hits) < _QTY_PAGE_SIZE or len(hits) >= found:
+            break
+        if len(hits) >= _QTY_MAX_CANDIDATES:
+            log.warning("quantity superlative candidate cap hit: index=%s n=%s found=%s cap=%s",
+                        index_id, n, found, _QTY_MAX_CANDIDATES)
+            break
+        page += 1
+    priced = [(p, h) for h in hits
+              if (p := _price_at_quantity(h.get("document", {}), count_field, price_field, n)) is not None]
+    priced.sort(key=lambda ph: ph[0], reverse=(sort_direction == "desc"))
+    priced = priced[:5]
+    log.debug("chat typesense response (quantity superlative): hit_count=%s priced=%s",
+              len(hits), [(h["document"].get("title"), p) for p, h in priced])
+
+    labels = _ordinal_labels(superlative_phrase) if superlative_phrase else []
+    cards, parts = [], []
+    for i, (price, hit) in enumerate(priced, 1):
+        card, block = _hit_to_card_and_block(hit, i)
+        label = f" ({labels[i - 1]} at quantity {n})" if i <= len(labels) else ""
+        block = block.replace(f"{i}. {card['title']}", f"{i}. {card['title']}{label}", 1)
+        block += f"\n  Price at quantity {n} ({count_field}={n}): {price:g}"
+        cards.append(card)
+        parts.append(block)
+    if unapplied_terms:
+        parts.insert(0, "Note: these requested terms matched no product title or feature "
+                        f"and were NOT applied as filters: {', '.join(unapplied_terms)}. "
+                        "Say so if they matter to the answer.")
     return cards, "\n\n".join(parts)
 
 

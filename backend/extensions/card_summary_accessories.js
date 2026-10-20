@@ -69,6 +69,27 @@ function transform(doc) {
     parts.push(snippet);
   }
 
+  doc.reasoningData = buildReasoningData(doc);
   doc.cardSummary = parts.join(' ');
   return doc;
+}
+
+// Structured facts for ALL reasoning tasks. Mappings belong to this extension,
+// not the Python chat service. Only explicit source values are copied; no defaults.
+function buildReasoningData(doc) {
+  var fields = [["compatible_devices", "Compatible devices"], ["device_universal", "Universal compatibility"], ["form_factor", "Form factor"], ["water_resistance_rating", "Water resistance"], ["battery_life_hours", "Battery life", "hours"]];
+  var facts = [];
+  function scalar(v) {
+    return (typeof v === 'string' && v.trim().length > 0 && v.length <= 2000)
+      || typeof v === 'boolean' || (typeof v === 'number' && isFinite(v));
+  }
+  fields.forEach(function (field) {
+    var value = doc[field[0]];
+    if (!scalar(value) && !(Array.isArray(value) && value.length > 0
+        && value.length <= 20 && value.every(scalar))) return;
+    var fact = {key: field[0], label: field[1], value: value, source: field[0]};
+    if (field[2]) fact.unit = field[2];
+    facts.push(fact);
+  });
+  return {facts: facts};
 }

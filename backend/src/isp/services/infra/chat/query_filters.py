@@ -11,7 +11,9 @@ concrete filter_by / stripped-query pair.
 """
 from __future__ import annotations
 import asyncio
+import json
 import re
+from pathlib import Path
 
 from isp.services.infra import typesense_client as ts
 
@@ -96,6 +98,206 @@ def strip_structural_phrases(query: str, superlative_phrase: str) -> str:
 def combine_filters(*filters: str | None) -> str | None:
     parts = [f for f in filters if f]
     return " && ".join(parts) if parts else None
+
+
+# ── Quantity (unit_count concept) ────────────────────────────────────────────
+#
+# "single line", "3 lines", "two guests", "family of 4" -> N. Number words and
+# group phrasings are generic English, externalized as data; the UNIT word
+# itself ("line", "guest", "seat") is never written here — it is derived from
+# whichever field this index mapped to the unit_count concept, so chat code
+# stays catalog-agnostic.
+
+_QTY: dict = json.loads(Path(__file__).with_name("quantity_phrases.json").read_text(encoding="utf-8"))
+_UNIT_NAME_SUFFIXES = {"counts", "count", "sizes", "size", "quantities", "quantity"}
+
+
+def unit_terms_from_field(field_name: str) -> list[str]:
+    """'eligible_lines' -> ['lines', 'line']; 'guest_counts' -> ['guests', 'guest']."""
+    tokens = [t for t in field_name.lower().split("_") if t]
+    if not tokens:
+        return []
+    word = tokens[-1]
+    if word in _UNIT_NAME_SUFFIXES and len(tokens) > 1:
+        word = tokens[-2]
+    singular = word[:-1] if word.endswith("s") and len(word) > 1 else word
+    plural = word if word.endswith("s") else word + "s"
+    return list(dict.fromkeys([plural, singular]))
+
+
+def extract_unit_counts(query: str, unit_terms: list[str]) -> list[tuple[str, int]]:
+    """
+    Every (matched_text, N) quantity the query states, in text order. Needs
+    either an explicit unit word ("3 lines", "single line") or a generic
+    group phrasing ("family of 4") — a bare number ("iphone 15") never
+    counts, so device/model numbers can't be mistaken for quantities.
+    Returning ALL matches lets the caller tell one shared quantity apart
+    from a multi-intent query naming a different N per segment.
+    """
+    found: list[tuple[int, str, int]] = []
+    if unit_terms:
+        units = "|".join(re.escape(t) for t in sorted(unit_terms, key=len, reverse=True))
+        words = "|".join(re.escape(w) for w in _QTY["number_words"])
+        for m in re.finditer(rf"\b(\d+|{words})\s+({units})\b", query, re.IGNORECASE):
+            tok = m.group(1).lower()
+            n = int(tok) if tok.isdigit() else _QTY["number_words"][tok]
+            if n > 0:
+                found.append((m.start(), m.group(0), n))
+    for pat in _QTY["group_patterns"]:
+        rx = r"\b" + re.escape(pat).replace(r"\{n\}", r"(\d+)") + r"\b"
+        for m in re.finditer(rx, query, re.IGNORECASE):
+            if int(m.group(1)) > 0:
+                found.append((m.start(), m.group(0), int(m.group(1))))
+    return [(text, n) for _, text, n in sorted(found)]
+
+
+def extract_unit_count(query: str, unit_terms: list[str]) -> tuple[str, int] | None:
+    """First quantity the query states, or None — see extract_unit_counts."""
+    hits = extract_unit_counts(query, unit_terms)
+    return hits[0] if hits else None
+
+
+# ── Leftover-text constraints (quantity-superlative path) ───────────────────
+#
+# "cheapest Essentials plan with netflix (but without hulu) for 2 lines": the
+# leftover words must constrain, but words like "plan" appear in only some
+# docs' text and would silently drop the true cheapest item if used
+# lexically. So each leftover word narrows ONLY when it resolves against real
+# data on this index:
+#   1. a value of the mapped feature field (facet_query) -> feature clause
+#   2. otherwise an item title (typo-tolerant title search) -> id clause
+#      (exclusions use exact titles: Typesense 0.25 rejects `id:!=`)
+# A word resolving to neither is never used as a filter. If it also appears
+# nowhere in the index's searchable text (a genuinely unknown term, e.g. a
+# brand this catalog doesn't carry) it is RETURNED so the caller can tell the
+# model it was not applied. A word that does appear in product text ("plan",
+# "5g") is left to the model, which sees that text in the context.
+# Negation cues ("without", "no", "except", ...) flip the following words to
+# exclusion clauses until a positive cue ("with", "and", "but", ...).
+# Stopwords / cues are generic English, not a catalog vocabulary.
+
+_FEATURE_STOPWORDS = {
+    "the", "and", "for", "with", "that", "this", "from", "into", "per", "but",
+    "any", "all", "has", "have", "want", "need", "show", "find", "give", "get",
+    "includes", "including", "include", "also", "only", "just", "please",
+}
+_NEGATION_CUES = {"without", "no", "not", "except", "excluding", "exclude", "minus", "non"}
+_POSITIVE_CUES = {"with", "and", "but", "plus", "including", "include", "includes"}
+# Prepositions close a negation's scope ("without hulu from verizon" negates
+# only hulu) while "or" keeps it open ("without netflix or hulu" negates both).
+_SCOPE_TERMINATORS = {"from", "for", "on", "in", "at", "by", "to", "via"}
+_FEATURE_MAX_VALUES = 50
+_TITLE_MAX_IDS = 250
+
+
+def _constraint_words(text: str) -> list[tuple[str, bool]]:
+    """Content words in order, each with its negated flag."""
+    out: list[tuple[str, bool]] = []
+    negated = False
+    for tok in re.findall(r"[a-z0-9][a-z0-9+']*", text.lower()):
+        if tok in _NEGATION_CUES:
+            negated = True
+            continue
+        if tok in _POSITIVE_CUES or tok in _SCOPE_TERMINATORS:
+            negated = False
+            continue
+        if len(tok) < 3 or tok in _FEATURE_STOPWORDS:
+            continue
+        out.append((tok, negated))
+    return list(dict.fromkeys(out))
+
+
+def _quote_values(values: list[str]) -> str:
+    return ",".join(f"`{v}`" for v in values)
+
+
+async def text_constraint_filters(
+    text: str, index_id: str, feature_field: str | None, title_field: str = "title",
+    content_query_by: str | None = None,
+) -> tuple[list[str], list[str]]:
+    """
+    Resolve leftover words into (filter_clauses, unapplied_words). Clauses
+    are AND-ed: "netflix hulu" requires both; "without netflix" excludes it.
+    Feature matching needs `feature_field` faceted (enforced when mapped).
+    """
+    words = _constraint_words(text)
+    if not words:
+        return [], []
+    col    = ts.collection_name(index_id)
+    client = ts.get_client()
+    filters: list[str] = []
+    unresolved: list[tuple[str, bool]] = []
+
+    if feature_field:
+        searches = [{
+            "collection": col, "q": "*", "query_by": feature_field, "per_page": "0",
+            "facet_by": feature_field, "facet_query": f"{feature_field}:{w}",
+            "max_facet_values": str(_FEATURE_MAX_VALUES),
+        } for w, _ in words]
+        try:
+            resp = await asyncio.to_thread(
+                lambda: client.multi_search.perform({"searches": searches}, {})
+            )
+            results = resp.get("results", [])
+        except Exception:
+            results = []
+        for (w, neg), result in zip(words, results + [{}] * (len(words) - len(results))):
+            values = [c["value"] for fc in result.get("facet_counts", [])
+                      if fc.get("field_name") == feature_field
+                      for c in fc.get("counts", []) if c.get("value") and "`" not in c["value"]]
+            if values:
+                op = ":!=" if neg else ":="
+                filters.append(f"{feature_field}{op}[{_quote_values(values)}]")
+            else:
+                unresolved.append((w, neg))
+    else:
+        unresolved = list(words)
+
+    unapplied: list[str] = []
+    if unresolved:
+        searches = [{
+            "collection": col, "q": w, "query_by": title_field, "per_page": str(_TITLE_MAX_IDS),
+            "include_fields": f"id,{title_field}", "prefix": "false", "num_typos": "1",
+            "drop_tokens_threshold": "0", "exclude_fields": "vec",
+        } for w, _ in unresolved]
+        try:
+            resp = await asyncio.to_thread(
+                lambda: client.multi_search.perform({"searches": searches}, {})
+            )
+            results = resp.get("results", [])
+        except Exception:
+            results = []
+        leftover: list[tuple[str, bool]] = []
+        for (w, neg), result in zip(unresolved, results + [{}] * (len(unresolved) - len(results))):
+            docs = [h.get("document", {}) for h in result.get("hits", [])]
+            found = int(result.get("found", 0) or 0)
+            if neg:
+                titles = list(dict.fromkeys(d.get(title_field) for d in docs if d.get(title_field)))
+                if titles and found <= _TITLE_MAX_IDS and all("`" not in t for t in titles):
+                    filters.append(f"{title_field}:!=[{_quote_values(titles)}]")
+                    continue
+            else:
+                ids = [d["id"] for d in docs if d.get("id")]
+                if ids and found <= _TITLE_MAX_IDS and all("`" not in i for i in ids):
+                    filters.append(f"id:=[{_quote_values(ids)}]")
+                    continue
+            leftover.append((w, neg))
+        if leftover and content_query_by:
+            searches = [{
+                "collection": col, "q": w, "query_by": content_query_by, "per_page": "0",
+                "prefix": "false", "num_typos": "1", "drop_tokens_threshold": "0",
+            } for w, _ in leftover]
+            try:
+                resp = await asyncio.to_thread(
+                    lambda: client.multi_search.perform({"searches": searches}, {})
+                )
+                results = resp.get("results", [])
+            except Exception:
+                results = []
+            known = {w for (w, _), r in zip(leftover, results) if int(r.get("found", 0) or 0) > 0}
+            leftover = [(w, neg) for w, neg in leftover if w not in known]
+        unapplied = [f"not {w}" if neg else w for w, neg in leftover]
+    return filters, unapplied
 
 
 async def resolve_field_value_filter(query: str, index_id: str, field_name: str) -> str | None:
