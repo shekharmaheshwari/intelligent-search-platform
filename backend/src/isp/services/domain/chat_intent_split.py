@@ -39,7 +39,19 @@ MAX_INTENTS = 4
 # different intent) and not a bare "&" (appears inside facet values and
 # brand strings, e.g. "cases-&-covers" — a spaced " & " is what a person
 # types when they mean "and").
-_DELIM_RE = re.compile(r"\s*(?:,|&|\band\b)\s*", re.IGNORECASE)
+_DELIM_RE = re.compile(
+    r"\s*(?:[,;&]|\band\b|\bplus\b|[.!?](?=\s+[A-Za-z]))\s*",
+    re.IGNORECASE,
+)
+_REQUEST_PREFIX_RE = re.compile(
+    r"^\s*(?:also\s+)?(?:(?:i\s+)?(?:need|want)|show me|find me|give me)\s+",
+    re.IGNORECASE,
+)
+
+
+def _clean_segment(text: str) -> str:
+    """Remove request scaffolding, preserving product modifiers and constraints."""
+    return _REQUEST_PREFIX_RE.sub("", text.strip()).rstrip(".!?").strip()
 
 # Protected patterns: don't split inside a price range or a thousands
 # separator. Checked against the two tokens immediately surrounding a
@@ -50,7 +62,7 @@ _NUMERIC_RE = re.compile(r"^\$?\d[\d,]*(?:\.\d+)?%?$")
 def split_segments(query: str) -> list[str]:
     """
     Split a (already filler-stripped) message into segments on ``,``/``&``/
-    ``and``, guarding numeric ranges ("$20 and $50") and thousands
+    ``and``, ``plus``, semicolons and sentence boundaries, guarding numeric ranges ("$20 and $50") and thousands
     separators ("1,000") so they are never split points.
 
     Returns an empty list when the message has 0 or 1 segments (nothing to
@@ -95,7 +107,7 @@ def split_segments(query: str) -> list[str]:
         buf = part
     segments.append(buf.strip())
 
-    segments = [s for s in segments if s]
+    segments = [clean for s in segments if (clean := _clean_segment(s))]
     if len(segments) < 2 or len(segments) > MAX_INTENTS:
         return []
     return segments
@@ -289,6 +301,7 @@ def build_search_plans(
     category_by_index: dict[int, str],
     label_by_category: dict[str, str],
     constraint_extractor: Callable[[str], str | None],
+    strip_constraint_phrase: Callable[[str], str] | None = None,
     global_cap: int = 5,
 ) -> list[SearchPlan]:
     """
@@ -297,6 +310,17 @@ def build_search_plans(
     logic (e.g. price extraction), invoked once per intent's own text —
     never on the whole message — so a local modifier can never leak into
     another intent's filter.
+
+    `strip_constraint_phrase`, if given, is applied to each intent's own
+    text before it becomes that plan's `query` — the matched constraint
+    phrase (e.g. "under $20") is already captured structurally in
+    `filter_by` via `constraint_extractor` above, so leaving it in the
+    lexical query text too is pure noise for text matching (the same
+    reasoning as the caller's own single-search price-stripping; see
+    chat/query_filters.py's strip_price_phrase). Applied unconditionally to
+    every segment (not just ones where a constraint was found) since it's
+    self-preserving — a no-op wherever there's nothing to strip. None skips
+    this entirely, for a caller with no such phrase-stripping of its own.
 
     Each confirmed intent gets its own independent `global_cap` — each
     bucket is a genuinely separate search against a different category, not
@@ -334,10 +358,11 @@ def build_search_plans(
         filter_by = f"category:=[{category}]"
         if constraint:
             filter_by = f"({filter_by}) && ({constraint})"
+        plan_query = strip_constraint_phrase(text) if strip_constraint_phrase else text
         plans.append(SearchPlan(
             category=category,
             label=label_by_category.get(category, category),
-            query=text,
+            query=plan_query,
             filter_by=filter_by,
             top_n=global_cap,
         ))
@@ -406,8 +431,25 @@ async def maybe_build_plans(
     category_vectors: dict[str, list[float]],
     label_by_category: dict[str, str],
     embed: EmbedFn,
-    confirm: ConfirmFn,
+    # None skips the LLM confirmation call entirely (§7) — classify_segments'
+    # own confidence+margin gate (similarity_threshold/similarity_margin
+    # below) is trusted directly as "confirmed," with shared_span always
+    # None. Reasonable once nothing downstream still depends on an
+    # LLM-guessed shared_span (see chat/multi_intent.py, which resolves
+    # device-per-category deterministically from the live catalog's own data
+    # instead) — the remaining risk this call used to catch (a modifier-only
+    # segment like
+    # "wireless" in "wireless and durable case" slipping through as its own
+    # confirmed intent) is already unlikely to clear classify_segments' own
+    # bar, since a bare adjective rarely embeds confidently+with-margin
+    # against any single category.
+    confirm: ConfirmFn | None = None,
     constraint_extractor: Callable[[str], str | None],
+    # Applied to each intent's own text before it becomes that plan's
+    # `query` — see build_search_plans's docstring. None (the default) skips
+    # it, matching the pre-existing behavior for a caller with no such
+    # phrase-stripping of its own.
+    strip_constraint_phrase: Callable[[str], str] | None = None,
     # Device/model phrases already resolved from the full message (e.g.
     # ["iPhone 17"]) — stripped from each segment before it's embedded for
     # classification only. See _strip_phrases.
@@ -426,6 +468,8 @@ async def maybe_build_plans(
     similarity_threshold: float = 0.55,
     similarity_margin: float = 0.05,
     global_cap: int = 5,
+    decomposed_segments: list[str] | None = None,
+    matched_categories: dict[int, str] | None = None,
 ) -> list[SearchPlan] | None:
     """
     Full pipeline, §3. Returns None at any gate — the caller's existing
@@ -433,16 +477,39 @@ async def maybe_build_plans(
     design's baseline safety rule (§2), which applies regardless of what
     this function returns.
     """
-    if len(category_vectors) < 2:
-        return None  # nothing to split against
-
-    segments = split_segments(query)
-    if not segments:
+    if len(category_vectors) < (1 if decomposed_segments else 2):
         return None
 
+    segments = decomposed_segments if decomposed_segments is not None else split_segments(query)
+    if not segments or not 2 <= len(segments) <= MAX_INTENTS:
+        return None
+
+    catalog_matches = {
+        i: category for i, category in (matched_categories or {}).items()
+        if type(i) is int and 0 <= i < len(segments) and category in category_vectors
+    }
     segment_vectors = []
-    for seg in segments:
-        classify_text = _strip_phrases(seg, strip_phrases) if strip_phrases else seg
+    for i, seg in enumerate(segments):
+        if i in catalog_matches:
+            segment_vectors.append([])  # No embedding call for an exact catalog match.
+            continue
+        classify_text = _clean_segment(seg)
+        classify_text = _strip_phrases(classify_text, strip_phrases) if strip_phrases else classify_text
+        # Same dilution problem strip_phrases solves for a device name inside
+        # a segment ("iphone 17 case" scoring weaker against "cases" than
+        # bare "case" does) applies just as much to a price phrase left in
+        # ("cases under $20" vs. bare "cases") — strip_constraint_phrase must
+        # stay in the segment's own text for constraint_extractor to find
+        # (see build_search_plans) and is only removed from the final
+        # plan.query there, but classification never needs it and is
+        # measurably hurt by it.
+        if strip_constraint_phrase:
+            classify_text = strip_constraint_phrase(classify_text)
+        # Conversational articles carry no category meaning and can dilute a
+        # one-word intent after its device phrase is removed ("an iPhone 17
+        # case" -> "an case"). This is classifier-only; the final retrieval
+        # query retains the user's original wording.
+        classify_text = re.sub(r"^(?:a|an|the)\s+", "", classify_text, flags=re.IGNORECASE)
         vec = await embed(classify_text or seg)  # never embed an empty string
         if vec is None:
             return None
@@ -452,32 +519,41 @@ async def maybe_build_plans(
         segment_vectors, category_vectors,
         threshold=similarity_threshold, margin=similarity_margin,
     )
-    log.debug("chat_intent_split: segments=%s candidates=%s", segments, candidates)
+    candidates.update(catalog_matches)
+    log.debug("chat_intent_split: segments=%s candidates=%s catalog_matches=%s",
+              segments, candidates, catalog_matches)
     distinct_categories = set(candidates.values())
-    if len(distinct_categories) < 2:
+    if decomposed_segments is not None:
+        if len(candidates) != len(segments):
+            return None  # Never silently lose an intent from a structured plan.
+    elif len(distinct_categories) < 2:
         return None
 
-    candidate_map = {i: (segments[i], cat) for i, cat in candidates.items()}
-    prompt = build_confirmation_prompt(query, candidate_map)
-    try:
-        raw = await confirm(_CONFIRM_SYSTEM_PROMPT, prompt)
-    except Exception:
-        return None  # provider error/timeout — fail open
+    if confirm is None:
+        confirmed = ConfirmationResult(confirmed_indices=sorted(candidates.keys()), shared_span=None)
+        log.debug("chat_intent_split: confirm=None, auto-confirmed=%s", confirmed)
+    else:
+        candidate_map = {i: (segments[i], cat) for i, cat in candidates.items()}
+        prompt = build_confirmation_prompt(query, candidate_map)
+        try:
+            raw = await confirm(_CONFIRM_SYSTEM_PROMPT, prompt)
+        except Exception:
+            return None  # provider error/timeout — fail open
 
-    confirmed = await parse_and_validate_confirmation(
-        raw, query, segments, set(candidates.keys()), resolve_span,
-    )
-    log.debug("chat_intent_split: raw_confirmation=%r parsed=%s", raw, confirmed)
-    if confirmed is None:
-        return None
+        confirmed = await parse_and_validate_confirmation(
+            raw, query, segments, set(candidates.keys()), resolve_span,
+        )
+        log.debug("chat_intent_split: raw_confirmation=%r parsed=%s", raw, confirmed)
+        if confirmed is None:
+            return None
 
-    # A duplicate category across confirmed segments collapses (§5) — keep
-    # only the first occurrence's index per category.
+    # The legacy splitter collapses duplicate categories (§5). A structured
+    # decomposition already distinguishes separate requests within a category.
     seen_categories: set[str] = set()
     deduped_indices = []
     for i in confirmed.confirmed_indices:
         cat = candidates[i]
-        if cat in seen_categories:
+        if cat in seen_categories and decomposed_segments is None:
             continue
         seen_categories.add(cat)
         deduped_indices.append(i)
@@ -487,5 +563,5 @@ async def maybe_build_plans(
 
     return build_search_plans(
         query, segments, confirmed, candidates, label_by_category,
-        constraint_extractor, global_cap,
+        constraint_extractor, strip_constraint_phrase, global_cap,
     )

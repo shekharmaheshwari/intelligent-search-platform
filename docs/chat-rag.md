@@ -845,12 +845,19 @@ backend/src/isp/
 │
 ├── services/
 │   ├── domain/
-│   │   └── settings_service.py  ← AVAILABLE_CHAT_MODELS, get/set/load_chat_config()
+│   │   ├── settings_service.py    ← AVAILABLE_CHAT_MODELS, get/set/load_chat_config()
+│   │   └── chat_intent_split.py   ← multi-intent split mechanics (pure; catalog-agnostic)
 │   │
 │   └── infra/
 │       └── chat/
 │           ├── __init__.py
-│           ├── service.py           ← dispatcher + RAG pipeline
+│           ├── service.py              ← orchestrator: provider dispatch + chat_stream()
+│           ├── concept_resolution.py   ← concept (price, device_compatibility, ...) → field name
+│           ├── query_filters.py        ← filter_by / stripped query text from that field + query
+│           ├── retrieval.py            ← RRF merge, hybrid search, sorted-by-field search
+│           ├── multi_intent.py         ← glue between service.py and domain.chat_intent_split
+│           ├── follow_up_detection.py  ← pure follow-up classification (T1/T2, short-query guard)
+│           ├── card_consistency.py     ← keeps the card carousel in sync with the LLM's answer
 │           └── providers/
 │               ├── __init__.py
 │               ├── anthropic_chat.py    ← Anthropic SDK (~35 lines)
@@ -861,6 +868,16 @@ backend/src/isp/
 └── auth/
     └── middleware.py            ← /v1/indexes/{id}/chat added to public routes
 ```
+
+`service.py` shrank from one 1,680-line file to ~500 lines once the six sibling
+modules above were split out (see the "Chat RAG Layering" diagram artifact for
+the before/after). Everything that has to call the configured LLM provider
+directly (`_confirm_intents`, `_llm_rewrite_query`, `_route_llm_stream`) stays
+in `service.py` alongside the provider-dispatch state it depends on; the
+sibling modules take that as an injected callable where they need it
+(`multi_intent.try_multi_intent_context`'s `embed`/`confirm` parameters), the
+same dependency-injection pattern `chat_intent_split.maybe_build_plans`
+already used for its own `embed`/`confirm`/`resolve_span`.
 
 ### Why providers are split into separate files
 
