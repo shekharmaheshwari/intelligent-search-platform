@@ -35,14 +35,18 @@ import logging
 import re
 
 from isp.services.infra import typesense_client as ts
-from isp.services.domain import chat_intent_split
+from isp.services.domain import chat_intent_split, query_decomposition, bundle_selection
 from isp.services.domain.chat_intent_split import EmbedFn, ConfirmFn
 from isp.services.infra.chat import retrieval
 from isp.services.infra.chat.query_filters import (
     resolve_field_value_filter, category_has_device_values, combine_filters,
     extract_price_filter, strip_price_phrase,
+    extract_unit_count, unit_terms_from_field, strip_matched_phrase, text_constraint_filters,
 )
-from isp.services.infra.chat.concept_resolution import resolve_span_for_index
+from isp.services.infra.chat.concept_resolution import (
+    resolve_span_for_index, detect_superlative_concept, resolve_concept_field,
+)
+from isp.services.infra.chat.query_filters import strip_structural_phrases
 
 log = logging.getLogger(__name__)
 
@@ -159,10 +163,10 @@ async def _category_vectors_for_index(
         return None
     facets = await asyncio.to_thread(ts.get_facets, index_id, [_CATEGORY_FIELD_NAME])
     all_values = [c["value"] for c in facets.get(_CATEGORY_FIELD_NAME, []) if c.get("value")]
-    if not (1 < len(all_values) <= _CATEGORY_MAX_VALUES):
+    if not (1 <= len(all_values) <= _CATEGORY_MAX_VALUES):
         return None
     values = [v for v in all_values if v.strip().lower() not in generic_category_values]
-    if len(values) < 2:
+    if not values:
         return None
 
     vectors: dict[str, list[float]] = {}
@@ -177,7 +181,7 @@ async def _category_vectors_for_index(
         vec = await embed(_display_label(v).lower())
         if vec:
             vectors[v] = vec
-    if len(vectors) < 2:
+    if not vectors:
         return None
 
     labels = {v: _display_label(v) for v in values}
@@ -224,6 +228,10 @@ async def try_multi_intent_context(
     embed: EmbedFn, confirm: ConfirmFn | None,
     generic_category_values: set[str], multi_intent_split_enabled: bool,
     boost_rules: list[dict] | None = None,
+    superlative_field_map: dict | None = None,
+    unit_count_field: str | None = None,
+    unit_price_field: str | None = None,
+    feature_field: str | None = None,
 ) -> tuple[list[dict], str] | None:
     """
     Attempt the multi-intent split (§3-§11). Returns None on any gate miss
@@ -240,11 +248,24 @@ async def try_multi_intent_context(
     if not multi_intent_split_enabled:
         log.debug("chat multi-intent split: skipped — toggle disabled")
         return None
+    search_query, bundle_budget = bundle_selection.extract_budget(search_query)
+    def bundle_unavailable():
+        return [], "Bundle selection: Could not complete all product searches for this bundle. No combined price has been verified."
+
     resources = await _category_vectors_for_index(index_id, embed, generic_category_values)
     if resources is None:
         log.debug("chat multi-intent split: skipped — no category vectors for index_id=%s", index_id)
-        return None
+        return bundle_unavailable() if bundle_budget else None
     category_vectors, labels = resources
+    status, segments = await asyncio.to_thread(
+        query_decomposition.decompose_query, search_query, list(labels.values()),
+    )
+    log.debug("chat local decomposition: status=%s segments=%s", status, segments)
+    if bundle_budget and status != "split":
+        return bundle_unavailable()
+    if status in ("single", "unsupported"):
+        return bundle_unavailable() if bundle_budget else None
+    decomposed_segments = segments if status == "split" else None
     log.debug("chat multi-intent split: category_vectors=%s query=%r", list(category_vectors.keys()), search_query)
 
     # device_filter is resolved once against the *whole* message before this
@@ -284,7 +305,7 @@ async def try_multi_intent_context(
     # build_search_plans still uses the untouched segment text.
     strip_phrases = re.findall(r'`([^`]+)`', device_filter) if device_filter else []
     if device_field is not None:
-        for seg in chat_intent_split.split_segments(search_query):
+        for seg in (decomposed_segments or chat_intent_split.split_segments(search_query)):
             seg_filter = await resolve_field_value_filter(seg, index_id, device_field)
             if not seg_filter:
                 continue
@@ -299,6 +320,10 @@ async def try_multi_intent_context(
     async def _resolve_span(span: str) -> bool:
         return await resolve_span_for_index(index_id, device_field, span)
 
+    matched_categories = await asyncio.to_thread(
+        query_decomposition.match_categories,
+        decomposed_segments or chat_intent_split.split_segments(search_query), labels,
+    )
     plans = await chat_intent_split.maybe_build_plans(
         search_query,
         category_vectors=category_vectors,
@@ -309,10 +334,18 @@ async def try_multi_intent_context(
         strip_constraint_phrase=strip_price_phrase,
         strip_phrases=strip_phrases or None,
         resolve_span=_resolve_span,
+        decomposed_segments=decomposed_segments,
+        matched_categories=matched_categories,
     )
     log.debug("chat multi-intent split: plans=%s", plans)
     if not plans:
-        return None
+        return bundle_unavailable() if bundle_budget else None
+
+    if decomposed_segments:
+        # The UI groups by label; same-category requests need distinct labels.
+        for i, plan in enumerate(plans):
+            if sum(p.category == plan.category for p in plans) > 1:
+                plan.label = f"{labels.get(plan.category, plan.category)}: {decomposed_segments[i]}"
 
     # Each plan's own device filter, resolved from its own plan.query, and
     # (independently) whether its category is device-fit at all. Kept as a
@@ -340,7 +373,8 @@ async def try_multi_intent_context(
         is_fit = bool(device_field) and await _is_device_fit_category(index_id, plan.category, device_field)
         resolved = None
         if device_field:
-            candidate = await resolve_field_value_filter(plan.query, index_id, device_field)
+            device_query = re.sub(r"^(?:a|an|the)\s+", "", plan.query, flags=re.IGNORECASE)
+            candidate = await resolve_field_value_filter(device_query, index_id, device_field)
             if candidate and _device_confirmed_in_text(plan.query, candidate):
                 resolved = candidate
         return is_fit, resolved
@@ -348,7 +382,8 @@ async def try_multi_intent_context(
     fit_and_filters = await asyncio.gather(*(_plan_device_info(p) for p in plans))
     distinct_found = {f for _, f in fit_and_filters if f}
     backfill = next(iter(distinct_found)) if len(distinct_found) == 1 else None
-    plan_device_filters = [(f or backfill) if is_fit else None for is_fit, f in fit_and_filters]
+    plan_device_filters = [(f or backfill)
+                           if is_fit else None for is_fit, f in fit_and_filters]
 
     async def _run(plan: chat_intent_split.SearchPlan, plan_device_filter: str | None):
         # global_filter is whatever legitimately applies to every intent
@@ -376,9 +411,57 @@ async def try_multi_intent_context(
         # turn "apple airpods" into a false-positive match on an unrelated
         # "Apple iPhone ..." compatible_devices value.
         filter_by = combine_filters(base_filter, plan_device_filter)
+
+        # Per-segment quantity: each segment applies only the quantity its
+        # own text names — never one stated in a sibling segment.
+        plan_query = plan.query
+        plan_n: int | None = None
+        if unit_count_field:
+            own = extract_unit_count(plan_query, unit_terms_from_field(unit_count_field))
+            if own:
+                own_text, plan_n = own
+                plan_query = strip_matched_phrase(plan_query, own_text)
+                unit_clause = f"{unit_count_field}:={plan_n}"
+                base_filter = combine_filters(base_filter, unit_clause)
+                filter_by = combine_filters(filter_by, unit_clause)
         try:
+            if bundle_budget:
+                # Retrieve cheapest candidates under the total upper bound,
+                # keeping each intent's own category/device/eligibility filters.
+                bound = '<=' if bundle_budget.inclusive else '<'
+                bundle_filter = combine_filters(filter_by, f"price:{bound}{bundle_budget.amount}")
+                cards, context = await retrieval.search_context_sorted(
+                    re.sub(r"^(?:a|an|the)\s+", "", plan_query, flags=re.IGNORECASE),
+                    index_id, "price", "asc", query_by, query_by_weights,
+                    price_filter=bundle_filter,
+                )
+                return plan, cards, context, None
+            superlative = detect_superlative_concept(plan_query)
+            if superlative:
+                phrase, concept, direction = superlative
+                if concept == "price" and plan_n and unit_count_field and unit_price_field:
+                    # Same quantity-aware path as single-intent: rank by the
+                    # price AT N, not the scalar starting price.
+                    stripped = strip_structural_phrases(plan_query, phrase)
+                    text_filters, unapplied = await text_constraint_filters(
+                        stripped, index_id, feature_field, content_query_by=query_by)
+                    cards, context = await retrieval.search_context_at_quantity(
+                        stripped, index_id, unit_count_field, unit_price_field, plan_n,
+                        direction, query_by, query_by_weights,
+                        base_filter=combine_filters(filter_by, *text_filters),
+                        superlative_phrase=phrase, unapplied_terms=unapplied,
+                    )
+                    return plan, cards, context, None
+                field = await resolve_concept_field(index_id, concept, superlative_field_map or {})
+                if field:
+                    cards, context = await retrieval.search_context_sorted(
+                        strip_structural_phrases(plan_query, phrase), index_id, field, direction,
+                        query_by, query_by_weights, price_filter=filter_by,
+                        superlative_phrase=phrase,
+                    )
+                    return plan, cards, context, None
             cards, context = await retrieval.search_context(
-                plan.query, index_id, query_by, query_by_weights, facet_query_by,
+                plan_query, index_id, query_by, query_by_weights, facet_query_by,
                 price_filter=filter_by, boost_rules=boost_rules,
             )
             if not cards and plan_device_filter:
@@ -395,7 +478,7 @@ async def try_multi_intent_context(
                 # they fit — worse than reporting no match at all.
                 if not await category_has_device_values(index_id, f"category:=[{plan.category}]", device_field):
                     cards, context = await retrieval.search_context(
-                        plan.query, index_id, query_by, query_by_weights, facet_query_by,
+                        plan_query, index_id, query_by, query_by_weights, facet_query_by,
                         price_filter=base_filter, boost_rules=boost_rules,
                     )
             return plan, cards, context, None
@@ -403,6 +486,11 @@ async def try_multi_intent_context(
             return plan, [], "", exc
 
     results = await asyncio.gather(*(_run(p, f) for p, f in zip(plans, plan_device_filters)))
+
+    if bundle_budget:
+        if any(err is not None for _, _, _, err in results):
+            return bundle_unavailable()
+        return bundle_selection.render_bundles([cards for _, cards, _, _ in results], bundle_budget)
 
     all_cards: list[dict] = []
     sections: list[str] = []

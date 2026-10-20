@@ -39,7 +39,19 @@ MAX_INTENTS = 4
 # different intent) and not a bare "&" (appears inside facet values and
 # brand strings, e.g. "cases-&-covers" — a spaced " & " is what a person
 # types when they mean "and").
-_DELIM_RE = re.compile(r"\s*(?:,|&|\band\b)\s*", re.IGNORECASE)
+_DELIM_RE = re.compile(
+    r"\s*(?:[,;&]|\band\b|\bplus\b|[.!?](?=\s+[A-Za-z]))\s*",
+    re.IGNORECASE,
+)
+_REQUEST_PREFIX_RE = re.compile(
+    r"^\s*(?:also\s+)?(?:(?:i\s+)?(?:need|want)|show me|find me|give me)\s+",
+    re.IGNORECASE,
+)
+
+
+def _clean_segment(text: str) -> str:
+    """Remove request scaffolding, preserving product modifiers and constraints."""
+    return _REQUEST_PREFIX_RE.sub("", text.strip()).rstrip(".!?").strip()
 
 # Protected patterns: don't split inside a price range or a thousands
 # separator. Checked against the two tokens immediately surrounding a
@@ -50,7 +62,7 @@ _NUMERIC_RE = re.compile(r"^\$?\d[\d,]*(?:\.\d+)?%?$")
 def split_segments(query: str) -> list[str]:
     """
     Split a (already filler-stripped) message into segments on ``,``/``&``/
-    ``and``, guarding numeric ranges ("$20 and $50") and thousands
+    ``and``, ``plus``, semicolons and sentence boundaries, guarding numeric ranges ("$20 and $50") and thousands
     separators ("1,000") so they are never split points.
 
     Returns an empty list when the message has 0 or 1 segments (nothing to
@@ -95,7 +107,7 @@ def split_segments(query: str) -> list[str]:
         buf = part
     segments.append(buf.strip())
 
-    segments = [s for s in segments if s]
+    segments = [clean for s in segments if (clean := _clean_segment(s))]
     if len(segments) < 2 or len(segments) > MAX_INTENTS:
         return []
     return segments
@@ -456,6 +468,8 @@ async def maybe_build_plans(
     similarity_threshold: float = 0.55,
     similarity_margin: float = 0.05,
     global_cap: int = 5,
+    decomposed_segments: list[str] | None = None,
+    matched_categories: dict[int, str] | None = None,
 ) -> list[SearchPlan] | None:
     """
     Full pipeline, §3. Returns None at any gate — the caller's existing
@@ -463,16 +477,24 @@ async def maybe_build_plans(
     design's baseline safety rule (§2), which applies regardless of what
     this function returns.
     """
-    if len(category_vectors) < 2:
-        return None  # nothing to split against
-
-    segments = split_segments(query)
-    if not segments:
+    if len(category_vectors) < (1 if decomposed_segments else 2):
         return None
 
+    segments = decomposed_segments if decomposed_segments is not None else split_segments(query)
+    if not segments or not 2 <= len(segments) <= MAX_INTENTS:
+        return None
+
+    catalog_matches = {
+        i: category for i, category in (matched_categories or {}).items()
+        if type(i) is int and 0 <= i < len(segments) and category in category_vectors
+    }
     segment_vectors = []
-    for seg in segments:
-        classify_text = _strip_phrases(seg, strip_phrases) if strip_phrases else seg
+    for i, seg in enumerate(segments):
+        if i in catalog_matches:
+            segment_vectors.append([])  # No embedding call for an exact catalog match.
+            continue
+        classify_text = _clean_segment(seg)
+        classify_text = _strip_phrases(classify_text, strip_phrases) if strip_phrases else classify_text
         # Same dilution problem strip_phrases solves for a device name inside
         # a segment ("iphone 17 case" scoring weaker against "cases" than
         # bare "case" does) applies just as much to a price phrase left in
@@ -497,9 +519,14 @@ async def maybe_build_plans(
         segment_vectors, category_vectors,
         threshold=similarity_threshold, margin=similarity_margin,
     )
-    log.debug("chat_intent_split: segments=%s candidates=%s", segments, candidates)
+    candidates.update(catalog_matches)
+    log.debug("chat_intent_split: segments=%s candidates=%s catalog_matches=%s",
+              segments, candidates, catalog_matches)
     distinct_categories = set(candidates.values())
-    if len(distinct_categories) < 2:
+    if decomposed_segments is not None:
+        if len(candidates) != len(segments):
+            return None  # Never silently lose an intent from a structured plan.
+    elif len(distinct_categories) < 2:
         return None
 
     if confirm is None:
@@ -520,13 +547,13 @@ async def maybe_build_plans(
         if confirmed is None:
             return None
 
-    # A duplicate category across confirmed segments collapses (§5) — keep
-    # only the first occurrence's index per category.
+    # The legacy splitter collapses duplicate categories (§5). A structured
+    # decomposition already distinguishes separate requests within a category.
     seen_categories: set[str] = set()
     deduped_indices = []
     for i in confirmed.confirmed_indices:
         cat = candidates[i]
-        if cat in seen_categories:
+        if cat in seen_categories and decomposed_segments is None:
             continue
         seen_categories.add(cat)
         deduped_indices.append(i)

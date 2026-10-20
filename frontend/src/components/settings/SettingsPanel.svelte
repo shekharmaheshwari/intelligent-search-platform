@@ -45,6 +45,7 @@
   let chatSmartFollowup    = false;
   let chatMultiIntentSplit = false;
   let chatLlmResponse      = true;
+  let chatLocalQueryRouter = false;
   let chatSaving        = false;
   let chatSaved         = false;
   let chatErr           = '';
@@ -58,6 +59,7 @@
       chatSmartFollowup    = chatConfig.smart_followup ?? false;
       chatMultiIntentSplit = chatConfig.multi_intent_split ?? false;
       chatLlmResponse      = chatConfig.llm_response ?? true;
+      chatLocalQueryRouter = chatConfig.local_query_router ?? false;
     } catch { /* ignore — chat may not be deployed yet */ }
   }
 
@@ -72,6 +74,7 @@
         smartFollowup:     chatSmartFollowup,
         multiIntentSplit:  chatMultiIntentSplit,
         llmResponse:       chatLlmResponse,
+        localQueryRouter:  chatLocalQueryRouter,
       });
       chatProvider         = chatConfig.provider;
       chatModel            = chatConfig.model;
@@ -79,6 +82,7 @@
       chatSmartFollowup    = chatConfig.smart_followup ?? false;
       chatMultiIntentSplit = chatConfig.multi_intent_split ?? false;
       chatLlmResponse      = chatConfig.llm_response ?? true;
+      chatLocalQueryRouter = chatConfig.local_query_router ?? false;
       chatApiKey        = '';
       chatSaved         = true;
     } catch (e) {
@@ -94,6 +98,7 @@
                         chatModel            !== (chatConfig?.model              ?? '')     ||
                         chatSmartFollowup    !== (chatConfig?.smart_followup     ?? false)  ||
                         chatMultiIntentSplit !== (chatConfig?.multi_intent_split ?? false)  ||
+                        chatLocalQueryRouter !== (chatConfig?.local_query_router ?? false) ||
                         chatLlmResponse      !== (chatConfig?.llm_response       ?? true)   ||
                         chatApiKey.trim() !== ''                                     ||
                         (chatIsSelfHosted && chatEndpoint !== (chatConfig?.endpoint ?? ''));
@@ -936,6 +941,23 @@
             <span class="toggle-track">
               <span class="toggle-thumb"></span>
             </span>
+          </label>
+        </div>
+
+        <div class="cc-row" style="margin-top:20px">
+          <div class="cc-label-col">
+            <span class="cc-label">Local query router</span>
+            <span class="cc-desc">
+              Skip LLM calls for recognized standalone product searches and supported bundles.
+              Questions needing explanations, comparisons, or conversation context use the configured
+              LLM when LLM-generated answers are enabled. Bundle searches also require multi-intent
+              splitting. OFF by default.
+            </span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" bind:checked={chatLocalQueryRouter} disabled={chatSaving}
+              aria-label="Local query router" />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
           </label>
         </div>
 

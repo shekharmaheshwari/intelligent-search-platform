@@ -32,6 +32,8 @@ from isp.services.infra.chat.concept_resolution import (
     SORT_CONCEPTS as _SORT_CONCEPTS,
     SORTABLE_TYPES as _SORTABLE_TYPES,
     FILTER_CONCEPT_VALUE_TYPES as _FILTER_CONCEPT_VALUE_TYPES,
+    UNIT_CONCEPTS as _UNIT_CONCEPTS,
+    NUMERIC_ARRAY_TYPES as _NUMERIC_ARRAY_TYPES,
 )
 
 router = APIRouter(prefix="/indexes", tags=["indexes"])
@@ -196,6 +198,15 @@ def _ensure_isp_schema(docs: list[dict]) -> list[dict]:
         extra = {k: v for k, v in doc.items()
                  if k not in _ISP_FIELDS and k not in _INTERNAL_FIELDS}
         combined_meta = {**meta, **extra}
+        # Structured reasoning facts stay in metadata, avoiding per-domain schema fields.
+        if "reasoningData" in combined_meta:
+            from isp.services.domain.reasoning_data import validate_reasoning_data
+            try:
+                combined_meta["reasoningData"] = validate_reasoning_data(combined_meta["reasoningData"])
+            except (ValueError, TypeError, OverflowError) as exc:
+                log.warning("Invalid reasoningData omitted for doc %s: %s", doc_id, exc)
+                combined_meta.pop("reasoningData", None)
+            extra.pop("reasoningData", None)
         metadata_str: str | None = json.dumps(combined_meta) if combined_meta else None
 
         # Build a clean ISP-schema doc — only declared Typesense fields
@@ -285,6 +296,19 @@ def _generic_catalog_mapper(item: dict, idx: int) -> dict | None:
 
     # Pass everything from the extension through; override structural fields.
     out = {k: v for k, v in item.items() if k not in _INTERNAL_FIELDS}
+    if "reasoningData" in out:
+        from isp.services.domain.reasoning_data import validate_reasoning_data
+        raw_facts = out.pop("reasoningData")
+        existing_meta = out.get("metadata") or {}
+        if isinstance(existing_meta, str):
+            existing_meta = json.loads(existing_meta)
+        existing_meta = dict(existing_meta)
+        try:
+            existing_meta["reasoningData"] = validate_reasoning_data(raw_facts)
+        except (ValueError, TypeError, OverflowError) as exc:
+            log.warning("Invalid reasoningData omitted for catalog item %s: %s", idx, exc)
+            existing_meta.pop("reasoningData", None)
+        out["metadata"] = json.dumps(existing_meta)
     out["id"]         = _resolve_doc_id(item.get("id") or idx, display)
     out["display"]    = display
     out["created_at"] = now
@@ -717,6 +741,13 @@ async def update_index_field(idx_id: str, field_name: str, body: FieldUpdate):
                 400,
                 f"Concept '{effective_concept}' needs a numeric field "
                 f"({sorted(_SORTABLE_TYPES)}) — '{field_name}' is type '{field_type}'",
+            )
+    elif effective_concept in _UNIT_CONCEPTS:
+        if field_type not in _NUMERIC_ARRAY_TYPES:
+            raise HTTPException(
+                400,
+                f"Concept '{effective_concept}' needs a numeric array field "
+                f"({sorted(_NUMERIC_ARRAY_TYPES)}) — '{field_name}' is type '{field_type}'",
             )
     elif effective_concept is not None:
         if not new_facet or field_type not in _FILTER_CONCEPT_VALUE_TYPES:

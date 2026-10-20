@@ -52,6 +52,12 @@ _SUPERLATIVE_CONCEPT_MAP: dict[str, list[str]] = json.loads(
 )
 
 SORTABLE_TYPES = {"int32", "int64", "float"}
+# Quantity concepts: unit_count is the numeric ARRAY of quantities an item is
+# offered at (e.g. line counts), unit_price the aligned array of prices at
+# each — neither a sortable scalar nor a string facet. Used by
+# routers/indexes.py to validate a mapping against the field's shape.
+UNIT_CONCEPTS = {"unit_count", "unit_price"}
+NUMERIC_ARRAY_TYPES = {"int32[]", "int64[]", "float[]"}
 
 # Concepts driven by a superlative phrase ("cheapest", "most popular", ...)
 # need a numeric field to sort by — derived from _SUPERLATIVE_CONCEPT_MAP's

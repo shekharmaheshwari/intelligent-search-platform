@@ -273,6 +273,7 @@ class ChatConfigUpdate(BaseModel):
     smart_followup:     bool       = False
     multi_intent_split: bool       = False
     llm_response:       bool       = True
+    local_query_router: bool       = False
 
 
 class ChatConfigResponse(BaseModel):
@@ -283,6 +284,7 @@ class ChatConfigResponse(BaseModel):
     smart_followup:     bool
     multi_intent_split: bool
     llm_response:       bool
+    local_query_router: bool
     available_models:   list[dict]
 
 
@@ -298,6 +300,7 @@ async def get_chat_settings() -> ChatConfigResponse:
         smart_followup=cfg.get("smart_followup", False),
         multi_intent_split=cfg.get("multi_intent_split", False),
         llm_response=cfg.get("llm_response", True),
+        local_query_router=cfg.get("local_query_router", False),
         available_models=AVAILABLE_CHAT_MODELS,
     )
 
@@ -344,6 +347,7 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
         smart_followup=body.smart_followup,
         multi_intent_split=body.multi_intent_split,
         llm_response=body.llm_response,
+        local_query_router=body.local_query_router,
     )
     cfg = await get_chat_config()
     return ChatConfigResponse(
@@ -354,6 +358,7 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
         smart_followup=cfg.get("smart_followup", False),
         multi_intent_split=cfg.get("multi_intent_split", False),
         llm_response=cfg.get("llm_response", True),
+        local_query_router=cfg.get("local_query_router", False),
         available_models=AVAILABLE_CHAT_MODELS,
     )
 

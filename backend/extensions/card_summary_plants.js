@@ -43,6 +43,27 @@ function transform(doc) {
   // ── Pot size ──────────────────────────────────────────────────────────────
   if (doc.pot_size) parts.push('Pot size: ' + doc.pot_size + '.');
 
+  doc.reasoningData = buildReasoningData(doc);
   doc.cardSummary = parts.join(' ');
   return doc;
+}
+
+// Structured facts for ALL reasoning tasks. Mappings belong to this extension,
+// not the Python chat service. Only explicit source values are copied; no defaults.
+function buildReasoningData(doc) {
+  var fields = [["pet_safety_label", "Pet safety"], ["care_difficulty", "Care difficulty"], ["growth_style", "Growth style"], ["care_light", "Light requirements"], ["care_water", "Water requirements"], ["care_humidity", "Humidity requirements"], ["care_temperature", "Temperature requirements"], ["pot_size", "Pot size"]];
+  var facts = [];
+  function scalar(v) {
+    return (typeof v === 'string' && v.trim().length > 0 && v.length <= 2000)
+      || typeof v === 'boolean' || (typeof v === 'number' && isFinite(v));
+  }
+  fields.forEach(function (field) {
+    var value = doc[field[0]];
+    if (!scalar(value) && !(Array.isArray(value) && value.length > 0
+        && value.length <= 20 && value.every(scalar))) return;
+    var fact = {key: field[0], label: field[1], value: value, source: field[0]};
+    if (field[2]) fact.unit = field[2];
+    facts.push(fact);
+  });
+  return {facts: facts};
 }
