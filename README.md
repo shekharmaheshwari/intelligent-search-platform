@@ -1,18 +1,23 @@
 # Intelligent Search Platform (ISP)
 
-A self-contained search backend that indexes content from REST APIs and sitemaps into [Typesense](https://typesense.org/), generates 1024-dim vector embeddings via [Voyage AI](https://www.voyageai.com/), and exposes hybrid (lexical + semantic) search. Ships with a Svelte management UI, a JavaScript extension pipeline for field normalisation and merchandising, and public API endpoints for external consumers.
+A self-contained search backend that indexes content from REST APIs and sitemaps into [Typesense](https://typesense.org/), generates vector embeddings with a pluggable model ([Voyage AI](https://www.voyageai.com/) by default; OpenAI, RexBERT, or any OpenAI-compatible endpoint selectable in the UI), and exposes hybrid (lexical + semantic) search. Ships with a Svelte management UI, a JavaScript extension pipeline for field normalisation and merchandising, and public API endpoints for external consumers.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Copy env template and add your Voyage AI key
+# 1. Copy env templates, then fill in VOYAGE_API_KEY / OPENAI_API_KEY in backend/.env
 cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
 
 # 2. Start everything (db → api → ui)
 ./deploy-all.sh
 ```
+
+Login is **off by default** — no Google account or OAuth setup is needed to run locally. Google Sheets ingestion and SSO are optional add-ons (see [Environment Variables](#environment-variables)).
+
+> `backend/.env` and `frontend/.env` are gitignored. Only the `.env.example` templates are committed — never put real keys in them.
 
 | Service | URL |
 |---|---|
@@ -28,10 +33,10 @@ Browser (Admin UI / External App)
   └─► isp-ui :3001 (Astro + Svelte)
         └─► isp-api :8001 (FastAPI)
               ├─► isp-db :5432      (PostgreSQL — metadata, connectors, extensions)
-              ├─► typesense :8108   (documents + 1024-dim vectors)
+              ├─► typesense :8108   (documents + vectors)
               ├─► isp-redis :6379   (L2 embedding cache + distributed job lock)
               ├─► isp-vault :8200   (HashiCorp Vault — local secrets store)
-              └─► Voyage AI (cloud — embeddings)
+              └─► Embedding provider (Voyage AI default · OpenAI · RexBERT · custom)
 ```
 
 ---
@@ -57,8 +62,9 @@ Browser (Admin UI / External App)
 ### First-time setup
 
 ```bash
-# 1. Copy env template
+# 1. Copy env templates
 cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
 
 # 2. Start all containers (includes Vault on first run — auto-inits itself)
 docker-compose up -d
@@ -193,7 +199,7 @@ A set of higher-level endpoints designed for Product Listing Pages. These aggreg
 
 ### Tab Intent Detection
 
-Classifies a search query into the most semantically relevant tab using Voyage AI embeddings. Reads `intent_label` from the database at request time — no hardcoded keywords or collection IDs.
+Classifies a search query into the most semantically relevant tab using the active embedding model. Reads `intent_label` from the database at request time — no hardcoded keywords or collection IDs.
 
 ```bash
 curl 'http://localhost:8001/v1/intent/tab?q=galaxy+watch'
@@ -372,11 +378,13 @@ TYPESENSE_HOST=typesense
 TYPESENSE_PORT=8108
 TYPESENSE_API_KEY=local-dev-key-change-me
 DATABASE_URL=postgresql://isp:isp-dev-password@isp-db:5432/isp
-VOYAGE_API_KEY=<your-voyage-key>          # optional — falls back to lexical-only
+VOYAGE_API_KEY=                           # only if using a Voyage embedding model (the default)
+OPENAI_API_KEY=                           # optional — chat LLM + OpenAI embeddings (can also be set in the UI)
 REDIS_URL=redis://isp-redis:6379/0
 EXTENSIONS_DIR=/app/extensions
 HOST=0.0.0.0
 PORT=8001
+LOG_LEVEL=INFO
 
 # ── Secrets provider ──────────────────────────────────────────────────────────
 # "env"   → read secrets directly from this file (default, no extra setup)
@@ -391,12 +399,56 @@ SECRET_PROVIDER=env
 # Required when SECRET_PROVIDER=aws
 # AWS_REGION=us-east-1
 
-# ── Google Sheets connector ───────────────────────────────────────────────────
-# Inline JSON of the service account key (only needed when SECRET_PROVIDER=env)
-# GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+# ── Optional: Google Sheets connector ─────────────────────────────────────────
+# Only needed to ingest from Google Sheets (and only when SECRET_PROVIDER=env).
+# Raw service-account JSON on one line.
+# GOOGLE_SERVICE_ACCOUNT_JSON=
+
+# ── Optional: OAuth2 / OIDC SSO ───────────────────────────────────────────────
+# Disabled by default — the API and UI work without login.
+AUTH_ENABLED=false
+# OAUTH_PROVIDER=google            # google | github | microsoft
+# OAUTH_CLIENT_ID=
+# OAUTH_CLIENT_SECRET=
+# OAUTH_ALLOWED_DOMAIN=            # e.g. yourcompany.com — empty = any account
+# OAUTH_REDIRECT_URI=http://localhost:8001/auth/callback
+# OAUTH_FRONTEND_URL=http://localhost:3001
+# JWT_SECRET=                      # generate with: openssl rand -hex 32
 ```
 
+```env
+# frontend/.env
+PUBLIC_AUTH_ENABLED=false          # must match AUTH_ENABLED in backend/.env
+# PUBLIC_OAUTH_PROVIDER=google     # google | github — sign-in button label
+```
+
+**Enabling SSO:** set `AUTH_ENABLED=true` and fill in the `OAUTH_*` / `JWT_SECRET` values in `backend/.env`, set `PUBLIC_AUTH_ENABLED=true` in `frontend/.env`, then rebuild the UI (`PUBLIC_*` values are baked in at build time). See [Auth Approaches](docs/auth-approaches.md).
+
 See [Secrets Strategy](docs/secrets-strategy.md) for full details on Vault and AWS Secrets Manager setup.
+
+### Embedding models
+
+The embedding model is chosen in the admin UI (**Settings**), not in `.env`. The choice is saved in the `app_settings` table and takes effect without a restart. You only need the key for the provider you pick:
+
+| Provider | Models | Vector dims | Key / config |
+|---|---|---|---|
+| Voyage AI (default) | `voyage-3`, `voyage-3-large`, `voyage-code-3`, `voyage-finance-2` | 1024 | `VOYAGE_API_KEY` in `backend/.env` (env only) |
+| | `voyage-3-lite` | 512 | 〃 |
+| OpenAI | `text-embedding-3-small` | 1536 | Settings UI, falls back to `OPENAI_API_KEY` |
+| RexBERT | `rexbert-micro`, `rexbert-mini` | 128 / 256 | Endpoint + optional key in Settings UI; can also be set per index |
+| Custom | Any OpenAI-compatible endpoint | user-defined | Endpoint, key, model name and dimension in Settings UI |
+
+**Example — using the default Voyage model.** Get a key from the [Voyage AI dashboard](https://dash.voyageai.com/) and add it to `backend/.env`, then restart the API (`docker-compose up -d isp-api`):
+
+```env
+# backend/.env
+VOYAGE_API_KEY=pa-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   # placeholder — use your own key
+```
+
+For any other provider, leave `VOYAGE_API_KEY` blank and pick the model and enter its key in **Settings** instead.
+
+- **No key = lexical only.** If the active provider has no key, embeddings are skipped and search falls back to lexical. Since Voyage is the default, a fresh install without `VOYAGE_API_KEY` runs lexical-only until you add the key or switch models.
+- **Changing dimension requires a rebuild.** Typesense collections are created with a fixed vector size, so switching between models with different dims (e.g. `voyage-3` 1024 → `text-embedding-3-small` 1536) breaks semantic search on existing indexes until each is fully rebuilt. The settings API flags this with `dim_changed: true`.
 
 ---
 
