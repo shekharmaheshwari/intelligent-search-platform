@@ -1,6 +1,6 @@
 # Chat Improvement Plan — ISP Stress-Test & Optimization
 
-> **Source:** `/Users/shekharmaheshwari/Desktop/chat-improvement`  
+> **Source:** chat stress-test notes  
 > **Goal:** Stress-test ISP chat's prompt routing, intent recognition, and data sourcing across five product pillars: Smartwatches, Accessories, Phones, Tablets, and Plans. Deliver a concrete optimization roadmap.
 
 ---
