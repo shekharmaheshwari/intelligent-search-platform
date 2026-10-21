@@ -258,7 +258,7 @@ Exit back to your local machine first (`exit` if you're still SSH'd in).
 From the ISP project directory on your Mac:
 
 ```bash
-cd /Users/shekharmaheshwari/intelligent-search-platform
+cd /path/to/intelligent-search-platform
 
 ssh -i ~/.ssh/isp-key.pem ubuntu@<YOUR_EC2_IP> "bash -s" < ec2-setup.sh
 ```
@@ -306,7 +306,7 @@ Your app needs passwords and API keys. These must never be hardcoded in code or 
 On your local machine:
 
 ```bash
-cd /Users/shekharmaheshwari/intelligent-search-platform
+cd /path/to/intelligent-search-platform
 cp .env.prod.example .env.prod
 ```
 
@@ -323,16 +323,16 @@ Replace the placeholder values:
 ```env
 # PostgreSQL — choose any strong password
 POSTGRES_USER=isp
-POSTGRES_PASSWORD=MyStr0ngPassword123!
+POSTGRES_PASSWORD=change-me-strong-password
 
 # Typesense API key — any strong string (used internally between services)
-TYPESENSE_API_KEY=MyTypesenseKey456!
+TYPESENSE_API_KEY=change-me-strong-api-key
 
 # Must match POSTGRES_USER and POSTGRES_PASSWORD above
-DATABASE_URL=postgresql://isp:MyStr0ngPassword123!@isp-db:5432/isp
+DATABASE_URL=postgresql://isp:change-me-strong-password@isp-db:5432/isp
 
 # Your real Voyage AI key
-VOYAGE_API_KEY=pa-WqxFAGAxsDX9oeabjzs_R-BbkhMVA_pbyMGgXKtKHJX
+VOYAGE_API_KEY=pa-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 HOST=0.0.0.0
 PORT=8001
@@ -351,7 +351,7 @@ Save and close the file.
 From your local machine, in the project root:
 
 ```bash
-cd /Users/shekharmaheshwari/intelligent-search-platform
+cd /path/to/intelligent-search-platform
 ./deploy-aws.sh <YOUR_EC2_IP> ~/.ssh/isp-key.pem
 ```
 
