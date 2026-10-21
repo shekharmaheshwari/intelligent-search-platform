@@ -1,7 +1,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package.json .
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
 ARG PUBLIC_API_URL=http://localhost:8001/v1
 ENV PUBLIC_API_URL=$PUBLIC_API_URL
