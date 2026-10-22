@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import type { Suggestion } from '../../lib/types';
 
 export function filterByBoostTier(suggestions: Suggestion[], boost: -1 | 0 | 1): Suggestion[] {

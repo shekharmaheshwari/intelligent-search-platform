@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 /** Mode + magnitude for one item-interaction sub-policy. */
 export interface ItemPolicy {
   mode:  'penalise' | 'neutral' | 'boost';

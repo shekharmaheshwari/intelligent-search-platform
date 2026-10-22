@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 export function getApiBase(): string {
   return typeof window !== 'undefined'
     ? `${window.location.protocol}//${window.location.hostname}:8001/v1`

@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 /** A JS transform extension from the global library (mirrors backend extensions table). */
 export interface ExtensionMeta {
   id: string;

@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import { indexRepository, type IndexRepository } from '../../repository/IndexRepository';
 import { mapIndexMetaToIndex, mapIndexesToDomain } from './index.mapper';
 import type { Index, IngestStatus, SearchResult } from './index.model';

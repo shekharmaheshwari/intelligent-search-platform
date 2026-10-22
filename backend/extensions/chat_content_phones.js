@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Chat Content — Phones
 // @description Builds chatContent for phones/tablets: brand, OS, form factor, price, availability, colors.
 //   Assign to the Phones (and Tablets) index. Runs after catalog_mapper (run_order 1) and version_score (run_order 1).

@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/svelte';
 import SummaryCards from '../../../src/components/analytics/SummaryCards.svelte';

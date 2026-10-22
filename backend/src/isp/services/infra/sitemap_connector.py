@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Sitemap crawler: fetch a sitemap XML, extract page URLs, and scrape each page.
 

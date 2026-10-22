@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import { writable, get, type Writable } from 'svelte/store';
 
 /**

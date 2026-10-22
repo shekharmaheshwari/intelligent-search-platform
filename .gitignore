@@ -25,7 +25,6 @@ frontend/.astro/
 Thumbs.db
 
 # Pending open-source release
-LICENSE
 docs/publishPaper.md
 docs/gsheet-connector.md
 docs/createPageUsingISP.md

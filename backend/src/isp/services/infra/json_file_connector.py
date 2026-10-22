@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 JSON file connector: read a local file or remote https:// URL and return ISP documents.
 

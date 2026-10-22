@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import type { AffinityDimension } from '../../lib/types';
 
 export function toggleDimension(dims: AffinityDimension[], idx: number, enabled: boolean): AffinityDimension[] {

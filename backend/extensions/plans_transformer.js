@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Plans Transformer
 // @description Transforms raw ratePlanOffer objects (enriched by Plans Pre-Processor
 // with a price_by_lines table) into ISP-searchable plan documents. One doc per plan.

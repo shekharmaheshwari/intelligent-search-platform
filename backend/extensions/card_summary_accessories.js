@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Card Summary — Accessories
 // @description Builds cardSummary for accessories: a short, display-safe feature/spec
 //   blurb for direct customer-facing rendering (e.g. cards-only chat mode with no LLM

@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Device Compatibility — Accessories
 // @description Extracts specific device model(s) a product fits from its display
 //   name (e.g. "... for Samsung Galaxy S24 Ultra") into a structured

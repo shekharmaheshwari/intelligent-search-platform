@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Query filters — building a Typesense filter_by clause (and the stripped
 lexical query text that goes with it) from a chat message: price ranges,

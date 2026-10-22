@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Account Suggestions
 // @description Generates typeahead search suggestions from account help/support page documents.
 // Assign to the Account index (GSheet connector).

@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import { StoreBase } from './StoreBase';
 import { extensionService } from '../services/extensions/ExtensionService';
 import type { ExtensionMeta, IndexExtension } from '../types';

@@ -1,6 +1,10 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 [project]
 name = "intelligent-search-platform"
 version = "0.1.0"
+license = "Apache-2.0"
 requires-python = ">=3.12"
 dependencies = [
     "spacy>=3.8,<3.9",  # Local query segmentation; no external NLP API

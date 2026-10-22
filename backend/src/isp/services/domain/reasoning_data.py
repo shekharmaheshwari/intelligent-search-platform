@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """Domain-neutral validation and rendering of extension-authored catalog facts."""
 import json
 import math

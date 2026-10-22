@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import { settingsRepository, type SettingsRepository } from '../../repository/SettingsRepository';
 import { mapAppSettingsToSettings } from './settings.mapper';
 import type { Settings } from './settings.model';

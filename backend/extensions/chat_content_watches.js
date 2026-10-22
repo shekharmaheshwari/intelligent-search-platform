@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Chat Content — Watches
 // @description Builds chatContent for smartwatches: GPS, cellular, fitness, compatibility, price.
 //   Assign to the Smartwatches index. Runs after catalog_mapper (run_order 1).

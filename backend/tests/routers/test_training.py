@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Tests for POST /v1/training/popularity (Case A trained re-scorer).
 

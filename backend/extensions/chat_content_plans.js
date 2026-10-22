@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Chat Content — Plans
 // @description Builds chatContent for service plans: price per line, features, data, international coverage, promotions.
 //   Assign to the Plans index. Runs after plans_transformer (run_order 1).

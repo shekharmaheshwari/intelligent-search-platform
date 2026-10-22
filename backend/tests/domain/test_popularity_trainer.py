@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Tests for popularity_trainer.train_and_apply — the Case A trained
 re-scorer's domain-service logic (see docs/popularityTrainerImplementation.md).

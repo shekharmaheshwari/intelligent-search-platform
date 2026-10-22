@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

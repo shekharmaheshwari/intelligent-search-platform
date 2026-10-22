@@ -1,3 +1,8 @@
+<!--
+  Copyright 2026 Shekhar Maheshwari
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 <script lang="ts">
   // MappingTab — four independent mapping sections (intent label, field renames, value overrides,
   // static field values) for a single index.  Transient per-component state only; calls

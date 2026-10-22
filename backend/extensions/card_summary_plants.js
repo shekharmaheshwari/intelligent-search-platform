@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Card Summary — Plants
 // @description Builds cardSummary for plants: a short, display-safe care/spec blurb for
 //   direct customer-facing rendering (e.g. cards-only chat mode with no LLM call) — none

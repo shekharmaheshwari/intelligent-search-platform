@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { analyticsController } from '../../../src/lib/controller/analyticsController';
 import { analyticsStore } from '../../../src/lib/stores/analytics-store';

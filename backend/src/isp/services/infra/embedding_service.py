@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Multi-provider embedding service with a two-tier cache and runtime-swappable model.
 

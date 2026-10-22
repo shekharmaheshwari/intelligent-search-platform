@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * One entry in the model catalogue returned by GET /v1/settings.
  * ``num_dim`` is the vector dimension the model produces (0 for the "custom"

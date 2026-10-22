@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Persistent key/value settings stored in the ``app_settings`` PostgreSQL table.
 

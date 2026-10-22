@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 /v1/indexes/{id}/search — Hybrid search endpoint for ISP-managed and external indexes.
 

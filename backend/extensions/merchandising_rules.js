@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Merchandising Rules
 // @description Query-aware boost: stamps boost_queries_equal and boost_queries_contains
 //   on each document at index time by matching its SKU codes against the rule tables below.

@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """Conservative local routing; uncertain requests retain the configured LLM path."""
 import re
 from isp.services.domain.query_decomposition import _pipeline, _matcher

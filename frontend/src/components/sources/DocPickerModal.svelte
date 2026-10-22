@@ -1,3 +1,8 @@
+<!--
+  Copyright 2026 Shekhar Maheshwari
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { api } from '../../lib/api';

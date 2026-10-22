@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Plants Transformer
 // @description Enriches plant documents with a rich content blob, normalized pet_safety, care tags, and search-friendly fields.
 // @type transform

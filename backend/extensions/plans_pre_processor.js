@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Plans Pre-Processor
 // @description Joins ratePlanFeatures into each ratePlanOffer by billingSoc, and
 //   collapses every billingSoc variant of the same conceptual plan (same

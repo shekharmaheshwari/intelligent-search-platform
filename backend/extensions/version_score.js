@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Version Score
 // @description Extracts a recency signal from the product title and applies a bonus for items carrying a "NEW" badge. Runs after the catalog mapper so doc.display is available.
 // @assign all

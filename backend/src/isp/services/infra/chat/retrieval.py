@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Retrieval — hybrid (lexical + structured + semantic) Typesense search, RRF
 merge, and the deterministic sorted-search path for a resolved superlative.

@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Watch Suggestions
 // @description Generates typeahead search suggestions from ISP catalog smartwatch documents.
 // Assign to the Smartwatches index.

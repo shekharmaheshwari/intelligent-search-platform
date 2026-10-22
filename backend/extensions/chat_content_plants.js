@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Chat Content — Plants
 // @description Builds chatContent for plants: pet safety, care difficulty, light/water, growth style, price.
 //   Assign to the Plants index. Runs after plants_transformer (run_order 1).

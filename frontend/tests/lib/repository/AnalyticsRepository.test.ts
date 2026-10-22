@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { analyticsRepository } from '../../../src/lib/repository/AnalyticsRepository';
 import type { AnalyticsData } from '../../../src/lib/types';

@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Trained browse-popularity re-scorer (Case A of the trained re-scorer layer —
 see ``docs/trainedRescorerDesign.md``).

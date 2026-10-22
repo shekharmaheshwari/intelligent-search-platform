@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Card consistency — keeping the product carousel in sync with what the LLM's
 finished answer actually talks about.

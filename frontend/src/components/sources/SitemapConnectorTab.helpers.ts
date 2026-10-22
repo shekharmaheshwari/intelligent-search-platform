@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import type { SitemapConnectorConfig } from '../../lib/types';
 
 export interface PatternRow { value: string }

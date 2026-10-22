@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Regression tests for typesense_client.apply_editorial_boosts — the shared
 editorial ranking layer used by the lexical, hybrid (search_with_vec) and

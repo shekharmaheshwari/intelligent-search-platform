@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 REST API connector: fetch, parse, and normalise API responses into ISP documents.
 

@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """Bounded bundle selection using catalog prices and Decimal arithmetic."""
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation

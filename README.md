@@ -492,3 +492,9 @@ ISP is safe to run behind a load balancer. A Redis-backed distributed lock preve
 - [Auth Approaches](docs/auth-approaches.md) — OAuth2 / OIDC SSO implemented (Approach 3); set `AUTH_ENABLED=true` to activate
 - [Deploy to AWS EC2](docs/deploy-aws-ec2.md)
 - [AWS EC2 + Docker Compose](docs/aws-EC2-Docker-Compose.md)
+
+---
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE) for attribution.

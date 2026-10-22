@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """Pure-function tests for search_relevance.py's relevance floors."""
 
 from isp.services.domain import search_relevance as sr

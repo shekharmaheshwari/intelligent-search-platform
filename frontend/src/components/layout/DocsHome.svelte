@@ -1,3 +1,8 @@
+<!--
+  Copyright 2026 Shekhar Maheshwari
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 <script lang="ts">
   // DocsHome — documentation landing panel shown in the main area when the
   // user navigates to the dashboard with no index selected (e.g. after clicking

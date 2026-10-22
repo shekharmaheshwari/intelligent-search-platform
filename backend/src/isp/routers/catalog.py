@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 /v1/catalog — PLP product search, facets, typeahead, and intent detection.
 

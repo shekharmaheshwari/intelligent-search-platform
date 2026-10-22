@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import { StoreBase } from './StoreBase';
 import { api } from '../api';
 import type { Synonym } from '../types';

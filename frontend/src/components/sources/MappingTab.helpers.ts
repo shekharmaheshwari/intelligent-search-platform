@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 export interface FieldRow  { key: string; value: string }
 export interface ValueRow  { field: string; from: string; to: string }
 

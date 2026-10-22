@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 from decimal import Decimal
 import pytest
 from isp.services.domain.bundle_selection import Budget, extract_budget, select_bundles, render_bundles

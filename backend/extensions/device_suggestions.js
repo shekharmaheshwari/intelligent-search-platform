@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Device Suggestions
 // @description Generates typeahead search suggestions from ISP catalog device documents.
 // Assign to Phones, Tablets, or Smartwatches indexes.

@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Follow-up detection — pure classification of whether a message continues the
 prior turn (heuristic path only; used when smart_followup is OFF, see

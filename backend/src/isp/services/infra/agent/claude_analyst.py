@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Claude analyst: sends a JSON schema + sample to Claude and returns structured
 artifacts (3 JS extensions + field_config) ready for ISP to execute.

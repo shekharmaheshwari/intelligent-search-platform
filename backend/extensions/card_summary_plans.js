@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Card Summary — Plans
 // @description Builds cardSummary for service plans: a short, display-safe feature blurb
 //   for direct customer-facing rendering (e.g. cards-only chat mode with no LLM call) —

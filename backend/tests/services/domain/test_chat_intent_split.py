@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Pure-function tests for chat_intent_split.py — no DB, no Typesense, no LLM.
 See docs/multiIntentConjunctionSearchDesign.md for the design these enforce.

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 # Deploy ISP to an EC2 instance via rsync + docker compose.
 #
 # Usage:

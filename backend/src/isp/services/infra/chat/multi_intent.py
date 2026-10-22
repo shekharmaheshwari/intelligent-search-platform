@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Multi-intent conjunction splitting — the service-layer glue between
 chat/service.py and the decoupled, catalog-agnostic

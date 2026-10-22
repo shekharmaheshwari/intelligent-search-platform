@@ -1,3 +1,8 @@
+<!--
+  Copyright 2026 Shekhar Maheshwari
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 <script lang="ts">
   /**
    * SourceContent — main content area for a selected ISP index.

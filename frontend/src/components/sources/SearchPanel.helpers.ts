@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Truncate ``text`` to ``max`` characters, appending an ellipsis when cut.
  * Used to produce short content snippets in search result cards.

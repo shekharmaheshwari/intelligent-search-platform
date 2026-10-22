@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 suggestion_service.py — populates and maintains the search_suggestions Typesense collection.
 

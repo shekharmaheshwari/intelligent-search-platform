@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import AsyncMock
 import pytest
 from isp.services.domain.query_decomposition import decompose_query

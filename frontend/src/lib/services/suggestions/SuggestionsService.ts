@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import { suggestionsRepository } from '../../repository/SuggestionsRepository';
 import type { Suggestion, SuggestionsResponse } from '../../types';
 

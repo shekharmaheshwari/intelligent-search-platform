@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import pytest
 from isp.services.domain.reasoning_data import validate_reasoning_data, read_reasoning_data, display_fact

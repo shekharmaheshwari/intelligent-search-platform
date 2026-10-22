@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Application configuration loaded from environment variables and .env file.
 All settings have safe defaults for local Docker-based development.

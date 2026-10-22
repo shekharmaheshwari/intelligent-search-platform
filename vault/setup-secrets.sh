@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 # One-time script to populate ISP secrets into the local Vault container.
 # Run this after `docker-compose up` on first setup, or whenever you need
 # to add/rotate a secret.

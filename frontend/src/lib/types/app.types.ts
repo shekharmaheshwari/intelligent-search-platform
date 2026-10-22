@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 /** Which top-level panel is currently visible in App.svelte. */
 export type View = 'dashboard' | 'detail' | 'create' | 'configure' | 'extensions' | 'settings' | 'analytics';
 

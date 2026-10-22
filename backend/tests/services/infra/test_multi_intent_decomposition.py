@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import AsyncMock
 
 from isp.services.infra.chat import multi_intent

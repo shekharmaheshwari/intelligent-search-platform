@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./

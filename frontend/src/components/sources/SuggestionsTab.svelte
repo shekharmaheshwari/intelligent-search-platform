@@ -1,3 +1,8 @@
+<!--
+  Copyright 2026 Shekhar Maheshwari
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 <script lang="ts">
   // SuggestionsTab — paginated, searchable list of autocomplete suggestions for
   // an index, grouped into PROMOTED / ORGANIC / SUPPRESSED tiers.

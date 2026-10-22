@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Google Sheets connector: fetch a spreadsheet via the Sheets API and return
 a list of ISP document dicts ready for embedding and upsert.

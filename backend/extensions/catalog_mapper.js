@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Catalog Mapper
 // @description Maps REST API product response fields to the ISP catalog schema. Assign to Phones, Accessories, Smartwatches, and Tablets indexes.
 

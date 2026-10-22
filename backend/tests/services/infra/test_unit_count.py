@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import Mock
 import pytest
 from isp.services.infra.chat import query_filters, retrieval

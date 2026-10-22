@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import type { ConnectorConfig, IngestStatus, SearchResult, DocumentItem, AffinityDimension } from '../../types';
 
 export interface Index {

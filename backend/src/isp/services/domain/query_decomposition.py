@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """Local, rule-based spaCy decomposition using the catalog's own terminology.
 
 No model download, external API, or generated query words. Unknown vocabulary

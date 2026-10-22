@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig } from '../../lib/types';
 
 /**

@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Format a Unix timestamp (seconds) to a short locale date string.
  * Example output: ``"6/5/2026"`` (locale-dependent).

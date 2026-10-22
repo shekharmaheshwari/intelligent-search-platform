@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 # Run once on a fresh Ubuntu 22.04 / 24.04 EC2 instance to install Docker.
 # Usage: ssh -i key.pem ubuntu@<EC2_IP> "bash -s" < ec2-setup.sh
 set -e

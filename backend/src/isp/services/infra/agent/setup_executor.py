@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Setup executor: takes the artifacts from claude_analyst and runs all ISP
 pipeline steps to produce a live, searchable index.

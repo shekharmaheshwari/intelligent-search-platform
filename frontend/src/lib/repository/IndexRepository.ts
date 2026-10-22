@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import type { FieldEntry, FieldConfig } from '../types';
 import type {
   IndexMeta, IngestStatus, SearchResult,

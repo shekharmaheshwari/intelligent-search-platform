@@ -1,3 +1,5 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
 // @name Chat Content — Accessories
 // @description Builds chatContent for accessories: type, compatibility, price, availability.
 //   Assign to the Accessories index. Runs after catalog_mapper (run_order 1).

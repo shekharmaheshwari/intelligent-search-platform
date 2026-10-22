@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 /v1/indexes/{index_id}/api-keys — Per-index API key management.
 

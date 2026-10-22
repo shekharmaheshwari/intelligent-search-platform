@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import type { AppState, View } from '../../lib/types';
 
 /** Encode AppState as URL search params string (e.g. "?index=abc&view=configure&tab=boost-rules"). */

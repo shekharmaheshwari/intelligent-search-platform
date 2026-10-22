@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Load a JSON data file (local path or https:// URL), detect the root array key,
 and return a small sample for schema analysis.

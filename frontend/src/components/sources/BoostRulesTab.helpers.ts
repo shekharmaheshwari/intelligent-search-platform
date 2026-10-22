@@ -1,3 +1,6 @@
+// Copyright 2026 Shekhar Maheshwari
+// SPDX-License-Identifier: Apache-2.0
+
 import type { BoostCriterion, BoostRule } from '../../lib/types';
 
 export const OPERATORS = [

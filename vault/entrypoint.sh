@@ -1,4 +1,7 @@
 #!/bin/sh
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 # Starts Vault with file storage, auto-initialises on first run,
 # and auto-unseals on every subsequent restart.
 #

@@ -1,3 +1,6 @@
+# Copyright 2026 Shekhar Maheshwari
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Concept resolution — mapping a chat concept (e.g. "price", "device_compatibility")
 to the actual field name that concept lives on for a given index.

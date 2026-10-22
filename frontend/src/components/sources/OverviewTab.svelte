@@ -1,3 +1,8 @@
+<!--
+  Copyright 2026 Shekhar Maheshwari
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 <script lang="ts">
   import { indexService } from '../../lib/services/indexes/IndexService';
   import type { Index, IngestStatus } from '../../lib/services/indexes/index.model';
