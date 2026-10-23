@@ -10,7 +10,7 @@ A top-to-bottom guide to how the Intelligent Search Platform is structured, how 
 |---|---|---|
 | Admin UI | Astro 4 + Svelte 4 + TypeScript | 3001 |
 | API | FastAPI + asyncpg (Python 3.12) | 8001 |
-| Search engine | Typesense 0.25 | 8108 |
+| Search engine | Typesense 30.2 | 8108 |
 | Relational DB | PostgreSQL 16 | 5432 |
 | Embedding cache | Redis 7 | 6379 |
 | Secrets store | HashiCorp Vault (local) / AWS Secrets Manager (prod) | 8200 |

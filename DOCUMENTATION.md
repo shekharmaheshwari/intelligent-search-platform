@@ -1485,7 +1485,7 @@ EXPOSE 80
 | `structlog` | ≥24.0 | Structured logging |
 | `redis[hiredis]` | ≥5.0 | L2 embedding cache |
 | `cachetools` | ≥5.3 | L1 LRU in-process cache |
-| `py-mini-racer` | ≥0.6 | PyMiniRacer V8 JavaScript isolates |
+| `mini-racer` | ≥0.12.4 | PyMiniRacer V8 JavaScript isolates |
 
 ### Frontend (Node 20)
 
