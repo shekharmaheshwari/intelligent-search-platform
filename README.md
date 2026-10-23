@@ -1,3 +1,15 @@
+
+
+https://github.com/user-attachments/assets/ec03f6ac-cab3-4392-96bb-33abe39b2f31
+
+
+
+
+
+
+
+
+
 # Intelligent Search Platform (ISP)
 
 A self-contained search backend that indexes content from REST APIs and sitemaps into [Typesense](https://typesense.org/), generates vector embeddings with a pluggable model ([Voyage AI](https://www.voyageai.com/) by default; OpenAI, RexBERT, or any OpenAI-compatible endpoint selectable in the UI), and exposes hybrid (lexical + semantic) search. Ships with a Svelte management UI, a JavaScript extension pipeline for field normalisation and merchandising, and public API endpoints for external consumers.
