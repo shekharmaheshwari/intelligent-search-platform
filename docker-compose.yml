@@ -9,7 +9,7 @@ networks:
 
 services:
   typesense:
-    image: typesense/typesense:0.25.2
+    image: typesense/typesense:30.2
     container_name: typesense
     ports:
       - "8108:8108"

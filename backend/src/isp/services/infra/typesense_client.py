@@ -855,15 +855,26 @@ def apply_boost_rules(scores: dict, all_docs: dict, rules: list[dict], query: st
             scores[did] = scores.get(did, 0.0) + boost
 
 
+def _full_doc_field_params(exclude_vec: bool) -> dict:
+    """
+    Search params that return every stored field (optionally minus ``vec``).
+
+    ``include_fields="*"`` is only a wildcard on newer Typesense releases; on 0.25.x
+    it silently returns just the schema-declared fields, dropping every
+    dynamically-indexed field.  Omitting ``include_fields`` returns all fields on
+    every version.
+    """
+    return {"exclude_fields": "vec"} if exclude_vec else {}
+
+
 def list_documents(index_id: str, page: int, per_page: int,
                    exclude_vec: bool = False) -> dict:
     """Paginated document listing for an ISP-managed collection, sorted by most recently indexed."""
-    fields = "id, *, metadata" if exclude_vec else "id, *, vec, metadata"
     return get_client().collections[collection_name(index_id)].documents.search({
         "q": "*", "query_by": "title",
         "sort_by": "indexed_at:desc",
         "page": page, "per_page": per_page,
-        "include_fields": fields,
+        **_full_doc_field_params(exclude_vec),
     })
 
 
@@ -886,14 +897,13 @@ def list_documents_external(
     exclude_vec: bool = False,
 ) -> dict:
     """Paginated document listing from an external (non-ISP) Typesense collection."""
-    fields = "id, *, metadata" if exclude_vec else "id, *, vec, metadata"
     params: dict = {
         "q": "*",
         "query_by": query_by or "display",
         "sort_by": "popularity:desc",
         "page": page,
         "per_page": per_page,
-        "include_fields": fields,
+        **_full_doc_field_params(exclude_vec),
     }
     if filter_by:
         params["filter_by"] = filter_by
@@ -919,14 +929,14 @@ def search_external(
     ``filter_by`` is applied to both passes so external source isolation is preserved.
     """
     qb = query_by or "display"
-    fields = "id, *, metadata" if exclude_vec else "id, *, vec, metadata"
+    field_params = _full_doc_field_params(exclude_vec)
     params: dict = {
         "q": q or "*",
         "query_by": qb,
         "num_typos": 2,
         "page": page,
         "per_page": per_page,
-        "include_fields": fields,
+        **field_params,
     }
     if filter_by:
         params["filter_by"] = filter_by
@@ -940,7 +950,7 @@ def search_external(
             "query_by": qb,
             "vector_query": f"vec:([{vec_str}], k:{fetch_n})",
             "per_page": str(fetch_n),
-            "include_fields": fields,
+            **field_params,
         }
         if filter_by:
             sem_params["filter_by"] = filter_by

@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
 
   typesense:
-    image: typesense/typesense:0.25.2
+    image: typesense/typesense:30.2
     container_name: typesense
     volumes:
       - isp-typesense-data:/data
