@@ -5,7 +5,8 @@
  * One entry in the model catalogue returned by GET /v1/settings.
  * ``num_dim`` is the vector dimension the model produces (0 for the "custom"
  * sentinel whose dimension is user-supplied). ``provider`` is one of
- * ``"voyage"``, ``"openai"``, or ``"custom"``.
+ * ``"voyage"``, ``"openai"``, ``"rexbert"``, ``"typesense"`` (built into
+ * Typesense, ids ``ts/*``), or ``"custom"``.
  */
 export interface EmbedModelOption {
   id: string;

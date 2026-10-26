@@ -312,6 +312,7 @@
   .provider-voyage  { background: #1a1a2e; color: #8080e0; }
   .provider-openai  { background: #0d2a1f; color: #41d6a0; }
   .provider-rexbert { background: #1a0d1a; color: #d070d0; }
+  .provider-typesense { background: #0d1a24; color: #4fb3e0; }
   .provider-custom  { background: #1a1a0d; color: #c0b040; }
 
   .dim-warn {

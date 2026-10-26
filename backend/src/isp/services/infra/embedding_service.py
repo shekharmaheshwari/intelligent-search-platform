@@ -4,13 +4,15 @@
 """
 Multi-provider embedding service with a two-tier cache and runtime-swappable model.
 
-Four providers are supported, selected by the active model id:
+Five providers are supported, selected by the active model id:
 
-- **voyage**   — Voyage AI (``voyageai.AsyncClient``); model ids: voyage-3, voyage-3-large, etc.
-- **openai**   — OpenAI Embeddings API (``httpx``); model id: text-embedding-3-small
-- **rexbert**  — RexBERT model family (``httpx``); model ids: rexbert-micro/mini/base/large;
-                 all variants share one configurable endpoint, model id sent as ``model`` field
-- **custom**   — Any OpenAI-compatible endpoint (``httpx``); model id: "custom"
+- **voyage**    — Voyage AI (``voyageai.AsyncClient``); model ids: voyage-3, voyage-3-large, etc.
+- **openai**    — OpenAI Embeddings API (``httpx``); model id: text-embedding-3-small
+- **rexbert**   — RexBERT model family (``httpx``); model ids: rexbert-micro/mini/base/large;
+                  all variants share one configurable endpoint, model id sent as ``model`` field
+- **typesense** — Models built into Typesense, run inside the Typesense container; model ids
+                  start with ``ts/`` (e.g. ts/all-MiniLM-L12-v2).  No key or endpoint needed.
+- **custom**    — Any OpenAI-compatible endpoint (``httpx``); model id: "custom"
 
 Cache hierarchy (fastest → slowest):
   L1: in-process ``cachetools.LRUCache`` — zero-latency for hot queries within
@@ -23,7 +25,7 @@ Redis storage — about 4 KB per 1024-dim vector vs. ~16 KB for JSON.
 
 ``embed_texts`` uses ``input_type="document"`` for Voyage AI (optimised for indexing).
 ``embed_query`` uses ``input_type="query"`` for Voyage AI (optimised for retrieval).
-OpenAI and custom providers do not distinguish input types.
+OpenAI, Typesense built-in and custom providers do not distinguish input types.
 
 If the required API key is empty (voyage_api_key / openai_api_key / custom endpoint)
 both functions return empty lists; callers treat empty vectors as "no embedding available"
@@ -43,6 +45,7 @@ import voyageai
 import redis.asyncio as aioredis
 from cachetools import LRUCache
 from isp.config import settings
+from isp.services.infra import typesense_client
 
 _voyage_client: voyageai.AsyncClient | None = None
 _redis_client: aioredis.Redis | None = None
@@ -157,6 +160,8 @@ def _get_provider(model_id: str | None = None) -> str:
         return "custom"
     if m.startswith("rexbert-"):
         return "rexbert"
+    if m.startswith("ts/"):
+        return "typesense"
     if m == "text-embedding-3-small":
         return "openai"
     return "voyage"
@@ -343,6 +348,15 @@ async def embed_texts(texts: list[str], model: str | None = None) -> list[list[f
                 api_key=_rexbert_api_key,
                 model_name=active_model,  # e.g. "rexbert-base"
             )
+        elif provider == "typesense":
+            # Sync SDK call — run off the event loop.  Batches of 128 keep each
+            # import well inside the Typesense client's 10 s timeout.
+            fresh = []
+            for i in range(0, len(uncached_texts), 128):
+                fresh.extend(await asyncio.to_thread(
+                    typesense_client.embed_with_builtin_model,
+                    active_model, uncached_texts[i:i + 128],
+                ))
         else:  # custom
             fresh = await _call_openai_compat(
                 uncached_texts,
@@ -353,7 +367,8 @@ async def embed_texts(texts: list[str], model: str | None = None) -> list[list[f
 
         for idx, vec in zip(uncached_indices, fresh):
             results[idx] = vec
-            await _cache_set(_cache_key(texts[idx], "document", active_model), vec)
+            if vec:  # never cache a per-text failure (Typesense returns [] for those)
+                await _cache_set(_cache_key(texts[idx], "document", active_model), vec)
 
     return [r or [] for r in results]
 
@@ -410,6 +425,13 @@ async def embed_query(text: str, model: str | None = None) -> list[float]:
             model_name=active_model,
         )
         vec = vecs[0]
+    elif provider == "typesense":
+        vecs = await asyncio.to_thread(
+            typesense_client.embed_with_builtin_model, active_model, [text],
+        )
+        vec = vecs[0]
+        if not vec:
+            return []
     else:  # custom
         vecs = await _call_openai_compat(
             [text],

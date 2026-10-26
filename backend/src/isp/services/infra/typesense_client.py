@@ -181,6 +181,90 @@ def count_documents(index_id: str) -> int:
         return 0
 
 
+# ── Built-in embedding models ────────────────────────────────────────────────
+# Typesense ships ONNX embedding models (``ts/<name>``) that it runs in-process,
+# so they need no API key or external server.  ISP uses them as one more
+# embedding provider rather than as auto-embedding fields on isp_* collections:
+# every consumer of raw vectors (hybrid search, customer-context blending, chat
+# category vectors, the Redis cache) keeps working unchanged.
+#
+# Each model gets one scratch collection whose only job is to run it.  Texts are
+# upserted under fixed ids ``0..n-1`` with ``return_doc=true`` so the import
+# response carries the generated vector; the next call overwrites the same ids,
+# so the collection never grows past one batch.  The ``_isp_embedder_`` prefix
+# keeps it out of both ``isp_*`` scans and external-collection discovery.
+EMBEDDER_COLLECTION_PREFIX = "_isp_embedder_"
+_embedder_ready: set[str] = set()
+
+
+def _embedder_collection_name(model_name: str) -> str:
+    """``ts/all-MiniLM-L12-v2`` → ``_isp_embedder_ts_all_minilm_l12_v2``."""
+    slug = "".join(c if c.isalnum() else "_" for c in model_name.lower())
+    return EMBEDDER_COLLECTION_PREFIX + slug
+
+
+def ensure_embedder_collection(model_name: str) -> str:
+    """
+    Create the scratch collection for ``model_name`` if needed; return its name.
+
+    Creating it is what makes Typesense download (first time only, cached in its
+    data dir) and load the model, which can take well over the shared client's
+    10 s timeout on a slow link — so this one call uses a long-timeout client.
+    """
+    import typesense.exceptions
+    name = _embedder_collection_name(model_name)
+    if name in _embedder_ready:
+        return name
+    slow_client = typesense.Client({
+        "nodes": [{"host": settings.typesense_host, "port": settings.typesense_port, "protocol": "http"}],
+        "api_key": settings.typesense_api_key,
+        "connection_timeout_seconds": 300,
+    })
+    try:
+        slow_client.collections.create({
+            "name": name,
+            "fields": [
+                {"name": "text", "type": "string"},
+                {"name": "vec", "type": "float[]",
+                 "embed": {"from": ["text"], "model_config": {"model_name": model_name}}},
+            ],
+        })
+    except typesense.exceptions.ObjectAlreadyExists:
+        pass
+    _embedder_ready.add(name)
+    return name
+
+
+def embed_with_builtin_model(model_name: str, texts: list[str]) -> list[list[float]]:
+    """
+    Embed ``texts`` with a Typesense built-in model (e.g. ``ts/all-MiniLM-L12-v2``).
+
+    Returns one L2-normalised vector per text, or ``[]`` for a text Typesense
+    could not embed (callers already treat empty vectors as "no embedding").
+    Normalising keeps cosine scores identical while matching the unit-length
+    vectors the other providers return.  Raises if Typesense is unreachable.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+    if not texts:
+        return []
+    name = ensure_embedder_collection(model_name)
+    docs = [{"id": str(i), "text": t} for i, t in enumerate(texts)]
+    results = get_client().collections[name].documents.import_(
+        docs, {"action": "upsert", "return_doc": "true"},
+    )
+    vecs: list[list[float]] = []
+    for r in results:
+        raw = (r.get("document") or {}).get("vec") if r.get("success") else None
+        if not raw:
+            log.error("Typesense built-in embed failure (%s): %s", model_name, r.get("error"))
+            vecs.append([])
+            continue
+        norm = sum(x * x for x in raw) ** 0.5 or 1.0
+        vecs.append([x / norm for x in raw])
+    return vecs
+
+
 # ── Editorial ranking signals ────────────────────────────────────────────────
 # All four post-retrieval ranking levers live in apply_editorial_boosts() so the
 # lexical, hybrid (search_with_vec) and cross-catalog (catalog._rrf_search) paths
