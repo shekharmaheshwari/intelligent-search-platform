@@ -43,5 +43,10 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     jwt_ttl_minutes: int = 480               # 8 hours
 
+    # ── Anonymous telemetry (see README → Telemetry) ──────────────────────────
+    telemetry_enabled: bool = True           # false (or DO_NOT_TRACK=1) disables every ping
+    telemetry_url: str = ""                  # override the built-in collector endpoint
+    do_not_track: str = ""                   # DO_NOT_TRACK=1 (env or .env) disables telemetry
+
 
 settings = Settings()

@@ -194,7 +194,10 @@ async def lifespan(app: FastAPI):
     # Provision the search_suggestions collection used by the autocomplete API.
     ts.ensure_suggestions_collection()
     await _seed_extensions_from_files()
+    from isp.services.infra import telemetry
+    telemetry.start()                 # anonymous, opt-out; never blocks startup
     yield
+    telemetry.stop()
 
 
 app = FastAPI(

@@ -1,0 +1,9 @@
+name = "isp-telemetry"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# D1 database created with `wrangler d1 create isp-telemetry`.
+[[d1_databases]]
+binding = "DB"
+database_name = "isp-telemetry"
+database_id = "2589cb70-32db-4654-aa85-a3ce00700da9"

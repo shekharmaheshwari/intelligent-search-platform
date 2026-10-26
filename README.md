@@ -485,6 +485,45 @@ ISP is safe to run behind a load balancer. A Redis-backed distributed lock preve
 
 ---
 
+## Telemetry
+
+ISP sends an anonymous ping when the API starts and once a day after that, so the project can see how many installs are active, which providers people use, and which organisations' networks they run on. It is **on by default** and easy to turn off.
+
+**Exactly what ISP sends** — nothing else:
+
+| Field | Example |
+|---|---|
+| `event` | `platform_start` or `heartbeat` |
+| `install_id` | random UUID generated on first start (stored in your own Postgres) |
+| `version` | `0.1.0` |
+| `os`, `arch`, `python` | `linux`, `arm64`, `3.12` |
+| `typesense_version` | `30.2` |
+| `embedding_provider`, `chat_provider` | `voyage`, `groq` — provider type only, never keys |
+| `index_count_bucket` | `0`, `1-10`, `11-50`, `50+` |
+
+**Added by the collector:** the collector ([`telemetry-worker/`](telemetry-worker/), a Cloudflare Worker) sees your IP address like any HTTP request. It does **not** store the IP, but it stores what Cloudflare derives from it, next to your `install_id`:
+
+| Stored field | Example |
+|---|---|
+| `org` | network owner, e.g. `T-Mobile USA, Inc.` or `Comcast Cable` |
+| `asn` | that network's ASN, e.g. `21928` |
+| `country` | `US` |
+| `received_at` | ping timestamp |
+
+**Never sent or stored:** documents, queries, index names, URLs, hostnames, API keys, emails, or the IP address itself.
+
+**Turn it off** with either of these in `backend/.env`, then restart the API:
+
+```env
+TELEMETRY_ENABLED=false
+# or the cross-tool standard:
+DO_NOT_TRACK=1
+```
+
+Telemetry is also skipped automatically under CI and tests. The API log states on every start whether it is on or off. Implementation: [`telemetry.py`](backend/src/isp/services/infra/telemetry.py).
+
+---
+
 ## Docs
 
 ### Architecture & codebase
