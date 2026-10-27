@@ -5,14 +5,16 @@
 Persistent key/value settings stored in the ``app_settings`` PostgreSQL table.
 
 This module is the single place responsible for reading and writing application
-settings that need to survive restarts.  Four embedding providers are supported:
+settings that need to survive restarts.  Five embedding providers are supported:
 
-- ``voyage``   — Voyage AI models (default; key from ``VOYAGE_API_KEY`` env var)
-- ``openai``   — OpenAI embeddings API; key stored in ``app_settings`` table
-- ``rexbert``  — RexBERT model family; shared endpoint + optional key stored in
-                 ``app_settings``; model variant sent as the ``model`` field
-- ``custom``   — Any OpenAI-compatible endpoint; endpoint, optional key, model
-                 name and vector dimension are all stored in ``app_settings``
+- ``voyage``    — Voyage AI models (default; key from ``VOYAGE_API_KEY`` env var)
+- ``openai``    — OpenAI embeddings API; key stored in ``app_settings`` table
+- ``rexbert``   — RexBERT model family; shared endpoint + optional key stored in
+                  ``app_settings``; model variant sent as the ``model`` field
+- ``typesense`` — Models built into Typesense (``ts/*``); run inside the Typesense
+                  container, so nothing extra to configure
+- ``custom``    — Any OpenAI-compatible endpoint; endpoint, optional key, model
+                  name and vector dimension are all stored in ``app_settings``
 
 On startup ``load_embed_model()`` is called from the FastAPI lifespan to
 synchronise the in-memory state in ``embedding_service`` and
@@ -32,6 +34,7 @@ from isp.config import settings
 #   "voyage"   → voyageai.AsyncClient
 #   "openai"   → httpx POST to api.openai.com (key stored in app_settings)
 #   "rexbert"  → httpx POST to configurable RexBERT endpoint (stored in app_settings)
+#   "typesense"→ Typesense's own built-in model (id = Typesense model_name, "ts/...")
 #   "custom"   → httpx POST to user-supplied endpoint (config in app_settings)
 
 AVAILABLE_MODELS: list[dict] = [
@@ -104,6 +107,13 @@ AVAILABLE_MODELS: list[dict] = [
         "description": "Largest RexBERT variant — highest quality, 1024-d vectors.",
         "num_dim": 1024,
         "provider": "rexbert",
+    },
+    {
+        "id": "ts/all-MiniLM-L12-v2",
+        "label": "all-MiniLM-L12-v2",
+        "description": "Built into Typesense — runs on the Typesense server, no API key or cost per call. General-purpose, 384-d vectors.",
+        "num_dim": 384,
+        "provider": "typesense",
     },
     {
         "id": "custom",
@@ -302,7 +312,7 @@ async def set_embed_config(
     """
     Persist a new embedding configuration and apply it immediately at runtime.
 
-    Handles all four providers:
+    Handles all five providers:
 
     - **voyage** models — only ``model_id`` is required; Voyage key comes from
       the ``VOYAGE_API_KEY`` environment variable.
@@ -311,6 +321,8 @@ async def set_embed_config(
     - **rexbert** models — ``rexbert_endpoint`` is persisted if provided; all
       four variants share the same endpoint, with the model id sent as the
       ``model`` field.  ``rexbert_api_key`` is optional.
+    - **typesense** built-in models (``ts/*``) — no extra fields; the model is
+      loaded in Typesense before saving, so a failed download raises.
     - **custom** provider — ``custom_endpoint``, ``custom_model_name``, and
       ``custom_num_dim`` are required; ``custom_api_key`` is optional.
 
@@ -334,6 +346,16 @@ async def set_embed_config(
             await set_setting("rexbert_endpoint", rexbert_endpoint)
         if rexbert_api_key is not None:
             await set_setting("rexbert_api_key", rexbert_api_key)
+
+    if provider == "typesense":
+        # Load the model now (first time: Typesense downloads it) so a model that
+        # can't be fetched fails here, before it is saved as the active model.
+        import asyncio
+        from isp.services.infra import typesense_client as _ts
+        try:
+            await asyncio.to_thread(_ts.ensure_embedder_collection, model_id)
+        except Exception as exc:
+            raise ValueError(f"Typesense could not load '{model_id}': {exc}") from exc
 
     if provider == "custom":
         if not custom_endpoint:

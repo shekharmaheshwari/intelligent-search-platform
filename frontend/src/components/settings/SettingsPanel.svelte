@@ -1138,6 +1138,7 @@
   .provider-voyage  { background: #1a1636; color: #9d91f5; border: 1px solid #2e2b55; }
   .provider-openai  { background: #0d1f14; color: #5cdb85; border: 1px solid #1a3322; }
   .provider-rexbert { background: #1a0d1a; color: #d070d0; border: 1px solid #4a1a4a; }
+  .provider-typesense { background: #0d1a24; color: #4fb3e0; border: 1px solid #1a3a4a; }
   .provider-custom  { background: #1a1200; color: #c8a040; border: 1px solid #4a3600; }
 
   .model-desc { margin: 0; font-size: 12px; color: var(--text-5); }

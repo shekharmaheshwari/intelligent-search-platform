@@ -470,6 +470,7 @@ async def discover_external_collections() -> list[IndexMeta]:
 
     Skips:
     - ``isp_*`` collections (ISP-managed)
+    - ``_isp_embedder_*`` scratch collections used by Typesense built-in models
     - Collections already registered as ISP-managed source collections
     - Splits that appear in ``deleted_splits`` (user explicitly removed them)
 
@@ -501,6 +502,8 @@ async def discover_external_collections() -> list[IndexMeta]:
         col_name: str = col["name"]
         if col_name.startswith("isp_"):
             continue  # ISP-managed collection — never auto-discover
+        if col_name.startswith(ts.EMBEDDER_COLLECTION_PREFIX):
+            continue  # scratch collection for a Typesense built-in embedding model
         if col_name in isp_col_names:
             continue
 
