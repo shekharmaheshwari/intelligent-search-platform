@@ -165,6 +165,10 @@ export interface SitemapConnectorConfig {
   meta_fields: Record<string, string>;
   /** Override the default 'ISP-Crawler/1.0' User-Agent. Use a browser UA for sites that block automated crawlers. */
   user_agent: string;
+  /** Crawl workers scale with sitemap size: one worker per this many pages (server default 1000). */
+  pages_per_worker?: number;
+  /** Ceiling on parallel crawl workers (server default 8, max 32). */
+  max_workers?: number;
 }
 
 /**

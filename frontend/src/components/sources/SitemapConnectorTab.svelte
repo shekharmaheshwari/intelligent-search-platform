@@ -19,6 +19,8 @@
   let maxPages        = 50;
   let selector        = '';
   let userAgent       = '';
+  let pagesPerWorker  = 1000;
+  let maxWorkers      = 8;
   let includePatterns: PatternRow[] = [];
   let excludePatterns: PatternRow[] = [];
   let metaFields:      MetaRow[]    = [];
@@ -33,6 +35,8 @@
     maxPages    = s.maxPages;
     selector    = s.selector;
     userAgent   = s.userAgent;
+    pagesPerWorker = s.pagesPerWorker;
+    maxWorkers     = s.maxWorkers;
     includePatterns = initIncludePatterns(connector);
     excludePatterns = initExcludePatterns(connector);
     metaFields      = initMetaFields(connector);
@@ -49,7 +53,7 @@
     saving = true; err = ''; saved = false;
     try {
       const cfg = buildSitemapConfig(
-        { url, maxPages, selector, userAgent },
+        { url, maxPages, selector, userAgent, pagesPerWorker, maxWorkers },
         includePatterns, excludePatterns, metaFields,
       );
       await indexService.saveSitemapConnector(indexId, cfg);
@@ -71,11 +75,21 @@
   <div class="field-row-2col">
     <label class="field">
       Max pages <span class="hint-inline">(optional, default 50)</span>
-      <input type="number" bind:value={maxPages} min="1" max="10000" />
+      <input type="number" bind:value={maxPages} min="1" max="200000" />
     </label>
     <label class="field">
       Content selector <span class="hint-inline">(optional)</span>
       <input bind:value={selector} placeholder="article, .post-content" />
+    </label>
+  </div>
+  <div class="field-row-2col">
+    <label class="field">
+      Pages per worker <span class="hint-inline">(default 1000)</span>
+      <input type="number" bind:value={pagesPerWorker} min="1" max="200000" />
+    </label>
+    <label class="field">
+      Max parallel workers <span class="hint-inline">(default 8, max 32)</span>
+      <input type="number" bind:value={maxWorkers} min="1" max="32" />
     </label>
   </div>
   <label class="field">

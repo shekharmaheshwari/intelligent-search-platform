@@ -700,7 +700,9 @@ Crawls a sitemap XML, extracts page URLs, then scrapes each page.
 | Field | Description |
 |---|---|
 | `url` | Sitemap XML URL |
-| `max_pages` | Maximum pages to crawl (default 100) |
+| `max_pages` | Maximum pages to crawl (default 50, max 200,000) |
+| `pages_per_worker` | One parallel crawl worker per this many pages (default 1000) |
+| `max_workers` | Ceiling on parallel crawl workers (default 8, max 32) |
 | `content_selector` | Optional CSS selector to scope content extraction (e.g. `article, .post-content`) |
 | `include_pattern` | URL substring filter — only crawl URLs that contain this string |
 | `exclude_pattern` | URL substring filter — skip URLs that contain this string |

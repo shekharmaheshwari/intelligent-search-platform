@@ -8,17 +8,28 @@
 POST /v1/indexes/{id}/ingest/sitemap
   │
   ▼
-1. Fetch sitemap XML → parse all <loc> URLs
+1. Fetch sitemap XML (.xml or .xml.gz) → parse all <loc> URLs
+   a <sitemapindex> is followed recursively (≤ 3 levels); child sitemaps are
+   merged and de-duplicated; an unreachable child is skipped, not fatal
   │
   ▼
 2. Filter URLs
    apply include_patterns (URL must match at least one)
    apply exclude_patterns (URL must not match any)
    run filterUrl() JS extension hook (if any assigned)
-   truncate to max_pages (≤ 10,000, default 50)
+   truncate to max_pages (≤ 200,000, default 50)
   │
   ▼
-3. Crawl each page (0.1 s polite delay)
+3. Crawl pages in parallel
+   workers = min(max_workers, ceil(pages / pages_per_worker))   (defaults 8 / 1000)
+   workers pull from one shared queue; each waits 0.1 s between its requests
+   robots.txt Crawl-delay → 1 worker at that delay (fractions round up)
+   HTTP 429/503 → every worker pauses (Retry-After, else 2/4/8 s; cap 60 s),
+                  page retried up to 3 times
+   HTML parsing runs in a pool of worker processes (one per CPU, ≤ workers):
+   BeautifulSoup is CPU-bound, so threads would serialise on the GIL and cap the
+   crawl at one parse at a time (~100 pages/min on 2 MB pages); processes
+   measured ~1,250 pages/min on 6 CPUs
    strip <script> <style> <nav> <footer> <header> <aside>
    extract og:title → <title> → <h1> → URL  (title)
    extract og:description / meta[description]  (prepended to content)
@@ -268,7 +279,7 @@ The **↺ Rebuild** button opens a modal that shows a sitemap form (not the REST
 
 | Layer | File | What changes |
 |---|---|---|
-| Backend model | `backend/src/isp/models/index.py` | `meta_fields`, `user_agent`, `include_patterns`, `exclude_patterns` fields; `max_pages` cap 10,000 |
+| Backend model | `backend/src/isp/models/index.py` | `meta_fields`, `user_agent`, `include_patterns`, `exclude_patterns` fields; `max_pages` cap 200,000; `pages_per_worker`, `max_workers` |
 | Frontend type | `frontend/src/lib/types/index.types.ts` | Matching fields added to `SitemapConnectorConfig` interface |
 | Create UI | `frontend/src/components/sources/CreateWizard.svelte` | Multi-row pattern editors, meta field mapping editor, user agent input |
 | Edit UI | `frontend/src/components/sources/IndexDetail.svelte` | Connector tab with same full form; state uses plain `let` (not `$:`) to prevent Svelte reactive re-derivation from wiping user edits |
@@ -311,16 +322,15 @@ filterUrl()  ← NEW: URL-level JS hook, no HTTP fetch
   e.g. drops URLs not under /newsroom/  →  1,200 remain
   ↓
 truncate to max_pages
-  e.g. max_pages = 500               →  500 to crawl  (cap is 10,000)
+  e.g. max_pages = 500               →  500 to crawl  (cap is 200,000)
   ↓
 crawl 500 pages (fetch HTML)
   ↓
 transform()  ← existing: full doc filter, content-aware
   e.g. drops pages missing og:site_name  →  380 pass
   ↓
-embed 380 docs
-  ↓
-upsert 380 into Typesense
+embed + upsert in batches of 500 while the crawl continues
+  (rebuild drops the old collection only when the first batch is ready)
 ```
 
 ### What each hook can filter on

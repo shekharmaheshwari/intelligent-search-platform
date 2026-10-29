@@ -525,7 +525,7 @@
           <input bind:value={sitemapUrl} placeholder="https://example.com/sitemap.xml" />
         </label>
         <label>Max pages <span class="hint">(optional, default 50)</span>
-          <input type="number" bind:value={sitemapMaxPages} min="1" max="10000" />
+          <input type="number" bind:value={sitemapMaxPages} min="1" max="200000" />
         </label>
         <label>Content CSS selector <span class="hint">(optional)</span>
           <input bind:value={sitemapSelector} placeholder="article, .post-content" />

@@ -74,7 +74,15 @@ class SitemapConnectorConfig(BaseModel):
     """Configuration for a sitemap-based crawler data source."""
     type: Literal["sitemap"] = "sitemap"
     url: str
-    max_pages: int = Field(default=50, ge=1, le=10000)
+    max_pages: int = Field(default=50, ge=1, le=200_000)
+    pages_per_worker: int = Field(
+        default=1000, ge=1, le=200_000,
+        description="Crawl workers scale with sitemap size: one worker per this many pages.",
+    )
+    max_workers: int = Field(
+        default=8, ge=1, le=32,
+        description="Ceiling on parallel crawl workers, to stay polite to the crawled site.",
+    )
     content_selector: Optional[str] = ""
     include_patterns: list[str] = Field(default_factory=list, description="URL must contain at least one of these substrings. Empty list = no filter.")
     exclude_patterns: list[str] = Field(default_factory=list, description="URL must not contain any of these substrings. Empty list = no filter.")

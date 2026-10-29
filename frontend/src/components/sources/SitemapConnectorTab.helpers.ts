@@ -11,6 +11,8 @@ export interface SitemapState {
   maxPages:  number;
   selector:  string;
   userAgent: string;
+  pagesPerWorker: number;
+  maxWorkers:     number;
 }
 
 export function initSitemapFromConnector(connector: Record<string, unknown>): SitemapState {
@@ -19,6 +21,8 @@ export function initSitemapFromConnector(connector: Record<string, unknown>): Si
     maxPages:  Number(connector.max_pages        ?? 50),
     selector:  String(connector.content_selector ?? ''),
     userAgent: String(connector.user_agent       ?? ''),
+    pagesPerWorker: Number(connector.pages_per_worker ?? 1000),
+    maxWorkers:     Number(connector.max_workers      ?? 8),
   };
 }
 
@@ -46,6 +50,8 @@ export function buildSitemapConfig(
     max_pages:        state.maxPages,
     content_selector: state.selector.trim(),
     user_agent:       state.userAgent.trim(),
+    pages_per_worker: state.pagesPerWorker,
+    max_workers:      state.maxWorkers,
     include_patterns: include.map(r => r.value.trim()).filter(Boolean),
     exclude_patterns: exclude.map(r => r.value.trim()).filter(Boolean),
     meta_fields: Object.fromEntries(
