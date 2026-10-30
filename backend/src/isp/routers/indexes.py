@@ -612,6 +612,118 @@ def _build_embed_text(doc: dict) -> str:
     ] if p).strip()
 
 
+async def _embed_in_place(docs: list[dict], model: str) -> None:
+    """Attach ``vec`` to every doc with embeddable text; empty texts are skipped
+    to avoid empty-string rejections from the embedding provider."""
+    raw_texts = [_build_embed_text(d) for d in docs]
+    embed_idxs = [i for i, t in enumerate(raw_texts) if t]
+    if embed_idxs:
+        vecs = await embedding_service.embed_texts(
+            [raw_texts[i] for i in embed_idxs],
+            model=model,
+        )
+        for list_pos, doc_idx in enumerate(embed_idxs):
+            if vecs[list_pos]:
+                docs[doc_idx]["vec"] = vecs[list_pos]
+
+
+# Sitemap pages are embedded and upserted in batches of this size while the
+# crawl continues, so memory stays flat and progress shows up in search early.
+_SITEMAP_BATCH = 500
+
+
+async def _ingest_sitemap_batched(idx_id: str, connector_cfg: dict, cfg: SitemapConnectorConfig,
+                                  ext_records: list[dict], transform_exts: list[dict], s) -> None:
+    """Sitemap ingest: crawl → extensions → embed → **append**, one batch at a time."""
+    # Ensure the Typesense collection exists (idempotent; required for first-ever ingest).
+    ts.create_collection(idx_id)
+    meta = await index_service.get_index(idx_id)
+    # Use this index's dedicated model, or fall back to the global active model.
+    effective_model = (meta.embed_model if meta else "") or embedding_service.get_current_model()
+    static_fields = connector_cfg.get("static_fields", {})
+
+    async def index_batch(batch: list[dict]) -> None:
+        batch = await apply_extensions(batch, transform_exts)
+        # Stamp static_fields after the crawled page data and extensions have been processed.
+        if static_fields:
+            batch = [{**item, **static_fields} for item in batch if isinstance(item, dict)]
+        batch = _ensure_isp_schema(batch)
+        await _embed_in_place(batch, effective_model)
+        # Sync Typesense SDK — off the event loop so crawl workers keep running.
+        s.indexed += await asyncio.to_thread(ts.upsert_documents, idx_id, batch)
+        await index_service.set_status(s)
+
+    def progress(done: int, total: int) -> None:
+        s.total = total
+
+    await sitemap_connector.crawl_batches(cfg, index_batch, batch_size=_SITEMAP_BATCH,
+                                          on_progress=progress, ext_records=ext_records)
+    s.state = "done"
+    # Re-read the index: settings saved while the crawl ran (e.g. on the
+    # Connector tab) must survive.  The connector config itself was already
+    # persisted when the ingest was queued.
+    fresh = await index_service.get_index(idx_id)
+    if fresh:
+        fresh.doc_count = ts.count_documents(idx_id)
+        await index_service.update_index(fresh)
+
+
+async def _rebuild_sitemap_batched(idx_id: str, meta, cfg_dict: dict, cfg: SitemapConnectorConfig,
+                                   ext_records: list[dict], s) -> None:
+    """
+    Sitemap rebuild: crawl → extensions → embed → drop+recreate ``isp_{id}`` → upsert,
+    one batch at a time.
+
+    The collection is dropped only when the first batch is ready, so a sitemap
+    that yields no pages leaves the existing index intact.  A crawl that fails
+    after that point leaves a partially rebuilt index (pages indexed so far).
+    """
+    effective_model = meta.embed_model or embedding_service.get_current_model()
+    if effective_model == "custom":
+        cfg_c = await get_custom_config()
+        rebuild_dim = cfg_c["num_dim"] or ts.get_vec_dim()
+    else:
+        rebuild_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
+    _sf = cfg_dict.get("static_fields", {})
+    recreated = False
+
+    async def index_batch(batch: list[dict]) -> None:
+        nonlocal recreated
+        batch = await apply_extensions(batch, ext_records)
+        if _sf:
+            batch = [{**d, **_sf} for d in batch if isinstance(d, dict)]
+        batch = _ensure_isp_schema(batch)
+        await _embed_in_place(batch, effective_model)
+        if not recreated:
+            await asyncio.to_thread(ts.drop_collection, idx_id)
+            await asyncio.to_thread(ts.create_collection, idx_id, vec_dim=rebuild_dim)
+            recreated = True
+        # Sync Typesense SDK — off the event loop so crawl workers keep running.
+        s.indexed += await asyncio.to_thread(ts.upsert_documents, idx_id, batch)
+        await index_service.set_status(s)
+
+    def progress(done: int, total: int) -> None:
+        s.total = total
+
+    await sitemap_connector.crawl_batches(cfg, index_batch, batch_size=_SITEMAP_BATCH,
+                                          on_progress=progress, ext_records=ext_records)
+    if not recreated:
+        raise ValueError("0 pages crawled — check the sitemap URL and filters.")
+
+    s.state = "done"
+    meta.doc_count = s.indexed
+    meta.is_external = False
+    meta.collection_name = f"isp_{idx_id}"
+    # Persist on a fresh copy so settings saved while the crawl ran (e.g. crawl
+    # workers on the Connector tab) survive; ``meta`` is stale by now.  The
+    # connector config was already persisted when the rebuild started.
+    fresh = await index_service.get_index(idx_id) or meta
+    fresh.doc_count = meta.doc_count
+    fresh.is_external = False
+    fresh.collection_name = meta.collection_name
+    await index_service.update_index(fresh)
+
+
 class FieldUpdate(BaseModel):
     facet:       bool | None = None
     multi_value: bool | None = None
@@ -1156,15 +1268,11 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
                 docs = _ensure_isp_schema(docs)
         elif ctype == "sitemap":
             cfg = SitemapConnectorConfig(**cfg_data)
-            docs = await sitemap_connector.crawl(cfg, on_progress=None, ext_records=ext_records)
-            s.total = len(docs)
+            # Embeds and appends batch by batch while crawling, so it does not
+            # share the collect-everything-then-embed tail below.
+            await _ingest_sitemap_batched(idx_id, connector_cfg, cfg, ext_records, transform_exts, s)
             await index_service.set_status(s)
-            docs = await apply_extensions(docs, transform_exts)
-            # Stamp static_fields after the crawled page data and extensions have been processed.
-            static_fields = connector_cfg.get("static_fields", {})
-            if static_fields:
-                docs = [{**item, **static_fields} for item in docs if isinstance(item, dict)]
-            docs = _ensure_isp_schema(docs)
+            return  # finally still releases the lock
         elif ctype == "gsheet":
             cfg = GSheetConnectorConfig(**cfg_data)
             docs = await gsheet_connector.fetch_and_parse(cfg)
@@ -1380,10 +1488,12 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         # Mapping fields (static_fields, field_map, value_map) are restored from
         # the stored connector AFTER the merge because model_dump() always includes
         # them as empty dicts, which would otherwise overwrite saved values.
+        # Sitemap crawl parallelism (pages_per_worker, max_workers) is restored the
+        # same way: the rebuild form never sends it, so model defaults would win.
         _existing = meta.connectors[0] if meta.connectors else {}
         _merged = dict(_existing)
         _merged.update(cfg_dict)
-        for _f in ("static_fields", "field_map", "value_map"):
+        for _f in ("static_fields", "field_map", "value_map", "pages_per_worker", "max_workers"):
             if _f in _existing:
                 _merged[_f] = _existing[_f]
         cfg_dict = _merged
@@ -1441,49 +1551,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             # ── ISP-managed sitemap path ──
             sitemap_cfg = SitemapConnectorConfig(**cfg_data)
             ext_records = await extension_service.list_index_extensions(idx_id)
-            docs = await sitemap_connector.crawl(sitemap_cfg, on_progress=None, ext_records=ext_records)
-            if not docs:
-                raise ValueError("0 pages crawled — check the sitemap URL and filters.")
-
-            s.total = len(docs)
-            await index_service.set_status(s)
-
-            docs = await apply_extensions(docs, ext_records)
-            _sf = cfg_dict.get("static_fields", {})
-            if _sf:
-                docs = [{**d, **_sf} for d in docs if isinstance(d, dict)]
-            docs = _ensure_isp_schema(docs)
-
-            effective_model = meta.embed_model or embedding_service.get_current_model()
-
-            raw_texts = [_build_embed_text(d) for d in docs]
-            embed_idxs = [i for i, t in enumerate(raw_texts) if t]
-            if embed_idxs:
-                vecs = await embedding_service.embed_texts(
-                    [raw_texts[i] for i in embed_idxs],
-                    model=effective_model,
-                )
-                for list_pos, doc_idx in enumerate(embed_idxs):
-                    if vecs[list_pos]:
-                        docs[doc_idx]["vec"] = vecs[list_pos]
-
-            ts.drop_collection(idx_id)
-            if effective_model == "custom":
-                cfg_c = await get_custom_config()
-                rebuild_dim = cfg_c["num_dim"] or ts.get_vec_dim()
-            else:
-                rebuild_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
-            ts.create_collection(idx_id, vec_dim=rebuild_dim)
-
-            ok = ts.upsert_documents(idx_id, docs)
-            s.indexed = ok
-            s.state = "done"
-
-            meta.doc_count = ok
-            meta.is_external = False
-            meta.collection_name = f"isp_{idx_id}"
-            meta.connectors = [cfg_dict]
-            await index_service.update_index(meta)
+            await _rebuild_sitemap_batched(idx_id, meta, cfg_dict, sitemap_cfg, ext_records, s)
 
         elif ctype == "gsheet":
             # ── ISP-managed Google Sheets path ──

@@ -348,7 +348,7 @@
         <div class="field-row">
           <label class="field" style="flex:1">
             Max pages <span class="hint-inline">(optional, default 50)</span>
-            <input type="number" bind:value={sitemapMaxPages} min="1" max="10000" />
+            <input type="number" bind:value={sitemapMaxPages} min="1" max="200000" />
           </label>
           <label class="field" style="flex:1">
             Content selector <span class="hint-inline">(optional)</span>
