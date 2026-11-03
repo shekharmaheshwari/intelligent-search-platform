@@ -630,6 +630,29 @@ async def _embed_in_place(docs: list[dict], model: str) -> None:
 # Sitemap pages are embedded and upserted in batches of this size while the
 # crawl continues, so memory stays flat and progress shows up in search early.
 _SITEMAP_BATCH = 500
+_PROGRESS_SAVE_INTERVAL = 1.0   # seconds between crawl-progress writes to ingest_status
+
+
+def _crawl_progress(s):
+    """
+    Build an ``on_progress`` callback that records pages crawled on ``s`` and
+    saves it at most once per interval, so the UI moves during the crawl instead
+    of waiting for the first batch to be embedded.
+    """
+    last = 0.0
+    pending: set[asyncio.Task] = set()   # strong refs so writes aren't GC'd mid-flight
+
+    def progress(done: int, total: int) -> None:
+        nonlocal last
+        s.crawled, s.total = done, total
+        now = time.monotonic()
+        if now - last >= _PROGRESS_SAVE_INTERVAL or done == total:
+            last = now
+            task = asyncio.create_task(index_service.set_status(s))
+            pending.add(task)
+            task.add_done_callback(pending.discard)
+
+    return progress
 
 
 async def _ingest_sitemap_batched(idx_id: str, connector_cfg: dict, cfg: SitemapConnectorConfig,
@@ -653,8 +676,7 @@ async def _ingest_sitemap_batched(idx_id: str, connector_cfg: dict, cfg: Sitemap
         s.indexed += await asyncio.to_thread(ts.upsert_documents, idx_id, batch)
         await index_service.set_status(s)
 
-    def progress(done: int, total: int) -> None:
-        s.total = total
+    progress = _crawl_progress(s)
 
     await sitemap_connector.crawl_batches(cfg, index_batch, batch_size=_SITEMAP_BATCH,
                                           on_progress=progress, ext_records=ext_records)
@@ -702,8 +724,7 @@ async def _rebuild_sitemap_batched(idx_id: str, meta, cfg_dict: dict, cfg: Sitem
         s.indexed += await asyncio.to_thread(ts.upsert_documents, idx_id, batch)
         await index_service.set_status(s)
 
-    def progress(done: int, total: int) -> None:
-        s.total = total
+    progress = _crawl_progress(s)
 
     await sitemap_connector.crawl_batches(cfg, index_batch, batch_size=_SITEMAP_BATCH,
                                           on_progress=progress, ext_records=ext_records)

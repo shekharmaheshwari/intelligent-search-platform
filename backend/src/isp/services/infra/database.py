@@ -127,6 +127,10 @@ async def init_db() -> None:
         """)
         # Idempotent column additions — safe to run on existing databases.
         await conn.execute("""
+            ALTER TABLE ingest_status
+            ADD COLUMN IF NOT EXISTS crawled INTEGER DEFAULT 0;
+        """)
+        await conn.execute("""
             ALTER TABLE indexes
             ADD COLUMN IF NOT EXISTS embed_model VARCHAR(50) DEFAULT '';
         """)

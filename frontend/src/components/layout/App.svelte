@@ -258,8 +258,8 @@
   {/if}
 
   {#if showWizard}
-    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
-    <div class="overlay" on:click|self={() => showWizard = false} role="dialog" aria-modal="true">
+    <!-- Closes only via the wizard's ✕ / Cancel, so a stray backdrop click can't lose entered data -->
+    <div class="overlay" role="dialog" aria-modal="true">
       <CreateWizard
         on:done={e => onWizardDone(e.detail)}
         on:cancel={() => showWizard = false}

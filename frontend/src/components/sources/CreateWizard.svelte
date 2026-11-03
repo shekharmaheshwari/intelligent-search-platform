@@ -63,6 +63,8 @@
   let sitemapMaxPages = 100;
   let sitemapSelector = '';
   let sitemapUserAgent = '';
+  let sitemapPagesPerWorker = 1000;
+  let sitemapMaxWorkers = 8;
   let includePatterns: Array<{ value: string }> = [];
   let excludePatterns: Array<{ value: string }> = [];
   let metaFields: Array<{ key: string; value: string }> = [];
@@ -224,6 +226,9 @@
   let statusText = 'Queued...';
   let statusIndexed = 0;
   let statusTotal = 0;
+  let statusCrawled = 0;
+  // Sitemap jobs report pages crawled (indexing lags a batch behind); others report indexed docs.
+  $: progressDone = statusText.startsWith('Done') ? statusTotal : Math.max(statusCrawled, statusIndexed);
 
   // ── Step transitions ─────────────────────────────────────────────────────────
 
@@ -365,6 +370,8 @@
               .map(r => [r.key.trim(), r.value.trim()])
           ),
           user_agent: sitemapUserAgent.trim(),
+          pages_per_worker: sitemapPagesPerWorker,
+          max_workers: sitemapMaxWorkers,
         };
         await indexService.ingestSitemap(indexId, cfg);
       } else if (connectorType === 'gsheet') {
@@ -399,7 +406,7 @@
 
   /**
    * Poll the ingest job status every 1.5 s until it reaches a terminal state.
-   * Updates ``statusText``, ``statusIndexed``, and ``statusTotal`` to drive the step-5 UI.
+   * Updates ``statusText``, ``statusIndexed``, ``statusTotal`` and ``statusCrawled`` to drive the step-6 UI.
    */
   async function pollUntilDone() {
     while (true) {
@@ -408,8 +415,11 @@
         const s = await indexService.getStatus(indexId);
         statusIndexed = s.indexed;
         statusTotal = s.total;
+        statusCrawled = s.crawled ?? 0;
         if (s.state === 'running') {
-          statusText = `Indexing ${s.indexed} / ${s.total || '…'} documents`;
+          statusText = statusCrawled > 0
+            ? `Crawled ${statusCrawled} / ${s.total} pages · ${s.indexed} indexed`
+            : `Indexing ${s.indexed} / ${s.total || '…'} documents`;
         } else if (s.state === 'done') {
           statusText = `Done — ${s.indexed} documents indexed`;
           break;
@@ -526,6 +536,12 @@
         </label>
         <label>Max pages <span class="hint">(optional, default 50)</span>
           <input type="number" bind:value={sitemapMaxPages} min="1" max="200000" />
+        </label>
+        <label>Pages per worker <span class="hint">(default 1000)</span>
+          <input type="number" bind:value={sitemapPagesPerWorker} min="1" max="200000" />
+        </label>
+        <label>Max parallel workers <span class="hint">(default 8, max 32)</span>
+          <input type="number" bind:value={sitemapMaxWorkers} min="1" max="32" />
         </label>
         <label>Content CSS selector <span class="hint">(optional)</span>
           <input bind:value={sitemapSelector} placeholder="article, .post-content" />
@@ -847,8 +863,9 @@
         <p class="status">{statusText}</p>
         {#if statusTotal > 0}
           <div class="progress-bar">
-            <div class="fill" style="width:{(statusIndexed/statusTotal*100).toFixed(0)}%"></div>
+            <div class="fill" style="width:{(progressDone/statusTotal*100).toFixed(0)}%"></div>
           </div>
+          <p class="hint">{(progressDone/statusTotal*100).toFixed(0)}%</p>
         {/if}
       {/if}
       {#if statusText.startsWith('Done') || errMsg}
@@ -863,9 +880,9 @@
     background: var(--bg-3);
     border: 1px solid var(--border-2);
     border-radius: 12px;
-    width: 520px;
+    width: 760px;
     max-width: 95vw;
-    max-height: 90vh;
+    max-height: 92vh;
     overflow-y: auto;
   }
   .wizard-head {
@@ -1230,7 +1247,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .status { font-size: 14px; color: var(--text-3); margin: 0; }
   .progress-bar {
-    width: 100%; height: 4px; background: var(--border-2); border-radius: 2px; overflow: hidden; margin-top: 8px;
+    width: 100%; height: 8px; background: var(--border-2); border-radius: 4px; overflow: hidden; margin-top: 8px;
   }
   .fill { height: 100%; background: var(--accent); transition: width 0.4s; }
 
