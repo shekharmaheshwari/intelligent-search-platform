@@ -180,6 +180,8 @@ export interface IngestStatus {
   state: 'idle' | 'queued' | 'running' | 'done' | 'error';
   total: number;
   indexed: number;
+  /** Sitemap only: pages fetched so far. */
+  crawled?: number;
   error: string;
 }
 

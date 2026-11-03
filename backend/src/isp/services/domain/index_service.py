@@ -430,15 +430,16 @@ async def set_status(status: IngestStatus) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO ingest_status (index_id, state, total, indexed, error)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO ingest_status (index_id, state, total, indexed, crawled, error)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (index_id) DO UPDATE SET
                 state   = EXCLUDED.state,
                 total   = EXCLUDED.total,
                 indexed = EXCLUDED.indexed,
+                crawled = EXCLUDED.crawled,
                 error   = EXCLUDED.error
         """,
-            status.index_id, status.state, status.total, status.indexed, status.error,
+            status.index_id, status.state, status.total, status.indexed, status.crawled, status.error,
         )
         if status.state == "done":
             # A completed ingest/rebuild may have changed this index's

@@ -241,6 +241,7 @@ class IngestStatus(BaseModel):
     state: str = "idle"      # idle | queued | running | done | error
     total: int = 0
     indexed: int = 0
+    crawled: int = 0         # sitemap only: pages fetched so far (indexed lags by one batch)
     error: str = ""
 
 
