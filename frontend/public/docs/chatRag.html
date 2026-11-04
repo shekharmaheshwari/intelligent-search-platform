@@ -96,6 +96,7 @@
         <li><a href="#s18">18. Embedding Enrichment</a></li>
         <li><a href="#s19">19. Follow-up Detection</a></li>
         <li><a href="#s20">20. Chat API Reference</a></li>
+        <li><a href="#s21">21. AI Overview in Search</a></li>
       </ul>
     </nav>
 
@@ -505,8 +506,8 @@ Customer message: "plants safe for cats under $30"
 │       ├── Step 2: _system_prompt(context)                              │
 │       │       Assembles: role + product list + question                │
 │       │                                                                │
-│       └── Step 3: route to provider                                    │
-│               │                                                        │
+│       └── Step 3: route to provider  (services/infra/llm/router.py,    │
+│               │    shared with AI Overview — see section 21)           │
 │               ├── anthropic_chat.py  ──────────────►  Anthropic API   │
 │               ├── google_chat.py     ──────────────►  Gemini API      │
 │               └── openai_compat.py   ──────────────►  OpenAI / Groq   │
@@ -755,6 +756,7 @@ data: [DONE]</pre>
 │
 ├── routers/
 │   ├── chat.py                  ← POST /v1/indexes/{id}/chat (SSE endpoint)
+│   ├── overview.py              ← POST /v1/indexes/{id}/search/overview (SSE)
 │   └── settings.py              ← GET/PUT /v1/settings/chat (added)
 │
 ├── services/
@@ -762,9 +764,12 @@ data: [DONE]</pre>
 │   │   └── settings_service.py  ← AVAILABLE_CHAT_MODELS, get/set/load_chat_config()
 │   │
 │   └── infra/
+│       ├── llm/
+│       │   └── router.py            ← provider dispatch, shared by chat + AI Overview
+│       ├── overview/                ← AI Overview (section 21): service, cache, prompts.json
 │       └── chat/
 │           ├── __init__.py
-│           ├── service.py           ← dispatcher + RAG pipeline
+│           ├── service.py           ← RAG pipeline (calls llm/router.py)
 │           └── providers/
 │               ├── __init__.py
 │               ├── anthropic_chat.py    ← Anthropic SDK (~35 lines)
@@ -773,7 +778,7 @@ data: [DONE]</pre>
 │                                          and all self-hosted servers (~30 lines)
 │
 └── auth/
-    └── middleware.py            ← /v1/indexes/{id}/chat added to public routes</pre>
+    └── middleware.py            ← /chat and /search/overview added to public routes</pre>
 
       <h3>Why providers are split into separate files</h3>
       <p>Each paid provider uses a completely different SDK with different authentication, streaming format, and message structure:</p>
@@ -1065,6 +1070,10 @@ These two systems share no state. You can:
           <tr><td><code>chat_api_key</code></td><td>string</td><td><code>""</code></td><td>API key (never returned by API)</td></tr>
           <tr><td><code>chat_endpoint</code></td><td>string</td><td><code>""</code></td><td>Self-hosted endpoint URL</td></tr>
           <tr><td><code>chat_smart_followup</code></td><td>string</td><td><code>"false"</code></td><td><code>"true"</code> enables Smart Follow-up mode</td></tr>
+          <tr><td><code>chat_multi_intent_split</code></td><td>string</td><td><code>"false"</code></td><td><code>"true"</code> splits multi-category messages into a search per category</td></tr>
+          <tr><td><code>chat_llm_response</code></td><td>string</td><td><code>"true"</code></td><td><code>"false"</code> returns cards only — no LLM call of any kind</td></tr>
+          <tr><td><code>chat_local_query_router</code></td><td>string</td><td><code>"false"</code></td><td><code>"true"</code> answers recognised product searches locally, skipping the LLM</td></tr>
+          <tr><td><code>chat_ai_overview</code></td><td>string</td><td><code>"false"</code></td><td><code>"true"</code> enables AI Overview in search (section 21). Effective only while <code>chat_llm_response</code> is on</td></tr>
         </tbody>
       </table>
 
@@ -1507,6 +1516,56 @@ data: {"type": "text", "content": " some…"}
 data: [DONE]                                 ← stream closed</pre>
       <p>The <code>products</code> chunk always arrives first so the UI can render cards immediately while the LLM answer is still streaming.</p>
       <p>Auth: <strong>public</strong> — no JWT required. This endpoint is called by PLP shoppers who do not have admin tokens. The <code>vec</code> embedding field is never included in chat responses.</p>
+
+      <!-- ── Section 21 ── -->
+      <h2 id="s21">21. AI Overview in Search</h2>
+      <p>A short, cited LLM summary shown above search results — like a search engine's AI overview. It reuses the chat model but none of the chat pipeline: it's one LLM call over the top hits, with no conversation, cards or follow-ups.</p>
+
+<pre>Search UI (admin Search panel / PLP)
+   │  1. POST /search/public          → results render immediately
+   │  2. POST /search/overview        → { q, doc_ids: top hits in rank order }
+   ▼
+routers/overview.py ── 409 unless Settings → Chat Model → "AI Overview in search" is ON
+   │
+services/infra/overview/service.py
+   ├── fetch top 6 docs        ISP: isp_{id}  ·  external: external_collection ∩ external_filter
+   ├── skip rules              &lt; 3 chars · navigational ("login", "sign in"…) · no hits → no LLM call
+   ├── source text             chatContent if present, else content (1,500 chars each)
+   ├── Redis cache (24h)       key = model + prompt version + index + query + hit ids + source digest
+   └── llm/router.stream()     same provider/model as chat
+   ▼
+SSE: sources → text tokens → done {cached}</pre>
+
+      <h3>Why it's separate from <code>/search</code></h3>
+      <p>Search answers in milliseconds; an LLM takes seconds. Keeping the overview on its own endpoint means search latency and the public search API are unchanged — the UI shows results first and the overview streams in above them.</p>
+
+      <h3>Switches</h3>
+      <table>
+        <thead><tr><th>Where</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>Settings → Chat Model → <em>AI Overview in search</em></td><td>Global on/off (off by default). Needs a provider and <em>LLM-generated answers</em> ON. Off → endpoint returns <code>409</code>, no LLM call.</td></tr>
+          <tr><td>Admin Search panel → <strong>✦ AI Overview</strong></td><td>Per-viewer toggle next to hybrid / lexical / semantic, remembered in the browser. Shown only when the global switch is on.</td></tr>
+          <tr><td>PLP</td><td>Shown automatically on page 1 of any search with a query. Shoppers can hide it; citations open the product quick view.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Cost controls</h3>
+      <ul>
+        <li>At most 6 sources, 1,500 characters each — roughly 2–3k input tokens per overview.</li>
+        <li>No LLM call for very short or navigational queries, or when there are no hits. Edit <code>skip_queries</code> in <code>overview/prompts.json</code>.</li>
+        <li>Answers cached in Redis for 24h. The key includes a digest of the source text, so a changed price or rebuilt document regenerates instead of serving stale facts; editing the prompt retires old answers too.</li>
+      </ul>
+
+      <h3>SSE response stream</h3>
+<pre>data: {"type": "sources", "sources": [{"n": 1, "id": "…", "title": "…", "url": "…"}, …]}
+data: {"type": "text", "content": "Roaming is "}       ← streamed tokens; [n] cites sources[n]
+data: {"type": "done", "cached": false}
+data: [DONE]
+
+or:   {"type": "skipped", "reason": "query_too_short | navigational | no_results"}
+or:   {"type": "error",   "content": "AI overview is unavailable right now."}</pre>
+      <p>Auth: <strong>public</strong>, like chat, because the PLP calls it for anonymous shoppers. The global switch is the off switch.</p>
+      <p>Prompt wording lives in <code>services/infra/overview/prompts.json</code>. When a query asks for several things (e.g. "case and screen protector") and the hits cover only some, the overview summarises what's there and says what's missing.</p>
 
     </div>
   </div>

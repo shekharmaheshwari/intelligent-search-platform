@@ -268,6 +268,9 @@ class ChatConfigUpdate(BaseModel):
                                 LLM call of any kind (no follow-up rewrite, no answer
                                 text) and no provider needs to be configured at all.
                                 True by default — opt-out, unlike the two toggles above.
+    - ``ai_overview``         — when True, search can request a short AI summary of its
+                                top results (POST /indexes/{id}/search/overview). Needs
+                                ``llm_response`` on. Omit to keep the stored value.
     """
     provider:           str
     model:              str        = ""
@@ -277,6 +280,7 @@ class ChatConfigUpdate(BaseModel):
     multi_intent_split: bool       = False
     llm_response:       bool       = True
     local_query_router: bool       = False
+    ai_overview:        bool | None = None
 
 
 class ChatConfigResponse(BaseModel):
@@ -288,6 +292,7 @@ class ChatConfigResponse(BaseModel):
     multi_intent_split: bool
     llm_response:       bool
     local_query_router: bool
+    ai_overview:        bool
     available_models:   list[dict]
 
 
@@ -304,6 +309,7 @@ async def get_chat_settings() -> ChatConfigResponse:
         multi_intent_split=cfg.get("multi_intent_split", False),
         llm_response=cfg.get("llm_response", True),
         local_query_router=cfg.get("local_query_router", False),
+        ai_overview=cfg.get("ai_overview", False),
         available_models=AVAILABLE_CHAT_MODELS,
     )
 
@@ -351,6 +357,7 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
         multi_intent_split=body.multi_intent_split,
         llm_response=body.llm_response,
         local_query_router=body.local_query_router,
+        ai_overview=body.ai_overview,
     )
     cfg = await get_chat_config()
     return ChatConfigResponse(
@@ -362,6 +369,7 @@ async def update_chat_settings(body: ChatConfigUpdate) -> ChatConfigResponse:
         multi_intent_split=cfg.get("multi_intent_split", False),
         llm_response=cfg.get("llm_response", True),
         local_query_router=cfg.get("local_query_router", False),
+        ai_overview=cfg.get("ai_overview", False),
         available_models=AVAILABLE_CHAT_MODELS,
     )
 

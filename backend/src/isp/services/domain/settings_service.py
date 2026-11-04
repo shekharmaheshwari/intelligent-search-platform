@@ -455,6 +455,14 @@ _multi_intent_split_enabled: bool = False
 # no chat provider required at all. See chat/service.py's _llm_response_enabled.
 _llm_response_enabled: bool = True
 _local_query_router_enabled: bool = False
+# AI overview above search results — opt-in (each overview is an LLM call).
+# Effective only while llm_response is on, so that one switch stops all LLM spend.
+_ai_overview_enabled: bool = False
+
+
+def _apply_overview() -> None:
+    from isp.services.infra.overview import service as overview_service
+    overview_service.configure(enabled=_ai_overview_enabled and _llm_response_enabled)
 
 
 def get_smart_followup_enabled() -> bool:
@@ -478,6 +486,7 @@ async def get_chat_config() -> dict:
         "api_key_set": key_set, "smart_followup": smart_followup,
         "multi_intent_split": multi_intent_split, "llm_response": llm_response,
         "local_query_router": (await get_setting("chat_local_query_router") or "false").lower() == "true",
+        "ai_overview": (await get_setting("chat_ai_overview") or "false").lower() == "true",
     }
 
 
@@ -491,9 +500,11 @@ async def set_chat_config(
     multi_intent_split: bool | None = None,
     llm_response: bool | None = None,
     local_query_router: bool | None = None,
+    ai_overview: bool | None = None,
 ) -> None:
     """Persist chat provider configuration and apply it immediately at runtime."""
     global _smart_followup_enabled, _multi_intent_split_enabled, _llm_response_enabled, _local_query_router_enabled
+    global _ai_overview_enabled
     await set_setting("chat_provider", provider)
     await set_setting("chat_model",    model)
     if api_key is not None:
@@ -513,6 +524,9 @@ async def set_chat_config(
     if local_query_router is not None:
         _local_query_router_enabled = local_query_router
         await set_setting("chat_local_query_router", "true" if local_query_router else "false")
+    if ai_overview is not None:
+        _ai_overview_enabled = ai_overview
+        await set_setting("chat_ai_overview", "true" if ai_overview else "false")
 
     from isp.services.infra.chat import service as chat_service
     stored_key      = await get_setting("chat_api_key")  or ""
@@ -527,11 +541,13 @@ async def set_chat_config(
         llm_response=_llm_response_enabled,
         local_query_router=_local_query_router_enabled,
     )
+    _apply_overview()
 
 
 async def load_chat_config() -> None:
     """Restore chat provider state from DB on startup."""
     global _smart_followup_enabled, _multi_intent_split_enabled, _llm_response_enabled, _local_query_router_enabled
+    global _ai_overview_enabled
     provider  = await get_setting("chat_provider")           or "none"
     model     = await get_setting("chat_model")              or ""
     api_key   = await get_setting("chat_api_key")            or ""
@@ -543,6 +559,7 @@ async def load_chat_config() -> None:
     raw_llm   = await get_setting("chat_llm_response")       or "true"
     _llm_response_enabled = raw_llm.lower() == "true"
     _local_query_router_enabled = (await get_setting("chat_local_query_router") or "false").lower() == "true"
+    _ai_overview_enabled = (await get_setting("chat_ai_overview") or "false").lower() == "true"
 
     from isp.services.infra.chat import service as chat_service
     chat_service.set_chat_config(
@@ -555,6 +572,7 @@ async def load_chat_config() -> None:
         llm_response=_llm_response_enabled,
         local_query_router=_local_query_router_enabled,
     )
+    _apply_overview()
 
 
 async def get_chat_api_key_for_agent() -> str:

@@ -511,6 +511,36 @@ Search endpoint for both ISP-managed and external indexes.  Routes to either `se
 |---|---|---|
 | POST | `/v1/indexes/{id}/search` | `{"q": "...", "mode": "hybrid\|lexical\|semantic", "page": 1, "per_page": 10}` |
 
+#### AI Overview
+
+**File:** `backend/src/isp/routers/overview.py` → `services/infra/overview/`
+
+A short, cited LLM summary of the top search hits, streamed as SSE. It's kept off `/search` so
+search latency and the public search API are unchanged: the UI renders results first, then
+asks for the overview of the hits it already has.
+
+| Method | Path | Body |
+|---|---|---|
+| POST | `/v1/indexes/{id}/search/overview` | `{"q": "...", "doc_ids": ["<top hit ids, rank order>"]}` |
+
+- **Switch:** Settings → Chat Model → *AI Overview in search* (`ai_overview`, off by default). It needs
+  a chat provider and *LLM-generated answers* ON. When off, the endpoint returns `409` with no LLM call.
+- **Auth:** open without a JWT, like `/chat`, because the PLP calls it for anonymous shoppers
+  (`auth/middleware.py`). The Settings switch is the off switch.
+- **Sources:** ISP-managed indexes read `isp_{id}`. External indexes read `external_collection`
+  restricted to `external_filter` (ids outside the scope are dropped) and map fields with
+  `_map_external_doc`. Each source's text is `chatContent` when present (price, compatibility,
+  stock), else `content`.
+- **Model:** the chat model, via `services/infra/llm/router.py` — the provider dispatch chat and
+  overview share. Overview imports nothing else from chat.
+- **Cost:** uses the first 6 hits, 1,500 characters each. No LLM call for queries under 3 characters,
+  navigational queries (`skip_queries` in `overview/prompts.json`) or zero hits. Answers are cached
+  in Redis for 24h, keyed on model + prompt version + index + normalised query + hit ids + a digest
+  of the source text — so editing the prompt, or a changed price or rebuilt doc, is a cache miss.
+- **Prompt:** `overview/prompts.json`. When a query asks for several things and the hits cover only
+  some, the overview summarises what's there and says what's missing.
+- **Events:** `skipped` · `sources` · `text` (tokens) · `done {cached}` · `error`, then `[DONE]`.
+
 ---
 
 ## 11. Backend — Services
@@ -1096,6 +1126,10 @@ Standalone search UI inside `IndexDetail`.  Simpler than `SourceContent` — fir
 | `search()` | Calls `api.search()` and renders result cards |
 | `onKeydown(e)` | Submits on Enter |
 | `excerpt(text, max=160)` | Truncates with ellipsis |
+
+When *AI Overview in search* is on in Settings, an **✦ AI Overview** toggle appears next to the
+mode buttons (remembered per browser). With it on, `AIOverview.svelte` streams the summary above
+the results; clicking an `[n]` citation scrolls to that result card.
 
 ---
 

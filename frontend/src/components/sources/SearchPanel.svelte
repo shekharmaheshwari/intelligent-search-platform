@@ -9,10 +9,15 @@
    *
    * Renders a query input, hybrid/lexical/semantic mode toggle, and result cards.
    * Simpler than the SourceContent search bar — no pagination, just the first page.
+   * The optional AI Overview toggle (shown when enabled in Settings → Chat Model)
+   * mounts <AIOverview> above the results; search itself never waits on it.
    */
+  import { onMount } from 'svelte';
+  import { api } from '../../lib/api';
   import { indexService } from '../../lib/services/indexes/IndexService';
   import type { DocumentItem } from '../../lib/types';
   import { excerpt } from './SearchPanel.helpers';
+  import AIOverview from './AIOverview.svelte';
 
   export let indexId: string;
 
@@ -25,17 +30,45 @@
   let searched = false;
   let errMsg = '';
 
+  const OVERVIEW_PREF_KEY = 'isp-search-ai-overview';
+  let overviewAvailable = false;   // Settings switch on + chat model configured
+  let overviewOn = false;          // this viewer's toggle, remembered locally
+  let overviewQuery = '';          // set only on a completed search, so typing never triggers it
+  let overviewIds: string[] = [];
+
+  onMount(async () => {
+    try { overviewOn = localStorage.getItem(OVERVIEW_PREF_KEY) === '1'; } catch { /* storage blocked */ }
+    try {
+      const cfg = await api.getChatConfig();
+      overviewAvailable = cfg.ai_overview && cfg.llm_response && cfg.provider !== 'none';
+    } catch { /* chat settings unavailable — leave the toggle hidden */ }
+  });
+
+  function toggleOverview() {
+    overviewOn = !overviewOn;
+    try { localStorage.setItem(OVERVIEW_PREF_KEY, overviewOn ? '1' : '0'); } catch { /* storage blocked */ }
+  }
+
+  let searchSeq = 0;
+
   async function search() {
-    if (!q.trim()) return;
+    // Capture the submitted query: the user may keep typing while the search runs,
+    // and the overview must describe the query these results are for.
+    const submitted = q.trim();
+    if (!submitted) return;
+    const seq = ++searchSeq;
     loading = true; errMsg = ''; searched = true;
     try {
-      const res = await indexService.search(indexId, q.trim(), mode);
+      const res = await indexService.search(indexId, submitted, mode);
+      if (seq !== searchSeq) return;   // a newer search started — its results win
       results = res.hits.map(h => h.document);
       found = res.found;
+      overviewQuery = submitted;
+      overviewIds = results.map(d => String(d.id));
     } catch (e) {
-      errMsg = String(e);
+      if (seq === searchSeq) errMsg = String(e);
     } finally {
-      loading = false;
+      if (seq === searchSeq) loading = false;
     }
   }
 
@@ -57,6 +90,10 @@
         <button class:sel={mode === m} on:click={() => mode = m}>{m}</button>
       {/each}
     </div>
+    {#if overviewAvailable}
+      <button class="ai-toggle" class:sel={overviewOn} on:click={toggleOverview}
+        aria-pressed={overviewOn} title="Show an AI summary of the top results">✦ AI Overview</button>
+    {/if}
     <button class="btn-search" on:click={search} disabled={loading}>Search</button>
   </div>
 
@@ -67,10 +104,13 @@
   {:else if searched && results.length === 0}
     <div class="empty">No results for "{q}"</div>
   {:else if results.length > 0}
+    {#if overviewAvailable && overviewOn}
+      <AIOverview {indexId} query={overviewQuery} docIds={overviewIds} />
+    {/if}
     <div class="result-meta">{found.toLocaleString()} results</div>
     <div class="results">
       {#each results as doc}
-        <div class="result">
+        <div class="result" id="result-{doc.id}">
           <div class="result-title">
             {#if doc.url}
               <a href={doc.url} target="_blank" rel="noopener">{doc.title || doc.url}</a>
@@ -129,6 +169,16 @@
     cursor: pointer;
   }
   .btn-search:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ai-toggle {
+    background: transparent;
+    border: 1px solid var(--border-2);
+    border-radius: 7px;
+    color: var(--text-4);
+    padding: 7px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .ai-toggle.sel { border-color: var(--accent); color: var(--accent); background: var(--bg-3); }
   .empty { color: var(--text-5); font-size: 13px; text-align: center; padding: 32px 0; }
   .err { color: var(--danger-text); font-size: 12px; }
   .result-meta { font-size: 12px; color: var(--text-5); }
@@ -148,5 +198,7 @@
   .result-title a:hover { text-decoration: underline; }
   .result-title span { color: var(--text-2); font-size: 14px; font-weight: 500; }
   .result-url { font-size: 11px; color: var(--text-6); margin: 3px 0 6px; }
+  .result { transition: box-shadow 0.3s; }
+  :global(.result.cited) { box-shadow: 0 0 0 2px var(--accent); }
   .result-snippet { font-size: 13px; color: var(--text-4); line-height: 1.5; }
 </style>

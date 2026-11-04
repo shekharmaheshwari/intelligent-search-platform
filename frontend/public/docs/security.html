@@ -366,6 +366,7 @@ aws secretsmanager create-secret --name isp/JWT_SECRET \
 │                                                                   │
 │  /v1/catalog/*, /v1/analytics/*,           → open (no auth)       │
 │  /v1/intent/*, /v1/indexes/*/search/public   (PLP-facing routes)  │
+│  /v1/indexes/*/chat, */search/overview                            │
 │                                                                   │
 │  All other /v1/*                           → OAuth2 JWT required  │
 │  (indexes, rebuild, extensions, settings)    (Bearer header)      │
@@ -464,7 +465,7 @@ PUBLIC_AUTH_ENABLED=false</code></pre>
       </div>
 
       <h2 id="api-keys">API keys — infrastructure ready, enforcement coming</h2>
-      <p>The API key system is fully built but not yet enforced. PLP-facing routes (<code>/search/public</code>, <code>/catalog</code>, <code>/analytics</code>, <code>/intent</code>) are currently open without any key. API key enforcement will be added in a future update once the key management UI is built.</p>
+      <p>The API key system is fully built but not yet enforced. PLP-facing routes (<code>/search/public</code>, <code>/catalog</code>, <code>/analytics</code>, <code>/intent</code>, <code>/chat</code>, <code>/search/overview</code>) are currently open without any key. Chat and AI Overview call the configured LLM, so their cost is bounded by Settings: AI Overview returns <code>409</code> with no LLM call unless it is switched on, and repeated overview queries are served from cache. API key enforcement will be added in a future update once the key management UI is built.</p>
       <h3>What's already built</h3>
       <ul>
         <li><code>api_keys</code> table in PostgreSQL — stores SHA-256 hashes, never plaintext</li>
