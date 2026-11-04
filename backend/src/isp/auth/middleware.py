@@ -10,6 +10,7 @@ Route protection rules (evaluated in order):
   3. /v1/catalog/*, /v1/analytics/*, /v1/intent/*, /v1/suggest/* → open (PLP-facing, no auth)
   4. /v1/indexes/{id}/search/public                  → open (external search, no auth)
      /v1/indexes/{id}/facets                         → open (PLP-facing facet counts, no auth)
+     /v1/indexes/{id}/chat, /search/overview         → open (PLP-facing; overview gated by Settings)
      Future: enforce X-Api-Key here when API key management UI is built.
   5. /v1/*                                           → JWT required (Bearer header)
   6. Everything else                                 → open
@@ -43,6 +44,8 @@ _SEARCH_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/search/public$")
 _FACETS_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/facets$")
 _FIELDS_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/fields/public$")
 _CHAT_PUBLIC    = re.compile(r"^/v1/indexes/[^/]+/chat$")   # PLP-facing, called by end users
+# PLP-facing AI overview; returns 409 (no LLM call) unless enabled in Settings → Chat Model
+_OVERVIEW_PUBLIC = re.compile(r"^/v1/indexes/[^/]+/search/overview$")
 
 
 def _extract_token(request: Request) -> str | None:
@@ -69,8 +72,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(p) for p in _PUBLIC_API_PREFIXES):
             return await call_next(request)
 
-        # Public search, facets, fields, and chat endpoints — open without auth
-        if _SEARCH_PUBLIC.match(path) or _FACETS_PUBLIC.match(path) or _FIELDS_PUBLIC.match(path) or _CHAT_PUBLIC.match(path):
+        # Public search, facets, fields, chat and AI overview endpoints — open without auth
+        if (_SEARCH_PUBLIC.match(path) or _FACETS_PUBLIC.match(path) or _FIELDS_PUBLIC.match(path)
+                or _CHAT_PUBLIC.match(path) or _OVERVIEW_PUBLIC.match(path)):
             return await call_next(request)
 
         # Admin routes — JWT

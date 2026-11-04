@@ -51,6 +51,7 @@
   let chatMultiIntentSplit = false;
   let chatLlmResponse      = true;
   let chatLocalQueryRouter = false;
+  let chatAiOverview       = false;
   let chatSaving        = false;
   let chatSaved         = false;
   let chatErr           = '';
@@ -65,6 +66,7 @@
       chatMultiIntentSplit = chatConfig.multi_intent_split ?? false;
       chatLlmResponse      = chatConfig.llm_response ?? true;
       chatLocalQueryRouter = chatConfig.local_query_router ?? false;
+      chatAiOverview       = chatConfig.ai_overview ?? false;
     } catch { /* ignore — chat may not be deployed yet */ }
   }
 
@@ -80,6 +82,7 @@
         multiIntentSplit:  chatMultiIntentSplit,
         llmResponse:       chatLlmResponse,
         localQueryRouter:  chatLocalQueryRouter,
+        aiOverview:        chatAiOverview,
       });
       chatProvider         = chatConfig.provider;
       chatModel            = chatConfig.model;
@@ -88,6 +91,7 @@
       chatMultiIntentSplit = chatConfig.multi_intent_split ?? false;
       chatLlmResponse      = chatConfig.llm_response ?? true;
       chatLocalQueryRouter = chatConfig.local_query_router ?? false;
+      chatAiOverview       = chatConfig.ai_overview ?? false;
       chatApiKey        = '';
       chatSaved         = true;
     } catch (e) {
@@ -105,6 +109,7 @@
                         chatMultiIntentSplit !== (chatConfig?.multi_intent_split ?? false)  ||
                         chatLocalQueryRouter !== (chatConfig?.local_query_router ?? false) ||
                         chatLlmResponse      !== (chatConfig?.llm_response       ?? true)   ||
+                        chatAiOverview       !== (chatConfig?.ai_overview        ?? false)  ||
                         chatApiKey.trim() !== ''                                     ||
                         (chatIsSelfHosted && chatEndpoint !== (chatConfig?.endpoint ?? ''));
 
@@ -986,6 +991,25 @@
             <span class="toggle-track">
               <span class="toggle-thumb"></span>
             </span>
+          </label>
+        </div>
+
+        <!-- AI Overview toggle -->
+        <div class="cc-row" style="margin-top:20px">
+          <div class="cc-label-col">
+            <span class="cc-label">AI Overview in search</span>
+            <span class="cc-desc">
+              When ON, search can show a short AI summary above the results, grounded in
+              the top results with [1]-style citations. Uses the chat model above — one LLM
+              call per new query, and repeated queries are served from cache. Needs a
+              provider and LLM-generated answers ON. OFF by default.
+            </span>
+          </div>
+          <label class="toggle" class:toggle-disabled={chatSaving || chatProvider === 'none' || !chatLlmResponse}>
+            <input type="checkbox" bind:checked={chatAiOverview}
+              disabled={chatSaving || chatProvider === 'none' || !chatLlmResponse}
+              aria-label="AI Overview in search" />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
           </label>
         </div>
 

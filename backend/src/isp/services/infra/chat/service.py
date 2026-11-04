@@ -17,13 +17,7 @@ directly (query rewriting, multi-intent confirmation), and chat_stream()
 itself — the entry point that decides retrieval strategy and drives
 generation. See docs/chat-rag.md for the full picture.
 
-Provider routing:
-  "none"        → yield error, return
-  "anthropic"   → providers/anthropic.py
-  "google"      → providers/google.py
-  "openai"      → providers/openai_compat.py (base_url=None)
-  "groq"        → providers/openai_compat.py (base_url=Groq endpoint)
-  "self_hosted" → providers/openai_compat.py (base_url=user endpoint)
+Provider routing: see llm/router.py ("none" → this module yields an error and returns).
 
 Follow-up detection:
   OFF (default) — T1 regex → T2 regex → context-aware short-query guard
@@ -45,10 +39,11 @@ log = logging.getLogger(__name__)
 from isp.services.infra import typesense_client as ts
 from isp.services.infra.embedding_service import embed_query as _embed_query
 from isp.services.infra.chat.providers import anthropic_chat, google_chat, openai_compat
+from isp.services.infra.llm import router as llm_router
 from isp.services.infra.chat import concept_resolution, query_filters, retrieval, multi_intent
 from isp.services.infra.chat import follow_up_detection, card_consistency, comparison
 
-_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+_GROQ_BASE_URL = llm_router.GROQ_BASE_URL
 
 # All LLM-facing prompt text and user-facing chat copy lives in prompts.json,
 # not inline in code — keeps wording changes a data edit, not a code change,
@@ -110,10 +105,7 @@ def set_chat_config(
     _multi_intent_split_enabled = multi_intent_split
     _llm_response_enabled       = llm_response
     _local_query_router_enabled = local_query_router
-    if provider == "anthropic":
-        anthropic_chat.configure(api_key)
-    elif provider == "google":
-        google_chat.configure(api_key)
+    llm_router.configure(provider=provider, model=model, api_key=api_key, endpoint=endpoint)
 
 
 _RELATIVE_TERM_RE = re.compile(
@@ -341,17 +333,8 @@ async def validate_chat_model(provider: str, model: str, api_key: str, endpoint:
 
 
 def _route_llm_stream(system: str, history: list[dict]):
-    if _chat_provider == "anthropic":
-        return anthropic_chat.stream(system, history, _chat_model)
-    if _chat_provider == "google":
-        return google_chat.stream(system, history, _chat_model)
-    if _chat_provider == "groq":
-        return openai_compat.stream(system, history, _chat_model, _chat_api_key,
-                                    base_url=_GROQ_BASE_URL)
-    if _chat_provider == "self_hosted":
-        return openai_compat.stream(system, history, _chat_model, _chat_api_key,
-                                    base_url=_chat_endpoint)
-    return openai_compat.stream(system, history, _chat_model, _chat_api_key)
+    # Provider dispatch lives in llm/router.py, shared with AI Overview.
+    return llm_router.stream(system, history)
 
 
 # ── Error formatting ──────────────────────────────────────────────────────────

@@ -1130,6 +1130,31 @@ def upsert_to_collection(col_name: str, docs: list[dict]) -> int:
     return sum(1 for r in results if r.get("success"))
 
 
+def fetch_documents_in_scope(col: str, doc_ids: list[str], scope_filter: str, query_by: str) -> list[dict]:
+    """
+    Fetch ``doc_ids`` from ``col`` that also match ``scope_filter`` (an external
+    index's filter_by), in ``doc_ids`` order. Ids outside the scope are dropped,
+    so a caller can't read documents of another index sharing the collection.
+    """
+    if not doc_ids:
+        return []
+    ids = ",".join(f"`{i.replace('`', '')}`" for i in doc_ids)
+    filter_by = f"id:[{ids}]" + (f" && ({scope_filter})" if scope_filter else "")
+    try:
+        raw = get_client().collections[col].documents.search({
+            "q": "*", "query_by": query_by, "filter_by": filter_by,
+            "per_page": len(doc_ids), "exclude_fields": "vec",
+        })
+    except Exception:
+        import logging
+        logging.getLogger(__name__).error(
+            "fetch_documents_in_scope failed: collection=%s", col, exc_info=True,
+        )
+        return []
+    by_id = {h["document"].get("id"): h["document"] for h in raw.get("hits", [])}
+    return [by_id[i] for i in doc_ids if i in by_id]
+
+
 def count_external(col: str, filter_by: str) -> int:
     """Return the number of documents in an external collection matching the filter (0 on error)."""
     try:

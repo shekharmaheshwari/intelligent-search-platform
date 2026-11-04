@@ -458,6 +458,7 @@ export const api = {
     multiIntentSplit?: boolean;
     llmResponse?:      boolean;
     localQueryRouter?: boolean;
+    aiOverview?:       boolean;
   }) =>
     req<import('./types/settings.types').ChatConfig>('/settings/chat', {
       method: 'PUT',
@@ -470,6 +471,8 @@ export const api = {
         multi_intent_split:  opts.multiIntentSplit  ?? false,
         llm_response:        opts.llmResponse       ?? true,
         local_query_router:  opts.localQueryRouter  ?? false,
+        // null keeps the stored value, so callers that don't show this switch can't reset it
+        ai_overview:         opts.aiOverview        ?? null,
       }),
     }),
 
@@ -535,3 +538,54 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 };
+
+/** One event from the AI overview stream — see backend services/infra/overview/service.py. */
+export type OverviewEvent =
+  | { type: 'skipped'; reason: string }
+  | { type: 'sources'; sources: { n: number; id: string; title: string; url: string }[] }
+  | { type: 'text'; content: string }
+  | { type: 'done'; cached: boolean }
+  | { type: 'error'; content: string };
+
+/**
+ * Stream an AI overview of the given top search hits (SSE over POST, so not EventSource).
+ * Calls ``onEvent`` per event; abort via ``signal`` when a new search starts.
+ */
+export async function streamSearchOverview(
+  indexId: string,
+  q: string,
+  docIds: string[],
+  onEvent: (e: OverviewEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (AUTH_ENABLED) {
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('isp-auth-token') : null;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${BASE}/indexes/${indexId}/search/overview`, {
+    method: 'POST', headers, signal,
+    body: JSON.stringify({ q, doc_ids: docIds }),
+  });
+  if (!res.ok || !res.body) {
+    const err = await res.json().catch(() => ({ detail: `${res.status}` }));
+    throw new Error(err.detail || `${res.status}`);
+  }
+
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder();
+  let   buffer  = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === '[DONE]') continue;
+      try { onEvent(JSON.parse(raw)); } catch { /* skip malformed event */ }
+    }
+  }
+}

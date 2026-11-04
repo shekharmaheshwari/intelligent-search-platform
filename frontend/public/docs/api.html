@@ -195,6 +195,11 @@
           </tr>
           <tr>
             <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/indexes/{id}/search/overview</td>
+            <td>AI Overview: a short, cited LLM summary of the top hits, streamed as SSE. Body: <code>{ q, doc_ids }</code> — ids of the top hits in rank order (first 6 used). Events: <code>skipped</code>, <code>sources</code>, <code>text</code>, <code>done {cached}</code>, <code>error</code>, then <code>[DONE]</code>. Open without auth (PLP-facing); returns <code>409</code> unless <em>AI Overview in search</em> is on in Settings → Chat Model. Answers cached in Redis for 24h.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
             <td class="path-cell">/v1/catalog</td>
             <td>PLP product search across all ISP-managed collections. Body: <code>{ q, type, search_mode, page, per_page, filters?, action_history? }</code> — <code>filters</code> is a generic <code>Record&lt;string, string[]&gt;</code> keyed by any facetable field. Returns <code>{ items, total, page, total_pages, context_actions_used }</code>.</td>
           </tr>

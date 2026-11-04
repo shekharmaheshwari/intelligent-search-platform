@@ -44,6 +44,7 @@ export interface ChatConfig {
   multi_intent_split:  boolean;
   llm_response:        boolean;
   local_query_router:  boolean;
+  ai_overview:         boolean;
   available_models:    ChatModelOption[];
 }
 
