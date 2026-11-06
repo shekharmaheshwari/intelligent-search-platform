@@ -228,6 +228,7 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
                 query_by=ts_query_by,
                 facet_fields=ts_facet_fields or None,
                 embed_model=effective_model,
+                semantic_only=mode == "semantic",
             )
         else:
             raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
