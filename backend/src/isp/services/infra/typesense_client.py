@@ -495,6 +495,7 @@ def search_with_vec(
     query_by: str | None = None,
     facet_fields: list[str] | None = None,
     embed_model: str | None = None,
+    semantic_only: bool = False,
 ) -> dict:
     """
     Hybrid search via Typesense multi_search + Reciprocal Rank Fusion.
@@ -508,6 +509,11 @@ def search_with_vec(
     caller's already-resolved ``meta.embed_model or
     embedding_service.get_current_model()``) — it only affects which semantic
     relevance floor gets applied, see search_relevance.py.
+
+    ``semantic_only=True`` is the "semantic" search mode: the lexical pass is
+    skipped entirely and results are ranked by vector similarity alone.
+    Editorial boosts, the context hook and pinned hits still apply, and facet
+    counts are taken from the vector pass so they describe the returned hits.
     """
     name = collection_name(index_id)
     vec_str = ",".join(str(v) for v in vec)
@@ -520,6 +526,13 @@ def search_with_vec(
     fetch_n = min(per_page * 3, 250)
     _qb, _qb_weights = _qb_and_weights(query_by or "title,content,aliases")
 
+    vector_search = {
+        "collection": name,
+        "q": "*", "query_by": "title",
+        "vector_query": f"vec:([{vec_str}], k:{fetch_n})",
+        "per_page": str(fetch_n), **extra, **fb,
+    }
+
     def _run_multi_search(qb: str, weights: str) -> dict:
         return client.multi_search.perform({"searches": [
             {
@@ -528,17 +541,20 @@ def search_with_vec(
                 "query_by_weights": weights,
                 "per_page": str(fetch_n), **extra, **fb, **facet_params,
             },
-            {
-                "collection": name,
-                "q": "*", "query_by": "title",
-                "vector_query": f"vec:([{vec_str}], k:{fetch_n})",
-                "per_page": str(fetch_n), **extra, **fb,
-            },
+            vector_search,
         ]}, {})
 
-    resp = _run_multi_search(_qb, _qb_weights)
-    results = resp.get("results", [{}, {}])
-    lex_result = results[0]
+    if semantic_only:
+        resp = client.multi_search.perform({"searches": [{**vector_search, **facet_params}]}, {})
+        sem_result = (resp.get("results") or [{}])[0]
+        # Same shape as the hybrid path below, with an empty lexical leg; the
+        # vector pass carries facet_by here, so it stands in for facet counts.
+        results = [{}, sem_result]
+        lex_result = {"facet_counts": sem_result.get("facet_counts", [])}
+    else:
+        resp = _run_multi_search(_qb, _qb_weights)
+        results = resp.get("results", [{}, {}])
+        lex_result = results[0]
     # multi_search doesn't raise on a per-sub-search failure — a failed
     # lexical pass just comes back as {"code": ..., "error": ...} with no
     # "hits" key, which would otherwise silently degrade this into a
@@ -563,11 +579,14 @@ def search_with_vec(
     # Carry facet counts from the lexical pass (facet_by was only applied there)
     _facet_counts = _parse_facet_counts(lex_result.get("facet_counts", []))
     K = 60
+    # A lone vector leg gets full weight, matching _rerank_flat's lexical-only
+    # scoring, so editorial boosts carry the same relative weight in every mode.
+    sem_weight = 1.0 if semantic_only else 0.3
     scores: dict[str, float] = {}
     for did, (rank, _) in lex_hits.items():
         scores[did] = scores.get(did, 0) + 0.7 / (K + rank + 1)
     for did, (rank, _) in sem_hits.items():
-        scores[did] = scores.get(did, 0) + 0.3 / (K + rank + 1)
+        scores[did] = scores.get(did, 0) + sem_weight / (K + rank + 1)
     all_docs = {**{d: doc for d, (_, doc) in lex_hits.items()},
                 **{d: doc for d, (_, doc) in sem_hits.items()}}
 
