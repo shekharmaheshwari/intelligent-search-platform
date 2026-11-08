@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8001
     log_level: str = "INFO"   # DEBUG | INFO | WARNING | ERROR | CRITICAL
+    training_scheduler_enabled: bool = True  # run per-index scheduled retrains (query boost) on this instance
 
     # ── Auth (Approach 3 — OAuth2 / OIDC SSO) ─────────────────────────────────
     # All disabled by default; existing behaviour is unchanged when auth_enabled=false.

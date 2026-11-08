@@ -814,6 +814,9 @@
   │             └─ multi_search: lexical + semantic → RRF merge
   │                  + editorial boosts (is_featured, popularity, boost_queries_*)
   │                  + optional version_score boost
+  │                  + post-RRF hooks: affinity → boost rules → learned query boost
+  │                    (query_boost.serving: ≤ +0.008, skipped on exact title match;
+  │                     see queryBoost.html)
   │
   └─ Response { hits, found, page }</div>
 

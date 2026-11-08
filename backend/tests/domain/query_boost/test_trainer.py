@@ -4,11 +4,14 @@
 """
 Unit tests for query_boost.trainer.train — orchestration only.
 
-The DB reads/writes (_fetch_query_events, store.save_model, _log_run) and
-index lookup are patched, so these run without Postgres or Typesense. The
-real DB round trip is covered by test_store.py.
+The DB reads/writes (_fetch_query_events, store.save_model,
+store.current_generation, _log_run), the training lock and index lookup are
+patched, so these run without Postgres or Typesense. The real DB round trip,
+the lock and the delete-during-training race are covered by test_store.py
+and test_coordination.py.
 """
 from __future__ import annotations
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -39,12 +42,20 @@ def patched():
     """Patch every I/O boundary; yield the mocks for assertions."""
     mocks = SimpleNamespace(
         fetch=AsyncMock(return_value=[]),
-        save=AsyncMock(),
+        save=AsyncMock(return_value=True),
+        lock_free=True,
         log=AsyncMock(),
         get_index=AsyncMock(return_value=SimpleNamespace(id="idx", embed_model="m1")),
     )
+
+    @asynccontextmanager
+    async def fake_lock(index_id):
+        yield mocks.lock_free
+
     with patch.object(trainer, "_fetch_query_events", mocks.fetch), \
          patch.object(trainer.store, "save_model", mocks.save), \
+         patch.object(trainer.store, "current_generation", AsyncMock(return_value=7)), \
+         patch.object(trainer.coordination, "training_lock", fake_lock), \
          patch.object(trainer, "_log_run", mocks.log), \
          patch.object(trainer.index_service, "get_index", mocks.get_index):
         yield mocks
@@ -141,3 +152,26 @@ class TestTrain:
         await trainer.train("idx", embed=_embed)
         (index_id, n_events, n_docs, n_clusters), _ = patched.log.call_args
         assert (index_id, n_events, n_docs, n_clusters) == ("idx", 27, 1, 1)  # 10+7 + 10 rows
+
+
+class TestConcurrencyFlags:
+    @pytest.mark.asyncio
+    async def test_busy_when_another_run_holds_the_lock(self, patched):
+        patched.lock_free = False
+        out = await trainer.train("idx", embed=_embed)
+        assert out["busy"] is True and out["trained"] is False
+        patched.fetch.assert_not_awaited()
+        patched.save.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_publish_is_conditional_on_the_generation_read_at_start(self, patched):
+        patched.fetch.return_value = _rows("cheap iphone", "se", 10, 7)
+        await trainer.train("idx", embed=_embed)
+        assert patched.save.await_args.kwargs["expected_generation"] == 7
+
+    @pytest.mark.asyncio
+    async def test_superseded_when_publish_is_refused(self, patched):
+        patched.fetch.return_value = _rows("cheap iphone", "se", 10, 7)
+        patched.save.return_value = False
+        out = await trainer.train("idx", embed=_embed)
+        assert out["superseded"] is True and out["trained"] is False

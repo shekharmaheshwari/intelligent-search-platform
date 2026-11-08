@@ -113,7 +113,7 @@
     <!-- ENDPOINT -->
     <h2 id="endpoint">Endpoint</h2>
     <pre>POST /v1/training/popularity?index_id=&lt;slug-or-id&gt;&amp;days=30</pre>
-    <p>On-demand only, same operational model as <code>/v1/analytics/aggregate</code> — no scheduler is built. Triggering it repeatedly (cron, k8s CronJob, manual) is an operational decision outside this codebase.</p>
+    <p>On-demand only, same operational model as <code>/v1/analytics/aggregate</code>. This endpoint has no scheduler; triggering it repeatedly (cron, k8s CronJob, manual) is an operational decision outside this codebase. Case B's query boost does have a per-index daily schedule. See <a href="queryBoost.html#schedule">Learned Query Boost → Batch learning schedule</a>.</p>
     <table>
       <thead><tr><th>Response field</th><th>Meaning</th></tr></thead>
       <tbody>
@@ -200,8 +200,9 @@
     <!-- NOT YET -->
     <h2 id="not-yet">What this doesn't do yet</h2>
     <ul>
-      <li><strong>Case B</strong> (query-conditional boost) and <strong>Case C</strong> (personalized affinity weights) <span class="todo-badge">Design only</span> — see <code>trainedRescorerDesign.md</code>.</li>
-      <li><strong>No scheduler</strong> — on-demand only, same as <code>/v1/analytics/aggregate</code>.</li>
+      <li><strong>Case B</strong> (query-conditional boost) <span class="done-badge">Done</span> is implemented separately. See <a href="queryBoost.html">Learned Query Boost</a>.</li>
+      <li><strong>Case C</strong> (personalized affinity weights) <span class="todo-badge">Design only</span>. See <code>trainedRescorerDesign.md</code>.</li>
+      <li><strong>No scheduler for this model.</strong> Case A is on-demand only, same as <code>/v1/analytics/aggregate</code>. The daily schedule on the Learning tab retrains Case B only.</li>
       <li><strong>No IPS/propensity correction</strong> — position-weighted, not position-debiased in the rigorous sense. Documented v2 follow-up.</li>
     </ul>
 
@@ -216,7 +217,8 @@
         <tr><td>Zero-feature-matrix guard</td><td><span class="done-badge">Done</span></td><td>Code-review fix, tested</td></tr>
         <tr><td>Post-join threshold recheck</td><td><span class="done-badge">Done</span></td><td>Code-review fix, tested</td></tr>
         <tr><td>Doc-grouped held-out split</td><td><span class="done-badge">Done</span></td><td>Code-review fix, tested</td></tr>
-        <tr><td>Case B — query-conditional boost</td><td><span class="todo-badge">Proposed</span></td><td><code>trainedRescorerDesign.md</code></td></tr>
+        <tr><td>Case B — query-conditional boost</td><td><span class="done-badge">Done</span></td><td><code>services/domain/query_boost/</code>, see <a href="queryBoost.html">Learned Query Boost</a></td></tr>
+        <tr><td>Scheduled retraining (Case B)</td><td><span class="done-badge">Done</span></td><td>Per-index daily schedule, Learning tab, see <a href="queryBoost.html#schedule">Batch learning schedule</a></td></tr>
         <tr><td>Case C — personalized affinity weights</td><td><span class="todo-badge">Proposed</span></td><td><code>trainedRescorerDesign.md</code></td></tr>
         <tr><td>IPS/propensity debiasing</td><td><span class="todo-badge">Proposed</span></td><td><code>researchTopic1ImplicitFeedbackRanking.md</code></td></tr>
       </tbody>

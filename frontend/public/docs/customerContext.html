@@ -268,6 +268,8 @@ ISP Public Search API  (POST /v1/indexes/{id}/search/public  or  POST /v1/catalo
   │             └── viewed item sub-policy (configurable per index, per interaction type)
   │                     viewed-not-purchased: boost  (default +0.05)
   │                     purchased (durable):  penalise (default −0.30)
+  │       post_rrf_hook: learned query boost   [QUERY ONLY — never on browse]
+  │             clicks for similar queries → bounded lift (≤ +0.008), see queryBoost.html
   │       stamps text_match = int(score × 100 000) on every hit for PLP sort stability
   │
   └── typesense_client.search_documents()       (lexical — empty query / browse)

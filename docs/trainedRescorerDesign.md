@@ -150,7 +150,7 @@ popularity" — is **already built**, not a green-field project:
 | Query-conditional boost (Case B) | **Shipped** — `services/domain/query_boost/`, see `queryBoostImplementation.md` |
 | Personalization weight training (Case C) | **Net-new** |
 | Feature-snapshot / training-data export | **Net-new** |
-| Scheduled (repeated) training runs | **Net-new — no scheduler exists in this codebase at all** |
+| Scheduled (repeated) training runs | **Shipped for Case B:** per-index daily schedule (`query_boost/scheduler.py`, Learning tab), see `queryBoostImplementation.md` → "Batch learning schedule". Case A is still on-demand only |
 | ML dependencies (scikit-learn, numpy) | **Net-new — not in `pyproject.toml`** |
 
 ### Feature discovery is generic, not commerce-specific
@@ -211,6 +211,16 @@ stating up front rather than discovering mid-implementation:
   crontab, k8s CronJob, or manual call), matching the existing pattern
   exactly, rather than adding new always-running in-process scheduling
   infrastructure. Revisit only if operational reality demands it.
+  - **Update (Case B):** this was revisited for the query boost.
+    Operators wanted retraining configured per index in the product, not
+    in a crontab. Case B now has a small in-process scheduler with no new
+    dependencies: a 60 s asyncio loop. Postgres coordinates it: an atomic
+    claim per run, plus an advisory lock shared with manual runs. It's
+    configured per index (toggle, lookback days, UTC hour) on the Learning
+    tab, and `TRAINING_SCHEDULER_ENABLED=false` turns it off per instance.
+    Case A (`/training/popularity`) and `/v1/analytics/aggregate` remain
+    on-demand. See `queryBoostImplementation.md` → "Batch learning
+    schedule" and "Concurrency".
 
 ## Flow diagram — end to end, all three cases
 
@@ -444,7 +454,9 @@ correctly.
   rather than two endpoints that can drift.
 - **Scheduling:** on-demand-only (recommended, matches existing pattern) vs.
   adding APScheduler/Celery. Revisit if operational reality (someone
-  forgetting to trigger it) makes this painful.
+  forgetting to trigger it) makes this painful. *Resolved for Case B:* a
+  per-index in-process schedule without APScheduler or Celery (see the
+  update above). Case A is still open.
 - **Per-index vs. pooled training threshold (Case A/B):** needs an
   empirical cutoff — e.g. a learning-curve check showing where offline
   nDCG stops improving with more data — before an index gets its own

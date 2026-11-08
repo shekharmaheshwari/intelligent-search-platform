@@ -317,6 +317,44 @@
         </tbody>
       </table>
 
+      <h2>Training</h2>
+      <p>Admin routes (JWT when auth is on). <code>index_id</code> accepts a slug or hex id. An unknown index returns 404 on the query-boost routes.</p>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/training/popularity?index_id=&amp;days=30</td>
+            <td>Train the browse-popularity model (Case A) and write calibrated <code>popularity</code> to Typesense. On-demand only. See <a href="training.html">Trained Popularity Re-Scorer</a>.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td class="path-cell">/v1/training/query-boost?index_id=&amp;days=30</td>
+            <td>Train the learned query boost (Case B) for one index. Returns <code>trained:false</code> on thin traffic (previous model kept), <code>superseded:true</code> if the model was deleted mid-run, and <strong>409</strong> if a run (manual or scheduled) is already in progress. See <a href="queryBoost.html">Learned Query Boost</a>.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/training/query-boost?index_id=</td>
+            <td>Inspect the stored model: query clusters, member queries, top boosted documents.</td>
+          </tr>
+          <tr>
+            <td><span class="method del">DEL</span></td>
+            <td class="path-cell">/v1/training/query-boost?index_id=</td>
+            <td>Remove the model, which turns the learned boost off for the index. In the same transaction it also turns off the index's schedule, so no run can bring the model back.</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td class="path-cell">/v1/training/query-boost/schedule?index_id=</td>
+            <td>Daily batch-learning schedule: <code>enabled</code>, <code>days</code>, <code>run_hour_utc</code>, <code>next_run_at</code>, and the last run's <code>last_status</code>/<code>last_message</code>. Returns a disabled default when none is saved.</td>
+          </tr>
+          <tr>
+            <td><span class="method put">PUT</span></td>
+            <td class="path-cell">/v1/training/query-boost/schedule?index_id=</td>
+            <td>Set the schedule. Body: <code>{"enabled": true, "days": 30, "run_hour_utc": 2}</code> (days 1–365, hour 0–23 UTC). It takes effect from the next scheduled hour and never trains immediately.</td>
+          </tr>
+        </tbody>
+      </table>
+
       <h2>Health</h2>
       <table>
         <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>

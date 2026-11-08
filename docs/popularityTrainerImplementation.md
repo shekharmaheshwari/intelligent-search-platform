@@ -174,6 +174,9 @@ flowchart TD
 Case B (query-conditional boost) is now implemented separately — see
 `queryBoostImplementation.md`. Case C (personalized affinity weights) is
 still just design, not code — see `trainedRescorerDesign.md`.
-There's no scheduler either; this endpoint is on-demand only, same as
-`/v1/analytics/aggregate` — triggering it repeatedly (cron, k8s CronJob,
-manual) is an operational decision outside this codebase.
+This endpoint has no scheduler; it's on-demand only, same as
+`/v1/analytics/aggregate`. Triggering it repeatedly (cron, k8s CronJob,
+manual) is an operational decision outside this codebase. Case B's query
+boost does have a per-index daily schedule (the Learning tab; see
+`queryBoostImplementation.md` → "Batch learning schedule"). It doesn't
+retrain this popularity model.

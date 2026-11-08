@@ -17,6 +17,12 @@ little query traffic. That mirrors Case A, which leaves ``popularity``
 untouched on thin data. A full run that learns nothing does replace the
 stored model, because that reflects what the data now says.
 
+Concurrency: ``train()`` holds a per-index lock (``coordination``) for the
+whole run, so manual and scheduled runs never overlap. A second caller gets
+``busy=True`` right away. The publish is also conditional on the model
+generation read before the run started. If the model was deleted (or
+replaced) meanwhile, the result is discarded with ``superseded=True``.
+
 Boosts are not checked against Typesense for deleted documents: a boost
 for a doc that no longer exists never meets a candidate set at serve time,
 so the check would cost a full collection scan for no ranking effect.
@@ -29,7 +35,7 @@ from typing import Awaitable, Callable
 
 from isp.services.infra.database import get_pool
 from isp.services.domain import index_service
-from isp.services.domain.query_boost import clustering, scoring, store
+from isp.services.domain.query_boost import clustering, coordination, scoring, store
 
 MIN_EVENTS = 5
 # Distinct queries embedded and clustered per run, most frequent first. Caps
@@ -112,9 +118,21 @@ async def train(
     embed: Embedder | None = None,
     threshold: float = clustering.DEFAULT_THRESHOLD,
     prior_strength: float = scoring.DEFAULT_PRIOR_STRENGTH,
+    scheduled: bool = False,
 ) -> dict:
     """
     Train and store the learned query boost for one index.
+
+    ``scheduled=True`` (the scheduler) also requires the index's schedule to
+    still be on at publish time, checked atomically with the write, so a
+    DELETE or a schedule switched off mid-run wins.
+
+    Result flags beyond the counts:
+    - ``trained``: a new model was published.
+    - ``busy``: another run for this index held the lock; nothing was done.
+    - ``superseded``: the model was deleted or replaced during this run, or
+      (when scheduled) the schedule was turned off, so the result was
+      discarded.
 
     ``embed`` defaults to ``embedding_service.embed_query`` with the index's
     own embedding model, the same model search uses, so stored centroids are
@@ -124,6 +142,23 @@ async def train(
     if not meta:
         raise ValueError(f"index not found: {index_id}")
 
+    async with coordination.training_lock(index_id) as acquired:
+        if not acquired:
+            return {**_empty_summary(0), "busy": True}
+        return await _train_locked(meta, days, embed, threshold, prior_strength, scheduled)
+
+
+def _empty_summary(n_events: int) -> dict:
+    return {"n_events": n_events, "n_queries": 0, "n_clusters": 0,
+            "n_boosts": 0, "docs_boosted": 0, "trained": False,
+            "busy": False, "superseded": False}
+
+
+async def _train_locked(meta, days, embed, threshold, prior_strength, scheduled) -> dict:
+    index_id = meta.id
+    # Read before any events, so a delete at any later point is detected.
+    generation = await store.current_generation(index_id)
+
     from isp.services.infra import embedding_service
     embed_model = meta.embed_model or embedding_service.get_current_model()
     if embed is None:
@@ -131,8 +166,7 @@ async def train(
             return await embedding_service.embed_query(q, model=embed_model)
 
     rows = await _fetch_query_events(index_id, days)
-    summary = {"n_events": len(rows), "n_queries": 0, "n_clusters": 0,
-               "n_boosts": 0, "docs_boosted": 0, "trained": False}
+    summary = _empty_summary(len(rows))
 
     rows = [{**r, "query": clustering.normalize_query(r["query"])} for r in rows]
     rows = [r for r in rows if not is_excluded_query(r["query"])]
@@ -156,7 +190,13 @@ async def train(
     ]
     boosts = scoring.compute_boosts(events, prior_strength=prior_strength)
 
-    await store.save_model(index_id, embed_model if vectors else "", clusters, boosts)
+    published = await store.save_model(
+        index_id, embed_model if vectors else "", clusters, boosts,
+        expected_generation=generation, require_schedule_enabled=scheduled,
+    )
+    if not published:
+        await _log_run(index_id, summary["n_events"], 0, None)
+        return {**summary, "n_queries": len(kept), "superseded": True}
 
     n_docs = len({b.doc_id for b in boosts})
     n_clusters = len({b.cluster_id for b in boosts})

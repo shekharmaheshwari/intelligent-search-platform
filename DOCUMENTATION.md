@@ -24,6 +24,7 @@
     - [10.3 Content Router](#103-content-router-v1content)
     - [10.4 Extensions Router](#104-extensions-router-v1extensions)
     - [10.5 Search Router](#105-search-router)
+    - [10.6 Training Router](#106-training-router-v1training)
 11. [Backend — Services](#11-backend--services)
     - [11.1 Database Service](#111-database-service)
     - [11.2 Typesense Client](#112-typesense-client)
@@ -33,6 +34,7 @@
     - [11.6 Sitemap Connector](#116-sitemap-connector)
     - [11.7 Extension Service](#117-extension-service)
     - [11.8 Extension Runner](#118-extension-runner)
+    - [11.9 Learned Query Boost (Case B)](#119-learned-query-boost-case-b)
 12. [Backend — JS Extension Files](#12-backend--js-extension-files)
 13. [Frontend — Overview](#13-frontend--overview)
 14. [Frontend — TypeScript Library](#14-frontend--typescript-library)
@@ -54,11 +56,13 @@
     - [15.12 IndexExtensionsPanel.svelte](#1512-indexextensionspanelsvelte)
     - [15.13 Dashboard.svelte](#1513-dashboardsvelte)
     - [15.14 IndexCard.svelte](#1514-indexcardsvelte)
+    - [15.15 LearningTab.svelte](#1515-learningtabsvelte)
 16. [Data Flows](#16-data-flows)
     - [16.1 Ingest (REST)](#161-ingest-rest)
     - [16.2 Ingest (Sitemap)](#162-ingest-sitemap)
     - [16.3 Rebuild with Extension Pipeline](#163-rebuild-with-extension-pipeline)
     - [16.4 Hybrid Search](#164-hybrid-search)
+    - [16.5 Scheduled Batch Learning](#165-scheduled-batch-learning)
 17. [Extension System](#17-extension-system)
 18. [API Reference](#18-api-reference)
 19. [Deployment](#19-deployment)
@@ -242,6 +246,7 @@ They can be set in `backend/.env` or passed as real environment variables.
 | `EXTENSIONS_DIR` | `/app/extensions` | No | Directory scanned for `*.js` extension files at startup |
 | `HOST` | `0.0.0.0` | No | Uvicorn bind host |
 | `PORT` | `8001` | No | Uvicorn bind port |
+| `TRAINING_SCHEDULER_ENABLED` | `true` | No | Run the per-index scheduled query-boost retrains on this instance (see [16.5](#165-scheduled-batch-learning)). Set `false` on instances that should never train on a schedule |
 
 **Frontend build arg:**
 
@@ -316,6 +321,49 @@ Many-to-many join: which extensions are assigned to which indexes, in what order
 | `run_order` | INTEGER | Execution order — lower numbers run first |
 | `enabled` | BOOLEAN | If false, extension is skipped without being removed |
 
+### `training_runs`
+One row per training run, for both the popularity model (Case A) and the learned query boost (Case B).
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | BIGSERIAL PK | Run id |
+| `index_id` | VARCHAR(12) FK→indexes | Cascade-deletes with the index |
+| `case_name` | VARCHAR(8) | `A` (popularity) or `B` (query boost) |
+| `model_type` | VARCHAR(64) | e.g. `logistic_regression`, `ctr_shrinkage` |
+| `n_events` | INTEGER | `search_events` rows read |
+| `n_docs_scored` | INTEGER | Documents scored (A) or boosted (B) |
+| `metric_name` / `metric_value` | TEXT / DOUBLE | A: held-out `auc`; B: `n_clusters` |
+| `trained_at` | BIGINT | Epoch ms |
+
+### `query_boost_clusters` · `query_boosts`
+The stored Case B model, one per index, replaced as a whole on each training run ([11.9](#119-learned-query-boost-case-b)).
+
+| Table | Key | Columns |
+|---|---|---|
+| `query_boost_clusters` | (`index_id`, `cluster_id`) | `queries TEXT[]`, `centroid DOUBLE PRECISION[]`, `embed_model`, `trained_at` (epoch ms) |
+| `query_boosts` | (`index_id`, `cluster_id`, `doc_id`) | `boost` in [0, 1], `n_impressions`, `n_clicks` |
+
+### `query_boost_generations`
+| Column | Type | Description |
+|---|---|---|
+| `index_id` | VARCHAR(12) PK FK→indexes | Cascade-deletes with the index |
+| `generation` | BIGINT | Bumped by every model save or delete. A training run publishes only if it's unchanged since the run started, so a delete mid-run can't be undone |
+
+### `query_boost_schedules`
+Per-index daily batch-learning schedule. Times are epoch seconds.
+
+| Column | Type | Description |
+|---|---|---|
+| `index_id` | VARCHAR(12) PK FK→indexes | Cascade-deletes with the index |
+| `enabled` | BOOLEAN | Daily retraining on/off (default false) |
+| `days` | INTEGER | Lookback window per run, 1–365 (default 30) |
+| `run_hour_utc` | SMALLINT | Hour of day the run starts, 0–23 UTC (default 2) |
+| `enabled_at` | BIGINT | When enabled or when the hour last changed; the first run is the next slot after this. NULL while off |
+| `updated_at` | BIGINT | Last settings change |
+| `last_run_at` / `last_finished_at` | BIGINT | When the last scheduled run was claimed / finished |
+| `last_status` | VARCHAR(20) | `running` \| `trained` \| `skipped` \| `error` |
+| `last_message` | TEXT | Outcome detail (≤ 500 chars) |
+
 ---
 
 ## 7. Backend — Application Entry Point
@@ -331,13 +379,20 @@ lifespan() start
     │
     ├── init_db()                    # Create all tables (idempotent)
     ├── _ensure_catalog_collection() # Provision `catalog` Typesense collection
-    └── _seed_extensions_from_files()
-            │
-            ├── Scan EXTENSIONS_DIR for *.js files
-            ├── Parse // @name and // @description headers
-            ├── upsert_extension_by_name() (ON CONFLICT UPDATE code)
-            └── For each external index:
-                    assign_extension_if_new() (ON CONFLICT DO NOTHING)
+    ├── _seed_extensions_from_files()
+    │       │
+    │       ├── Scan EXTENSIONS_DIR for *.js files
+    │       ├── Parse // @name and // @description headers
+    │       ├── upsert_extension_by_name() (ON CONFLICT UPDATE code)
+    │       └── For each external index:
+    │               assign_extension_if_new() (ON CONFLICT DO NOTHING)
+    ├── telemetry.start()
+    └── query_boost_scheduler.start()  # 60 s loop for scheduled retrains; skipped when
+                                       # TRAINING_SCHEDULER_ENABLED=false (see 16.5)
+yield  (serve requests)
+lifespan() shutdown
+    ├── query_boost_scheduler.stop()
+    └── telemetry.stop()
 ```
 
 ### Helper Functions
@@ -364,6 +419,7 @@ from isp.config import settings
 settings.typesense_host      # "typesense"
 settings.voyage_api_key      # ""  — must be set in .env
 settings.embed_lru_size      # 2048
+settings.training_scheduler_enabled  # True — run scheduled query-boost retrains here
 ```
 
 ---
@@ -543,6 +599,32 @@ asks for the overview of the hits it already has.
 
 ---
 
+### 10.6 Training Router (`/v1/training`)
+
+**File:** `backend/src/isp/routers/training.py`
+
+Trained ranking signals: Case A (browse popularity) and Case B (learned query boost). These are admin routes (JWT when auth is on), and `index_id` accepts a slug or hex id.
+
+#### Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/v1/training/popularity?index_id=&days=30` | Train the popularity model (Case A) and write `popularity` to Typesense. On-demand only. Unknown index → `200` with an `error` body |
+| POST | `/v1/training/query-boost?index_id=&days=30` | Train the learned query boost (Case B) now. **409** if a run for the index (manual or scheduled) is already in progress |
+| GET | `/v1/training/query-boost?index_id=` | Inspect the stored model: clusters, member queries, top boosted docs |
+| DELETE | `/v1/training/query-boost?index_id=` | Remove the model **and** turn off the schedule in one transaction (the off switch). Returns `schedule_disabled` |
+| GET | `/v1/training/query-boost/schedule?index_id=` | Schedule + `next_run_at` + `last_status`/`last_message`; a disabled default when none saved |
+| PUT | `/v1/training/query-boost/schedule?index_id=` | Body `{"enabled": bool, "days": 1–365, "run_hour_utc": 0–23}`; invalid values → `422`. Takes effect from the next slot, never trains immediately |
+
+The query-boost routes return `404` for an unknown index.
+
+`POST /training/query-boost` response flags:
+- `trained`: a new model was published.
+- `superseded`: the model was deleted or replaced during the run, so the result was discarded.
+- `trained: false` with neither flag: too little traffic, and the previous model is kept.
+
+---
+
 ## 11. Backend — Services
 
 ### 11.1 Database Service
@@ -552,7 +634,7 @@ asks for the overview of the hits it already has.
 | Function | Description |
 |---|---|
 | `get_pool()` | Returns the shared `asyncpg.Pool` (min=2, max=10), creating it on first call |
-| `init_db()` | Creates all 5 tables using `CREATE TABLE IF NOT EXISTS` — called once from `lifespan` |
+| `init_db()` | Creates all tables using `CREATE TABLE IF NOT EXISTS` (see [§6](#6-database-schema)) — called once from `lifespan` |
 
 ---
 
@@ -822,6 +904,34 @@ apply_extensions(index_id, docs)
 
 ---
 
+### 11.9 Learned Query Boost (Case B)
+
+**Package:** `backend/src/isp/services/domain/query_boost/` · full notes: `docs/queryBoostImplementation.md`
+
+Learns, per index, which products shoppers click for each kind of query (similar queries are grouped by embedding) and adds a small bounded lift (`boost × 0.008`) to them in search and catalog ranking. It uses counting plus empirical-Bayes shrinkage, not a regression model.
+
+| Module | Kind | Key functions |
+|---|---|---|
+| `clustering.py` | pure | `normalize_query`, `cluster_queries` (cosine ≥ 0.85), `match_cluster` |
+| `scoring.py` | pure | `position_weight` (`1/log2(rank+2)`), `compute_boosts` (shrinkage toward the cluster baseline, boost ∈ [0, 1]) |
+| `store.py` | I/O | `save_model(…, expected_generation, require_schedule_enabled) → bool`, `delete_model(…, disable_schedule) → bool`, `current_generation`, `load_model` (60 s cache), `model_summary` |
+| `trainer.py` | I/O | `train(index_id, days, *, scheduled=False) → dict`: takes the per-index lock, reads events, embeds, clusters, scores, then a conditional publish |
+| `serving.py` | query time | `resolve` (exact query, then vector in hybrid/semantic mode), `make_hook` (skips on exact title/alias match), `chain_hooks` |
+| `schedule.py` | pure | `latest_slot`, `is_due`, `next_run_at`, `describe_result` |
+| `schedule_store.py` | I/O | `get_schedule`, `save_schedule`, `list_enabled`, `claim` (atomic conditional UPDATE), `record_result` |
+| `scheduler.py` | background | `run_due`, `start`/`stop` (60 s loop) |
+| `coordination.py` | I/O | `training_lock(index_id)`: Postgres advisory lock on a dedicated connection outside the pool; yields `False` when another run holds it |
+
+**Wiring:** `routers/search.py` and `routers/catalog.py` call `serving.resolve()` once per request and chain `make_hook()` after the affinity and boost-rules post-RRF hooks. Catalog keys boosts as `index_id:doc_id` and reports `learned_query_boost` in `context_actions_used`. Browse (empty query) is never boosted.
+
+**Concurrency guarantees:**
+- One training run per index at a time, across manual runs, scheduled runs and API instances.
+- A model deleted mid-run stays deleted.
+- No scheduled run can publish after a DELETE or after its schedule is turned off. The schedule row is read `FOR SHARE` until the publish commits.
+- Training never holds more than one pool connection.
+
+---
+
 ## 12. Backend — JS Extension Files
 
 **Directory:** `backend/extensions/`
@@ -937,6 +1047,9 @@ All HTTP calls go through the `req<T>()` helper which sets `Content-Type: applic
 | `unassignExtension(indexId, extId)` | DELETE | `/indexes/{id}/extensions/{extId}` | Remove assignment |
 | `getSettings()` | GET | `/settings` | Fetch active embedding model and available models |
 | `updateSettings(modelId, opts?)` | PUT | `/settings` | Switch embedding model; returns `dim_changed: true` if dimension changed |
+| `getQueryBoostSchedule(indexId)` | GET | `/training/query-boost/schedule` | Fetch an index's batch-learning schedule and last-run status |
+| `saveQueryBoostSchedule(indexId, body)` | PUT | `/training/query-boost/schedule` | Save `{enabled, days, run_hour_utc}` |
+| `trainQueryBoostNow(indexId, days)` | POST | `/training/query-boost` | Train the learned query boost immediately (409 if a run is in progress) |
 
 ---
 
@@ -1105,7 +1218,7 @@ Full-rebuild dialog.  Allows curl paste to auto-fill all form fields, then trigg
 
 Tabbed detail view used in the configure flow.
 
-**Tabs:** Overview (last ingest status + connectors list) · Documents · Search · API
+**Tabs:** Overview · Connector · Mapping · Fields · Documents · Search · API · Suggestions · Personalisation · Boost Rules · Synonyms · Chat Persona · Learning (daily batch-learning schedule for the learned query boost, plus "Train now"; `LearningTab.svelte`)
 
 **Dispatches:** `back`
 
@@ -1208,6 +1321,28 @@ Grid overview of all ISP indexes rendered via `IndexCard`.  Shows empty-state CT
 Compact card in the Dashboard grid.  Shows connector type badge, name, description, doc count, and creation date.  Clicking the card dispatches `open`; the ✕ button dispatches `delete` with `stopPropagation`.
 
 **Dispatches:** `open(id)`, `delete(id)`
+
+---
+
+### 15.15 LearningTab.svelte
+
+The **Learning** tab in `IndexDetail`: the per-index daily batch-learning schedule for the learned query boost. Pure logic lives in `LearningTab.helpers.ts`.
+
+| Element | Behaviour |
+|---|---|
+| Daily batch learning toggle | Turns the schedule on or off. Turning it on starts from the next run hour, never immediately |
+| Learn from the last N days | 1–365. Invalid values disable Save and Train now |
+| Run at | 24 hours shown as `HH:00 UTC (HH:MM local)` (`hourLabel`) |
+| Status | Next run (`nextRunText`), last scheduled run pill (Trained / Skipped / Failed / Running / Never run) and result message |
+| Train now | One immediate run with the current day window; doesn't change the schedule. A 409 shows "already in progress" |
+
+**Refresh:**
+- Re-reads the status every 30 s (`STATUS_POLL_MS`) and when the browser tab becomes visible.
+- `formAfterRefresh` never overwrites unsaved edits.
+- `createLatestGate` drops a poll response that a save overtook.
+- A `destroyed` guard stops a late first load from installing polling after the tab is left.
+
+Tests: `tests/components/sources/LearningTab.helpers.test.ts`, `LearningTab.test.ts`.
 
 ---
 
@@ -1339,6 +1474,32 @@ POST /v1/indexes/{id}/search  {"q": "iphone 15", "mode": "hybrid"}
             └── SearchResult {hits, found, page}
 ```
 
+### 16.5 Scheduled Batch Learning
+
+```
+lifespan → query_boost_scheduler.start()          (unless TRAINING_SCHEDULER_ENABLED=false)
+    │
+    every 60 s: run_due(now)
+    ├── schedule_store.list_enabled()
+    ├── keep schedules where schedule.is_due(s, now):
+    │       latest run_hour_utc:00 UTC slot  >  enabled_at
+    │       and last_run_at < slot                         (missed days → one run)
+    └── for each due index, one at a time:
+            ├── schedule_store.claim(index, slot)     atomic UPDATE → only one instance wins
+            ├── trainer.train(index, days, scheduled=True)
+            │     ├── coordination.training_lock      busy → "skipped" (manual run in progress)
+            │     ├── generation = store.current_generation()
+            │     ├── read search_events → embed → cluster → score
+            │     └── store.save_model(expected_generation, require_schedule_enabled)
+            │           ├── generation changed (deleted/replaced)  → superseded, discarded
+            │           ├── schedule now off (FOR SHARE read)       → superseded, discarded
+            │           └── else publish + bump generation          → trained
+            └── schedule_store.record_result(status, message)   trained | skipped | error
+                  (a failure is recorded and the loop moves on to the next index)
+```
+
+Search picks up a newly published model within 60 s (`store.CACHE_TTL_SECONDS`).
+
 ---
 
 ## 17. Extension System
@@ -1407,6 +1568,7 @@ Full interactive documentation is available at **`http://localhost:8001/docs`** 
 | Catalog (PLP) | `POST /v1/catalog`, `GET /v1/catalog/facets`, `GET /v1/suggest`, `GET /v1/intent/tab` |
 | Content (generic) | `GET /v1/content`, `GET /v1/content/{slug}`, `GET /v1/content/{slug}/search` |
 | Settings | `GET /v1/settings`, `PUT /v1/settings` |
+| Training | `POST /v1/training/popularity`, `POST/GET/DELETE /v1/training/query-boost`, `GET/PUT /v1/training/query-boost/schedule` (see [10.6](#106-training-router-v1training)) |
 | Health | `GET /health` |
 
 ### Search request body

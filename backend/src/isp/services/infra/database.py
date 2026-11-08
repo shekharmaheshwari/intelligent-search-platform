@@ -133,6 +133,28 @@ async def init_db() -> None:
                 PRIMARY KEY (index_id, cluster_id, doc_id)
             );
 
+            -- Bumped by every query-boost model save/delete; a training run
+            -- publishes only if it is unchanged since the run started.
+            CREATE TABLE IF NOT EXISTS query_boost_generations (
+                index_id    VARCHAR(12)  PRIMARY KEY REFERENCES indexes(id) ON DELETE CASCADE,
+                generation  BIGINT       NOT NULL DEFAULT 0
+            );
+
+            -- Per-index batch-learning schedule for the query boost
+            -- (services/domain/query_boost/schedule*.py). Times are epoch seconds.
+            CREATE TABLE IF NOT EXISTS query_boost_schedules (
+                index_id          VARCHAR(12)  PRIMARY KEY REFERENCES indexes(id) ON DELETE CASCADE,
+                enabled           BOOLEAN      NOT NULL DEFAULT FALSE,
+                days              INTEGER      NOT NULL DEFAULT 30,
+                run_hour_utc      SMALLINT     NOT NULL DEFAULT 2,
+                enabled_at        BIGINT,
+                updated_at        BIGINT,
+                last_run_at       BIGINT,
+                last_finished_at  BIGINT,
+                last_status       VARCHAR(20)  DEFAULT '',
+                last_message      TEXT         DEFAULT ''
+            );
+
             CREATE TABLE IF NOT EXISTS api_keys (
                 id          VARCHAR(12)  PRIMARY KEY,
                 index_id    VARCHAR(12)  NOT NULL REFERENCES indexes(id) ON DELETE CASCADE,

@@ -16,18 +16,28 @@ DELETE /v1/training/query-boost?index_id=<slug-or-id>
     Train / inspect / remove the learned query-conditional boost (Case B,
     services/domain/query_boost, docs/queryBoostImplementation.md).
     DELETE is the per-index off switch: with no stored model, search
-    applies no learned boost.
+    applies no learned boost. It also turns off the index's schedule.
+
+GET /v1/training/query-boost/schedule?index_id=<slug-or-id>
+PUT /v1/training/query-boost/schedule?index_id=<slug-or-id>
+    Per-index batch learning: a daily retrain at a set UTC hour over the
+    last N days of events, run by services/domain/query_boost/scheduler.py.
 
 Deliberately a separate router from routers/analytics.py: this feature is
 decoupled from the existing analytics pipeline (see
 popularity_trainer.py's module docstring) rather than added to it.
 
-On-demand only, same as /v1/analytics/aggregate — no scheduler exists in
-this codebase, so repeated training is triggered externally (cron, k8s
-CronJob, or a manual call), not by this service itself.
+Popularity (Case A) is on-demand only: repeated training is triggered
+externally (cron, k8s CronJob, or a manual call). The query boost (Case B)
+can also be scheduled per index, see above.
 """
 from __future__ import annotations
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from isp.services.domain.query_boost import schedule, schedule_store
 
 router = APIRouter(tags=["training"])
 
@@ -74,6 +84,10 @@ async def train_query_boost(
 
     Returns trained=false (not an error) when there isn't enough query
     traffic yet; any previously stored model is then left in place.
+
+    409 when a run for this index (manual or scheduled) is already in
+    progress. trained=false with superseded=true when the model was deleted
+    while this run trained; the deletion stands.
     """
     from isp.routers.indexes import _resolve_index
     from isp.services.domain.query_boost import trainer
@@ -83,6 +97,8 @@ async def train_query_boost(
         raise HTTPException(404, "Index not found")
 
     result = await trainer.train(meta.id, days)
+    if result.get("busy"):
+        raise HTTPException(409, "A training run for this index is already in progress")
     return {"index_id": meta.id, "slug": meta.slug, **result}
 
 
@@ -111,5 +127,60 @@ async def delete_query_boost(index_id: str = Query(..., description="Index slug 
     meta = await _resolve_index(index_id)
     if not meta:
         raise HTTPException(404, "Index not found")
-    await store.delete_model(meta.id)
-    return {"index_id": meta.id, "slug": meta.slug, "deleted": True}
+    # One transaction: model removed, generation bumped, schedule off. No run
+    # already in flight, and no scheduled run at all, can publish over it.
+    # A manual train started after this is a new, explicit request and does.
+    disabled = await store.delete_model(meta.id, disable_schedule=True)
+    return {"index_id": meta.id, "slug": meta.slug, "deleted": True,
+            "schedule_disabled": disabled}
+
+
+class QueryBoostScheduleUpdate(BaseModel):
+    enabled:      bool
+    days:         int = Field(default=schedule.DEFAULT_DAYS, ge=schedule.MIN_DAYS, le=schedule.MAX_DAYS,
+                              description="Lookback window in days for each scheduled run")
+    run_hour_utc: int = Field(default=schedule.DEFAULT_RUN_HOUR_UTC, ge=0, le=23,
+                              description="Hour of day (UTC) the daily run starts")
+
+
+@router.get(
+    "/training/query-boost/schedule",
+    summary="Get the batch-learning schedule for an index's query boost",
+)
+async def get_query_boost_schedule(index_id: str = Query(..., description="Index slug or hex id")):
+    """
+    The daily retrain schedule plus ``next_run_at`` and the last run's
+    outcome. Returns a disabled default when none has been saved.
+    """
+    from isp.routers.indexes import _resolve_index
+
+    meta = await _resolve_index(index_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    s = await schedule_store.get_schedule(meta.id)
+    return {"slug": meta.slug, **schedule.to_dict(s, datetime.now(timezone.utc))}
+
+
+@router.put(
+    "/training/query-boost/schedule",
+    summary="Set the batch-learning schedule for an index's query boost",
+)
+async def put_query_boost_schedule(
+    body: QueryBoostScheduleUpdate,
+    index_id: str = Query(..., description="Index slug or hex id"),
+):
+    """
+    Turn daily retraining on or off and set its lookback window and hour.
+
+    Changes take effect from the next scheduled hour; turning the schedule on
+    does not train immediately. Use ``POST /training/query-boost`` for that.
+    """
+    from isp.routers.indexes import _resolve_index
+
+    meta = await _resolve_index(index_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    s = await schedule_store.save_schedule(
+        meta.id, enabled=body.enabled, days=body.days, run_hour_utc=body.run_hour_utc
+    )
+    return {"slug": meta.slug, **schedule.to_dict(s, datetime.now(timezone.utc))}

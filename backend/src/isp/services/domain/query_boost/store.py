@@ -65,14 +65,97 @@ def invalidate(index_id: str | None = None) -> None:
         _cache.pop(index_id, None)
 
 
+async def current_generation(index_id: str) -> int:
+    """
+    The index's model generation: bumped by every save or delete.
+
+    A training run reads it before it starts and passes it to
+    ``save_model(expected_generation=...)``. If anything published or
+    deleted in the meantime, the run's result is stale and is discarded.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        gen = await conn.fetchval(
+            "SELECT generation FROM query_boost_generations WHERE index_id = $1", index_id
+        )
+    return gen or 0
+
+
+async def _lock_generation(conn, index_id: str) -> int:
+    """
+    Row-lock the index's generation for this transaction and return it.
+
+    Every model write (publish or delete) goes through here first, so writes
+    for one index are serialised on this row, and each sees the outcome of
+    the one before it.
+    """
+    await conn.execute(
+        "INSERT INTO query_boost_generations (index_id) VALUES ($1) ON CONFLICT DO NOTHING",
+        index_id,
+    )
+    return await conn.fetchval(
+        "SELECT generation FROM query_boost_generations WHERE index_id = $1 FOR UPDATE",
+        index_id,
+    )
+
+
+async def _replace_model(conn, index_id: str, embed_model: str,
+                         clusters: list[QueryCluster], boosts: list[LearnedBoost]) -> None:
+    """Bump the generation and swap the model rows. Caller holds the generation lock."""
+    now_ms = int(time.time() * 1000)
+    await conn.execute(
+        "UPDATE query_boost_generations SET generation = generation + 1 WHERE index_id = $1",
+        index_id,
+    )
+    await conn.execute("DELETE FROM query_boosts WHERE index_id = $1", index_id)
+    await conn.execute("DELETE FROM query_boost_clusters WHERE index_id = $1", index_id)
+    if clusters:
+        await conn.executemany(
+            """
+            INSERT INTO query_boost_clusters
+                (index_id, cluster_id, queries, centroid, embed_model, trained_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            """,
+            [(index_id, c.cluster_id, c.queries, c.centroid, embed_model, now_ms) for c in clusters],
+        )
+    if boosts:
+        await conn.executemany(
+            """
+            INSERT INTO query_boosts
+                (index_id, cluster_id, doc_id, boost, n_impressions, n_clicks)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            """,
+            [(index_id, b.cluster_id, b.doc_id, b.boost, b.n_impressions, b.n_clicks)
+             for b in boosts],
+        )
+
+
 async def save_model(
     index_id: str,
     embed_model: str,
     clusters: list[QueryCluster],
     boosts: list[LearnedBoost],
-) -> None:
+    *,
+    expected_generation: int | None = None,
+    require_schedule_enabled: bool = False,
+) -> bool:
     """
-    Replace this index's stored model in one transaction.
+    Replace this index's stored model in one transaction. Returns False,
+    writing nothing, when a publish condition fails.
+
+    Publish conditions, checked under the generation row lock in the same
+    transaction as the write:
+
+    - ``expected_generation``: the generation the trainer read when it
+      started. If anything published or deleted since, the result is stale.
+    - ``require_schedule_enabled``, used by scheduled runs: the index's
+      schedule must still be on. The schedule row is share-locked until
+      commit, so a schedule switched off concurrently either wins or waits
+      for this publish to finish. ``delete_model`` turns the schedule off and
+      bumps the generation in one transaction under the same lock. So a
+      scheduled run either publishes before the delete, and the delete then
+      removes it, or after it, and is refused. That holds even if the run
+      read its generation after the delete.
 
     **Every** cluster is stored, including ones that learned no boost. They
     act as matching boundaries: a query whose own cluster learned nothing
@@ -81,41 +164,55 @@ async def save_model(
     it, and the query could fall through to a neighbouring cluster above
     the similarity threshold and pick up that cluster's boosts.
     """
-    now_ms = int(time.time() * 1000)
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            await conn.execute("DELETE FROM query_boosts WHERE index_id = $1", index_id)
-            await conn.execute("DELETE FROM query_boost_clusters WHERE index_id = $1", index_id)
-            cluster_rows = [
-                (index_id, c.cluster_id, c.queries, c.centroid, embed_model, now_ms)
-                for c in clusters
-            ]
-            if cluster_rows:
-                await conn.executemany(
-                    """
-                    INSERT INTO query_boost_clusters
-                        (index_id, cluster_id, queries, centroid, embed_model, trained_at)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                    """,
-                    cluster_rows,
-                )
-            if boosts:
-                await conn.executemany(
-                    """
-                    INSERT INTO query_boosts
-                        (index_id, cluster_id, doc_id, boost, n_impressions, n_clicks)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                    """,
-                    [(index_id, b.cluster_id, b.doc_id, b.boost, b.n_impressions, b.n_clicks)
-                     for b in boosts],
-                )
+            gen = await _lock_generation(conn, index_id)
+            if expected_generation is not None and gen != expected_generation:
+                return False
+            # FOR SHARE holds the schedule row until this transaction commits. A
+            # concurrent PUT that turns the schedule off either commits first,
+            # and is seen here because the locked read returns the latest
+            # committed row, or blocks until this publish is done. It can never
+            # report "off" and then have a scheduled model appear.
+            if require_schedule_enabled and not await conn.fetchval(
+                "SELECT enabled FROM query_boost_schedules WHERE index_id = $1 FOR SHARE",
+                index_id,
+            ):
+                return False
+            await _replace_model(conn, index_id, embed_model, clusters, boosts)
     invalidate(index_id)
+    return True
 
 
-async def delete_model(index_id: str) -> None:
-    """Remove an index's stored model. Search then applies no learned boost (the off switch)."""
-    await save_model(index_id, "", [], [])
+async def delete_model(index_id: str, *, disable_schedule: bool = False) -> bool:
+    """
+    Remove an index's stored model. Search then applies no learned boost (the off switch).
+
+    Unconditional; never waits for training. It bumps the generation, so a
+    run already in flight discards its result. With ``disable_schedule``,
+    the index's schedule is turned off **in the same transaction**, so no
+    scheduled run can publish afterwards (see ``save_model``). Returns True
+    when a schedule was on and was turned off.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await _lock_generation(conn, index_id)
+            disabled = False
+            if disable_schedule:
+                disabled = bool(await conn.fetchval(
+                    """
+                    UPDATE query_boost_schedules
+                       SET enabled = FALSE, enabled_at = NULL, updated_at = $2
+                     WHERE index_id = $1 AND enabled
+                    RETURNING TRUE
+                    """,
+                    index_id, int(time.time()),
+                ))
+            await _replace_model(conn, index_id, "", [], [])
+    invalidate(index_id)
+    return disabled
 
 
 async def _read_model(index_id: str) -> QueryBoostModel | None:
