@@ -112,6 +112,27 @@ async def init_db() -> None:
                 trained_at     BIGINT
             );
 
+            -- Learned query boost (Case B) — see services/domain/query_boost/store.py.
+            CREATE TABLE IF NOT EXISTS query_boost_clusters (
+                index_id     VARCHAR(12)  NOT NULL REFERENCES indexes(id) ON DELETE CASCADE,
+                cluster_id   INTEGER      NOT NULL,
+                queries      TEXT[]       NOT NULL,
+                centroid     DOUBLE PRECISION[],
+                embed_model  VARCHAR(50)  DEFAULT '',
+                trained_at   BIGINT,
+                PRIMARY KEY (index_id, cluster_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS query_boosts (
+                index_id       VARCHAR(12)   NOT NULL REFERENCES indexes(id) ON DELETE CASCADE,
+                cluster_id     INTEGER       NOT NULL,
+                doc_id         VARCHAR(128)  NOT NULL,
+                boost          DOUBLE PRECISION NOT NULL,
+                n_impressions  INTEGER,
+                n_clicks       INTEGER,
+                PRIMARY KEY (index_id, cluster_id, doc_id)
+            );
+
             CREATE TABLE IF NOT EXISTS api_keys (
                 id          VARCHAR(12)  PRIMARY KEY,
                 index_id    VARCHAR(12)  NOT NULL REFERENCES indexes(id) ON DELETE CASCADE,

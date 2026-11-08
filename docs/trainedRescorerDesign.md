@@ -1,6 +1,9 @@
 # Trained Re-Scorer — Learned Ranking Boosts (Case A / B / C)
 
-> **Status: Case A implemented. Case B and C still proposed, not built.**
+> **Status: Case A and Case B implemented. Case C still proposed, not built.**
+> Case B as built: `docs/queryBoostImplementation.md` (differs from the
+> section below in write target — Postgres tables, not a document field —
+> and in magnitude — a ≤ +0.008 additive term, not +0.3–0.5).
 > Written before implementation, per the same "verify before implementing"
 > pattern used elsewhere in this project (`webEnrichmentAgentDesign.md`,
 > `superlativePriceDesign.md`). Every code reference below was checked
@@ -144,7 +147,7 @@ popularity" — is **already built**, not a green-field project:
 | Generic categorical feature discovery, any catalog | **Shipped** — `affinity_service.discover()` already auto-detects low-cardinality string fields per index, domain-agnostic |
 | Generic numeric feature discovery (beyond `price`) | **Shipped as of this doc** — `affinity_service.py`'s sampling previously only captured `price`; generalised to detect *any* numeric metadata field and derive per-field `{field}_tier` dimensions (`low`/`mid`/`high`, same percentile mechanism as `price_tier`) — see "Feature discovery is generic, not commerce-specific" below |
 | Position-debiasing (IPS/propensity, not just a decay curve) | **Net-new** — see `researchTopic1ImplicitFeedbackRanking.md` |
-| Query-conditional boost (Case B) | **Net-new** |
+| Query-conditional boost (Case B) | **Shipped** — `services/domain/query_boost/`, see `queryBoostImplementation.md` |
 | Personalization weight training (Case C) | **Net-new** |
 | Feature-snapshot / training-data export | **Net-new** |
 | Scheduled (repeated) training runs | **Net-new — no scheduler exists in this codebase at all** |

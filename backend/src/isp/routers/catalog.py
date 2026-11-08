@@ -21,6 +21,7 @@ from isp.models.search import CustomerAction
 from isp.services.infra import embedding_service
 from isp.services.infra import typesense_client as ts
 from isp.services.infra.database import get_pool
+from isp.services.domain.query_boost import serving as query_boost
 from isp.services.domain.context_service import (
     SearchContext, build_context, context_boost, fetch_preference_vector,
 )
@@ -420,6 +421,28 @@ async def search_catalog(req: CatalogSearchRequest):
             def ctx_hook(scores: dict, all_docs: dict) -> None:  # noqa: F811
                 ts.apply_boost_rules(scores, all_docs, _rules, query=_query)
 
+    # Learned query boost (Case B, services/domain/query_boost) — resolved per
+    # source index, since each index has its own model. Docs carry
+    # ``_index_id`` from _rrf_search, so boosts are keyed "<index_id>:<doc_id>".
+    _learned: dict[str, float] = {}
+    if req.q.strip():
+        _use_vec = req.search_mode in ("semantic", "hybrid")
+        for _m in _all_metas:
+            if _m.is_external:
+                continue
+            _model_id = _m.embed_model or embedding_service.get_current_model()
+
+            async def _qb_embed(text: str, _mid: str = _model_id) -> list[float]:
+                return await embedding_service.embed_query(text, model=_mid)
+
+            _b = await query_boost.resolve(_m.id, req.q, embed_model=_model_id,
+                                           embed=_qb_embed if _use_vec else None)
+            _learned.update({f"{_m.id}:{d}": v for d, v in _b.items()})
+    ctx_hook = query_boost.chain_hooks(
+        ctx_hook,
+        query_boost.make_hook(_learned, q=req.q, key=lambda did, doc: f"{doc.get('_index_id', '')}:{did}"),
+    )
+
     vec = None
     if req.search_mode in ("semantic", "hybrid") and req.q.strip():
         vec = await embedding_service.embed_query(req.q)
@@ -456,6 +479,8 @@ async def search_catalog(req: CatalogSearchRequest):
             context_actions.append("viewed_penalty")
     if _all_boost_rules:
         context_actions.append("boost_rules")
+    if _learned:
+        context_actions.append("learned_query_boost")
 
     return {
         "items":                items,
