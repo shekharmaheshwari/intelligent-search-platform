@@ -196,7 +196,10 @@ async def lifespan(app: FastAPI):
     await _seed_extensions_from_files()
     from isp.services.infra import telemetry
     telemetry.start()                 # anonymous, opt-out; never blocks startup
+    from isp.services.domain.query_boost import scheduler as query_boost_scheduler
+    query_boost_scheduler.start()     # per-index scheduled retrains; off via TRAINING_SCHEDULER_ENABLED=false
     yield
+    query_boost_scheduler.stop()
     telemetry.stop()
 
 

@@ -506,6 +506,23 @@ export const api = {
   getBoostRuleFields: (indexId: string) =>
     req<{ fields: string[] }>(`/indexes/${indexId}/boost-rules/fields`),
 
+  /** Daily batch-learning schedule for an index's learned query boost. */
+  getQueryBoostSchedule: (indexId: string) =>
+    req<import('./types').QueryBoostSchedule>(
+      `/training/query-boost/schedule?index_id=${encodeURIComponent(indexId)}`),
+
+  saveQueryBoostSchedule: (indexId: string, body: import('./types').QueryBoostScheduleUpdate) =>
+    req<import('./types').QueryBoostSchedule>(
+      `/training/query-boost/schedule?index_id=${encodeURIComponent(indexId)}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+
+  /** Train the learned query boost now, outside the schedule. */
+  trainQueryBoostNow: (indexId: string, days: number) =>
+    req<import('./types').QueryBoostTrainResult>(
+      `/training/query-boost?index_id=${encodeURIComponent(indexId)}&days=${days}`, { method: 'POST' }),
+
   getSynonyms: (indexId: string) =>
     req<{ synonyms: import('./types').Synonym[] }>(`/indexes/${indexId}/synonyms`),
 

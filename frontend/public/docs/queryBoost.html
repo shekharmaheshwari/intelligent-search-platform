@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Learned Query Boost — ISP Docs</title>
+  <script>(function(){var t=localStorage.getItem('isp-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})()</script>
+  <style>
+    :root {
+      --bg:#0a0a0a;--bg2:#0f0f0f;--bg3:#111;--bg-hover:#141414;
+      --border:#222;--border2:#1a1a1a;
+      --text:#eee;--text-h2:#ccc;--text-h3:#aaa;--text-p:#777;--text-td:#888;
+      --text-muted:#555;--text-faint:#444;--text-ghost:#333;
+      --accent:#7c6cf4;--accent-dim:#12101e;--accent-border:#2a2440;
+      --code-fg:#b4a4f8;--pre-fg:#bbb;
+    }
+    [data-theme="light"] {
+      --bg:#f9f9fb;--bg2:#f2f2f5;--bg3:#fff;--bg-hover:#f0f0f8;
+      --border:#ddd;--border2:#e8e8ed;
+      --text:#111;--text-h2:#333;--text-h3:#555;--text-p:#555;--text-td:#666;
+      --text-muted:#666;--text-faint:#888;--text-ghost:#aaa;
+      --accent:#6b5ce7;--accent-dim:#f0eeff;--accent-border:#c9c4f0;
+      --code-fg:#5a4fd4;--pre-fg:#444;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 12px; }
+    .logo-icon { font-size: 22px; color: var(--accent); }
+    .logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+    .breadcrumb { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1060px; margin: 0 auto; padding: 48px 32px 80px; gap: 48px; }
+    nav.sidebar { flex-shrink: 0; width: 190px; }
+    nav.sidebar ul { list-style: none; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 24px; }
+    nav.sidebar li a { display: block; padding: 7px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    nav.sidebar li a:hover { color: var(--text); background: var(--bg-hover); }
+    nav.sidebar li a.active { color: var(--accent); background: var(--accent-dim); }
+    .content { flex: 1; min-width: 0; }
+    h1 { font-size: 26px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .page-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 40px; }
+    h2 { font-size: 17px; font-weight: 600; color: var(--text-h2); margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }
+    h3 { font-size: 14px; font-weight: 600; color: var(--text-h3); margin: 22px 0 8px; }
+    h4 { font-size: 13px; font-weight: 600; color: var(--text-h3); margin: 18px 0 6px; }
+    p { font-size: 14px; color: var(--text-p); line-height: 1.7; margin-bottom: 14px; }
+    ol, ul { font-size: 14px; color: var(--text-p); line-height: 1.8; margin-left: 20px; margin-bottom: 16px; }
+    li { margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th { text-align: left; padding: 9px 14px; background: var(--bg3); color: var(--text-h3); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 9px 14px; border-bottom: 1px solid var(--border2); color: var(--text-td); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--code-fg); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--pre-fg); overflow-x: auto; line-height: 1.6; margin-bottom: 20px; white-space: pre; }
+    .notice { background: var(--accent-dim); border: 1px solid var(--accent-border); border-radius: 7px; padding: 14px 16px; font-size: 13px; color: var(--code-fg); line-height: 1.6; margin-bottom: 20px; }
+    .notice strong { color: var(--accent); }
+    .warn { background: #1a120a; border: 1px solid #3a2a10; border-radius: 7px; padding: 14px 16px; font-size: 13px; color: #c9903a; line-height: 1.6; margin-bottom: 20px; }
+    .warn strong { color: #e0aa55; }
+    .done-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle; background: #0d1f12; color: #4ade80; border: 1px solid #1a3d22; }
+    .todo-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle; background: #1a1408; color: #e0aa55; border: 1px solid #3a2a10; }
+    .fix-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-left: 6px; vertical-align: middle; background: #150c1f; color: var(--code-fg); border: 1px solid var(--accent-border); }
+    .ref-block { border-left: 2px solid var(--accent-border); padding: 10px 0 10px 16px; margin-bottom: 20px; }
+    .ref-title { font-size: 13px; font-weight: 600; color: var(--text-h3); margin-bottom: 4px; }
+    .ref-cite { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 6px; }
+    .ref-cite a { color: var(--accent); text-decoration: none; }
+    .ref-cite a:hover { text-decoration: underline; }
+    .ref-note { font-size: 12px; color: var(--text-p); line-height: 1.6; font-style: italic; }
+    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; display: inline-block; margin-bottom: 32px; }
+    .back-link:hover { text-decoration: underline; }
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); cursor: pointer; font-size: 15px; padding: 4px 9px; }
+    .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 700px) { .layout { flex-direction: column; gap: 24px; } nav.sidebar { width: 100%; } nav.sidebar ul { flex-direction: row; flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+<header>
+  <span class="logo-icon">⬡</span>
+  <span class="logo-name">Intelligent Search Platform</span>
+  <div class="breadcrumb">
+    <a href="index.html">Docs</a>
+    <span>/</span>
+    <span>Learned Query Boost</span>
+    <button class="theme-btn" id="theme-toggle" title="Toggle theme">☀</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <ul>
+      <li><a href="#what-it-is">What it is</a></li>
+      <li><a href="#endpoints">Endpoints</a></li>
+      <li><a href="#training">How it learns</a></li>
+      <li><a href="#serving">Serving &amp; safety</a></li>
+      <li><a href="#schedule">Batch learning schedule</a></li>
+      <li><a href="#learning-tab">Learning tab</a></li>
+      <li><a href="#concurrency">Concurrency</a></li>
+      <li><a href="#schema">Schema</a></li>
+      <li><a href="#tunables">Tunables</a></li>
+      <li><a href="#tests">Tests</a></li>
+      <li><a href="#not-yet">What this doesn't do yet</a></li>
+    </ul>
+  </nav>
+
+  <div class="content">
+    <a href="index.html" class="back-link">← Back to docs</a>
+    <h1>Learned Query Boost <span class="done-badge">Case B — Done</span></h1>
+    <p class="page-subtitle">Learns from clicks which products shoppers actually pick for each <em>kind</em> of query, and gives those products a small, bounded lift the next time someone searches something similar. It can retrain daily per index.</p>
+
+    <!-- WHAT IT IS -->
+    <h2 id="what-it-is">What it is</h2>
+    <p>Before this, ranking for a typed query came from text and vector relevance (RRF), hand-set levers (<code>is_featured</code>, pins, <code>boost_queries_*</code>, boost rules) and a query-agnostic popularity score (Case A). Nothing learned "for <em>this</em> query, people pick <em>that</em> product". The learned query boost fills that gap:</p>
+    <ol>
+      <li><strong>Groups similar queries</strong> ("cheap iphone", "budget iphone") by embedding similarity, so each query doesn't need its own large sample.</li>
+      <li><strong>Finds products that over-perform</strong> within a group: click rate against the group's average, with lower-ranked results counted less, and sparse evidence shrunk toward the average.</li>
+      <li><strong>Adds a small lift</strong> to those products for queries in the same group, including new wordings matched by meaning in hybrid or semantic mode.</li>
+    </ol>
+    <p>This is counting plus empirical-Bayes shrinkage, <strong>not a regression or learning-to-rank model</strong>. Every boost traces back to raw impression and click counts.</p>
+    <p>It's decoupled: its own package, <code>services/domain/query_boost/</code>, its own tables and its own routes. Its only touch points are a few lines in the search and catalog routers and the scheduler's start and stop in <code>main.py</code>.</p>
+    <table>
+      <thead><tr><th>Module</th><th>Kind</th><th>Job</th></tr></thead>
+      <tbody>
+        <tr><td><code>clustering.py</code></td><td>pure</td><td>Normalise queries, group them by intent, match a live query to a group</td></tr>
+        <tr><td><code>scoring.py</code></td><td>pure</td><td>Position-weighted clicks, shrinkage, boost in [0, 1]</td></tr>
+        <tr><td><code>store.py</code></td><td>I/O</td><td>Postgres model storage, the generation-checked publish, a 60 s cache</td></tr>
+        <tr><td><code>trainer.py</code></td><td>I/O</td><td>Events → groups → boosts → store → <code>training_runs</code></td></tr>
+        <tr><td><code>serving.py</code></td><td>query time</td><td>Resolve boosts for a query; post-RRF hook with the exact-title guard</td></tr>
+        <tr><td><code>schedule.py</code></td><td>pure</td><td>When a scheduled run is due; next-run time</td></tr>
+        <tr><td><code>schedule_store.py</code></td><td>I/O</td><td>Schedule storage and the atomic per-run claim</td></tr>
+        <tr><td><code>scheduler.py</code></td><td>background</td><td>The 60 s loop that runs due schedules</td></tr>
+        <tr><td><code>coordination.py</code></td><td>I/O</td><td>Per-index training lock shared by manual and scheduled runs</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ENDPOINTS -->
+    <h2 id="endpoints">Endpoints</h2>
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>POST</code></td><td><code>/v1/training/query-boost?index_id=&amp;days=30</code></td><td>Train now. Returns <code>409</code> if a run is already in progress</td></tr>
+        <tr><td><code>GET</code></td><td><code>/v1/training/query-boost?index_id=</code></td><td>Inspect the model: groups, member queries, top boosted docs</td></tr>
+        <tr><td><code>DELETE</code></td><td><code>/v1/training/query-boost?index_id=</code></td><td>Remove the model and turn off the schedule, in one transaction. This is the off switch</td></tr>
+        <tr><td><code>GET</code></td><td><code>/v1/training/query-boost/schedule?index_id=</code></td><td>Schedule, <code>next_run_at</code> and the last run's outcome</td></tr>
+        <tr><td><code>PUT</code></td><td><code>/v1/training/query-boost/schedule?index_id=</code></td><td><code>{"enabled": true, "days": 30, "run_hour_utc": 2}</code></td></tr>
+      </tbody>
+    </table>
+    <p>Possible result flags from a training run:</p>
+    <ul>
+      <li><code>trained</code>: a new model was published.</li>
+      <li><code>superseded</code>: the model was deleted or replaced, or the schedule turned off, during the run, so the result was discarded.</li>
+      <li><code>trained:false</code> with neither: too little traffic (fewer than 5 usable events), and the previous model is kept.</li>
+    </ul>
+
+    <!-- TRAINING -->
+    <h2 id="training">How it learns</h2>
+    <ol>
+      <li><strong>Read events:</strong> query (non-browse) <code>search_events</code> for the index within the last <code>days</code>. Impression rows and click rows are counted separately. A click is not also an impression.</li>
+      <li><strong>Filter:</strong> drop browse (<code>""</code>, <code>*</code>) and superlative queries ("cheapest phone"), and keep the 500 most frequent distinct queries.</li>
+      <li><strong>Embed and group:</strong> using the index's own embedding model (the same one search uses). Greedy leader clustering at cosine ≥ 0.85.</li>
+      <li><strong>Score:</strong> each event is weighted by <code>1/log2(rank+2)</code>. Each document's click rate is shrunk toward its group's baseline <code>p_c</code> (prior strength 5), then <code>boost = max(0, shrunk − p_c) / (1 − p_c)</code>, which falls in [0, 1].</li>
+      <li><strong>Publish:</strong> replace the index's model in one transaction, keeping <em>every</em> group, including ones with no boosted documents, as matching boundaries. Log a <code>training_runs</code> row (case <code>B</code>, <code>ctr_shrinkage</code>).</li>
+    </ol>
+
+    <!-- SERVING -->
+    <h2 id="serving">Serving &amp; safety</h2>
+    <ul>
+      <li><strong>Matching:</strong> a query seen in training uses its own group, with no embedding call. A new query is matched by vector only in hybrid or semantic mode, where the query is embedded anyway, and only if the index's embedding model is the one the model was trained with.</li>
+      <li><strong>Magnitude:</strong> <code>score += boost × 0.008</code>. That's about half the #1 RRF score, enough to lift a clearly preferred result up the page. It stays far below the manual levers (<code>is_featured</code> +0.5, <code>boost_queries_*</code> +0.3/+0.5) and pins, so manual merchandising always wins.</li>
+      <li><strong>Exact-title guard:</strong> if any candidate's title or alias exactly equals the query, the learned boost is skipped for that search.</li>
+      <li><strong>Browse is untouched:</strong> empty-query listings are Case A's job.</li>
+      <li><strong>Catalog (PLP) search:</strong> boosts are resolved per source index and keyed <code>index:doc</code>. Searches that use it report <code>learned_query_boost</code> in <code>context_actions_used</code>.</li>
+    </ul>
+
+    <!-- SCHEDULE -->
+    <h2 id="schedule">Batch learning schedule</h2>
+    <p>Each index can retrain itself once a day. It's off by default.</p>
+    <table>
+      <thead><tr><th>Setting</th><th>Default</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>enabled</code></td><td><code>false</code></td><td>Daily retraining on or off</td></tr>
+        <tr><td><code>days</code></td><td>30</td><td>Lookback window per run (1–365)</td></tr>
+        <tr><td><code>run_hour_utc</code></td><td>2</td><td>Hour of day, in UTC, the run starts (0–23)</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>The scheduler checks every 60 s. A run is due when the latest <code>run_hour_utc</code>:00 UTC is after the time the schedule was enabled and hasn't run yet.</li>
+      <li><strong>Turning it on, or changing the hour, starts from the next scheduled hour</strong>, never immediately. Use <strong>Train now</strong> for an immediate run.</li>
+      <li>If the API was down at the run hour, the run happens once when it comes back, even after several missed days.</li>
+      <li>Indexes train one at a time. A failure is recorded on that index and doesn't stop the others.</li>
+      <li>Outcome: <code>last_status</code> is <code>trained</code>, <code>skipped</code> (thin traffic, busy or superseded) or <code>error</code>, and <code>last_message</code> holds the detail.</li>
+      <li><code>TRAINING_SCHEDULER_ENABLED=false</code> keeps an API instance out of scheduling. Its schedules stay editable.</li>
+    </ul>
+    <div class="warn"><strong>Known limit:</strong> if an instance dies mid-run, that day's status stays <code>running</code> until the next day's run. The run isn't retried the same day. Its lock is released automatically.</div>
+
+    <!-- LEARNING TAB -->
+    <h2 id="learning-tab">Learning tab</h2>
+    <p>On each index's page (<code>LearningTab.svelte</code>):</p>
+    <ul>
+      <li><strong>Daily batch learning</strong> toggle, <strong>Learn from the last N days</strong> and <strong>Run at</strong>. The run hour is shown in UTC with your local time alongside.</li>
+      <li><strong>Status:</strong> next run, last scheduled run (Trained, Skipped, Failed, Running or Never run) and the result message.</li>
+      <li><strong>Train now:</strong> one immediate run with the current day window. It doesn't change the schedule. If a run is already in progress, it shows "already in progress".</li>
+      <li>The status refreshes every 30 s and when you return to the browser tab. A refresh never overwrites unsaved edits, and a response that a save overtook is ignored.</li>
+    </ul>
+
+    <!-- CONCURRENCY -->
+    <h2 id="concurrency">Concurrency</h2>
+    <table>
+      <thead><tr><th>Race</th><th>How it's prevented</th></tr></thead>
+      <tbody>
+        <tr><td>Manual and scheduled runs overlapping, or two instances training the same index</td><td><code>trainer.train</code> takes a per-index Postgres advisory lock. A second run returns "busy": <code>409</code> for a manual run, <code>skipped</code> for a scheduled one.</td></tr>
+        <tr><td>Two instances running the same scheduled run</td><td>Each run is claimed with one conditional <code>UPDATE</code>, so exactly one instance wins.</td></tr>
+        <tr><td>Training exhausting the DB pool</td><td>The lock uses its own direct connection outside the shared pool, so a run holds at most one pool connection at a time. Even a 1-connection pool works.</td></tr>
+        <tr><td>A run that was in progress during a delete bringing the model back</td><td>A per-index model <em>generation</em>, bumped by every publish and delete. A run publishes only if the generation is unchanged since it started, checked under a row lock.</td></tr>
+        <tr><td>A scheduled run starting after a delete</td><td><code>DELETE</code> turns off the schedule and bumps the generation in one transaction. Scheduled runs also require the schedule to still be on, read with <code>FOR SHARE</code> until commit.</td></tr>
+        <tr><td>Turning a schedule off while a run is publishing</td><td>The same <code>FOR SHARE</code> lock: the change to "off" either commits first, and the run refuses, or waits until the publish is done.</td></tr>
+      </tbody>
+    </table>
+    <p>A <em>manual</em> train after a delete is an explicit request and publishes normally.</p>
+
+    <!-- SCHEMA -->
+    <h2 id="schema">Schema</h2>
+    <pre>query_boost_clusters    (index_id, cluster_id) PK  queries[], centroid[], embed_model, trained_at
+query_boosts            (index_id, cluster_id, doc_id) PK  boost, n_impressions, n_clicks
+query_boost_generations (index_id) PK  generation          -- guards stale publishes
+query_boost_schedules   (index_id) PK  enabled, days, run_hour_utc, enabled_at, updated_at,
+                                       last_run_at, last_finished_at, last_status, last_message</pre>
+    <p>All four tables cascade-delete with their index. Times in the schedules table are epoch seconds.</p>
+
+    <!-- TUNABLES -->
+    <h2 id="tunables">Tunables</h2>
+    <table>
+      <thead><tr><th>Setting</th><th>Default</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>clustering.DEFAULT_THRESHOLD</code></td><td>0.85</td><td>Query-to-group cosine (training and serving)</td></tr>
+        <tr><td><code>scoring.DEFAULT_PRIOR_STRENGTH</code></td><td>5</td><td>Shrinkage strength; higher means more data needed</td></tr>
+        <tr><td><code>serving.MAX_SCORE_BOOST</code></td><td>0.008</td><td>Score added for <code>boost = 1.0</code></td></tr>
+        <tr><td><code>trainer.MIN_EVENTS</code> / <code>MAX_QUERIES</code></td><td>5 / 500</td><td>Skip threshold / distinct queries per run</td></tr>
+        <tr><td><code>store.CACHE_TTL_SECONDS</code></td><td>60</td><td>How long other processes may serve the previous model</td></tr>
+        <tr><td><code>scheduler.TICK_SECONDS</code></td><td>60</td><td>Due-run check interval</td></tr>
+        <tr><td><code>TRAINING_SCHEDULER_ENABLED</code> (env)</td><td><code>true</code></td><td>Run the scheduler on this instance</td></tr>
+        <tr><td>Per-index <code>days</code> and run hour</td><td>30 / 02:00 UTC</td><td>Set on the Learning tab or with <code>PUT …/schedule</code></td></tr>
+      </tbody>
+    </table>
+
+    <!-- TESTS -->
+    <h2 id="tests">Tests</h2>
+    <ul>
+      <li><strong>Pure unit tests</strong> (<code>tests/domain/query_boost/</code>): clustering, scoring, serving (including the exact-title guard and magnitude guarantees), trainer orchestration, schedule timing, and the scheduler loop.</li>
+      <li><strong>Real-Postgres tests:</strong>
+        <ul>
+          <li>model store round trip and snapshot reads</li>
+          <li>the schedule store, including five concurrent claims where exactly one wins</li>
+          <li><code>test_coordination.py</code>, which pauses a real run halfway to reproduce each race above deterministically</li>
+        </ul>
+      </li>
+      <li><strong>Router tests:</strong> auth, 404, validation, the train → inspect → delete cycle, DELETE turning the schedule off, and the <code>409</code>.</li>
+      <li><strong>Frontend:</strong> helper tests (hour labels across time zones, refresh-merging, the latest-request gate) and a component test showing that leaving the tab mid-load leaks no polling.</li>
+    </ul>
+
+    <!-- NOT YET -->
+    <h2 id="not-yet">What this doesn't do yet</h2>
+    <ul>
+      <li><strong>Promotions only:</strong> a product shown often and never clicked gets 0, not a penalty.</li>
+      <li><strong>Position handling is a decay curve, not IPS</strong> or a learned click model. Same follow-up as Case A.</li>
+      <li><strong>No offline ranking metric</strong> (nDCG/MRR) yet. It's a mechanism, not a measured quality gain.</li>
+      <li><strong><code>/v1/content</code> search</strong> doesn't use post-RRF hooks, so it gets no learned boost.</li>
+      <li><strong>Not learning-to-rank:</strong> a feature-based LTR model (GBDT or LambdaMART) is a later step that needs more traffic.</li>
+    </ul>
+    <p>Full engineering notes: <code>docs/queryBoostImplementation.md</code>. Design context: <code>docs/trainedRescorerDesign.md</code>.</p>
+
+  </div><!-- .content -->
+</div><!-- .layout -->
+
+<script>
+  (function(){
+    var btn = document.getElementById('theme-toggle');
+    function apply(t) {
+      if (t === 'light') { document.documentElement.setAttribute('data-theme','light'); btn.textContent = '☾'; }
+      else { document.documentElement.removeAttribute('data-theme'); btn.textContent = '☀'; }
+    }
+    apply(localStorage.getItem('isp-theme') || 'dark');
+    btn.addEventListener('click', function(){
+      var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      localStorage.setItem('isp-theme', next); apply(next);
+    });
+    // Sidebar active highlight on scroll
+    var sections = document.querySelectorAll('h2[id], h3[id]');
+    var links = document.querySelectorAll('nav.sidebar a');
+    window.addEventListener('scroll', function(){
+      var pos = window.scrollY + 80;
+      var cur = '';
+      sections.forEach(function(s){ if (s.offsetTop <= pos) cur = s.id; });
+      links.forEach(function(a){ a.classList.toggle('active', a.getAttribute('href') === '#'+cur); });
+    }, {passive:true});
+  })();
+</script>
+</body>
+</html>

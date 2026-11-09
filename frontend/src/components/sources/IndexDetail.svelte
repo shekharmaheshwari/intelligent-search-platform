@@ -25,12 +25,13 @@
   import BoostRulesTab            from './BoostRulesTab.svelte';
   import SynonymsTab              from './SynonymsTab.svelte';
   import ChatPersonaTab           from './ChatPersonaTab.svelte';
+  import LearningTab              from './LearningTab.svelte';
 
   export let indexId: string;
-  export let tab: 'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' | 'synonyms' | 'chat-persona' = 'overview';
+  export let tab: 'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' | 'synonyms' | 'chat-persona' | 'learning' = 'overview';
 
-  const tabs: Array<'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' | 'synonyms' | 'chat-persona'> =
-    ['overview', 'connector', 'mapping', 'fields', 'documents', 'search', 'api', 'suggestions', 'personalisation', 'boost-rules', 'synonyms', 'chat-persona'];
+  const tabs: Array<'overview' | 'connector' | 'mapping' | 'fields' | 'documents' | 'search' | 'api' | 'suggestions' | 'personalisation' | 'boost-rules' | 'synonyms' | 'chat-persona' | 'learning'> =
+    ['overview', 'connector', 'mapping', 'fields', 'documents', 'search', 'api', 'suggestions', 'personalisation', 'boost-rules', 'synonyms', 'chat-persona', 'learning'];
 
   const dispatch = createEventDispatcher<{ back: void; tabchange: typeof tab }>();
 
@@ -141,6 +142,9 @@
 
       {:else if tab === 'chat-persona'}
         <ChatPersonaTab {indexId} />
+
+      {:else if tab === 'learning'}
+        <LearningTab {indexId} />
       {/if}
     </div>
   {/if}

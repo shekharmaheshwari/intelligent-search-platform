@@ -379,6 +379,9 @@ Full Swagger UI at **http://localhost:8001/docs**
 | POST | `/v1/analytics/click` | Log a single product click (204, fire-and-forget) |
 | POST | `/v1/analytics/aggregate` | Aggregate impression+click signals → write popularity scores to Typesense |
 | GET | `/v1/analytics/summary` | Query health metrics: zero-result rate, top queries, low-CTR queries |
+| POST | `/v1/training/popularity` | Train the browse-popularity model (Case A) and write scores to Typesense |
+| POST/GET/DELETE | `/v1/training/query-boost` | Train, inspect or remove the learned query boost (Case B). DELETE also turns off its schedule. POST returns 409 if a run is already in progress |
+| GET/PUT | `/v1/training/query-boost/schedule` | Per-index daily batch-learning schedule: `enabled`, `days`, `run_hour_utc` (also on the index's **Learning** tab) |
 
 The `{id}` path segment in all routes accepts either a **slug** (e.g. `tablets`) or a **hex ID** (e.g. `9ed56100f220`). Slug lookup is tried first; hex ID is the fallback.
 
@@ -403,6 +406,7 @@ EXTENSIONS_DIR=/app/extensions
 HOST=0.0.0.0
 PORT=8001
 LOG_LEVEL=INFO
+TRAINING_SCHEDULER_ENABLED=true           # run per-index scheduled query-boost retrains on this instance
 
 # ── Secrets provider ──────────────────────────────────────────────────────────
 # "env"   → read secrets directly from this file (default, no extra setup)
