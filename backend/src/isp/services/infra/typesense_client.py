@@ -728,45 +728,114 @@ def update_field_properties(
     log.info("Field property update complete: collection=%s field=%s", name, field_name)
 
 
+# ── Synonyms (Typesense ≥ 30: synonym sets) ──────────────────────────────────
+#
+# Typesense 30 removed per-collection synonyms (/collections/{c}/synonyms).
+# Rules now live in top-level *synonym sets* that a collection links to via
+# its ``synonym_sets`` field; search applies every linked set automatically.
+#
+# ISP keeps one set per index, ``isp_<id>_synonyms``, created and linked on the
+# first save. Sets already linked to the collection (for example ones Typesense
+# migrated from pre-30 synonyms) are still listed, edited in place and
+# deletable, so upgrading does not hide existing rules.
+
+def synonym_set_name(index_id: str) -> str:
+    """Name of the synonym set ISP owns for an index."""
+    return f"{collection_name(index_id)}_synonyms"
+
+
+def _synonym_rule(item: dict) -> dict:
+    """API shape for one rule: ``{id, synonyms, root?}`` (Typesense returns ``root: ""`` for multi-way)."""
+    rule = {"id": item["id"], "synonyms": list(item.get("synonyms") or [])}
+    if item.get("root"):
+        rule["root"] = item["root"]
+    return rule
+
+
+def _linked_synonym_sets(client, coll: str) -> list[str]:
+    return list(client.collections[coll].retrieve().get("synonym_sets") or [])
+
+
+def _synonym_set_items(client, set_name: str) -> list[dict]:
+    """All items in a set (``[]`` if the set is gone)."""
+    from typesense.exceptions import ObjectNotFound
+    try:
+        return list(client.synonym_sets[set_name].retrieve().get("items") or [])
+    except ObjectNotFound:
+        return []
+
+
+def _set_holding(client, linked: list[str], synonym_id: str) -> str | None:
+    """The linked set that already contains ``synonym_id``, if any."""
+    for set_name in linked:
+        if any(i.get("id") == synonym_id for i in _synonym_set_items(client, set_name)):
+            return set_name
+    return None
+
+
 def list_synonyms(index_id: str) -> list[dict]:
-    """Return all synonym sets defined for a collection."""
+    """Return every synonym rule linked to the index's collection (first set wins on duplicate ids)."""
     import logging
     log = logging.getLogger(__name__)
-    name = collection_name(index_id)
+    coll = collection_name(index_id)
+    client = get_client()
     try:
-        result = get_client().collections[name].synonyms.retrieve()
-        return result.get("synonyms", [])
+        rules: dict[str, dict] = {}
+        for set_name in _linked_synonym_sets(client, coll):
+            for item in _synonym_set_items(client, set_name):
+                rules.setdefault(item["id"], _synonym_rule(item))
+        return list(rules.values())
     except Exception:
-        log.error("list_synonyms failed: collection=%s", name, exc_info=True)
+        log.error("list_synonyms failed: collection=%s", coll, exc_info=True)
         return []
 
 
 def upsert_synonym(index_id: str, synonym_id: str, synonyms: list[str], root: str | None = None) -> dict:
     """
-    Create or update a synonym set.
+    Create or update one synonym rule.
 
     ``root`` unset means multi-way — every listed word is mutually interchangeable
     (e.g. wire = cable = cord). ``root`` set means one-way — searching the root
     also matches the synonyms, but not vice versa (e.g. root "tv" -> synonyms
     ["television", "telly"]).
+
+    An existing rule is updated in whichever linked set holds it; a new rule
+    goes into the index's own set, which is created and linked if needed.
     """
-    name = collection_name(index_id)
-    body: dict = {"synonyms": synonyms}
+    from typesense.exceptions import ObjectNotFound
+    coll = collection_name(index_id)
+    client = get_client()
+    item: dict = {"synonyms": synonyms}
     if root:
-        body["root"] = root
-    return get_client().collections[name].synonyms.upsert(synonym_id, body)
+        item["root"] = root
+
+    linked = _linked_synonym_sets(client, coll)
+    target = _set_holding(client, linked, synonym_id) or synonym_set_name(index_id)
+    try:
+        saved = client.synonym_sets[target].upsert_item(synonym_id, item)
+    except ObjectNotFound:
+        # First rule for this index: create the set with it in one write.
+        client.synonym_sets[target].upsert({"items": [{"id": synonym_id, **item}]})
+        saved = {"id": synonym_id, **item}
+    if target not in linked:
+        client.collections[coll].update({"synonym_sets": [*linked, target]})
+    return _synonym_rule(saved)
 
 
 def delete_synonym(index_id: str, synonym_id: str) -> bool:
-    """Delete a synonym set. Returns False if it didn't exist or the delete failed."""
+    """Delete one synonym rule from whichever linked set holds it. Returns False if not found or on failure."""
     import logging
     log = logging.getLogger(__name__)
-    name = collection_name(index_id)
+    coll = collection_name(index_id)
+    client = get_client()
     try:
-        get_client().collections[name].synonyms[synonym_id].delete()
+        target = _set_holding(client, _linked_synonym_sets(client, coll), synonym_id)
+        if target is None:
+            return False
+        client.synonym_sets[target].delete_item(synonym_id)
         return True
     except Exception:
-        log.error("delete_synonym failed: collection=%s synonym_id=%s", name, synonym_id, exc_info=True)
+        log.error("delete_synonym failed: collection=%s synonym_id=%s", coll, synonym_id, exc_info=True)
         return False
 
 

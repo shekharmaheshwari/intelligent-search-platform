@@ -90,11 +90,11 @@
   <div class="content">
     <a href="index.html" class="back-link">← Back to docs</a>
     <h1>Synonyms</h1>
-    <p class="page-subtitle">Vocabulary equivalence for search — a thin UI + API wrapper around Typesense's native per-collection synonym feature, so queries like "wire" can match products described as "cable."</p>
+    <p class="page-subtitle">Vocabulary equivalence for search — a thin UI + API wrapper around Typesense's native synonym sets, so queries like "wire" can match products described as "cable."</p>
 
     <!-- WHAT IT IS -->
     <h2 id="what-it-is">What it is</h2>
-    <p>The Synonyms tab lets an operator declare that different words should be treated as equivalent during search — e.g. <code>wire = cable = cord</code>. It's a thin UI + API wrapper around Typesense's own native per-collection synonym feature; ISP doesn't reimplement synonym matching itself, it just exposes Typesense's existing mechanism per index.</p>
+    <p>The Synonyms tab lets an operator declare that different words should be treated as equivalent during search — e.g. <code>wire = cable = cord</code>. It's a thin UI + API wrapper around Typesense's own native synonym feature (synonym sets, Typesense ≥ 30); ISP doesn't reimplement synonym matching itself, it just exposes Typesense's existing mechanism per index.</p>
     <p>Changes apply immediately at query time — <strong>no rebuild required</strong>, since synonyms are resolved by Typesense during query parsing, not baked into indexed documents.</p>
 
     <!-- WHY -->
@@ -116,13 +116,24 @@
 
     <!-- BACKEND -->
     <h2 id="backend">Backend</h2>
-    <p>Three thin wrapper functions in <code>backend/src/isp/services/infra/typesense_client.py</code>, proxying directly to Typesense's native <code>collections[name].synonyms</code> API (same logging conventions as the rest of the file — errors are logged with <code>exc_info=True</code> rather than silently swallowed):</p>
+    <p>Three thin wrapper functions in <code>backend/src/isp/services/infra/typesense_client.py</code>, on Typesense's <code>synonym_sets</code> API (same logging conventions as the rest of the file — errors are logged with <code>exc_info=True</code> rather than silently swallowed):</p>
     <ul>
       <li><code>list_synonyms(index_id) -&gt; list[dict]</code></li>
       <li><code>upsert_synonym(index_id, synonym_id, synonyms, root=None) -&gt; dict</code></li>
       <li><code>delete_synonym(index_id, synonym_id) -&gt; bool</code></li>
     </ul>
-    <div class="warn"><strong>Typesense server version note:</strong> this stack runs Typesense <strong>0.25.2</strong> (<code>docker-compose.yml</code>), which pre-dates Typesense's newer top-level <code>synonym_sets</code> API. The installed Python client (<code>typesense==2.0.0</code>) marks the per-collection <code>synonyms</code> API "deprecated" in favor of <code>synonym_sets</code>, but that newer API isn't available on this server version — the per-collection API is the correct and only viable choice for this deployment, not a legacy shortcut. Verified directly against the running server before building anything: created a real <code>{"synonyms": ["wire","cable","cord"]}</code> set, confirmed it changed search results correctly, then deleted the test set.</div>
+    <h3>How rules are stored (Typesense ≥ 30)</h3>
+    <p>Typesense 30 removed per-collection synonyms (<code>/collections/{c}/synonyms</code>). Rules now live in top-level <strong>synonym sets</strong>, and a collection uses a set by listing it in its <code>synonym_sets</code> field; search then applies every linked set automatically.</p>
+    <ul>
+      <li>Each index gets one set, <strong><code>isp_&lt;index_id&gt;_synonyms</code></strong> (<code>synonym_set_name()</code>), created and linked to the collection on the first save. Other sets already linked are kept.</li>
+      <li><strong>List</strong> returns the rules of every set linked to the collection, so sets Typesense migrated from pre-30 synonyms on upgrade still show up.</li>
+      <li><strong>Save</strong> updates a rule in place in whichever linked set already holds its id; a new id goes into the index's own set.</li>
+      <li><strong>Delete</strong> removes the rule from whichever linked set holds it.</li>
+      <li>Responses keep the <code>{id, synonyms, root?}</code> shape: Typesense 30 returns <code>root: ""</code> for multi-way rules, which is dropped.</li>
+    </ul>
+    <p>The Python client must be <code>typesense&gt;=2.1.0</code> (<code>pyproject.toml</code>) for <code>client.synonym_sets</code>.</p>
+    <div class="warn"><strong>History:</strong> the feature was first built on Typesense 0.25.2, where only the per-collection API existed. Moving the stack to 30.2 (<code>docker-compose.yml</code>) broke it: every list returned <code>[]</code> and every save was a 500, until it was moved to synonym sets.</div>
+    <p>Tests: <code>backend/tests/services/infra/test_synonyms.py</code>. Unit tests use a fake client; one live test (skipped unless <code>TYPESENSE_HOST</code> is set) does the real round trip and checks that search applies a rule without a rebuild.</p>
 
     <!-- API -->
     <h2 id="api">API endpoints</h2>
@@ -150,7 +161,7 @@ DELETE /v1/indexes/{idx_id}/synonyms/{synonym_id}    → 204 on success</pre>
     <h2 id="decisions">Decisions summary</h2>
     <ul>
       <li><strong>Typesense-native, not a custom query-rewrite layer</strong> — reuses an existing, correct mechanism instead of building a parallel one.</li>
-      <li><strong>Per-collection API, not <code>synonym_sets</code></strong> — matches the actual Typesense server version running in this stack; verified directly rather than assumed from the client library.</li>
+      <li><strong>One synonym set per index, linked to its collection</strong> — the Typesense 30 model; rules from any other linked set (e.g. migrated ones) stay visible and editable.</li>
       <li><strong>Per-item CRUD, not batch-save</strong> — matches Typesense's own per-ID synonym model, unlike Boost Rules' Postgres-JSONB-backed batch model.</li>
       <li><strong>No rebuild required</strong> — synonyms are query-time, not document-time, so changes are live immediately.</li>
     </ul>

@@ -4,8 +4,8 @@
 
 The **Synonyms** tab lets an operator declare that different words should be treated as
 equivalent during search — e.g. `wire = cable = cord`. It's a thin UI + API wrapper around
-Typesense's own native per-collection synonym feature; ISP doesn't reimplement synonym
-matching itself, it just exposes Typesense's existing mechanism per index.
+Typesense's own native synonym feature (synonym sets, Typesense ≥ 30); ISP doesn't
+reimplement synonym matching itself, it just exposes Typesense's existing mechanism per index.
 
 Changes apply immediately at query time — **no rebuild required**, since synonyms are
 resolved by Typesense during query parsing, not baked into indexed documents.
@@ -41,23 +41,39 @@ Typesense supports both, and the Synonyms tab exposes both:
 
 ## Backend
 
-Three thin wrapper functions in `backend/src/isp/services/infra/typesense_client.py`,
-proxying directly to Typesense's native `collections[name].synonyms` API (same logging
-conventions as the rest of the file — errors are logged with `exc_info=True` rather than
-silently swallowed):
+Three thin wrapper functions in `backend/src/isp/services/infra/typesense_client.py`, on
+Typesense's `synonym_sets` API (same logging conventions as the rest of the file — errors
+are logged with `exc_info=True` rather than silently swallowed):
 
 - `list_synonyms(index_id) -> list[dict]`
 - `upsert_synonym(index_id, synonym_id, synonyms, root=None) -> dict`
 - `delete_synonym(index_id, synonym_id) -> bool`
 
-**Note on Typesense server version:** this stack runs Typesense **0.25.2**
-(`docker-compose.yml`), which pre-dates Typesense's newer top-level `synonym_sets` API
-(introduced in later server versions). The installed Python client (`typesense==2.0.0`)
-marks the per-collection `synonyms` API "deprecated" in favor of `synonym_sets`, but that
-newer API isn't available on this server version — the per-collection API is the correct
-and only viable choice for this deployment, not a legacy shortcut. Verified directly against
-the running server before building anything (created a real `{"synonyms": ["wire","cable","cord"]}`
-set, confirmed it changed search results correctly, then deleted the test set).
+### How rules are stored (Typesense ≥ 30)
+
+Typesense 30 removed per-collection synonyms (`/collections/{c}/synonyms`). Rules now live
+in top-level **synonym sets**, and a collection uses a set by listing it in its
+`synonym_sets` field; search then applies every linked set automatically.
+
+- Each index gets one set, **`isp_<index_id>_synonyms`** (`synonym_set_name()`), created
+  and linked to the collection on the first save. Other sets already linked are kept.
+- **List** returns the rules of every set linked to the collection, so sets Typesense
+  migrated from pre-30 synonyms on upgrade still show up.
+- **Save** updates a rule in place in whichever linked set already holds its id; a new id
+  goes into the index's own set.
+- **Delete** removes the rule from whichever linked set holds it.
+- Responses keep the `{id, synonyms, root?}` shape: Typesense 30 returns `root: ""` for
+  multi-way rules, which is dropped.
+
+The Python client must be `typesense>=2.1.0` (`pyproject.toml`) for `client.synonym_sets`.
+
+**History:** the feature was first built on Typesense 0.25.2, where only the per-collection
+API existed. Moving the stack to 30.2 (`docker-compose.yml`) broke it: every list returned
+`[]` and every save was a 500, until it was moved to synonym sets.
+
+Tests: `backend/tests/services/infra/test_synonyms.py`. Unit tests use a fake client; one
+live test (skipped unless `TYPESENSE_HOST` is set) does the real round trip and checks that
+search applies a rule without a rebuild.
 
 ## API endpoints
 
@@ -95,8 +111,8 @@ per-ID, so each add/delete is its own API call, not a batch save.
 
 - **Typesense-native, not a custom query-rewrite layer** — reuses an existing, correct
   mechanism instead of building a parallel one.
-- **Per-collection API, not `synonym_sets`** — matches the actual Typesense server version
-  running in this stack; verified directly rather than assumed from the client library.
+- **One synonym set per index, linked to its collection** — the Typesense 30 model; rules
+  from any other linked set (e.g. migrated ones) stay visible and editable.
 - **Per-item CRUD, not batch-save** — matches Typesense's own per-ID synonym model, unlike
   Boost Rules' Postgres-JSONB-backed batch model.
 - **No rebuild required** — synonyms are query-time, not document-time, so changes are live
