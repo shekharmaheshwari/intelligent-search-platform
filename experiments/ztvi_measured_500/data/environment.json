@@ -1,0 +1,8 @@
+{
+  "typesense": {
+    "state": 1,
+    "version": "30.2"
+  },
+  "benign_guard_hits": 0,
+  "benign_records": 1430
+}
