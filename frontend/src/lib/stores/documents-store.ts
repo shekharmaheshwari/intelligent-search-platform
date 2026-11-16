@@ -3,32 +3,38 @@
 
 import { StoreBase } from './StoreBase';
 import { indexService } from '../services/indexes/IndexService';
-import type { DocumentItem } from '../types';
+import type { DocumentItem, DocumentOrigin } from '../types';
 
 interface DocumentsState {
   docs:    DocumentItem[];
   found:   number;
   page:    number;
+  origin:  DocumentOrigin;
   loading: boolean;
   error:   string;
 }
 
 class DocumentsStore extends StoreBase<DocumentsState> {
   constructor() {
-    super({ docs: [], found: 0, page: 1, loading: false, error: '' });
+    super({ docs: [], found: 0, page: 1, origin: 'all', loading: false, error: '' });
   }
 
-  async load(indexId: string, opts: { page?: number; perPage?: number } = {}): Promise<void> {
+  async load(
+    indexId: string,
+    opts: { page?: number; perPage?: number; origin?: DocumentOrigin } = {},
+  ): Promise<void> {
     const page    = opts.page    ?? 1;
     const perPage = opts.perPage ?? 20;
+    const origin  = opts.origin  ?? 'all';
     this.update(s => ({ ...s, loading: true, error: '' }));
     try {
-      const res = await indexService.listDocuments(indexId, page, perPage);
+      const res = await indexService.listDocuments(indexId, page, perPage, origin);
       this.update(s => ({
         ...s,
         docs:    res.hits.map(h => h.document),
         found:   res.found,
         page,
+        origin,
         loading: false,
       }));
     } catch (e) {
@@ -71,7 +77,7 @@ class DocumentsStore extends StoreBase<DocumentsState> {
   }
 
   reset(): void {
-    this.set({ docs: [], found: 0, page: 1, loading: false, error: '' });
+    this.set({ docs: [], found: 0, page: 1, origin: 'all', loading: false, error: '' });
   }
 }
 

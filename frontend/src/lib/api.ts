@@ -15,6 +15,7 @@ import type {
   ExtensionMeta, IndexExtension, AppSettings,
   Suggestion, SuggestionsResponse,
   MappingConfig, FieldEntry, FieldConfig,
+  DocumentItem, DocumentOrigin, ManualFormField, ManualDocFields,
 } from './types';
 
 const BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8001/v1';
@@ -135,9 +136,41 @@ export const api = {
       body: JSON.stringify(cfg),
     }),
 
-  /** Paginated listing of all documents in an index, sorted newest first. */
-  listDocuments: (id: string, page = 1, perPage = 20) =>
-    req<SearchResult>(`/indexes/${id}/documents?page=${page}&per_page=${perPage}`),
+  /**
+   * Paginated listing of documents in an index, sorted newest first.
+   * @param origin  ``all`` | ``manual`` (hand-entered) | ``connector`` (ingested)
+   */
+  listDocuments: (id: string, page = 1, perPage = 20, origin: DocumentOrigin = 'all') =>
+    req<SearchResult>(`/indexes/${id}/documents?page=${page}&per_page=${perPage}&origin=${origin}`),
+
+  /** Fields the "Add document" form should render for this index. */
+  getManualFormSchema: (id: string) =>
+    req<{ fields: ManualFormField[] }>(`/indexes/${id}/documents/form-schema`),
+
+  /** The stored form values of a manual document, for pre-filling the edit form. */
+  getManualDocument: (id: string, docId: string) =>
+    req<{ id: string; fields: ManualDocFields }>(`/indexes/${id}/documents/manual/${docId}`),
+
+  /**
+   * Add a hand-entered document. ``title`` and ``content`` are required.
+   * It is embedded and searchable immediately, and kept across rebuilds.
+   */
+  createManualDocument: (id: string, fields: ManualDocFields) =>
+    req<DocumentItem>(`/indexes/${id}/documents`, {
+      method: 'POST',
+      body: JSON.stringify(fields),
+    }),
+
+  /** Replace every field of a manual document and re-embed it. */
+  updateManualDocument: (id: string, docId: string, fields: ManualDocFields) =>
+    req<DocumentItem>(`/indexes/${id}/documents/${docId}`, {
+      method: 'PUT',
+      body: JSON.stringify(fields),
+    }),
+
+  /** Delete a manual document (the backend returns 204 No Content). */
+  deleteManualDocument: (id: string, docId: string) =>
+    req<void>(`/indexes/${id}/documents/${docId}`, { method: 'DELETE' }),
 
   /**
    * Partially update a document's editorial signals.

@@ -1,7 +1,7 @@
 // Copyright 2026 Shekhar Maheshwari
 // SPDX-License-Identifier: Apache-2.0
 
-import type { FieldEntry, FieldConfig } from '../types';
+import type { FieldEntry, FieldConfig, DocumentItem, DocumentOrigin, ManualFormField, ManualDocFields } from '../types';
 import type {
   IndexMeta, IngestStatus, SearchResult,
   RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig,
@@ -91,8 +91,33 @@ export class IndexRepository {
   }
 
   /** Paginated listing of all documents in an index, sorted newest first. */
-  listDocuments(id: string, page?: number, perPage?: number): Promise<SearchResult> {
-    return api.listDocuments(id, page, perPage);
+  listDocuments(id: string, page?: number, perPage?: number, origin?: DocumentOrigin): Promise<SearchResult> {
+    return api.listDocuments(id, page, perPage, origin);
+  }
+
+  /** Fields the manual document form should render. */
+  getManualFormSchema(id: string): Promise<{ fields: ManualFormField[] }> {
+    return api.getManualFormSchema(id);
+  }
+
+  /** Stored form values of a manual document. */
+  getManualDocument(id: string, docId: string): Promise<{ id: string; fields: ManualDocFields }> {
+    return api.getManualDocument(id, docId);
+  }
+
+  /** Add a manual document. */
+  createManualDocument(id: string, fields: ManualDocFields): Promise<DocumentItem> {
+    return api.createManualDocument(id, fields);
+  }
+
+  /** Replace a manual document. */
+  updateManualDocument(id: string, docId: string, fields: ManualDocFields): Promise<DocumentItem> {
+    return api.updateManualDocument(id, docId, fields);
+  }
+
+  /** Delete a manual document. */
+  deleteManualDocument(id: string, docId: string): Promise<void> {
+    return api.deleteManualDocument(id, docId);
   }
 
   /**

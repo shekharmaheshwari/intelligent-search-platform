@@ -4,7 +4,7 @@
 import { indexRepository, type IndexRepository } from '../../repository/IndexRepository';
 import { mapIndexMetaToIndex, mapIndexesToDomain } from './index.mapper';
 import type { Index, IngestStatus, SearchResult } from './index.model';
-import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, MappingConfig, FieldEntry, FieldConfig } from '../../types';
+import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, MappingConfig, FieldEntry, FieldConfig, DocumentItem, DocumentOrigin, ManualFormField, ManualDocFields } from '../../types';
 
 /**
  * Service for all index-domain operations.
@@ -93,9 +93,34 @@ export class IndexService {
     return this.repo.ingestGSheet(id, cfg);
   }
 
-  /** Return a paginated page of documents from the index. */
-  listDocuments(id: string, page?: number, perPage?: number): Promise<SearchResult> {
-    return this.repo.listDocuments(id, page, perPage);
+  /** Return a paginated page of documents from the index, optionally filtered by origin. */
+  listDocuments(id: string, page?: number, perPage?: number, origin?: DocumentOrigin): Promise<SearchResult> {
+    return this.repo.listDocuments(id, page, perPage, origin);
+  }
+
+  /** Fields the manual document form should render for this index. */
+  async getManualFormSchema(id: string): Promise<ManualFormField[]> {
+    return (await this.repo.getManualFormSchema(id)).fields;
+  }
+
+  /** Stored form values of a manual document, for pre-filling the edit form. */
+  async getManualDocument(id: string, docId: string): Promise<ManualDocFields> {
+    return (await this.repo.getManualDocument(id, docId)).fields;
+  }
+
+  /** Add a manual document; searchable immediately and kept across rebuilds. */
+  createManualDocument(id: string, fields: ManualDocFields): Promise<DocumentItem> {
+    return this.repo.createManualDocument(id, fields);
+  }
+
+  /** Replace every field of a manual document. */
+  updateManualDocument(id: string, docId: string, fields: ManualDocFields): Promise<DocumentItem> {
+    return this.repo.updateManualDocument(id, docId, fields);
+  }
+
+  /** Delete a manual document. */
+  deleteManualDocument(id: string, docId: string): Promise<void> {
+    return this.repo.deleteManualDocument(id, docId);
   }
 
   /**
