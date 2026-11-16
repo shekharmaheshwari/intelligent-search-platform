@@ -41,6 +41,10 @@ logging.basicConfig(
     level=_LOG_LEVEL,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
+# Even at DEBUG, keep libraries quiet that log whole request bodies (the Voyage SDK
+# logs every base64 image) or per-chunk image parsing.
+for _noisy in ("voyage", "PIL"):
+    logging.getLogger(_noisy).setLevel(max(_LOG_LEVEL, logging.INFO))
 
 # Bootstrap secrets before any ISP module loads config.py
 from isp.services.infra.secrets import bootstrap_secrets

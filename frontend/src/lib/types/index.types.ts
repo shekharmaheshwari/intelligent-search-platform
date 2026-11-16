@@ -220,6 +220,48 @@ export interface ManualFormField {
 /** Values entered for a manual document, keyed by field name. */
 export type ManualDocFields = Record<string, string | number | boolean | string[] | number[]>;
 
+/** Stats of the most recent product-image indexing run for an index. */
+export interface ImageIndexRun {
+  state: 'running' | 'done' | 'error';
+  model?: string;
+  started_at?: number;
+  finished_at?: number;
+  docs?: number;
+  with_image?: number;
+  cached?: number;
+  embedded?: number;
+  failed?: number;
+  indexed?: number;
+  error?: string;
+}
+
+/** Image search config and status for one index (``GET /indexes/{id}/image-search``). */
+export interface ImageSearchState {
+  enabled:         boolean;
+  /** Doc field holding the product image URL (string, list of URLs, or objects with url/src). */
+  field:           string;
+  /** Global image embedding model id; ``""`` when none is selected in Settings. */
+  model:           string;
+  model_available: boolean;
+  last_run:        ImageIndexRun | null;
+  /** Another pass is queued: the config changed (or re-index was asked) during the current run. */
+  queued?:         boolean;
+  /** True when images were indexed with a different model than the current one. */
+  stale:           boolean;
+  /** Fields that look like they hold image URLs, best first. */
+  candidates:      { field: string; coverage: number }[];
+}
+
+/** One image search hit: the document plus its cosine distance (0 = identical). */
+export interface ImageSearchHit { document: DocumentItem; vector_distance: number }
+
+export interface ImageSearchResult {
+  found: number;
+  page:  number;
+  hits:  ImageSearchHit[];
+  model: string;
+}
+
 /** Operator-configured properties for a single Typesense field. */
 export interface FieldConfig {
   facet:       boolean;

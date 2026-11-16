@@ -4,6 +4,7 @@
 import { settingsRepository, type SettingsRepository } from '../../repository/SettingsRepository';
 import { mapAppSettingsToSettings } from './settings.mapper';
 import type { Settings } from './settings.model';
+import type { ImageEmbedSettings } from '../../types';
 
 /**
  * Service for application settings operations.
@@ -76,6 +77,16 @@ export class SettingsService {
   }): Promise<Settings> {
     const dto = await this.repo.updateCustomerContext(flags);
     return mapAppSettingsToSettings(dto);
+  }
+
+  /** Active image embedding model (``""`` = image search off) and the selectable ones. */
+  getImageEmbedSettings(): Promise<ImageEmbedSettings> {
+    return this.repo.getImageEmbedSettings();
+  }
+
+  /** Select the image embedding model; ``""`` turns image search off everywhere. */
+  setImageEmbedModel(modelId: string): Promise<ImageEmbedSettings> {
+    return this.repo.setImageEmbedModel(modelId);
   }
 }
 

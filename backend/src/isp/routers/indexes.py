@@ -25,6 +25,8 @@ from isp.models import (
 )
 from isp.services.domain import index_service, extension_service, suggestion_service
 from isp.services.domain import manual_document_service as manual_docs
+from isp.services.domain import image_index_service
+from isp.services.infra import image_embedding
 from isp.services.domain.settings_service import DIM_BY_MODEL, get_custom_config
 from isp.services.infra import embedding_service, typesense_client as ts
 from isp.services.infra import rest_connector, sitemap_connector, gsheet_connector, json_file_connector
@@ -595,7 +597,7 @@ async def update_affinity_dimensions(idx_id: str, body: AffinityDimensionUpdate)
     return {"dimensions": body.dimensions, "viewed_item_policy": policy}
 
 
-_FIELD_SYSTEM = {"id", "vec", "indexed_at"}
+_FIELD_SYSTEM = {"id", "vec", "indexed_at", *ts.IMAGE_SYSTEM_FIELDS}
 _FIELD_ALWAYS_SEARCHABLE = {"title", "content", "aliases"}
 
 
@@ -1294,6 +1296,10 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
             # share the collect-everything-then-embed tail below.
             await _ingest_sitemap_batched(idx_id, connector_cfg, cfg, ext_records, transform_exts, s)
             await index_service.set_status(s)
+            # Same as the shared tail below: attach image vectors to the new docs.
+            # Never raises; no-op when image search is off.
+            if s.state != "error":
+                await image_index_service.index_images_until_settled(idx_id)
             return  # finally still releases the lock
         elif ctype == "gsheet":
             cfg = GSheetConnectorConfig(**cfg_data)
@@ -1356,6 +1362,9 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
             meta.doc_count = ts.count_documents(idx_id)
             meta.connectors = [connector_cfg]
             await index_service.update_index(meta)
+            # Attach image vectors to newly ingested docs. Never raises; no-op when off.
+            if not meta.external_collection:
+                await image_index_service.index_images_until_settled(idx_id)
 
     except Exception as exc:
         s.state = "error"
@@ -1793,6 +1802,11 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         except Exception:
             log.error("Affinity dimension discovery failed after rebuild: index_id=%s", idx_id, exc_info=True)
 
+        # The rebuild recreated the collection without img_vec; re-attach image
+        # vectors (cached ones are not re-embedded). Never raises; no-op when off.
+        if not meta.external_collection:
+            await image_index_service.index_images_until_settled(idx_id)
+
     except Exception as exc:
         s.state = "error"
         s.error = str(exc)
@@ -1974,7 +1988,8 @@ async def update_document(idx_id: str, doc_id: str, patch: DocPatchRequest):
 # ── Manual document entry ────────────────────────────────────────────────────
 
 # Fields the form never shows: derived server-side or internal.
-_MANUAL_HIDDEN_FIELDS = {"id", "vec", "indexed_at", "metadata", "source_type", "version_score"}
+_MANUAL_HIDDEN_FIELDS = {"id", "vec", "indexed_at", "metadata", "source_type", "version_score",
+                         *ts.IMAGE_SYSTEM_FIELDS}
 _MANUAL_CORE_FIELDS = [
     {"name": "title",   "type": "string", "required": True,  "group": "core"},
     {"name": "content", "type": "string", "required": True,  "group": "core"},
@@ -2071,6 +2086,9 @@ async def _save_manual_doc(meta: IndexMeta, doc_id: str, body: dict, *, is_updat
     # Only doc_count: ``meta`` was read before embedding, so a full write could
     # revert settings changed meanwhile (connectors, field config…).
     await index_service.set_doc_count(meta.id, ts.count_documents(meta.id))
+    # Embed this doc's image so it is image-searchable right away (never raises).
+    if (meta.image_search or {}).get("enabled"):
+        await image_index_service.index_images(meta.id, [doc_id])
     return {k: v for k, v in doc.items() if k != "vec"}
 
 
@@ -2275,3 +2293,122 @@ async def delete_index_suggestion(idx_id: str, suggestion_id: str):
     if not ok:
         raise HTTPException(status_code=404, detail="Suggestion not found")
     return {"deleted": True}
+
+
+# ── Image search configuration ───────────────────────────────────────────────
+
+
+async def _image_index_or_404(idx_id: str) -> IndexMeta:
+    """Resolve an index that supports image search (ISP-managed only)."""
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    if meta.is_external or meta.external_collection:
+        raise HTTPException(400, "Image search is not supported for external indexes yet")
+    return meta
+
+
+class ImageSearchConfigUpdate(BaseModel):
+    """Turn image search on/off for an index and choose the image URL field."""
+    enabled: bool
+    field: str = ""
+
+
+async def _image_search_state(meta: IndexMeta) -> dict:
+    """Config + status for the UI: global model, availability, last run, field candidates."""
+    cfg = meta.image_search or {}
+    model = image_embedding.get_image_model()
+    try:
+        candidates = image_index_service.candidate_fields(
+            await image_index_service.sample_docs(meta.id)
+        )
+    except Exception:
+        log.debug("image field detection failed: index_id=%s", meta.id, exc_info=True)
+        candidates = []
+    last_run = cfg.get("last_run") or None
+    return {
+        "enabled":         bool(cfg.get("enabled")),
+        "field":           cfg.get("field") or "",
+        "model":           model,
+        "model_available": bool(model) and image_embedding.model_available(model),
+        "last_run":        last_run,
+        # Another pass is queued because the config changed during the current run.
+        "queued":          bool(cfg.get(image_index_service.RERUN_KEY)),
+        # Only a finished run tells us which model the stored vectors came from.
+        "stale":           bool(
+            last_run and model and last_run.get("state") == "done"
+            and last_run.get("model") and last_run.get("model") != model
+        ),
+        "candidates":      candidates,
+    }
+
+
+async def _run_image_indexing_locked(idx_id: str) -> None:
+    """Background image indexing that never overlaps a rebuild/ingest of the same index."""
+    from isp.services.infra import job_lock
+    token = await job_lock.acquire(idx_id)
+    if token is None:
+        meta = await index_service.get_index(idx_id)
+        current = ((meta.image_search if meta else None) or {}).get("last_run") or {}
+        if current.get("state") != "running":
+            await index_service.merge_image_search(idx_id, {"last_run": {
+                "state": "error", "error": "A rebuild or ingest is running — images are indexed when it finishes",
+                "finished_at": int(time.time()),
+            }})
+            return
+        # An image run is in progress (a second click, or the field changed mid-run).
+        # Keep its "running" status and ask it to index again with the current config.
+        await image_index_service.request_rerun(idx_id)
+        log.info("image indexing already running, rerun queued: index_id=%s", idx_id)
+        # If that run released the lock before seeing the flag, run it here.
+        token = await job_lock.acquire(idx_id)
+        if token is None:
+            return
+    hb = asyncio.create_task(job_lock.heartbeat(idx_id, token))
+    try:
+        await image_index_service.index_images_until_settled(idx_id)
+    finally:
+        hb.cancel()
+        await job_lock.release(idx_id, token)
+
+
+@router.get("/{idx_id}/image-search", summary="Image search config and indexing status")
+async def get_image_search(idx_id: str):
+    """Current image search settings, the global image model, last indexing run and URL-field suggestions."""
+    meta = await _image_index_or_404(idx_id)
+    return await _image_search_state(meta)
+
+
+@router.put("/{idx_id}/image-search", summary="Enable or disable image search")
+async def put_image_search(idx_id: str, body: ImageSearchConfigUpdate, bg: BackgroundTasks):
+    """
+    Save the image search config. Enabling it starts image indexing in the
+    background; poll ``GET /image-search`` for ``last_run``.
+    """
+    meta = await _image_index_or_404(idx_id)
+    field = body.field.strip()
+    if body.enabled and not field:
+        raise HTTPException(400, "Choose the field that holds the image URL")
+    if body.enabled:
+        model = image_embedding.get_image_model()
+        if not model:
+            raise HTTPException(400, "Select an image embedding model in Settings first")
+        if not image_embedding.model_available(model):
+            raise HTTPException(400, f"Image model {model} is not available — check its API key")
+    cfg = {**(meta.image_search or {}), "enabled": body.enabled, "field": field}
+    await index_service.set_image_search(meta.id, cfg)
+    meta.image_search = cfg
+    if body.enabled:
+        bg.add_task(_run_image_indexing_locked, meta.id)
+    return await _image_search_state(meta)
+
+
+@router.post("/{idx_id}/image-search/reindex", status_code=status.HTTP_202_ACCEPTED,
+             summary="Re-index product images")
+async def reindex_images(idx_id: str, bg: BackgroundTasks):
+    """Embed product images again in the background (cached images are reused)."""
+    meta = await _image_index_or_404(idx_id)
+    if not (meta.image_search or {}).get("enabled"):
+        raise HTTPException(400, "Image search is not enabled for this index")
+    bg.add_task(_run_image_indexing_locked, meta.id)
+    return {"state": "queued"}

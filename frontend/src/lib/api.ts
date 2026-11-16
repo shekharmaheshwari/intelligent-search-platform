@@ -16,6 +16,7 @@ import type {
   Suggestion, SuggestionsResponse,
   MappingConfig, FieldEntry, FieldConfig,
   DocumentItem, DocumentOrigin, ManualFormField, ManualDocFields,
+  ImageSearchState, ImageSearchResult, ImageEmbedSettings,
 } from './types';
 
 const BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8001/v1';
@@ -400,6 +401,42 @@ export const api = {
    * and the full catalogue of available models.
    */
   getSettings: () => req<AppSettings>('/settings'),
+
+  // ── Image search ───────────────────────────────────────────────────────────
+
+  /** Active image embedding model (``""`` = image search off) and the selectable models. */
+  getImageEmbedSettings: () => req<ImageEmbedSettings>('/settings/image-embed'),
+
+  /** Select the image embedding model; pass ``""`` to turn image search off everywhere. */
+  setImageEmbedModel: (modelId: string) =>
+    req<ImageEmbedSettings>('/settings/image-embed', {
+      method: 'PUT',
+      body: JSON.stringify({ model_id: modelId }),
+    }),
+
+  /** Image search config, last indexing run and image-field suggestions for an index. */
+  getImageSearch: (indexId: string) => req<ImageSearchState>(`/indexes/${indexId}/image-search`),
+
+  /** Enable/disable image search; enabling starts image indexing in the background. */
+  saveImageSearch: (indexId: string, enabled: boolean, field: string) =>
+    req<ImageSearchState>(`/indexes/${indexId}/image-search`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled, field }),
+    }),
+
+  /** Re-embed product images in the background (cached images are reused). */
+  reindexImages: (indexId: string) =>
+    req<{ state: string }>(`/indexes/${indexId}/image-search/reindex`, { method: 'POST' }),
+
+  /**
+   * Search by image, text, or both combined.
+   * @param image  Data URL or base64 (≤5 MB); empty string for text-only.
+   */
+  searchByImage: (indexId: string, image: string, q = '', perPage = 10) =>
+    req<ImageSearchResult>(`/indexes/${indexId}/search/image`, {
+      method: 'POST',
+      body: JSON.stringify({ image, q, per_page: perPage }),
+    }),
 
   /**
    * Save the RexBERT endpoint and optional API key without changing the global model.

@@ -35,6 +35,7 @@ _SKIP_FIELDS = {
     "url", "title", "content", "id", "vec", "indexed_at", "popularity",
     "is_featured", "in_stock", "price",
     "display", "tags", "aliases", "metadata",
+    "img_vec", "img_ok",   # image search system fields
 }
 
 _MIN_DISTINCT = 2    # fields with fewer distinct values are too uniform to be useful

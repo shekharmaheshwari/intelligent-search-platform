@@ -592,6 +592,21 @@ async def get_chat_api_key_for_agent() -> str:
     return ""
 
 
+IMAGE_EMBED_MODEL_KEY = "image_embed_model"
+
+
+async def get_image_embed_model() -> str:
+    """Persisted image embedding model id; ``""`` means image search is off globally."""
+    return (await get_setting(IMAGE_EMBED_MODEL_KEY)) or ""
+
+
+async def set_image_embed_model(model_id: str) -> None:
+    """Persist and activate the image embedding model (``""`` turns image search off)."""
+    from isp.services.infra import image_embedding
+    image_embedding.set_image_model(model_id)   # validates the id first
+    await set_setting(IMAGE_EMBED_MODEL_KEY, model_id)
+
+
 async def load_embed_model() -> None:
     """
     Synchronise runtime state with the persisted model setting.
@@ -640,6 +655,14 @@ async def load_embed_model() -> None:
                 endpoint=rexbert_cfg["endpoint"],
                 api_key=rexbert_cfg.get("api_key", ""),
             )
+
+    # Restore the image embedding model (independent of the text model above).
+    try:
+        from isp.services.infra import image_embedding
+        image_embedding.set_image_model(await get_image_embed_model())
+    except ValueError:
+        # A model id that is no longer offered: leave image search off.
+        pass
 
     # Restore customer-context flags from ``app_settings`` on startup.
     global _customer_context_enabled, _cc_vector_blending_enabled

@@ -412,3 +412,45 @@ async def update_settings(body: EmbedModelUpdate) -> UpdateSettingsResponse:
         **base,
         dim_changed=new_dim != previous_dim,
     )
+
+
+# ── Image embedding model (image search) ─────────────────────────────────────
+
+
+class ImageEmbedUpdate(BaseModel):
+    """Select the image embedding model; ``""`` turns image search off everywhere."""
+    model_id: str
+
+
+def _image_embed_response() -> dict:
+    from isp.services.infra import image_embedding
+    model = image_embedding.get_image_model()
+    return {
+        "model_id": model,
+        "available_models": [
+            {**m, "configured": image_embedding.model_available(m["id"])}
+            for m in image_embedding.IMAGE_MODELS
+        ],
+    }
+
+
+@router.get("/image-embed", summary="Get the image embedding model")
+async def get_image_embed() -> dict:
+    """The active image embedding model and the selectable ones (with whether each has its API key)."""
+    return _image_embed_response()
+
+
+@router.put("/image-embed", summary="Set the image embedding model")
+async def put_image_embed(body: ImageEmbedUpdate) -> dict:
+    """
+    Switch the image model. Indexes with image search on must re-index images
+    afterwards (image search returns 409 until they do); text search is unaffected.
+    """
+    from isp.services.infra import image_embedding
+    from isp.services.domain.settings_service import set_image_embed_model
+    if body.model_id and body.model_id not in image_embedding.DIM_BY_IMAGE_MODEL:
+        raise HTTPException(400, f"Unknown image model: {body.model_id}")
+    if body.model_id and not image_embedding.model_available(body.model_id):
+        raise HTTPException(400, f"{body.model_id} needs its provider API key configured")
+    await set_image_embed_model(body.model_id)
+    return _image_embed_response()

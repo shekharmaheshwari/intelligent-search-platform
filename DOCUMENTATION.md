@@ -364,6 +364,17 @@ Per-index daily batch-learning schedule. Times are epoch seconds.
 | `last_status` | VARCHAR(20) | `running` \| `trained` \| `skipped` \| `error` |
 | `last_message` | TEXT | Outcome detail (≤ 500 chars) |
 
+### `image_embeddings`
+Cache of product-image vectors for image search, so rebuilds only embed new or changed images. Per-index image search settings live in `indexes.image_search` (JSONB: `enabled`, `field`, `last_run`).
+
+| Column | Type | Description |
+|---|---|---|
+| `model` | VARCHAR(80) PK | Image model that produced the vector (e.g. `voyage-multimodal-3`) |
+| `url_hash` | CHAR(64) PK | sha256 of the image URL |
+| `url` | TEXT | The image URL |
+| `vec` | REAL[] | The image vector |
+| `created_at` | TIMESTAMPTZ | When it was embedded |
+
 ---
 
 ## 7. Backend — Application Entry Point
@@ -472,6 +483,9 @@ The primary CRUD and ingest surface.  All background jobs (ingest, rebuild) are 
 | GET | `/v1/indexes/{id}/extensions` | List extensions assigned to index |
 | POST | `/v1/indexes/{id}/extensions` | Assign extension to index |
 | DELETE | `/v1/indexes/{id}/extensions/{ext_id}` | Unassign extension from index |
+| GET | `/v1/indexes/{id}/image-search` | Image search config, last image-indexing run, and suggested image-URL fields |
+| PUT | `/v1/indexes/{id}/image-search` | `{"enabled": bool, "field": "images"}`; enabling starts image indexing in the background |
+| POST | `/v1/indexes/{id}/image-search/reindex` | Re-embed product images in the background (cached images are reused) |
 
 #### Internal Helpers
 
@@ -566,6 +580,38 @@ Search endpoint for both ISP-managed and external indexes.  Routes to either `se
 | Method | Path | Body |
 |---|---|---|
 | POST | `/v1/indexes/{id}/search` | `{"q": "...", "mode": "hybrid\|lexical\|semantic", "page": 1, "per_page": 10}` |
+
+#### Image search
+
+Shoppers search with a photo; typed text can refine it ("in black"). Product images are embedded
+into a separate `img_vec` field with the **image model** (Settings → Image Search,
+`GET/PUT /v1/settings/image-embed`), independent of the text model and `vec`.
+
+| Method | Path | Body |
+|---|---|---|
+| POST | `/v1/indexes/{id}/search/image` | `{"image": "<data URL or base64, ≤5 MB>", "q": "optional text", "page": 1, "per_page": 10, "filters": {}}` |
+| POST | `/v1/indexes/{id}/search/image/public` | Same; no auth, rate limited to 30/min per client IP (`X-Real-IP`) |
+| GET | `/v1/indexes/{id}/search/image/public` | No auth. `{"enabled": bool}` — true when image search is on and product images are indexed with the current image model; storefronts use it to show a photo-search button |
+
+- **Model:** `voyage-multimodal-3` (1024d), using the Voyage API key. Image and text are embedded
+  together as one query when both are sent. Customer images are embedded and discarded, never stored.
+- **Indexing:** per index, pick the field holding the image URL (string, list of URLs, or objects
+  with `url`/`src`; the first URL is used). `services/domain/image_index_service.py` runs after every
+  rebuild and ingest, after a manual doc is saved, and on demand. Downloads are limited to public
+  http(s) hosts (redirects re-checked), image types, 10 MB and a 10 s timeout; images are downsized
+  to 512px. Vectors are cached in `image_embeddings`, so re-runs only embed new images.
+- **Results:** the 120 closest products, ranked by cosine distance to the product images; each hit
+  has `vector_distance` (0 = identical). `img_vec` is never returned in search or listing results.
+- **`img_ok` flag:** set `true` alongside each vector. A full run sets it `false` (and nulls `img_vec`)
+  on docs that no longer get a vector (image field changed, image removed or unloadable), and image
+  search filters on `img_ok:true`. Typesense keeps a vector searchable after it is nulled or the doc
+  is upserted without it, so the flag is what removes stale matches. Collections indexed before the
+  flag existed are searched unfiltered until images are re-indexed.
+- **System fields:** `img_vec` and `img_ok` are marked `system` — the field editor refuses changes,
+  and they are hidden from the manual-document form, facets, boosts and affinity discovery.
+- **Errors:** `400` when off for the index or the image is invalid; `409` when images haven't been
+  indexed yet or were indexed with a different image model (re-index); `503` when no image model is
+  configured; `429` when rate limited.
 
 #### AI Overview
 

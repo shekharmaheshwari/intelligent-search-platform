@@ -23,5 +23,6 @@ from isp.models.index import (  # noqa: F401
 )
 from isp.models.search import (  # noqa: F401
     SearchRequest,
+    ImageSearchRequest,
     DocumentItem,
 )
