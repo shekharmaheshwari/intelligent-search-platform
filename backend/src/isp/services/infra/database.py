@@ -162,6 +162,18 @@ async def init_db() -> None:
                 key_hash    TEXT         NOT NULL UNIQUE,
                 created_at  TEXT         NOT NULL
             );
+
+            -- Manually entered documents. Postgres is the source of truth: a
+            -- rebuild drops and recreates the Typesense collection, then
+            -- re-embeds and re-upserts every row here for that index.
+            CREATE TABLE IF NOT EXISTS manual_documents (
+                index_id    VARCHAR(12)  NOT NULL REFERENCES indexes(id) ON DELETE CASCADE,
+                doc_id      VARCHAR(64)  NOT NULL,
+                payload     JSONB        NOT NULL,
+                created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                PRIMARY KEY (index_id, doc_id)
+            );
         """)
         # Idempotent column additions for extensions — safe to run on existing databases.
         await conn.execute("""

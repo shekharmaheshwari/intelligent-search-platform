@@ -1040,14 +1040,50 @@ def _full_doc_field_params(exclude_vec: bool) -> dict:
 
 
 def list_documents(index_id: str, page: int, per_page: int,
-                   exclude_vec: bool = False) -> dict:
-    """Paginated document listing for an ISP-managed collection, sorted by most recently indexed."""
-    return get_client().collections[collection_name(index_id)].documents.search({
+                   exclude_vec: bool = False, filter_by: str | None = None) -> dict:
+    """Paginated document listing for an ISP-managed collection, sorted by most recently indexed.
+
+    ``filter_by`` narrows the listing (e.g. ``source_type:=manual`` for manually
+    entered documents only).
+    """
+    params: dict = {
         "q": "*", "query_by": "title",
         "sort_by": "indexed_at:desc",
         "page": page, "per_page": per_page,
         **_full_doc_field_params(exclude_vec),
-    })
+    }
+    if filter_by:
+        params["filter_by"] = filter_by
+    return get_client().collections[collection_name(index_id)].documents.search(params)
+
+
+def upsert_document(index_id: str, doc: dict) -> str | None:
+    """Upsert one document into an ISP-managed collection.
+
+    Returns None on success, or Typesense's rejection message so the caller can
+    show the operator why (e.g. a value that does not match the field type).
+    """
+    results = get_client().collections[collection_name(index_id)].documents.import_(
+        [doc], {"action": "upsert"},
+    )
+    r = results[0] if results else {"success": False, "error": "no response from Typesense"}
+    return None if r.get("success") else str(r.get("error") or "upsert failed")
+
+
+def delete_document(index_id: str, doc_id: str) -> bool:
+    """Delete one document from an ISP-managed collection. Missing docs count as deleted."""
+    import typesense.exceptions
+    try:
+        get_client().collections[collection_name(index_id)].documents[doc_id].delete()
+        return True
+    except typesense.exceptions.ObjectNotFound:
+        return True
+    except Exception:
+        import logging
+        logging.getLogger(__name__).error(
+            "delete_document failed: index_id=%s doc_id=%s", index_id, doc_id, exc_info=True,
+        )
+        return False
 
 
 # ── External collection support ───────────────────────────────────────────────

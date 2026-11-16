@@ -256,6 +256,16 @@ async def update_index(meta: IndexMeta) -> None:
         )
 
 
+async def set_doc_count(idx_id: str, doc_count: int) -> None:
+    """Update only ``doc_count``, so concurrent edits to other index settings are not overwritten."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET doc_count = $1 WHERE id = $2",
+            doc_count, idx_id,
+        )
+
+
 async def set_version_boost(idx_id: str, enabled: bool) -> None:
     """Toggle the version recency boost for an index."""
     pool = await get_pool()

@@ -24,6 +24,7 @@ from isp.models import (
     IntentLabelUpdate, MappingConfig,
 )
 from isp.services.domain import index_service, extension_service, suggestion_service
+from isp.services.domain import manual_document_service as manual_docs
 from isp.services.domain.settings_service import DIM_BY_MODEL, get_custom_config
 from isp.services.infra import embedding_service, typesense_client as ts
 from isp.services.infra import rest_connector, sitemap_connector, gsheet_connector, json_file_connector
@@ -1741,6 +1742,18 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             meta.connectors = [cfg_dict]
             await index_service.update_index(meta)
 
+        # Manual documents live in Postgres; the collection was just dropped and
+        # recreated, so put them back. Logged rather than raised: connector docs
+        # are already indexed, and the manual rows are safe in Postgres for the
+        # next rebuild.
+        if not meta.external_collection:
+            try:
+                restored = await _restore_manual_docs(idx_id)
+                s.indexed += restored
+            except Exception:
+                log.error("Restoring manual documents failed after rebuild: index_id=%s",
+                          idx_id, exc_info=True)
+
         # Re-apply operator field config after rebuild recreates the collection.
         # Non-critical: schema defaults are still usable if this step fails.
         if not meta.is_external and meta.field_config:
@@ -1824,14 +1837,30 @@ async def rebuild(idx_id: str, cfg: ConnectorConfig, bg: BackgroundTasks):
 
 # ── Documents ─────────────────────────────────────────────────────────────────
 
+_ORIGIN_FILTERS = {
+    "all":       None,
+    "manual":    f"source_type:={manual_docs.SOURCE_TYPE}",
+    "connector": f"source_type:!={manual_docs.SOURCE_TYPE}",
+}
+
+
 async def _list_docs(idx_id: str, page: int, per_page: int,
-                    exclude_vec: bool = False) -> dict:
-    """Shared listing logic used by both /documents and /documents/public."""
+                    exclude_vec: bool = False, origin: str = "all") -> dict:
+    """Shared listing logic used by both /documents and /documents/public.
+
+    ``origin`` is ``all`` | ``manual`` | ``connector`` and filters on whether a
+    document was entered by hand (``source_type = "manual"``).
+    """
+    if origin not in _ORIGIN_FILTERS:
+        raise HTTPException(422, "origin must be one of: all, manual, connector")
     meta = await _resolve_index(idx_id)
     if not meta:
         raise HTTPException(404, "Index not found")
 
     if meta.is_external:
+        # Manual entry is not supported on external collections.
+        if origin == "manual":
+            return {"found": 0, "hits": [], "page": page}
         raw = ts.list_documents_external(
             meta.external_collection,
             meta.external_filter,
@@ -1842,22 +1871,24 @@ async def _list_docs(idx_id: str, page: int, per_page: int,
         return _wrap_external_results(raw, meta)
 
     # Use meta.id (hex) not idx_id — caller may have passed a slug.
-    return ts.list_documents(meta.id, page, per_page, exclude_vec=exclude_vec)
+    return ts.list_documents(meta.id, page, per_page, exclude_vec=exclude_vec,
+                             filter_by=_ORIGIN_FILTERS[origin])
 
 
 @router.get("/{idx_id}/documents", summary="Browse indexed documents")
-async def list_documents(idx_id: str, page: int = 1, per_page: int = 20):
+async def list_documents(idx_id: str, page: int = 1, per_page: int = 20, origin: str = "all"):
     """
     Paginated list of documents in an index, sorted by recency.
     Returns full documents including the ``vec`` embedding field.
+    ``origin`` = ``all`` | ``manual`` | ``connector`` filters by how the doc was added.
     Use ``/documents/public`` for external consumers.
     """
-    return await _list_docs(idx_id, page, per_page, exclude_vec=False)
+    return await _list_docs(idx_id, page, per_page, exclude_vec=False, origin=origin)
 
 
 @router.get("/{idx_id}/documents/public", summary="Browse documents — no embeddings",
             tags=["public"])
-async def list_documents_public(idx_id: str, page: int = 1, per_page: int = 20):
+async def list_documents_public(idx_id: str, page: int = 1, per_page: int = 20, origin: str = "all"):
     """
     Paginated document list with the ``vec`` embedding field stripped.
 
@@ -1865,7 +1896,7 @@ async def list_documents_public(idx_id: str, page: int = 1, per_page: int = 20):
     without needing the raw embedding vectors.  Reduces response payload by
     ~4 KB per document (1 024 floats × 4 bytes).
     """
-    return await _list_docs(idx_id, page, per_page, exclude_vec=True)
+    return await _list_docs(idx_id, page, per_page, exclude_vec=True, origin=origin)
 
 
 class DocPatchRequest(BaseModel):
@@ -1931,7 +1962,181 @@ async def update_document(idx_id: str, doc_id: str, patch: DocPatchRequest):
     ok = ts.update_document_fields(col, doc_id, update_fields)
     if not ok:
         raise HTTPException(500, "Typesense update failed")
+    # Manual docs are rebuilt from Postgres — keep the stored payload in step so
+    # a rebuild does not revert these editorial edits.
+    if manual_docs.is_manual_id(doc_id):
+        await manual_docs.merge_fields(
+            meta.id, doc_id, patch.model_dump(exclude_none=True),
+        )
     return {"ok": True}
+
+
+# ── Manual document entry ────────────────────────────────────────────────────
+
+# Fields the form never shows: derived server-side or internal.
+_MANUAL_HIDDEN_FIELDS = {"id", "vec", "indexed_at", "metadata", "source_type", "version_score"}
+_MANUAL_CORE_FIELDS = [
+    {"name": "title",   "type": "string", "required": True,  "group": "core"},
+    {"name": "content", "type": "string", "required": True,  "group": "core"},
+    {"name": "url",     "type": "string", "required": False, "group": "core"},
+]
+_MANUAL_EDITORIAL_FIELDS = {"popularity", "is_featured", "boost_queries_equal", "boost_queries_contains"}
+
+
+async def _manual_index_or_404(idx_id: str) -> IndexMeta:
+    """Resolve an index that accepts manual documents (ISP-managed only)."""
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    if meta.is_external or meta.external_collection:
+        raise HTTPException(400, "Manual documents are not supported for external indexes")
+    return meta
+
+
+async def _vec_dim_for(model: str) -> int:
+    """Vector dimension for an embedding model (mirrors the rebuild logic)."""
+    if model == "custom":
+        cfg_c = await get_custom_config()
+        return cfg_c["num_dim"] or ts.get_vec_dim()
+    return DIM_BY_MODEL.get(model, ts.get_vec_dim())
+
+
+async def _prepare_manual_docs(meta: IndexMeta, items: list[tuple[str, dict]]) -> list[dict]:
+    """Normalise stored payloads to the ISP schema and embed them."""
+    docs = _ensure_isp_schema([manual_docs.to_index_doc(i, p) for i, p in items])
+    for d in docs:
+        # A form field named "type" would otherwise win over source_type.
+        d["source_type"] = manual_docs.SOURCE_TYPE
+    model = meta.embed_model or embedding_service.get_current_model()
+    await _embed_in_place(docs, model)
+    return docs
+
+
+async def _restore_manual_docs(idx_id: str) -> int:
+    """Re-index every manual doc of an index from Postgres. Returns the count upserted."""
+    items = await manual_docs.list_for_index(idx_id)
+    if not items:
+        return 0
+    meta = await index_service.get_index(idx_id)
+    if not meta:
+        return 0
+    docs = await _prepare_manual_docs(meta, items)
+    ok = ts.upsert_documents(idx_id, docs)
+    await index_service.set_doc_count(idx_id, ts.count_documents(idx_id))
+    if ok < len(docs):
+        log.error("Only %d of %d manual documents were re-indexed: index_id=%s",
+                  ok, len(docs), idx_id)
+    return ok
+
+
+async def _save_manual_doc(meta: IndexMeta, doc_id: str, body: dict, *, is_update: bool) -> dict:
+    """Validate, index in Typesense, then persist to Postgres. Returns the indexed doc.
+
+    If the Postgres write fails, Typesense is rolled back: a new doc is removed,
+    an updated doc is restored to its previously indexed version.
+    """
+    try:
+        payload = manual_docs.clean_payload(body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    docs = await _prepare_manual_docs(meta, [(doc_id, payload)])
+    if not docs:
+        raise HTTPException(400, "title and content are required")
+    doc = docs[0]
+
+    model = meta.embed_model or embedding_service.get_current_model()
+    ts.create_collection(meta.id, vec_dim=await _vec_dim_for(model))   # no-op if it exists
+    # Snapshot the indexed version (with its vector) so a failed update can be undone.
+    previous = ts.retrieve_document(ts.collection_name(meta.id), doc_id) if is_update else None
+    # Typesense first: if it rejects the doc (e.g. wrong type for a field) we
+    # return the reason and store nothing.
+    err = ts.upsert_document(meta.id, doc)
+    if err:
+        raise HTTPException(400, f"Typesense rejected the document: {err}")
+    try:
+        await manual_docs.upsert(meta.id, doc_id, payload)
+    except Exception:
+        restore_err = ts.upsert_document(meta.id, previous) if previous else None
+        if previous is None or restore_err:
+            # Nothing to restore (a create, or the old copy was already missing
+            # from Typesense): drop the new copy so Typesense never holds a doc
+            # Postgres doesn't. An update stays recoverable via the next rebuild.
+            if restore_err:
+                log.error("Could not restore manual doc after failed update: index_id=%s "
+                          "doc_id=%s error=%s", meta.id, doc_id, restore_err)
+            ts.delete_document(meta.id, doc_id)
+        raise
+
+    # Only doc_count: ``meta`` was read before embedding, so a full write could
+    # revert settings changed meanwhile (connectors, field config…).
+    await index_service.set_doc_count(meta.id, ts.count_documents(meta.id))
+    return {k: v for k, v in doc.items() if k != "vec"}
+
+
+@router.get("/{idx_id}/documents/form-schema", summary="Fields for the manual document form")
+async def get_manual_document_form_schema(idx_id: str):
+    """
+    Describe the fields the "Add document" form should render, derived from the
+    live collection schema. ``group`` is ``core`` (title/content/url),
+    ``editorial`` (popularity, featured, boost queries) or ``field`` (everything
+    else the index carries).
+    """
+    meta = await _manual_index_or_404(idx_id)
+    core_names = {f["name"] for f in _MANUAL_CORE_FIELDS}
+    fields = [dict(f) for f in _MANUAL_CORE_FIELDS]
+    for f in ts.get_all_fields(meta.id):
+        name = f["name"]
+        if name in core_names or name in _MANUAL_HIDDEN_FIELDS or f.get("system"):
+            continue
+        group = "editorial" if name in _MANUAL_EDITORIAL_FIELDS else "field"
+        fields.append({"name": name, "type": f["type"], "required": False, "group": group})
+    return {"fields": fields}
+
+
+@router.get("/{idx_id}/documents/manual/{doc_id}", summary="Get a manual document as entered")
+async def get_manual_document(idx_id: str, doc_id: str):
+    """Return the stored form payload of a manual document, for the edit form."""
+    meta = await _manual_index_or_404(idx_id)
+    payload = await manual_docs.get(meta.id, doc_id)
+    if payload is None:
+        raise HTTPException(404, "Manual document not found")
+    return {"id": doc_id, "fields": payload}
+
+
+@router.post("/{idx_id}/documents", status_code=status.HTTP_201_CREATED,
+             summary="Add a manual document")
+async def create_manual_document(idx_id: str, body: dict):
+    """
+    Add a hand-entered document. ``title`` and ``content`` are required; any
+    other key becomes a field on the document. It is embedded and searchable
+    immediately, and stored in Postgres so rebuilds keep it.
+    """
+    meta = await _manual_index_or_404(idx_id)
+    return await _save_manual_doc(meta, manual_docs.new_doc_id(), body, is_update=False)
+
+
+@router.put("/{idx_id}/documents/{doc_id}", summary="Replace a manual document")
+async def update_manual_document(idx_id: str, doc_id: str, body: dict):
+    """Replace all fields of a manual document and re-embed it."""
+    meta = await _manual_index_or_404(idx_id)
+    if not manual_docs.is_manual_id(doc_id) or await manual_docs.get(meta.id, doc_id) is None:
+        raise HTTPException(404, "Manual document not found")
+    return await _save_manual_doc(meta, doc_id, body, is_update=True)
+
+
+@router.delete("/{idx_id}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT,
+               summary="Delete a manual document")
+async def delete_manual_document(idx_id: str, doc_id: str):
+    """Delete a manual document. Connector documents cannot be deleted here."""
+    meta = await _manual_index_or_404(idx_id)
+    if not manual_docs.is_manual_id(doc_id):
+        raise HTTPException(400, "Only manual documents can be deleted")
+    if not ts.delete_document(meta.id, doc_id):
+        raise HTTPException(500, "Typesense delete failed")
+    if not await manual_docs.delete(meta.id, doc_id):
+        raise HTTPException(404, "Manual document not found")
+    await index_service.set_doc_count(meta.id, ts.count_documents(meta.id))
 
 
 # ── Per-index suggestion management ──────────────────────────────────────────

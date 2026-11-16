@@ -120,7 +120,7 @@
         <FieldsTab {indexId} />
 
       {:else if tab === 'documents'}
-        <DocumentTable {indexId} />
+        <DocumentTable {indexId} isExternal={meta.isExternal} />
 
       {:else if tab === 'search'}
         <SearchPanel {indexId} />

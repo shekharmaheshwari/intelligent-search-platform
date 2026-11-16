@@ -204,6 +204,22 @@ export interface DocumentItem {
   [key: string]: unknown;
 }
 
+/** Which documents the Documents tab lists: everything, hand-entered only, or connector-ingested only. */
+export type DocumentOrigin = 'all' | 'manual' | 'connector';
+
+/** One input in the manual document form, derived from the index's collection schema. */
+export interface ManualFormField {
+  name:     string;
+  /** Typesense type, e.g. ``string``, ``string[]``, ``int32``, ``float``, ``bool``. */
+  type:     string;
+  required: boolean;
+  /** ``core`` = title/content/url, ``editorial`` = ranking signals, ``field`` = index-specific. */
+  group:    'core' | 'editorial' | 'field';
+}
+
+/** Values entered for a manual document, keyed by field name. */
+export type ManualDocFields = Record<string, string | number | boolean | string[] | number[]>;
+
 /** Operator-configured properties for a single Typesense field. */
 export interface FieldConfig {
   facet:       boolean;
