@@ -1,0 +1,3748 @@
+[
+  {
+    "id": 0,
+    "device": "Google Pixel 10",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.007,
+      "screen-protectors": 0.009,
+      "chargers-&-adapters": 0.003,
+      "headphones": 0.646,
+      "wearable-tech": 0.043,
+      "speakers": 0.139,
+      "gaming": 0.008,
+      "others": 0.144
+    },
+    "brands": [
+      "mophie",
+      "pelican"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 1,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.106,
+      "screen-protectors": 0.047,
+      "chargers-&-adapters": 0.024,
+      "headphones": 0.075,
+      "wearable-tech": 0.004,
+      "speakers": 0.065,
+      "gaming": 0.169,
+      "others": 0.51
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 2,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.045,
+      "screen-protectors": 0.53,
+      "chargers-&-adapters": 0.013,
+      "headphones": 0.002,
+      "wearable-tech": 0.368,
+      "speakers": 0.037,
+      "gaming": 0.005,
+      "others": 0.001
+    },
+    "brands": [
+      "mophie"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 3,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.32,
+      "screen-protectors": 0.004,
+      "chargers-&-adapters": 0.43,
+      "headphones": 0.007,
+      "wearable-tech": 0.049,
+      "speakers": 0.121,
+      "gaming": 0.03,
+      "others": 0.04
+    },
+    "brands": [
+      "zagg"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 4,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.025,
+      "screen-protectors": 0.001,
+      "chargers-&-adapters": 0.24,
+      "headphones": 0.068,
+      "wearable-tech": 0.12,
+      "speakers": 0.408,
+      "gaming": 0.092,
+      "others": 0.045
+    },
+    "brands": [
+      "samsung",
+      "uag"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 5,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.088,
+      "screen-protectors": 0.046,
+      "chargers-&-adapters": 0.005,
+      "headphones": 0.267,
+      "wearable-tech": 0.156,
+      "speakers": 0.242,
+      "gaming": 0.002,
+      "others": 0.195
+    },
+    "brands": [
+      "jbl"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 6,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.008,
+      "screen-protectors": 0.047,
+      "chargers-&-adapters": 0.006,
+      "headphones": 0.092,
+      "wearable-tech": 0.448,
+      "speakers": 0.002,
+      "gaming": 0.149,
+      "others": 0.248
+    },
+    "brands": [
+      "uag",
+      "pelican"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 7,
+    "device": "Apple iPhone 15",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.415,
+      "screen-protectors": 0.015,
+      "chargers-&-adapters": 0.127,
+      "headphones": 0.194,
+      "wearable-tech": 0.037,
+      "speakers": 0.071,
+      "gaming": 0.05,
+      "others": 0.091
+    },
+    "brands": [
+      "pelican",
+      "mophie"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 8,
+    "device": "Google Pixel 10",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.003,
+      "screen-protectors": 0.008,
+      "chargers-&-adapters": 0.175,
+      "headphones": 0.332,
+      "wearable-tech": 0.023,
+      "speakers": 0.028,
+      "gaming": 0.283,
+      "others": 0.147
+    },
+    "brands": [
+      "samsung",
+      "mophie"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 9,
+    "device": "Samsung Galaxy S26+",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.001,
+      "screen-protectors": 0.16,
+      "chargers-&-adapters": 0.152,
+      "headphones": 0.23,
+      "wearable-tech": 0.223,
+      "speakers": 0.002,
+      "gaming": 0.037,
+      "others": 0.194
+    },
+    "brands": [],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 10,
+    "device": "Samsung Galaxy S26",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.129,
+      "screen-protectors": 0.013,
+      "chargers-&-adapters": 0.54,
+      "headphones": 0.0,
+      "wearable-tech": 0.099,
+      "speakers": 0.002,
+      "gaming": 0.133,
+      "others": 0.084
+    },
+    "brands": [
+      "samsung",
+      "mophie"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 11,
+    "device": "Apple iPhone 17",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.413,
+      "screen-protectors": 0.067,
+      "chargers-&-adapters": 0.221,
+      "headphones": 0.004,
+      "wearable-tech": 0.049,
+      "speakers": 0.003,
+      "gaming": 0.021,
+      "others": 0.223
+    },
+    "brands": [],
+    "style": "gift shopper"
+  },
+  {
+    "id": 12,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.036,
+      "screen-protectors": 0.282,
+      "chargers-&-adapters": 0.233,
+      "headphones": 0.025,
+      "wearable-tech": 0.058,
+      "speakers": 0.081,
+      "gaming": 0.282,
+      "others": 0.004
+    },
+    "brands": [
+      "pelican",
+      "jbl"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 13,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.114,
+      "screen-protectors": 0.011,
+      "chargers-&-adapters": 0.138,
+      "headphones": 0.123,
+      "wearable-tech": 0.047,
+      "speakers": 0.456,
+      "gaming": 0.028,
+      "others": 0.083
+    },
+    "brands": [
+      "mophie",
+      "apple"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 14,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.059,
+      "screen-protectors": 0.35,
+      "chargers-&-adapters": 0.185,
+      "headphones": 0.06,
+      "wearable-tech": 0.185,
+      "speakers": 0.0,
+      "gaming": 0.129,
+      "others": 0.031
+    },
+    "brands": [],
+    "style": "gift shopper"
+  },
+  {
+    "id": 15,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.092,
+      "screen-protectors": 0.305,
+      "chargers-&-adapters": 0.204,
+      "headphones": 0.0,
+      "wearable-tech": 0.006,
+      "speakers": 0.032,
+      "gaming": 0.348,
+      "others": 0.012
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 16,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.022,
+      "screen-protectors": 0.001,
+      "chargers-&-adapters": 0.08,
+      "headphones": 0.477,
+      "wearable-tech": 0.091,
+      "speakers": 0.012,
+      "gaming": 0.131,
+      "others": 0.186
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 17,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.02,
+      "screen-protectors": 0.201,
+      "chargers-&-adapters": 0.102,
+      "headphones": 0.004,
+      "wearable-tech": 0.002,
+      "speakers": 0.232,
+      "gaming": 0.066,
+      "others": 0.374
+    },
+    "brands": [],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 18,
+    "device": "Apple iPhone 17",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.001,
+      "screen-protectors": 0.019,
+      "chargers-&-adapters": 0.049,
+      "headphones": 0.292,
+      "wearable-tech": 0.053,
+      "speakers": 0.078,
+      "gaming": 0.423,
+      "others": 0.085
+    },
+    "brands": [
+      "mophie",
+      "uag"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 19,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.008,
+      "screen-protectors": 0.128,
+      "chargers-&-adapters": 0.261,
+      "headphones": 0.033,
+      "wearable-tech": 0.252,
+      "speakers": 0.061,
+      "gaming": 0.061,
+      "others": 0.196
+    },
+    "brands": [
+      "pelican"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 20,
+    "device": "Apple iPhone 16",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.207,
+      "screen-protectors": 0.05,
+      "chargers-&-adapters": 0.216,
+      "headphones": 0.008,
+      "wearable-tech": 0.101,
+      "speakers": 0.244,
+      "gaming": 0.067,
+      "others": 0.106
+    },
+    "brands": [
+      "pelican"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 21,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.053,
+      "screen-protectors": 0.289,
+      "chargers-&-adapters": 0.047,
+      "headphones": 0.016,
+      "wearable-tech": 0.023,
+      "speakers": 0.076,
+      "gaming": 0.427,
+      "others": 0.068
+    },
+    "brands": [
+      "mophie"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 22,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.263,
+      "screen-protectors": 0.487,
+      "chargers-&-adapters": 0.019,
+      "headphones": 0.035,
+      "wearable-tech": 0.011,
+      "speakers": 0.001,
+      "gaming": 0.074,
+      "others": 0.11
+    },
+    "brands": [
+      "pelican",
+      "zagg"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 23,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.005,
+      "screen-protectors": 0.02,
+      "chargers-&-adapters": 0.038,
+      "headphones": 0.04,
+      "wearable-tech": 0.317,
+      "speakers": 0.0,
+      "gaming": 0.382,
+      "others": 0.198
+    },
+    "brands": [
+      "otterbox",
+      "tech21"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 24,
+    "device": "Apple iPhone 15",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.081,
+      "screen-protectors": 0.012,
+      "chargers-&-adapters": 0.001,
+      "headphones": 0.552,
+      "wearable-tech": 0.055,
+      "speakers": 0.237,
+      "gaming": 0.006,
+      "others": 0.057
+    },
+    "brands": [
+      "tech21",
+      "apple"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 25,
+    "device": "Google Pixel 10",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.199,
+      "screen-protectors": 0.103,
+      "chargers-&-adapters": 0.165,
+      "headphones": 0.147,
+      "wearable-tech": 0.047,
+      "speakers": 0.066,
+      "gaming": 0.002,
+      "others": 0.271
+    },
+    "brands": [
+      "samsung"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 26,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.103,
+      "screen-protectors": 0.177,
+      "chargers-&-adapters": 0.578,
+      "headphones": 0.008,
+      "wearable-tech": 0.041,
+      "speakers": 0.059,
+      "gaming": 0.002,
+      "others": 0.031
+    },
+    "brands": [
+      "apple",
+      "pelican"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 27,
+    "device": "Apple iPhone 15",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.159,
+      "screen-protectors": 0.007,
+      "chargers-&-adapters": 0.038,
+      "headphones": 0.0,
+      "wearable-tech": 0.085,
+      "speakers": 0.561,
+      "gaming": 0.147,
+      "others": 0.003
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 28,
+    "device": "Google Pixel 10",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.487,
+      "screen-protectors": 0.0,
+      "chargers-&-adapters": 0.12,
+      "headphones": 0.049,
+      "wearable-tech": 0.079,
+      "speakers": 0.024,
+      "gaming": 0.228,
+      "others": 0.013
+    },
+    "brands": [
+      "otterbox"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 29,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.007,
+      "screen-protectors": 0.043,
+      "chargers-&-adapters": 0.304,
+      "headphones": 0.027,
+      "wearable-tech": 0.057,
+      "speakers": 0.159,
+      "gaming": 0.401,
+      "others": 0.002
+    },
+    "brands": [
+      "uag"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 30,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.146,
+      "screen-protectors": 0.022,
+      "chargers-&-adapters": 0.093,
+      "headphones": 0.424,
+      "wearable-tech": 0.014,
+      "speakers": 0.092,
+      "gaming": 0.2,
+      "others": 0.008
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 31,
+    "device": "Apple iPhone 15",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.331,
+      "screen-protectors": 0.204,
+      "chargers-&-adapters": 0.111,
+      "headphones": 0.229,
+      "wearable-tech": 0.024,
+      "speakers": 0.007,
+      "gaming": 0.006,
+      "others": 0.088
+    },
+    "brands": [],
+    "style": "gift shopper"
+  },
+  {
+    "id": 32,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.076,
+      "screen-protectors": 0.007,
+      "chargers-&-adapters": 0.351,
+      "headphones": 0.049,
+      "wearable-tech": 0.407,
+      "speakers": 0.029,
+      "gaming": 0.035,
+      "others": 0.047
+    },
+    "brands": [
+      "otterbox"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 33,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.002,
+      "screen-protectors": 0.128,
+      "chargers-&-adapters": 0.317,
+      "headphones": 0.327,
+      "wearable-tech": 0.025,
+      "speakers": 0.05,
+      "gaming": 0.104,
+      "others": 0.049
+    },
+    "brands": [
+      "apple"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 34,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.327,
+      "screen-protectors": 0.039,
+      "chargers-&-adapters": 0.322,
+      "headphones": 0.17,
+      "wearable-tech": 0.039,
+      "speakers": 0.015,
+      "gaming": 0.058,
+      "others": 0.03
+    },
+    "brands": [],
+    "style": "gift shopper"
+  },
+  {
+    "id": 35,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.001,
+      "screen-protectors": 0.203,
+      "chargers-&-adapters": 0.08,
+      "headphones": 0.091,
+      "wearable-tech": 0.434,
+      "speakers": 0.089,
+      "gaming": 0.095,
+      "others": 0.006
+    },
+    "brands": [
+      "otterbox",
+      "samsung"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 36,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.167,
+      "screen-protectors": 0.462,
+      "chargers-&-adapters": 0.004,
+      "headphones": 0.078,
+      "wearable-tech": 0.046,
+      "speakers": 0.033,
+      "gaming": 0.109,
+      "others": 0.1
+    },
+    "brands": [
+      "zagg",
+      "apple"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 37,
+    "device": "Samsung Galaxy S26",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.154,
+      "screen-protectors": 0.003,
+      "chargers-&-adapters": 0.043,
+      "headphones": 0.137,
+      "wearable-tech": 0.175,
+      "speakers": 0.222,
+      "gaming": 0.124,
+      "others": 0.143
+    },
+    "brands": [
+      "apple"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 38,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.244,
+      "screen-protectors": 0.384,
+      "chargers-&-adapters": 0.028,
+      "headphones": 0.009,
+      "wearable-tech": 0.014,
+      "speakers": 0.239,
+      "gaming": 0.003,
+      "others": 0.078
+    },
+    "brands": [],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 39,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.082,
+      "screen-protectors": 0.137,
+      "chargers-&-adapters": 0.222,
+      "headphones": 0.052,
+      "wearable-tech": 0.047,
+      "speakers": 0.23,
+      "gaming": 0.067,
+      "others": 0.162
+    },
+    "brands": [
+      "zagg"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 40,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.065,
+      "screen-protectors": 0.007,
+      "chargers-&-adapters": 0.092,
+      "headphones": 0.077,
+      "wearable-tech": 0.556,
+      "speakers": 0.07,
+      "gaming": 0.131,
+      "others": 0.002
+    },
+    "brands": [
+      "uag"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 41,
+    "device": "Samsung Galaxy S26+",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.096,
+      "screen-protectors": 0.005,
+      "chargers-&-adapters": 0.043,
+      "headphones": 0.019,
+      "wearable-tech": 0.016,
+      "speakers": 0.444,
+      "gaming": 0.017,
+      "others": 0.36
+    },
+    "brands": [
+      "tech21",
+      "uag"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 42,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.148,
+      "screen-protectors": 0.009,
+      "chargers-&-adapters": 0.123,
+      "headphones": 0.034,
+      "wearable-tech": 0.018,
+      "speakers": 0.0,
+      "gaming": 0.613,
+      "others": 0.055
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 43,
+    "device": "Samsung Galaxy S26+",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.421,
+      "screen-protectors": 0.012,
+      "chargers-&-adapters": 0.001,
+      "headphones": 0.014,
+      "wearable-tech": 0.008,
+      "speakers": 0.029,
+      "gaming": 0.297,
+      "others": 0.219
+    },
+    "brands": [
+      "zagg"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 44,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.352,
+      "screen-protectors": 0.134,
+      "chargers-&-adapters": 0.041,
+      "headphones": 0.007,
+      "wearable-tech": 0.052,
+      "speakers": 0.02,
+      "gaming": 0.393,
+      "others": 0.001
+    },
+    "brands": [
+      "pelican"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 45,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.004,
+      "screen-protectors": 0.055,
+      "chargers-&-adapters": 0.0,
+      "headphones": 0.073,
+      "wearable-tech": 0.213,
+      "speakers": 0.033,
+      "gaming": 0.055,
+      "others": 0.567
+    },
+    "brands": [
+      "mophie",
+      "jbl"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 46,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.356,
+      "screen-protectors": 0.139,
+      "chargers-&-adapters": 0.117,
+      "headphones": 0.078,
+      "wearable-tech": 0.072,
+      "speakers": 0.054,
+      "gaming": 0.048,
+      "others": 0.136
+    },
+    "brands": [
+      "beats",
+      "otterbox"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 47,
+    "device": "Apple iPhone 15",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.02,
+      "screen-protectors": 0.235,
+      "chargers-&-adapters": 0.046,
+      "headphones": 0.127,
+      "wearable-tech": 0.063,
+      "speakers": 0.118,
+      "gaming": 0.378,
+      "others": 0.013
+    },
+    "brands": [],
+    "style": "gift shopper"
+  },
+  {
+    "id": 48,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.191,
+      "screen-protectors": 0.0,
+      "chargers-&-adapters": 0.502,
+      "headphones": 0.035,
+      "wearable-tech": 0.0,
+      "speakers": 0.062,
+      "gaming": 0.172,
+      "others": 0.039
+    },
+    "brands": [
+      "zagg",
+      "tech21"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 49,
+    "device": "Google Pixel 10",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.021,
+      "screen-protectors": 0.081,
+      "chargers-&-adapters": 0.036,
+      "headphones": 0.153,
+      "wearable-tech": 0.117,
+      "speakers": 0.502,
+      "gaming": 0.071,
+      "others": 0.019
+    },
+    "brands": [
+      "otterbox",
+      "mophie"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 50,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.09,
+      "screen-protectors": 0.078,
+      "chargers-&-adapters": 0.056,
+      "headphones": 0.034,
+      "wearable-tech": 0.108,
+      "speakers": 0.437,
+      "gaming": 0.149,
+      "others": 0.048
+    },
+    "brands": [
+      "apple",
+      "otterbox"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 51,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.021,
+      "screen-protectors": 0.214,
+      "chargers-&-adapters": 0.035,
+      "headphones": 0.298,
+      "wearable-tech": 0.159,
+      "speakers": 0.202,
+      "gaming": 0.001,
+      "others": 0.07
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 52,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.005,
+      "screen-protectors": 0.107,
+      "chargers-&-adapters": 0.006,
+      "headphones": 0.055,
+      "wearable-tech": 0.0,
+      "speakers": 0.255,
+      "gaming": 0.261,
+      "others": 0.312
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 53,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.013,
+      "screen-protectors": 0.017,
+      "chargers-&-adapters": 0.153,
+      "headphones": 0.203,
+      "wearable-tech": 0.033,
+      "speakers": 0.057,
+      "gaming": 0.39,
+      "others": 0.135
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 54,
+    "device": "Google Pixel 10",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.026,
+      "screen-protectors": 0.556,
+      "chargers-&-adapters": 0.08,
+      "headphones": 0.015,
+      "wearable-tech": 0.032,
+      "speakers": 0.241,
+      "gaming": 0.01,
+      "others": 0.039
+    },
+    "brands": [
+      "mophie",
+      "samsung"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 55,
+    "device": "Samsung Galaxy S26+",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.445,
+      "screen-protectors": 0.006,
+      "chargers-&-adapters": 0.203,
+      "headphones": 0.06,
+      "wearable-tech": 0.043,
+      "speakers": 0.12,
+      "gaming": 0.121,
+      "others": 0.002
+    },
+    "brands": [
+      "jbl"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 56,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.072,
+      "screen-protectors": 0.208,
+      "chargers-&-adapters": 0.116,
+      "headphones": 0.002,
+      "wearable-tech": 0.313,
+      "speakers": 0.019,
+      "gaming": 0.151,
+      "others": 0.118
+    },
+    "brands": [
+      "samsung",
+      "mophie"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 57,
+    "device": "Apple iPhone 15",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.237,
+      "screen-protectors": 0.273,
+      "chargers-&-adapters": 0.002,
+      "headphones": 0.075,
+      "wearable-tech": 0.284,
+      "speakers": 0.006,
+      "gaming": 0.027,
+      "others": 0.097
+    },
+    "brands": [
+      "samsung"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 58,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.395,
+      "screen-protectors": 0.088,
+      "chargers-&-adapters": 0.034,
+      "headphones": 0.104,
+      "wearable-tech": 0.003,
+      "speakers": 0.012,
+      "gaming": 0.236,
+      "others": 0.128
+    },
+    "brands": [
+      "tech21",
+      "otterbox"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 59,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.09,
+      "screen-protectors": 0.012,
+      "chargers-&-adapters": 0.028,
+      "headphones": 0.046,
+      "wearable-tech": 0.117,
+      "speakers": 0.145,
+      "gaming": 0.132,
+      "others": 0.43
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 60,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.087,
+      "screen-protectors": 0.383,
+      "chargers-&-adapters": 0.07,
+      "headphones": 0.14,
+      "wearable-tech": 0.128,
+      "speakers": 0.002,
+      "gaming": 0.188,
+      "others": 0.002
+    },
+    "brands": [
+      "apple",
+      "pelican"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 61,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.126,
+      "screen-protectors": 0.146,
+      "chargers-&-adapters": 0.007,
+      "headphones": 0.076,
+      "wearable-tech": 0.031,
+      "speakers": 0.038,
+      "gaming": 0.553,
+      "others": 0.023
+    },
+    "brands": [
+      "jbl"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 62,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.624,
+      "screen-protectors": 0.009,
+      "chargers-&-adapters": 0.011,
+      "headphones": 0.067,
+      "wearable-tech": 0.044,
+      "speakers": 0.042,
+      "gaming": 0.051,
+      "others": 0.15
+    },
+    "brands": [
+      "tech21"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 63,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.067,
+      "screen-protectors": 0.495,
+      "chargers-&-adapters": 0.216,
+      "headphones": 0.006,
+      "wearable-tech": 0.006,
+      "speakers": 0.079,
+      "gaming": 0.129,
+      "others": 0.002
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 64,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.365,
+      "screen-protectors": 0.001,
+      "chargers-&-adapters": 0.072,
+      "headphones": 0.163,
+      "wearable-tech": 0.017,
+      "speakers": 0.015,
+      "gaming": 0.361,
+      "others": 0.005
+    },
+    "brands": [
+      "samsung"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 65,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.592,
+      "screen-protectors": 0.014,
+      "chargers-&-adapters": 0.037,
+      "headphones": 0.079,
+      "wearable-tech": 0.151,
+      "speakers": 0.035,
+      "gaming": 0.09,
+      "others": 0.002
+    },
+    "brands": [
+      "pelican",
+      "otterbox"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 66,
+    "device": "Apple iPhone 17",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.383,
+      "screen-protectors": 0.031,
+      "chargers-&-adapters": 0.164,
+      "headphones": 0.321,
+      "wearable-tech": 0.021,
+      "speakers": 0.0,
+      "gaming": 0.036,
+      "others": 0.045
+    },
+    "brands": [
+      "mophie",
+      "tech21"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 67,
+    "device": "Apple iPhone 15",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.018,
+      "screen-protectors": 0.003,
+      "chargers-&-adapters": 0.001,
+      "headphones": 0.009,
+      "wearable-tech": 0.442,
+      "speakers": 0.325,
+      "gaming": 0.151,
+      "others": 0.053
+    },
+    "brands": [
+      "samsung"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 68,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.481,
+      "screen-protectors": 0.047,
+      "chargers-&-adapters": 0.032,
+      "headphones": 0.045,
+      "wearable-tech": 0.012,
+      "speakers": 0.059,
+      "gaming": 0.137,
+      "others": 0.188
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 69,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.276,
+      "screen-protectors": 0.061,
+      "chargers-&-adapters": 0.086,
+      "headphones": 0.311,
+      "wearable-tech": 0.229,
+      "speakers": 0.004,
+      "gaming": 0.002,
+      "others": 0.031
+    },
+    "brands": [
+      "pelican",
+      "beats"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 70,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.241,
+      "screen-protectors": 0.025,
+      "chargers-&-adapters": 0.025,
+      "headphones": 0.243,
+      "wearable-tech": 0.011,
+      "speakers": 0.056,
+      "gaming": 0.029,
+      "others": 0.369
+    },
+    "brands": [
+      "mophie"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 71,
+    "device": "Google Pixel 10",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.28,
+      "screen-protectors": 0.135,
+      "chargers-&-adapters": 0.004,
+      "headphones": 0.001,
+      "wearable-tech": 0.068,
+      "speakers": 0.244,
+      "gaming": 0.201,
+      "others": 0.068
+    },
+    "brands": [
+      "otterbox",
+      "mophie"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 72,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.318,
+      "screen-protectors": 0.191,
+      "chargers-&-adapters": 0.018,
+      "headphones": 0.218,
+      "wearable-tech": 0.118,
+      "speakers": 0.01,
+      "gaming": 0.039,
+      "others": 0.087
+    },
+    "brands": [
+      "pelican"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 73,
+    "device": "Samsung Galaxy S26",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.003,
+      "screen-protectors": 0.086,
+      "chargers-&-adapters": 0.133,
+      "headphones": 0.482,
+      "wearable-tech": 0.031,
+      "speakers": 0.008,
+      "gaming": 0.227,
+      "others": 0.03
+    },
+    "brands": [
+      "beats",
+      "zagg"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 74,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.001,
+      "screen-protectors": 0.051,
+      "chargers-&-adapters": 0.115,
+      "headphones": 0.299,
+      "wearable-tech": 0.095,
+      "speakers": 0.257,
+      "gaming": 0.118,
+      "others": 0.065
+    },
+    "brands": [],
+    "style": "gift shopper"
+  },
+  {
+    "id": 75,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.058,
+      "screen-protectors": 0.0,
+      "chargers-&-adapters": 0.236,
+      "headphones": 0.193,
+      "wearable-tech": 0.275,
+      "speakers": 0.214,
+      "gaming": 0.02,
+      "others": 0.003
+    },
+    "brands": [
+      "otterbox"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 76,
+    "device": "Apple iPhone 15",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.005,
+      "screen-protectors": 0.103,
+      "chargers-&-adapters": 0.037,
+      "headphones": 0.013,
+      "wearable-tech": 0.556,
+      "speakers": 0.092,
+      "gaming": 0.13,
+      "others": 0.064
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 77,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.19,
+      "screen-protectors": 0.035,
+      "chargers-&-adapters": 0.011,
+      "headphones": 0.356,
+      "wearable-tech": 0.04,
+      "speakers": 0.068,
+      "gaming": 0.277,
+      "others": 0.024
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 78,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.704,
+      "screen-protectors": 0.1,
+      "chargers-&-adapters": 0.039,
+      "headphones": 0.006,
+      "wearable-tech": 0.043,
+      "speakers": 0.002,
+      "gaming": 0.04,
+      "others": 0.067
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 79,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.067,
+      "screen-protectors": 0.66,
+      "chargers-&-adapters": 0.009,
+      "headphones": 0.085,
+      "wearable-tech": 0.018,
+      "speakers": 0.033,
+      "gaming": 0.09,
+      "others": 0.037
+    },
+    "brands": [],
+    "style": "gift shopper"
+  },
+  {
+    "id": 80,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.063,
+      "screen-protectors": 0.046,
+      "chargers-&-adapters": 0.122,
+      "headphones": 0.079,
+      "wearable-tech": 0.326,
+      "speakers": 0.003,
+      "gaming": 0.113,
+      "others": 0.248
+    },
+    "brands": [
+      "uag"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 81,
+    "device": "Apple iPhone 17",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.089,
+      "screen-protectors": 0.081,
+      "chargers-&-adapters": 0.072,
+      "headphones": 0.613,
+      "wearable-tech": 0.031,
+      "speakers": 0.101,
+      "gaming": 0.001,
+      "others": 0.012
+    },
+    "brands": [
+      "zagg"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 82,
+    "device": "Samsung Galaxy S26",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.012,
+      "screen-protectors": 0.318,
+      "chargers-&-adapters": 0.084,
+      "headphones": 0.004,
+      "wearable-tech": 0.013,
+      "speakers": 0.29,
+      "gaming": 0.125,
+      "others": 0.154
+    },
+    "brands": [
+      "uag"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 83,
+    "device": "Google Pixel 10",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.0,
+      "screen-protectors": 0.318,
+      "chargers-&-adapters": 0.152,
+      "headphones": 0.214,
+      "wearable-tech": 0.045,
+      "speakers": 0.266,
+      "gaming": 0.005,
+      "others": 0.0
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 84,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.08,
+      "screen-protectors": 0.01,
+      "chargers-&-adapters": 0.156,
+      "headphones": 0.451,
+      "wearable-tech": 0.001,
+      "speakers": 0.118,
+      "gaming": 0.046,
+      "others": 0.139
+    },
+    "brands": [
+      "zagg",
+      "samsung"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 85,
+    "device": "Samsung Galaxy S26",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.016,
+      "screen-protectors": 0.001,
+      "chargers-&-adapters": 0.112,
+      "headphones": 0.072,
+      "wearable-tech": 0.058,
+      "speakers": 0.638,
+      "gaming": 0.1,
+      "others": 0.002
+    },
+    "brands": [
+      "jbl",
+      "beats"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 86,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.0,
+      "screen-protectors": 0.107,
+      "chargers-&-adapters": 0.425,
+      "headphones": 0.239,
+      "wearable-tech": 0.039,
+      "speakers": 0.034,
+      "gaming": 0.14,
+      "others": 0.016
+    },
+    "brands": [
+      "uag",
+      "otterbox"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 87,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.16,
+      "screen-protectors": 0.283,
+      "chargers-&-adapters": 0.105,
+      "headphones": 0.06,
+      "wearable-tech": 0.016,
+      "speakers": 0.301,
+      "gaming": 0.061,
+      "others": 0.015
+    },
+    "brands": [
+      "pelican"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 88,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.162,
+      "screen-protectors": 0.468,
+      "chargers-&-adapters": 0.0,
+      "headphones": 0.009,
+      "wearable-tech": 0.012,
+      "speakers": 0.048,
+      "gaming": 0.285,
+      "others": 0.017
+    },
+    "brands": [
+      "beats"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 89,
+    "device": "Apple iPhone 17",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.012,
+      "screen-protectors": 0.046,
+      "chargers-&-adapters": 0.078,
+      "headphones": 0.049,
+      "wearable-tech": 0.005,
+      "speakers": 0.486,
+      "gaming": 0.006,
+      "others": 0.318
+    },
+    "brands": [
+      "samsung",
+      "uag"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 90,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.103,
+      "screen-protectors": 0.058,
+      "chargers-&-adapters": 0.189,
+      "headphones": 0.048,
+      "wearable-tech": 0.263,
+      "speakers": 0.105,
+      "gaming": 0.163,
+      "others": 0.071
+    },
+    "brands": [
+      "samsung"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 91,
+    "device": "Apple iPhone 17",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.016,
+      "screen-protectors": 0.014,
+      "chargers-&-adapters": 0.26,
+      "headphones": 0.02,
+      "wearable-tech": 0.001,
+      "speakers": 0.091,
+      "gaming": 0.409,
+      "others": 0.189
+    },
+    "brands": [
+      "pelican"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 92,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.148,
+      "screen-protectors": 0.029,
+      "chargers-&-adapters": 0.188,
+      "headphones": 0.004,
+      "wearable-tech": 0.196,
+      "speakers": 0.258,
+      "gaming": 0.036,
+      "others": 0.141
+    },
+    "brands": [
+      "samsung",
+      "jbl"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 93,
+    "device": "Apple iPhone 15",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.158,
+      "screen-protectors": 0.273,
+      "chargers-&-adapters": 0.197,
+      "headphones": 0.048,
+      "wearable-tech": 0.079,
+      "speakers": 0.013,
+      "gaming": 0.001,
+      "others": 0.231
+    },
+    "brands": [
+      "beats",
+      "jbl"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 94,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.549,
+      "screen-protectors": 0.21,
+      "chargers-&-adapters": 0.009,
+      "headphones": 0.002,
+      "wearable-tech": 0.011,
+      "speakers": 0.044,
+      "gaming": 0.106,
+      "others": 0.071
+    },
+    "brands": [
+      "zagg"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 95,
+    "device": "Google Pixel 10",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.0,
+      "screen-protectors": 0.21,
+      "chargers-&-adapters": 0.198,
+      "headphones": 0.154,
+      "wearable-tech": 0.006,
+      "speakers": 0.415,
+      "gaming": 0.01,
+      "others": 0.007
+    },
+    "brands": [
+      "samsung"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 96,
+    "device": "Samsung Galaxy S26+",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.047,
+      "screen-protectors": 0.031,
+      "chargers-&-adapters": 0.046,
+      "headphones": 0.115,
+      "wearable-tech": 0.167,
+      "speakers": 0.141,
+      "gaming": 0.306,
+      "others": 0.147
+    },
+    "brands": [
+      "apple",
+      "pelican"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 97,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.026,
+      "screen-protectors": 0.197,
+      "chargers-&-adapters": 0.057,
+      "headphones": 0.069,
+      "wearable-tech": 0.012,
+      "speakers": 0.327,
+      "gaming": 0.04,
+      "others": 0.271
+    },
+    "brands": [
+      "samsung",
+      "otterbox"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 98,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.078,
+      "screen-protectors": 0.015,
+      "chargers-&-adapters": 0.46,
+      "headphones": 0.001,
+      "wearable-tech": 0.003,
+      "speakers": 0.267,
+      "gaming": 0.003,
+      "others": 0.173
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 99,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.394,
+      "screen-protectors": 0.309,
+      "chargers-&-adapters": 0.044,
+      "headphones": 0.027,
+      "wearable-tech": 0.131,
+      "speakers": 0.061,
+      "gaming": 0.033,
+      "others": 0.001
+    },
+    "brands": [
+      "apple",
+      "jbl"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 100,
+    "device": "Apple iPhone 15",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.168,
+      "screen-protectors": 0.01,
+      "chargers-&-adapters": 0.631,
+      "headphones": 0.002,
+      "wearable-tech": 0.063,
+      "speakers": 0.071,
+      "gaming": 0.008,
+      "others": 0.047
+    },
+    "brands": [],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 101,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.089,
+      "screen-protectors": 0.231,
+      "chargers-&-adapters": 0.129,
+      "headphones": 0.01,
+      "wearable-tech": 0.159,
+      "speakers": 0.0,
+      "gaming": 0.09,
+      "others": 0.292
+    },
+    "brands": [
+      "beats"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 102,
+    "device": "Apple iPhone 15",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.001,
+      "screen-protectors": 0.057,
+      "chargers-&-adapters": 0.005,
+      "headphones": 0.323,
+      "wearable-tech": 0.003,
+      "speakers": 0.251,
+      "gaming": 0.01,
+      "others": 0.349
+    },
+    "brands": [
+      "samsung",
+      "apple"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 103,
+    "device": "Apple iPhone 17",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.023,
+      "screen-protectors": 0.352,
+      "chargers-&-adapters": 0.052,
+      "headphones": 0.1,
+      "wearable-tech": 0.037,
+      "speakers": 0.162,
+      "gaming": 0.264,
+      "others": 0.01
+    },
+    "brands": [
+      "pelican",
+      "zagg"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 104,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.038,
+      "screen-protectors": 0.148,
+      "chargers-&-adapters": 0.082,
+      "headphones": 0.012,
+      "wearable-tech": 0.214,
+      "speakers": 0.098,
+      "gaming": 0.147,
+      "others": 0.261
+    },
+    "brands": [
+      "zagg"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 105,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.417,
+      "screen-protectors": 0.124,
+      "chargers-&-adapters": 0.029,
+      "headphones": 0.292,
+      "wearable-tech": 0.029,
+      "speakers": 0.009,
+      "gaming": 0.03,
+      "others": 0.069
+    },
+    "brands": [
+      "tech21"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 106,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.003,
+      "screen-protectors": 0.263,
+      "chargers-&-adapters": 0.018,
+      "headphones": 0.353,
+      "wearable-tech": 0.042,
+      "speakers": 0.093,
+      "gaming": 0.026,
+      "others": 0.202
+    },
+    "brands": [
+      "jbl"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 107,
+    "device": "Samsung Galaxy S26",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.231,
+      "screen-protectors": 0.041,
+      "chargers-&-adapters": 0.117,
+      "headphones": 0.0,
+      "wearable-tech": 0.434,
+      "speakers": 0.063,
+      "gaming": 0.109,
+      "others": 0.004
+    },
+    "brands": [
+      "samsung"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 108,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.449,
+      "screen-protectors": 0.206,
+      "chargers-&-adapters": 0.024,
+      "headphones": 0.008,
+      "wearable-tech": 0.056,
+      "speakers": 0.095,
+      "gaming": 0.053,
+      "others": 0.107
+    },
+    "brands": [
+      "tech21"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 109,
+    "device": "Google Pixel 10",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.091,
+      "screen-protectors": 0.571,
+      "chargers-&-adapters": 0.008,
+      "headphones": 0.081,
+      "wearable-tech": 0.025,
+      "speakers": 0.066,
+      "gaming": 0.023,
+      "others": 0.135
+    },
+    "brands": [
+      "beats",
+      "jbl"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 110,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.021,
+      "screen-protectors": 0.159,
+      "chargers-&-adapters": 0.182,
+      "headphones": 0.073,
+      "wearable-tech": 0.125,
+      "speakers": 0.2,
+      "gaming": 0.117,
+      "others": 0.123
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 111,
+    "device": "Apple iPhone 15",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.001,
+      "screen-protectors": 0.051,
+      "chargers-&-adapters": 0.047,
+      "headphones": 0.023,
+      "wearable-tech": 0.04,
+      "speakers": 0.641,
+      "gaming": 0.036,
+      "others": 0.162
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 112,
+    "device": "Apple iPhone 17",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.012,
+      "screen-protectors": 0.001,
+      "chargers-&-adapters": 0.071,
+      "headphones": 0.151,
+      "wearable-tech": 0.031,
+      "speakers": 0.05,
+      "gaming": 0.212,
+      "others": 0.472
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 113,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.008,
+      "screen-protectors": 0.06,
+      "chargers-&-adapters": 0.102,
+      "headphones": 0.076,
+      "wearable-tech": 0.006,
+      "speakers": 0.188,
+      "gaming": 0.199,
+      "others": 0.361
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 114,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.025,
+      "screen-protectors": 0.14,
+      "chargers-&-adapters": 0.243,
+      "headphones": 0.026,
+      "wearable-tech": 0.197,
+      "speakers": 0.01,
+      "gaming": 0.313,
+      "others": 0.046
+    },
+    "brands": [
+      "uag"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 115,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.069,
+      "screen-protectors": 0.007,
+      "chargers-&-adapters": 0.003,
+      "headphones": 0.713,
+      "wearable-tech": 0.032,
+      "speakers": 0.111,
+      "gaming": 0.003,
+      "others": 0.061
+    },
+    "brands": [
+      "apple"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 116,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.299,
+      "screen-protectors": 0.076,
+      "chargers-&-adapters": 0.099,
+      "headphones": 0.007,
+      "wearable-tech": 0.07,
+      "speakers": 0.112,
+      "gaming": 0.046,
+      "others": 0.29
+    },
+    "brands": [
+      "pelican",
+      "beats"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 117,
+    "device": "Samsung Galaxy S26",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.082,
+      "screen-protectors": 0.493,
+      "chargers-&-adapters": 0.025,
+      "headphones": 0.066,
+      "wearable-tech": 0.224,
+      "speakers": 0.092,
+      "gaming": 0.011,
+      "others": 0.006
+    },
+    "brands": [
+      "uag",
+      "pelican"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 118,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.043,
+      "screen-protectors": 0.007,
+      "chargers-&-adapters": 0.058,
+      "headphones": 0.034,
+      "wearable-tech": 0.005,
+      "speakers": 0.048,
+      "gaming": 0.006,
+      "others": 0.797
+    },
+    "brands": [
+      "pelican"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 119,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.064,
+      "screen-protectors": 0.085,
+      "chargers-&-adapters": 0.101,
+      "headphones": 0.149,
+      "wearable-tech": 0.188,
+      "speakers": 0.023,
+      "gaming": 0.379,
+      "others": 0.01
+    },
+    "brands": [
+      "beats"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 120,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.007,
+      "screen-protectors": 0.063,
+      "chargers-&-adapters": 0.048,
+      "headphones": 0.251,
+      "wearable-tech": 0.024,
+      "speakers": 0.004,
+      "gaming": 0.002,
+      "others": 0.601
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 121,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.059,
+      "screen-protectors": 0.428,
+      "chargers-&-adapters": 0.268,
+      "headphones": 0.071,
+      "wearable-tech": 0.092,
+      "speakers": 0.004,
+      "gaming": 0.078,
+      "others": 0.0
+    },
+    "brands": [
+      "jbl",
+      "mophie"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 122,
+    "device": "Google Pixel 10",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.095,
+      "screen-protectors": 0.004,
+      "chargers-&-adapters": 0.034,
+      "headphones": 0.239,
+      "wearable-tech": 0.002,
+      "speakers": 0.494,
+      "gaming": 0.002,
+      "others": 0.132
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 123,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.0,
+      "screen-protectors": 0.056,
+      "chargers-&-adapters": 0.261,
+      "headphones": 0.01,
+      "wearable-tech": 0.16,
+      "speakers": 0.135,
+      "gaming": 0.326,
+      "others": 0.051
+    },
+    "brands": [
+      "otterbox"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 124,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.059,
+      "screen-protectors": 0.043,
+      "chargers-&-adapters": 0.429,
+      "headphones": 0.076,
+      "wearable-tech": 0.015,
+      "speakers": 0.072,
+      "gaming": 0.002,
+      "others": 0.304
+    },
+    "brands": [
+      "zagg",
+      "uag"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 125,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.139,
+      "screen-protectors": 0.018,
+      "chargers-&-adapters": 0.106,
+      "headphones": 0.21,
+      "wearable-tech": 0.165,
+      "speakers": 0.087,
+      "gaming": 0.198,
+      "others": 0.077
+    },
+    "brands": [
+      "otterbox"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 126,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.007,
+      "screen-protectors": 0.06,
+      "chargers-&-adapters": 0.201,
+      "headphones": 0.047,
+      "wearable-tech": 0.255,
+      "speakers": 0.006,
+      "gaming": 0.334,
+      "others": 0.09
+    },
+    "brands": [
+      "jbl"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 127,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.002,
+      "screen-protectors": 0.005,
+      "chargers-&-adapters": 0.324,
+      "headphones": 0.294,
+      "wearable-tech": 0.163,
+      "speakers": 0.2,
+      "gaming": 0.0,
+      "others": 0.012
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 128,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.206,
+      "screen-protectors": 0.156,
+      "chargers-&-adapters": 0.213,
+      "headphones": 0.134,
+      "wearable-tech": 0.226,
+      "speakers": 0.031,
+      "gaming": 0.032,
+      "others": 0.002
+    },
+    "brands": [],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 129,
+    "device": "Apple iPhone 16",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.211,
+      "screen-protectors": 0.205,
+      "chargers-&-adapters": 0.482,
+      "headphones": 0.006,
+      "wearable-tech": 0.005,
+      "speakers": 0.015,
+      "gaming": 0.007,
+      "others": 0.069
+    },
+    "brands": [
+      "jbl"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 130,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.249,
+      "screen-protectors": 0.144,
+      "chargers-&-adapters": 0.395,
+      "headphones": 0.05,
+      "wearable-tech": 0.04,
+      "speakers": 0.064,
+      "gaming": 0.008,
+      "others": 0.051
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 131,
+    "device": "Samsung Galaxy S26+",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.037,
+      "screen-protectors": 0.292,
+      "chargers-&-adapters": 0.153,
+      "headphones": 0.117,
+      "wearable-tech": 0.003,
+      "speakers": 0.16,
+      "gaming": 0.237,
+      "others": 0.001
+    },
+    "brands": [
+      "beats"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 132,
+    "device": "Apple iPhone 16",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.002,
+      "screen-protectors": 0.064,
+      "chargers-&-adapters": 0.019,
+      "headphones": 0.031,
+      "wearable-tech": 0.329,
+      "speakers": 0.003,
+      "gaming": 0.553,
+      "others": 0.0
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 133,
+    "device": "Apple iPhone 16",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.034,
+      "screen-protectors": 0.327,
+      "chargers-&-adapters": 0.004,
+      "headphones": 0.275,
+      "wearable-tech": 0.052,
+      "speakers": 0.1,
+      "gaming": 0.016,
+      "others": 0.192
+    },
+    "brands": [
+      "uag"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 134,
+    "device": "Samsung Galaxy S26+",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.003,
+      "screen-protectors": 0.179,
+      "chargers-&-adapters": 0.312,
+      "headphones": 0.15,
+      "wearable-tech": 0.066,
+      "speakers": 0.114,
+      "gaming": 0.039,
+      "others": 0.138
+    },
+    "brands": [],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 135,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.383,
+      "screen-protectors": 0.017,
+      "chargers-&-adapters": 0.014,
+      "headphones": 0.005,
+      "wearable-tech": 0.373,
+      "speakers": 0.002,
+      "gaming": 0.149,
+      "others": 0.057
+    },
+    "brands": [
+      "uag",
+      "jbl"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 136,
+    "device": "Apple iPhone 16",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.281,
+      "screen-protectors": 0.178,
+      "chargers-&-adapters": 0.021,
+      "headphones": 0.123,
+      "wearable-tech": 0.0,
+      "speakers": 0.054,
+      "gaming": 0.157,
+      "others": 0.186
+    },
+    "brands": [
+      "otterbox"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 137,
+    "device": "Google Pixel 10",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.09,
+      "screen-protectors": 0.469,
+      "chargers-&-adapters": 0.21,
+      "headphones": 0.005,
+      "wearable-tech": 0.003,
+      "speakers": 0.057,
+      "gaming": 0.006,
+      "others": 0.16
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 138,
+    "device": "Apple iPhone 15",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.058,
+      "screen-protectors": 0.136,
+      "chargers-&-adapters": 0.073,
+      "headphones": 0.069,
+      "wearable-tech": 0.021,
+      "speakers": 0.019,
+      "gaming": 0.537,
+      "others": 0.088
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 139,
+    "device": "Apple iPhone 17",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.059,
+      "screen-protectors": 0.034,
+      "chargers-&-adapters": 0.281,
+      "headphones": 0.199,
+      "wearable-tech": 0.001,
+      "speakers": 0.002,
+      "gaming": 0.01,
+      "others": 0.415
+    },
+    "brands": [
+      "samsung"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 140,
+    "device": "Samsung Galaxy S26+",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.139,
+      "screen-protectors": 0.07,
+      "chargers-&-adapters": 0.091,
+      "headphones": 0.0,
+      "wearable-tech": 0.017,
+      "speakers": 0.129,
+      "gaming": 0.508,
+      "others": 0.046
+    },
+    "brands": [
+      "pelican",
+      "beats"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 141,
+    "device": "Google Pixel 10",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.0,
+      "screen-protectors": 0.055,
+      "chargers-&-adapters": 0.082,
+      "headphones": 0.352,
+      "wearable-tech": 0.042,
+      "speakers": 0.114,
+      "gaming": 0.119,
+      "others": 0.236
+    },
+    "brands": [
+      "beats",
+      "samsung"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 142,
+    "device": "Apple iPhone 17",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.164,
+      "screen-protectors": 0.018,
+      "chargers-&-adapters": 0.063,
+      "headphones": 0.032,
+      "wearable-tech": 0.044,
+      "speakers": 0.621,
+      "gaming": 0.0,
+      "others": 0.057
+    },
+    "brands": [
+      "jbl",
+      "zagg"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 143,
+    "device": "Google Pixel 10",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.098,
+      "screen-protectors": 0.401,
+      "chargers-&-adapters": 0.059,
+      "headphones": 0.09,
+      "wearable-tech": 0.027,
+      "speakers": 0.293,
+      "gaming": 0.014,
+      "others": 0.018
+    },
+    "brands": [
+      "samsung",
+      "otterbox"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 144,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.077,
+      "screen-protectors": 0.388,
+      "chargers-&-adapters": 0.002,
+      "headphones": 0.182,
+      "wearable-tech": 0.105,
+      "speakers": 0.004,
+      "gaming": 0.235,
+      "others": 0.007
+    },
+    "brands": [
+      "zagg"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 145,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.029,
+      "screen-protectors": 0.042,
+      "chargers-&-adapters": 0.29,
+      "headphones": 0.093,
+      "wearable-tech": 0.006,
+      "speakers": 0.204,
+      "gaming": 0.015,
+      "others": 0.321
+    },
+    "brands": [
+      "zagg",
+      "otterbox"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 146,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.016,
+      "screen-protectors": 0.007,
+      "chargers-&-adapters": 0.211,
+      "headphones": 0.135,
+      "wearable-tech": 0.386,
+      "speakers": 0.001,
+      "gaming": 0.175,
+      "others": 0.07
+    },
+    "brands": [
+      "tech21"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 147,
+    "device": "Apple iPhone 16",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.001,
+      "screen-protectors": 0.15,
+      "chargers-&-adapters": 0.0,
+      "headphones": 0.009,
+      "wearable-tech": 0.545,
+      "speakers": 0.049,
+      "gaming": 0.238,
+      "others": 0.008
+    },
+    "brands": [
+      "mophie",
+      "pelican"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 148,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.012,
+      "screen-protectors": 0.103,
+      "chargers-&-adapters": 0.124,
+      "headphones": 0.039,
+      "wearable-tech": 0.0,
+      "speakers": 0.015,
+      "gaming": 0.0,
+      "others": 0.706
+    },
+    "brands": [
+      "tech21"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 149,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.035,
+      "screen-protectors": 0.224,
+      "chargers-&-adapters": 0.235,
+      "headphones": 0.0,
+      "wearable-tech": 0.015,
+      "speakers": 0.094,
+      "gaming": 0.272,
+      "others": 0.126
+    },
+    "brands": [
+      "uag"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 150,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.002,
+      "screen-protectors": 0.037,
+      "chargers-&-adapters": 0.039,
+      "headphones": 0.182,
+      "wearable-tech": 0.178,
+      "speakers": 0.078,
+      "gaming": 0.255,
+      "others": 0.229
+    },
+    "brands": [
+      "apple"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 151,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.341,
+      "screen-protectors": 0.052,
+      "chargers-&-adapters": 0.179,
+      "headphones": 0.094,
+      "wearable-tech": 0.201,
+      "speakers": 0.087,
+      "gaming": 0.042,
+      "others": 0.005
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 152,
+    "device": "Google Pixel 10",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.025,
+      "screen-protectors": 0.334,
+      "chargers-&-adapters": 0.006,
+      "headphones": 0.063,
+      "wearable-tech": 0.183,
+      "speakers": 0.198,
+      "gaming": 0.058,
+      "others": 0.133
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 153,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.322,
+      "screen-protectors": 0.018,
+      "chargers-&-adapters": 0.027,
+      "headphones": 0.128,
+      "wearable-tech": 0.121,
+      "speakers": 0.001,
+      "gaming": 0.023,
+      "others": 0.361
+    },
+    "brands": [
+      "zagg",
+      "beats"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 154,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.132,
+      "screen-protectors": 0.114,
+      "chargers-&-adapters": 0.161,
+      "headphones": 0.236,
+      "wearable-tech": 0.03,
+      "speakers": 0.092,
+      "gaming": 0.022,
+      "others": 0.214
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 155,
+    "device": "Apple iPhone 17",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.188,
+      "screen-protectors": 0.104,
+      "chargers-&-adapters": 0.118,
+      "headphones": 0.094,
+      "wearable-tech": 0.049,
+      "speakers": 0.192,
+      "gaming": 0.156,
+      "others": 0.1
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 156,
+    "device": "Apple iPhone 17",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.174,
+      "screen-protectors": 0.001,
+      "chargers-&-adapters": 0.098,
+      "headphones": 0.039,
+      "wearable-tech": 0.354,
+      "speakers": 0.311,
+      "gaming": 0.015,
+      "others": 0.009
+    },
+    "brands": [
+      "apple",
+      "zagg"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 157,
+    "device": "Google Pixel 10",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.119,
+      "screen-protectors": 0.002,
+      "chargers-&-adapters": 0.379,
+      "headphones": 0.095,
+      "wearable-tech": 0.084,
+      "speakers": 0.225,
+      "gaming": 0.054,
+      "others": 0.043
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 158,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.238,
+      "screen-protectors": 0.105,
+      "chargers-&-adapters": 0.01,
+      "headphones": 0.004,
+      "wearable-tech": 0.065,
+      "speakers": 0.535,
+      "gaming": 0.006,
+      "others": 0.037
+    },
+    "brands": [
+      "otterbox",
+      "zagg"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 159,
+    "device": "Samsung Galaxy S26",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.117,
+      "screen-protectors": 0.195,
+      "chargers-&-adapters": 0.29,
+      "headphones": 0.007,
+      "wearable-tech": 0.219,
+      "speakers": 0.16,
+      "gaming": 0.001,
+      "others": 0.01
+    },
+    "brands": [
+      "zagg"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 160,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.01,
+      "screen-protectors": 0.092,
+      "chargers-&-adapters": 0.055,
+      "headphones": 0.366,
+      "wearable-tech": 0.074,
+      "speakers": 0.075,
+      "gaming": 0.008,
+      "others": 0.321
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 161,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.22,
+      "screen-protectors": 0.01,
+      "chargers-&-adapters": 0.049,
+      "headphones": 0.114,
+      "wearable-tech": 0.376,
+      "speakers": 0.039,
+      "gaming": 0.183,
+      "others": 0.008
+    },
+    "brands": [
+      "jbl"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 162,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.056,
+      "screen-protectors": 0.67,
+      "chargers-&-adapters": 0.065,
+      "headphones": 0.046,
+      "wearable-tech": 0.0,
+      "speakers": 0.026,
+      "gaming": 0.051,
+      "others": 0.085
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 163,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.257,
+      "screen-protectors": 0.11,
+      "chargers-&-adapters": 0.165,
+      "headphones": 0.288,
+      "wearable-tech": 0.04,
+      "speakers": 0.01,
+      "gaming": 0.004,
+      "others": 0.125
+    },
+    "brands": [
+      "otterbox",
+      "samsung"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 164,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.018,
+      "screen-protectors": 0.204,
+      "chargers-&-adapters": 0.183,
+      "headphones": 0.132,
+      "wearable-tech": 0.066,
+      "speakers": 0.051,
+      "gaming": 0.005,
+      "others": 0.342
+    },
+    "brands": [
+      "beats",
+      "samsung"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 165,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.112,
+      "screen-protectors": 0.114,
+      "chargers-&-adapters": 0.17,
+      "headphones": 0.016,
+      "wearable-tech": 0.087,
+      "speakers": 0.109,
+      "gaming": 0.002,
+      "others": 0.39
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 166,
+    "device": "Samsung Galaxy S26+",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.049,
+      "screen-protectors": 0.51,
+      "chargers-&-adapters": 0.11,
+      "headphones": 0.124,
+      "wearable-tech": 0.136,
+      "speakers": 0.044,
+      "gaming": 0.006,
+      "others": 0.022
+    },
+    "brands": [
+      "samsung"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 167,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.411,
+      "screen-protectors": 0.0,
+      "chargers-&-adapters": 0.07,
+      "headphones": 0.056,
+      "wearable-tech": 0.016,
+      "speakers": 0.011,
+      "gaming": 0.407,
+      "others": 0.028
+    },
+    "brands": [
+      "mophie"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 168,
+    "device": "Apple iPhone 15",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.008,
+      "screen-protectors": 0.026,
+      "chargers-&-adapters": 0.141,
+      "headphones": 0.125,
+      "wearable-tech": 0.131,
+      "speakers": 0.0,
+      "gaming": 0.459,
+      "others": 0.11
+    },
+    "brands": [
+      "otterbox",
+      "jbl"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 169,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.009,
+      "screen-protectors": 0.042,
+      "chargers-&-adapters": 0.094,
+      "headphones": 0.523,
+      "wearable-tech": 0.014,
+      "speakers": 0.145,
+      "gaming": 0.103,
+      "others": 0.07
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 170,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.193,
+      "screen-protectors": 0.17,
+      "chargers-&-adapters": 0.032,
+      "headphones": 0.017,
+      "wearable-tech": 0.056,
+      "speakers": 0.339,
+      "gaming": 0.159,
+      "others": 0.035
+    },
+    "brands": [
+      "zagg"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 171,
+    "device": "Apple iPhone 15",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.007,
+      "screen-protectors": 0.094,
+      "chargers-&-adapters": 0.001,
+      "headphones": 0.506,
+      "wearable-tech": 0.036,
+      "speakers": 0.153,
+      "gaming": 0.167,
+      "others": 0.035
+    },
+    "brands": [
+      "samsung"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 172,
+    "device": "Google Pixel 10",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.141,
+      "screen-protectors": 0.081,
+      "chargers-&-adapters": 0.042,
+      "headphones": 0.037,
+      "wearable-tech": 0.086,
+      "speakers": 0.396,
+      "gaming": 0.084,
+      "others": 0.134
+    },
+    "brands": [],
+    "style": "gift shopper"
+  },
+  {
+    "id": 173,
+    "device": "Samsung Galaxy S26",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.009,
+      "screen-protectors": 0.229,
+      "chargers-&-adapters": 0.038,
+      "headphones": 0.203,
+      "wearable-tech": 0.185,
+      "speakers": 0.029,
+      "gaming": 0.285,
+      "others": 0.022
+    },
+    "brands": [
+      "beats",
+      "otterbox"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 174,
+    "device": "Apple iPhone 15",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.027,
+      "screen-protectors": 0.009,
+      "chargers-&-adapters": 0.053,
+      "headphones": 0.0,
+      "wearable-tech": 0.202,
+      "speakers": 0.072,
+      "gaming": 0.015,
+      "others": 0.621
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 175,
+    "device": "Samsung Galaxy S26+",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.495,
+      "screen-protectors": 0.018,
+      "chargers-&-adapters": 0.237,
+      "headphones": 0.056,
+      "wearable-tech": 0.007,
+      "speakers": 0.129,
+      "gaming": 0.045,
+      "others": 0.011
+    },
+    "brands": [],
+    "style": "gift shopper"
+  },
+  {
+    "id": 176,
+    "device": "Apple iPhone 16",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.164,
+      "screen-protectors": 0.262,
+      "chargers-&-adapters": 0.202,
+      "headphones": 0.094,
+      "wearable-tech": 0.128,
+      "speakers": 0.026,
+      "gaming": 0.021,
+      "others": 0.104
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 177,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.009,
+      "screen-protectors": 0.066,
+      "chargers-&-adapters": 0.309,
+      "headphones": 0.054,
+      "wearable-tech": 0.025,
+      "speakers": 0.479,
+      "gaming": 0.003,
+      "others": 0.055
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 178,
+    "device": "Apple iPhone 16",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.12,
+      "screen-protectors": 0.015,
+      "chargers-&-adapters": 0.018,
+      "headphones": 0.164,
+      "wearable-tech": 0.064,
+      "speakers": 0.138,
+      "gaming": 0.358,
+      "others": 0.122
+    },
+    "brands": [
+      "otterbox",
+      "pelican"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 179,
+    "device": "Apple iPhone 15",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.022,
+      "screen-protectors": 0.18,
+      "chargers-&-adapters": 0.011,
+      "headphones": 0.485,
+      "wearable-tech": 0.092,
+      "speakers": 0.064,
+      "gaming": 0.038,
+      "others": 0.108
+    },
+    "brands": [
+      "tech21"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 180,
+    "device": "Samsung Galaxy S26",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.313,
+      "screen-protectors": 0.04,
+      "chargers-&-adapters": 0.03,
+      "headphones": 0.007,
+      "wearable-tech": 0.007,
+      "speakers": 0.597,
+      "gaming": 0.006,
+      "others": 0.0
+    },
+    "brands": [
+      "pelican"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 181,
+    "device": "Google Pixel 10",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.026,
+      "screen-protectors": 0.001,
+      "chargers-&-adapters": 0.215,
+      "headphones": 0.462,
+      "wearable-tech": 0.052,
+      "speakers": 0.089,
+      "gaming": 0.146,
+      "others": 0.009
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 182,
+    "device": "Apple iPhone 16",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.013,
+      "screen-protectors": 0.219,
+      "chargers-&-adapters": 0.043,
+      "headphones": 0.537,
+      "wearable-tech": 0.022,
+      "speakers": 0.135,
+      "gaming": 0.006,
+      "others": 0.025
+    },
+    "brands": [
+      "beats",
+      "samsung"
+    ],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 183,
+    "device": "Apple iPhone 16",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.109,
+      "screen-protectors": 0.241,
+      "chargers-&-adapters": 0.148,
+      "headphones": 0.041,
+      "wearable-tech": 0.055,
+      "speakers": 0.063,
+      "gaming": 0.208,
+      "others": 0.135
+    },
+    "brands": [
+      "tech21",
+      "pelican"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 184,
+    "device": "Samsung Galaxy S26+",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.478,
+      "screen-protectors": 0.122,
+      "chargers-&-adapters": 0.263,
+      "headphones": 0.018,
+      "wearable-tech": 0.006,
+      "speakers": 0.013,
+      "gaming": 0.0,
+      "others": 0.1
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 185,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.006,
+      "screen-protectors": 0.306,
+      "chargers-&-adapters": 0.01,
+      "headphones": 0.005,
+      "wearable-tech": 0.322,
+      "speakers": 0.288,
+      "gaming": 0.033,
+      "others": 0.03
+    },
+    "brands": [
+      "uag"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 186,
+    "device": "Samsung Galaxy S26",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.107,
+      "screen-protectors": 0.041,
+      "chargers-&-adapters": 0.136,
+      "headphones": 0.02,
+      "wearable-tech": 0.075,
+      "speakers": 0.492,
+      "gaming": 0.129,
+      "others": 0.0
+    },
+    "brands": [
+      "jbl",
+      "beats"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 187,
+    "device": "Samsung Galaxy S26 Ultra",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.062,
+      "screen-protectors": 0.408,
+      "chargers-&-adapters": 0.091,
+      "headphones": 0.012,
+      "wearable-tech": 0.0,
+      "speakers": 0.335,
+      "gaming": 0.009,
+      "others": 0.084
+    },
+    "brands": [
+      "zagg",
+      "beats"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 188,
+    "device": "Apple iPhone 16",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.031,
+      "screen-protectors": 0.044,
+      "chargers-&-adapters": 0.001,
+      "headphones": 0.322,
+      "wearable-tech": 0.051,
+      "speakers": 0.065,
+      "gaming": 0.182,
+      "others": 0.304
+    },
+    "brands": [
+      "uag",
+      "tech21"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 189,
+    "device": "Apple iPhone 17",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.232,
+      "screen-protectors": 0.062,
+      "chargers-&-adapters": 0.0,
+      "headphones": 0.463,
+      "wearable-tech": 0.054,
+      "speakers": 0.017,
+      "gaming": 0.038,
+      "others": 0.134
+    },
+    "brands": [],
+    "style": "practical"
+  },
+  {
+    "id": 190,
+    "device": "Apple iPhone 17 Pro",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.073,
+      "screen-protectors": 0.002,
+      "chargers-&-adapters": 0.0,
+      "headphones": 0.175,
+      "wearable-tech": 0.16,
+      "speakers": 0.058,
+      "gaming": 0.0,
+      "others": 0.531
+    },
+    "brands": [
+      "jbl",
+      "samsung"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 191,
+    "device": "Samsung Galaxy S26",
+    "budget": "moderate",
+    "interests": {
+      "cases-&-covers": 0.125,
+      "screen-protectors": 0.116,
+      "chargers-&-adapters": 0.058,
+      "headphones": 0.078,
+      "wearable-tech": 0.377,
+      "speakers": 0.06,
+      "gaming": 0.144,
+      "others": 0.041
+    },
+    "brands": [
+      "pelican"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 192,
+    "device": "Samsung Galaxy S26",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.105,
+      "screen-protectors": 0.44,
+      "chargers-&-adapters": 0.051,
+      "headphones": 0.146,
+      "wearable-tech": 0.013,
+      "speakers": 0.12,
+      "gaming": 0.102,
+      "others": 0.023
+    },
+    "brands": [
+      "uag",
+      "jbl"
+    ],
+    "style": "tech enthusiast"
+  },
+  {
+    "id": 193,
+    "device": "Apple iPhone 17 Pro Max",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.082,
+      "screen-protectors": 0.07,
+      "chargers-&-adapters": 0.024,
+      "headphones": 0.033,
+      "wearable-tech": 0.517,
+      "speakers": 0.043,
+      "gaming": 0.044,
+      "others": 0.186
+    },
+    "brands": [],
+    "style": "gift shopper"
+  },
+  {
+    "id": 194,
+    "device": "Apple iPhone 17",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.195,
+      "screen-protectors": 0.065,
+      "chargers-&-adapters": 0.065,
+      "headphones": 0.547,
+      "wearable-tech": 0.022,
+      "speakers": 0.103,
+      "gaming": 0.002,
+      "others": 0.001
+    },
+    "brands": [
+      "tech21"
+    ],
+    "style": "style-conscious"
+  },
+  {
+    "id": 195,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.021,
+      "screen-protectors": 0.001,
+      "chargers-&-adapters": 0.038,
+      "headphones": 0.518,
+      "wearable-tech": 0.046,
+      "speakers": 0.27,
+      "gaming": 0.054,
+      "others": 0.051
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  },
+  {
+    "id": 196,
+    "device": "Samsung Galaxy S26+",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.004,
+      "screen-protectors": 0.016,
+      "chargers-&-adapters": 0.023,
+      "headphones": 0.342,
+      "wearable-tech": 0.016,
+      "speakers": 0.112,
+      "gaming": 0.203,
+      "others": 0.285
+    },
+    "brands": [],
+    "style": "style-conscious"
+  },
+  {
+    "id": 197,
+    "device": "Apple iPhone 17",
+    "budget": "premium",
+    "interests": {
+      "cases-&-covers": 0.024,
+      "screen-protectors": 0.185,
+      "chargers-&-adapters": 0.157,
+      "headphones": 0.172,
+      "wearable-tech": 0.077,
+      "speakers": 0.072,
+      "gaming": 0.016,
+      "others": 0.295
+    },
+    "brands": [
+      "tech21",
+      "zagg"
+    ],
+    "style": "practical"
+  },
+  {
+    "id": 198,
+    "device": "Apple iPhone 16",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.102,
+      "screen-protectors": 0.32,
+      "chargers-&-adapters": 0.288,
+      "headphones": 0.108,
+      "wearable-tech": 0.025,
+      "speakers": 0.082,
+      "gaming": 0.063,
+      "others": 0.012
+    },
+    "brands": [
+      "beats",
+      "pelican"
+    ],
+    "style": "gift shopper"
+  },
+  {
+    "id": 199,
+    "device": "Samsung Galaxy S26+",
+    "budget": "tight",
+    "interests": {
+      "cases-&-covers": 0.045,
+      "screen-protectors": 0.027,
+      "chargers-&-adapters": 0.193,
+      "headphones": 0.411,
+      "wearable-tech": 0.048,
+      "speakers": 0.005,
+      "gaming": 0.075,
+      "others": 0.196
+    },
+    "brands": [],
+    "style": "rugged outdoors user"
+  }
+]

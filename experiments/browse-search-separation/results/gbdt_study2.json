@@ -1,0 +1,586 @@
+{
+  "metrics": [
+    {
+      "condition": "full",
+      "method": "random",
+      "cohort": "unseen",
+      "ndcg": 0.77333777095149,
+      "requests": 50906,
+      "train_rows": 0
+    },
+    {
+      "condition": "full",
+      "method": "random",
+      "cohort": "seen",
+      "ndcg": 0.7734920752381913,
+      "requests": 209057,
+      "train_rows": 0
+    },
+    {
+      "condition": "full",
+      "method": "search",
+      "cohort": "unseen",
+      "ndcg": 0.7723181563821776,
+      "requests": 50906,
+      "train_rows": 2226018
+    },
+    {
+      "condition": "full",
+      "method": "search",
+      "cohort": "seen",
+      "ndcg": 0.7708262458404747,
+      "requests": 209057,
+      "train_rows": 2226018
+    },
+    {
+      "condition": "full",
+      "method": "mixed",
+      "cohort": "unseen",
+      "ndcg": 0.800655259705568,
+      "requests": 50906,
+      "train_rows": 6863440
+    },
+    {
+      "condition": "full",
+      "method": "mixed",
+      "cohort": "seen",
+      "ndcg": 0.799468216463915,
+      "requests": 209057,
+      "train_rows": 6863440
+    },
+    {
+      "condition": "full",
+      "method": "mixed_matched",
+      "cohort": "unseen",
+      "ndcg": 0.800756290060339,
+      "requests": 50906,
+      "train_rows": 4637422
+    },
+    {
+      "condition": "full",
+      "method": "mixed_matched",
+      "cohort": "seen",
+      "ndcg": 0.7995299221366776,
+      "requests": 209057,
+      "train_rows": 4637422
+    },
+    {
+      "condition": "full",
+      "method": "browse",
+      "cohort": "unseen",
+      "ndcg": 0.7963805964445526,
+      "requests": 50906,
+      "train_rows": 4637422
+    },
+    {
+      "condition": "full",
+      "method": "browse",
+      "cohort": "seen",
+      "ndcg": 0.7949042102705408,
+      "requests": 209057,
+      "train_rows": 4637422
+    },
+    {
+      "condition": "sparse_browse",
+      "method": "random",
+      "cohort": "unseen",
+      "ndcg": 0.77333777095149,
+      "requests": 50906,
+      "train_rows": 0
+    },
+    {
+      "condition": "sparse_browse",
+      "method": "random",
+      "cohort": "seen",
+      "ndcg": 0.7734920752381913,
+      "requests": 209057,
+      "train_rows": 0
+    },
+    {
+      "condition": "sparse_browse",
+      "method": "search",
+      "cohort": "unseen",
+      "ndcg": 0.7723181563821776,
+      "requests": 50906,
+      "train_rows": 2226018
+    },
+    {
+      "condition": "sparse_browse",
+      "method": "search",
+      "cohort": "seen",
+      "ndcg": 0.7708262458404747,
+      "requests": 209057,
+      "train_rows": 2226018
+    },
+    {
+      "condition": "sparse_browse",
+      "method": "mixed",
+      "cohort": "unseen",
+      "ndcg": 0.7918172808375922,
+      "requests": 50906,
+      "train_rows": 2689760
+    },
+    {
+      "condition": "sparse_browse",
+      "method": "mixed",
+      "cohort": "seen",
+      "ndcg": 0.7910608724562465,
+      "requests": 209057,
+      "train_rows": 2689760
+    },
+    {
+      "condition": "sparse_browse",
+      "method": "mixed_matched",
+      "cohort": "unseen",
+      "ndcg": 0.7893217238142797,
+      "requests": 50906,
+      "train_rows": 463742
+    },
+    {
+      "condition": "sparse_browse",
+      "method": "mixed_matched",
+      "cohort": "seen",
+      "ndcg": 0.7886910435464556,
+      "requests": 209057,
+      "train_rows": 463742
+    },
+    {
+      "condition": "sparse_browse",
+      "method": "browse",
+      "cohort": "unseen",
+      "ndcg": 0.7955295273434919,
+      "requests": 50906,
+      "train_rows": 463742
+    },
+    {
+      "condition": "sparse_browse",
+      "method": "browse",
+      "cohort": "seen",
+      "ndcg": 0.7945723669583855,
+      "requests": 209057,
+      "train_rows": 463742
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "method": "random",
+      "cohort": "unseen",
+      "ndcg": 0.77333777095149,
+      "requests": 50906,
+      "train_rows": 0
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "method": "random",
+      "cohort": "seen",
+      "ndcg": 0.7734920752381913,
+      "requests": 209057,
+      "train_rows": 0
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "method": "search",
+      "cohort": "unseen",
+      "ndcg": 0.778143334039687,
+      "requests": 50906,
+      "train_rows": 222601
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "method": "search",
+      "cohort": "seen",
+      "ndcg": 0.7777801235183659,
+      "requests": 209057,
+      "train_rows": 222601
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "method": "mixed",
+      "cohort": "unseen",
+      "ndcg": 0.7940225760464021,
+      "requests": 50906,
+      "train_rows": 686343
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "method": "mixed",
+      "cohort": "seen",
+      "ndcg": 0.7927901836059399,
+      "requests": 209057,
+      "train_rows": 686343
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "method": "mixed_matched",
+      "cohort": "unseen",
+      "ndcg": 0.7939990086158272,
+      "requests": 50906,
+      "train_rows": 463742
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "method": "mixed_matched",
+      "cohort": "seen",
+      "ndcg": 0.792721392979868,
+      "requests": 209057,
+      "train_rows": 463742
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "method": "browse",
+      "cohort": "unseen",
+      "ndcg": 0.7955295273434919,
+      "requests": 50906,
+      "train_rows": 463742
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "method": "browse",
+      "cohort": "seen",
+      "ndcg": 0.7945723669583855,
+      "requests": 209057,
+      "train_rows": 463742
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "method": "random",
+      "cohort": "unseen",
+      "ndcg": 0.77333777095149,
+      "requests": 50906,
+      "train_rows": 0
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "method": "random",
+      "cohort": "seen",
+      "ndcg": 0.7734920752381913,
+      "requests": 209057,
+      "train_rows": 0
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "method": "search",
+      "cohort": "unseen",
+      "ndcg": 0.7723181563821776,
+      "requests": 50906,
+      "train_rows": 2226018
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "method": "search",
+      "cohort": "seen",
+      "ndcg": 0.7708262458404747,
+      "requests": 209057,
+      "train_rows": 2226018
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "method": "mixed",
+      "cohort": "unseen",
+      "ndcg": 0.7775432973427875,
+      "requests": 50906,
+      "train_rows": 2272392
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "method": "mixed",
+      "cohort": "seen",
+      "ndcg": 0.7759901736850243,
+      "requests": 209057,
+      "train_rows": 2272392
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "method": "mixed_matched",
+      "cohort": "unseen",
+      "ndcg": 0.7793283299487276,
+      "requests": 50906,
+      "train_rows": 46374
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "method": "mixed_matched",
+      "cohort": "seen",
+      "ndcg": 0.7785842492475112,
+      "requests": 209057,
+      "train_rows": 46374
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "method": "browse",
+      "cohort": "unseen",
+      "ndcg": 0.7906957893774734,
+      "requests": 50906,
+      "train_rows": 46374
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "method": "browse",
+      "cohort": "seen",
+      "ndcg": 0.790775515351459,
+      "requests": 209057,
+      "train_rows": 46374
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "method": "random",
+      "cohort": "unseen",
+      "ndcg": 0.77333777095149,
+      "requests": 50906,
+      "train_rows": 0
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "method": "random",
+      "cohort": "seen",
+      "ndcg": 0.7734920752381913,
+      "requests": 209057,
+      "train_rows": 0
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "method": "search",
+      "cohort": "unseen",
+      "ndcg": 0.7658118022043744,
+      "requests": 50906,
+      "train_rows": 22260
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "method": "search",
+      "cohort": "seen",
+      "ndcg": 0.7671574036400928,
+      "requests": 209057,
+      "train_rows": 22260
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "method": "mixed",
+      "cohort": "unseen",
+      "ndcg": 0.7898250396211762,
+      "requests": 50906,
+      "train_rows": 68634
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "method": "mixed",
+      "cohort": "seen",
+      "ndcg": 0.7894473035717801,
+      "requests": 209057,
+      "train_rows": 68634
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "method": "mixed_matched",
+      "cohort": "unseen",
+      "ndcg": 0.789787900676985,
+      "requests": 50906,
+      "train_rows": 46374
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "method": "mixed_matched",
+      "cohort": "seen",
+      "ndcg": 0.7891059119990156,
+      "requests": 209057,
+      "train_rows": 46374
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "method": "browse",
+      "cohort": "unseen",
+      "ndcg": 0.7906957893774734,
+      "requests": 50906,
+      "train_rows": 46374
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "method": "browse",
+      "cohort": "seen",
+      "ndcg": 0.790775515351459,
+      "requests": 209057,
+      "train_rows": 46374
+    }
+  ],
+  "differences": [
+    {
+      "condition": "full",
+      "cohort": "unseen",
+      "comparison": "browse - mixed_matched",
+      "delta": -0.0043756936157864825,
+      "ci_low": -0.006056316689924932,
+      "ci_high": -0.0027437395038693965,
+      "users": 2110
+    },
+    {
+      "condition": "full",
+      "cohort": "unseen",
+      "comparison": "browse - mixed",
+      "delta": -0.004274663261015382,
+      "ci_low": -0.005887098355520145,
+      "ci_high": -0.0026847186717328404,
+      "users": 2110
+    },
+    {
+      "condition": "full",
+      "cohort": "seen",
+      "comparison": "browse - mixed_matched",
+      "delta": -0.004625711866136629,
+      "ci_low": -0.005586326356361115,
+      "ci_high": -0.003736360073927884,
+      "users": 8572
+    },
+    {
+      "condition": "full",
+      "cohort": "seen",
+      "comparison": "browse - mixed",
+      "delta": -0.004564006193373991,
+      "ci_low": -0.005432431248717629,
+      "ci_high": -0.0036813900246385786,
+      "users": 8572
+    },
+    {
+      "condition": "sparse_browse",
+      "cohort": "unseen",
+      "comparison": "browse - mixed_matched",
+      "delta": 0.006207803529212309,
+      "ci_low": 0.004215306405725339,
+      "ci_high": 0.008181334862346243,
+      "users": 2110
+    },
+    {
+      "condition": "sparse_browse",
+      "cohort": "unseen",
+      "comparison": "browse - mixed",
+      "delta": 0.0037122465058998487,
+      "ci_low": 0.0018046691992245844,
+      "ci_high": 0.005670350809799245,
+      "users": 2110
+    },
+    {
+      "condition": "sparse_browse",
+      "cohort": "seen",
+      "comparison": "browse - mixed_matched",
+      "delta": 0.005881323411929857,
+      "ci_low": 0.00488274749699638,
+      "ci_high": 0.0068687916890297395,
+      "users": 8572
+    },
+    {
+      "condition": "sparse_browse",
+      "cohort": "seen",
+      "comparison": "browse - mixed",
+      "delta": 0.0035114945021391857,
+      "ci_low": 0.002544996348326973,
+      "ci_high": 0.004533048989235502,
+      "users": 8572
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "cohort": "unseen",
+      "comparison": "browse - mixed_matched",
+      "delta": 0.0015305187276648717,
+      "ci_low": 0.0001769801978796159,
+      "ci_high": 0.002895616209818075,
+      "users": 2110
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "cohort": "unseen",
+      "comparison": "browse - mixed",
+      "delta": 0.0015069512970900046,
+      "ci_low": 6.918138550718447e-05,
+      "ci_high": 0.0030064375606236402,
+      "users": 2110
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "cohort": "seen",
+      "comparison": "browse - mixed_matched",
+      "delta": 0.001850973978517563,
+      "ci_low": 0.0011726633924906986,
+      "ci_high": 0.0025547539656742098,
+      "users": 8572
+    },
+    {
+      "condition": "sparse_constant_mix",
+      "cohort": "seen",
+      "comparison": "browse - mixed",
+      "delta": 0.0017821833524456867,
+      "ci_low": 0.0011051259263094495,
+      "ci_high": 0.0024984819245187292,
+      "users": 8572
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "cohort": "unseen",
+      "comparison": "browse - mixed_matched",
+      "delta": 0.011367459428745851,
+      "ci_low": 0.008779029420440896,
+      "ci_high": 0.01403240801821029,
+      "users": 2110
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "cohort": "unseen",
+      "comparison": "browse - mixed",
+      "delta": 0.013152492034686,
+      "ci_low": 0.010845301858561508,
+      "ci_high": 0.015420905029954376,
+      "users": 2110
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "cohort": "seen",
+      "comparison": "browse - mixed_matched",
+      "delta": 0.01219126610394776,
+      "ci_low": 0.011030376724233822,
+      "ci_high": 0.013423668072499012,
+      "users": 8572
+    },
+    {
+      "condition": "sparse_browse_1pct",
+      "cohort": "seen",
+      "comparison": "browse - mixed",
+      "delta": 0.01478534166643471,
+      "ci_low": 0.013673953839358094,
+      "ci_high": 0.015970649011659524,
+      "users": 8572
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "cohort": "unseen",
+      "comparison": "browse - mixed_matched",
+      "delta": 0.0009078887004884852,
+      "ci_low": -0.000760929406493867,
+      "ci_high": 0.0026382426694763006,
+      "users": 2110
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "cohort": "unseen",
+      "comparison": "browse - mixed",
+      "delta": 0.0008707497562972242,
+      "ci_low": -0.000747287957939423,
+      "ci_high": 0.002431706441408802,
+      "users": 2110
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "cohort": "seen",
+      "comparison": "browse - mixed_matched",
+      "delta": 0.001669603352443558,
+      "ci_low": 0.0008534210397829647,
+      "ci_high": 0.0025057699664988507,
+      "users": 8572
+    },
+    {
+      "condition": "sparse_constant_mix_1pct",
+      "cohort": "seen",
+      "comparison": "browse - mixed",
+      "delta": 0.0013282117796788386,
+      "ci_low": 0.0004987588585142151,
+      "ci_high": 0.0021682751706926357,
+      "users": 8572
+    }
+  ]
+}

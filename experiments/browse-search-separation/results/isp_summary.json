@@ -1,0 +1,42 @@
+{
+  "llm_tokens_this_run": {
+    "in": 1698691,
+    "out": 74858,
+    "think": 0,
+    "calls": 3127
+  },
+  "sessions": 3200,
+  "event_rows": 31409,
+  "eval_contexts": 200,
+  "realism": {
+    "impression_ctr": {
+      "browse": 0.12467896334345085,
+      "search": 0.13651900006701964
+    },
+    "ctr_by_rank": {
+      "0": 0.2574,
+      "1": 0.2081,
+      "2": 0.1686,
+      "3": 0.1257,
+      "4": 0.1106,
+      "5": 0.1033,
+      "6": 0.0986,
+      "7": 0.0824,
+      "8": 0.055,
+      "9": 0.0772
+    },
+    "zero_click_session_share": {
+      "browse": 0.43894993894993894,
+      "search": 0.26376440460947503
+    },
+    "clicks_per_session": {
+      "browse": 0.978021978021978,
+      "search": 1.3040973111395646
+    },
+    "distinct_queries": 1488
+  },
+  "runtime_seconds": 691.3909139633179,
+  "python": "3.14.7",
+  "config_sha256": "1be80e6ed88f31884c417409062286ca1f57a97bfce3df9a9c0979e23cf8d78e",
+  "study_sha256": "2add77126a0bac9ca253f3767a4e5e303f24f8088ace8d5224f102262d3debf4"
+}

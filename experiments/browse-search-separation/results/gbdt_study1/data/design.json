@@ -1,0 +1,74 @@
+{
+  "customers": [
+    100,
+    200
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "products": 120,
+  "categories": 6,
+  "train_customer_fraction": 0.8,
+  "train_sessions": 20,
+  "checkpoints": [
+    5,
+    20
+  ],
+  "evaluation_sessions": 5,
+  "slate_size": 10,
+  "evaluation_candidates": 30,
+  "examination_exponent": 1.1,
+  "click_noise": 0.03,
+  "scenarios": {
+    "aligned": {
+      "alignment": 1.0,
+      "search_share": 0.5,
+      "future_drift": 0.0
+    },
+    "shifted": {
+      "alignment": 0.0,
+      "search_share": 0.5,
+      "future_drift": 0.0
+    },
+    "sparse_browse": {
+      "alignment": 0.0,
+      "search_share": 0.9,
+      "future_drift": 0.0
+    },
+    "preference_drift": {
+      "alignment": 0.0,
+      "search_share": 0.5,
+      "future_drift": 1.0
+    }
+  },
+  "methods": [
+    "static",
+    "formula_mixed",
+    "formula_browse",
+    "mixed",
+    "mixed_matched",
+    "browse"
+  ],
+  "primary_comparison": "browse minus mixed_matched; unseen customers; session 20",
+  "event_encoding": "one negative impression row plus one positive row for each clicked item",
+  "metric_scope": "oracle expected synthetic utility; not observed production CTR"
+}

@@ -1,0 +1,962 @@
+{
+  "p000": {
+    "id": "p000",
+    "category": "c0",
+    "manufacturer": "b3",
+    "averageStarRating": 3.4181893472439073,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p001": {
+    "id": "p001",
+    "category": "c1",
+    "manufacturer": "b3",
+    "averageStarRating": 2.279334555218801,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p002": {
+    "id": "p002",
+    "category": "c2",
+    "manufacturer": "b0",
+    "averageStarRating": 3.6884773958961974,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p003": {
+    "id": "p003",
+    "category": "c3",
+    "manufacturer": "b1",
+    "averageStarRating": 2.942940943762002,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p004": {
+    "id": "p004",
+    "category": "c4",
+    "manufacturer": "b3",
+    "averageStarRating": 2.929677282646288,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p005": {
+    "id": "p005",
+    "category": "c5",
+    "manufacturer": "b2",
+    "averageStarRating": 3.1126329776758848,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p006": {
+    "id": "p006",
+    "category": "c0",
+    "manufacturer": "b0",
+    "averageStarRating": 2.834542596959633,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p007": {
+    "id": "p007",
+    "category": "c1",
+    "manufacturer": "b0",
+    "averageStarRating": 3.4301170283653546,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p008": {
+    "id": "p008",
+    "category": "c2",
+    "manufacturer": "b3",
+    "averageStarRating": 3.0877853455743725,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p009": {
+    "id": "p009",
+    "category": "c3",
+    "manufacturer": "b1",
+    "averageStarRating": 3.194038916883693,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p010": {
+    "id": "p010",
+    "category": "c4",
+    "manufacturer": "b2",
+    "averageStarRating": 3.605777301605502,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p011": {
+    "id": "p011",
+    "category": "c5",
+    "manufacturer": "b2",
+    "averageStarRating": 4.185536789001826,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p012": {
+    "id": "p012",
+    "category": "c0",
+    "manufacturer": "b3",
+    "averageStarRating": 2.559888236191046,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p013": {
+    "id": "p013",
+    "category": "c1",
+    "manufacturer": "b0",
+    "averageStarRating": 2.747309063868257,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p014": {
+    "id": "p014",
+    "category": "c2",
+    "manufacturer": "b1",
+    "averageStarRating": 2.602741479843304,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p015": {
+    "id": "p015",
+    "category": "c3",
+    "manufacturer": "b3",
+    "averageStarRating": 3.6915821815807868,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p016": {
+    "id": "p016",
+    "category": "c4",
+    "manufacturer": "b1",
+    "averageStarRating": 2.2451203552842474,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p017": {
+    "id": "p017",
+    "category": "c5",
+    "manufacturer": "b1",
+    "averageStarRating": 2.861517262928401,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p018": {
+    "id": "p018",
+    "category": "c0",
+    "manufacturer": "b2",
+    "averageStarRating": 4.3568957940147,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p019": {
+    "id": "p019",
+    "category": "c1",
+    "manufacturer": "b2",
+    "averageStarRating": 3.117561447377875,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p020": {
+    "id": "p020",
+    "category": "c2",
+    "manufacturer": "b2",
+    "averageStarRating": 3.4885487881244517,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p021": {
+    "id": "p021",
+    "category": "c3",
+    "manufacturer": "b3",
+    "averageStarRating": 3.143178010052835,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p022": {
+    "id": "p022",
+    "category": "c4",
+    "manufacturer": "b1",
+    "averageStarRating": 2.4657225552378015,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p023": {
+    "id": "p023",
+    "category": "c5",
+    "manufacturer": "b0",
+    "averageStarRating": 3.0511409505239224,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p024": {
+    "id": "p024",
+    "category": "c0",
+    "manufacturer": "b0",
+    "averageStarRating": 2.7897647690641842,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p025": {
+    "id": "p025",
+    "category": "c1",
+    "manufacturer": "b3",
+    "averageStarRating": 3.188791919257521,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p026": {
+    "id": "p026",
+    "category": "c2",
+    "manufacturer": "b0",
+    "averageStarRating": 3.885935718961484,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p027": {
+    "id": "p027",
+    "category": "c3",
+    "manufacturer": "b3",
+    "averageStarRating": 3.3084316724502054,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p028": {
+    "id": "p028",
+    "category": "c4",
+    "manufacturer": "b3",
+    "averageStarRating": 2.8643714095771764,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p029": {
+    "id": "p029",
+    "category": "c5",
+    "manufacturer": "b0",
+    "averageStarRating": 2.56435891055279,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p030": {
+    "id": "p030",
+    "category": "c0",
+    "manufacturer": "b0",
+    "averageStarRating": 3.850516734924361,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p031": {
+    "id": "p031",
+    "category": "c1",
+    "manufacturer": "b2",
+    "averageStarRating": 3.0585872057461447,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p032": {
+    "id": "p032",
+    "category": "c2",
+    "manufacturer": "b1",
+    "averageStarRating": 3.3016282747475043,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p033": {
+    "id": "p033",
+    "category": "c3",
+    "manufacturer": "b2",
+    "averageStarRating": 4.580294999031584,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p034": {
+    "id": "p034",
+    "category": "c4",
+    "manufacturer": "b0",
+    "averageStarRating": 3.2267586162129613,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p035": {
+    "id": "p035",
+    "category": "c5",
+    "manufacturer": "b0",
+    "averageStarRating": 3.1323915769848845,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p036": {
+    "id": "p036",
+    "category": "c0",
+    "manufacturer": "b3",
+    "averageStarRating": 2.7625344460719456,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p037": {
+    "id": "p037",
+    "category": "c1",
+    "manufacturer": "b1",
+    "averageStarRating": 3.1027553897580686,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p038": {
+    "id": "p038",
+    "category": "c2",
+    "manufacturer": "b3",
+    "averageStarRating": 2.409841033349468,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p039": {
+    "id": "p039",
+    "category": "c3",
+    "manufacturer": "b1",
+    "averageStarRating": 2.661724687153005,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p040": {
+    "id": "p040",
+    "category": "c4",
+    "manufacturer": "b2",
+    "averageStarRating": 3.316584669495441,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p041": {
+    "id": "p041",
+    "category": "c5",
+    "manufacturer": "b0",
+    "averageStarRating": 4.281088290916902,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p042": {
+    "id": "p042",
+    "category": "c0",
+    "manufacturer": "b0",
+    "averageStarRating": 3.92751925185809,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p043": {
+    "id": "p043",
+    "category": "c1",
+    "manufacturer": "b2",
+    "averageStarRating": 3.1314912570425233,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p044": {
+    "id": "p044",
+    "category": "c2",
+    "manufacturer": "b0",
+    "averageStarRating": 2.7433351997620803,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p045": {
+    "id": "p045",
+    "category": "c3",
+    "manufacturer": "b1",
+    "averageStarRating": 4.118226523533966,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p046": {
+    "id": "p046",
+    "category": "c4",
+    "manufacturer": "b1",
+    "averageStarRating": 2.855458316912908,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p047": {
+    "id": "p047",
+    "category": "c5",
+    "manufacturer": "b1",
+    "averageStarRating": 3.3969258625113143,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p048": {
+    "id": "p048",
+    "category": "c0",
+    "manufacturer": "b3",
+    "averageStarRating": 2.2578739475902436,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p049": {
+    "id": "p049",
+    "category": "c1",
+    "manufacturer": "b0",
+    "averageStarRating": 3.6349584774050023,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p050": {
+    "id": "p050",
+    "category": "c2",
+    "manufacturer": "b3",
+    "averageStarRating": 3.2139017030076253,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p051": {
+    "id": "p051",
+    "category": "c3",
+    "manufacturer": "b3",
+    "averageStarRating": 2.3694835754415675,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p052": {
+    "id": "p052",
+    "category": "c4",
+    "manufacturer": "b0",
+    "averageStarRating": 2.8233036042062603,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p053": {
+    "id": "p053",
+    "category": "c5",
+    "manufacturer": "b3",
+    "averageStarRating": 3.536961588246397,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p054": {
+    "id": "p054",
+    "category": "c0",
+    "manufacturer": "b2",
+    "averageStarRating": 2.6591444081413544,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p055": {
+    "id": "p055",
+    "category": "c1",
+    "manufacturer": "b1",
+    "averageStarRating": 3.0896090209101836,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p056": {
+    "id": "p056",
+    "category": "c2",
+    "manufacturer": "b3",
+    "averageStarRating": 3.6833895850653455,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p057": {
+    "id": "p057",
+    "category": "c3",
+    "manufacturer": "b2",
+    "averageStarRating": 3.01202334372006,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p058": {
+    "id": "p058",
+    "category": "c4",
+    "manufacturer": "b3",
+    "averageStarRating": 2.950723340693971,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p059": {
+    "id": "p059",
+    "category": "c5",
+    "manufacturer": "b2",
+    "averageStarRating": 2.6087642276588303,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p060": {
+    "id": "p060",
+    "category": "c0",
+    "manufacturer": "b1",
+    "averageStarRating": 3.566787513994072,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p061": {
+    "id": "p061",
+    "category": "c1",
+    "manufacturer": "b3",
+    "averageStarRating": 2.7367684599850652,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p062": {
+    "id": "p062",
+    "category": "c2",
+    "manufacturer": "b2",
+    "averageStarRating": 3.595864828980439,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p063": {
+    "id": "p063",
+    "category": "c3",
+    "manufacturer": "b1",
+    "averageStarRating": 3.3451057019021144,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p064": {
+    "id": "p064",
+    "category": "c4",
+    "manufacturer": "b1",
+    "averageStarRating": 3.893200708760862,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p065": {
+    "id": "p065",
+    "category": "c5",
+    "manufacturer": "b1",
+    "averageStarRating": 2.4075796897712385,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p066": {
+    "id": "p066",
+    "category": "c0",
+    "manufacturer": "b2",
+    "averageStarRating": 2.7420283138351196,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p067": {
+    "id": "p067",
+    "category": "c1",
+    "manufacturer": "b1",
+    "averageStarRating": 1.9303343358387424,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p068": {
+    "id": "p068",
+    "category": "c2",
+    "manufacturer": "b3",
+    "averageStarRating": 2.270753945197881,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p069": {
+    "id": "p069",
+    "category": "c3",
+    "manufacturer": "b1",
+    "averageStarRating": 3.968245976146408,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p070": {
+    "id": "p070",
+    "category": "c4",
+    "manufacturer": "b1",
+    "averageStarRating": 3.2730359526163566,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p071": {
+    "id": "p071",
+    "category": "c5",
+    "manufacturer": "b1",
+    "averageStarRating": 4.564496002893734,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p072": {
+    "id": "p072",
+    "category": "c0",
+    "manufacturer": "b2",
+    "averageStarRating": 3.5542672375616693,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p073": {
+    "id": "p073",
+    "category": "c1",
+    "manufacturer": "b0",
+    "averageStarRating": 2.8952432924787903,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p074": {
+    "id": "p074",
+    "category": "c2",
+    "manufacturer": "b2",
+    "averageStarRating": 3.490079520206609,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p075": {
+    "id": "p075",
+    "category": "c3",
+    "manufacturer": "b2",
+    "averageStarRating": 4.330712928923256,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p076": {
+    "id": "p076",
+    "category": "c4",
+    "manufacturer": "b2",
+    "averageStarRating": 2.9601105939067573,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p077": {
+    "id": "p077",
+    "category": "c5",
+    "manufacturer": "b2",
+    "averageStarRating": 3.1012173151487716,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p078": {
+    "id": "p078",
+    "category": "c0",
+    "manufacturer": "b1",
+    "averageStarRating": 4.076916843883673,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p079": {
+    "id": "p079",
+    "category": "c1",
+    "manufacturer": "b0",
+    "averageStarRating": 3.466657265241614,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p080": {
+    "id": "p080",
+    "category": "c2",
+    "manufacturer": "b1",
+    "averageStarRating": 3.22074065434361,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p081": {
+    "id": "p081",
+    "category": "c3",
+    "manufacturer": "b3",
+    "averageStarRating": 2.8442574818086244,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p082": {
+    "id": "p082",
+    "category": "c4",
+    "manufacturer": "b3",
+    "averageStarRating": 2.9223055991281766,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p083": {
+    "id": "p083",
+    "category": "c5",
+    "manufacturer": "b3",
+    "averageStarRating": 2.727093781770155,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p084": {
+    "id": "p084",
+    "category": "c0",
+    "manufacturer": "b1",
+    "averageStarRating": 2.9351201293588756,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p085": {
+    "id": "p085",
+    "category": "c1",
+    "manufacturer": "b3",
+    "averageStarRating": 3.518161036561613,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p086": {
+    "id": "p086",
+    "category": "c2",
+    "manufacturer": "b2",
+    "averageStarRating": 2.9072440561672117,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p087": {
+    "id": "p087",
+    "category": "c3",
+    "manufacturer": "b0",
+    "averageStarRating": 3.554491318889886,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p088": {
+    "id": "p088",
+    "category": "c4",
+    "manufacturer": "b2",
+    "averageStarRating": 2.872176668970667,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p089": {
+    "id": "p089",
+    "category": "c5",
+    "manufacturer": "b3",
+    "averageStarRating": 3.558868926857808,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p090": {
+    "id": "p090",
+    "category": "c0",
+    "manufacturer": "b2",
+    "averageStarRating": 2.097276022129555,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p091": {
+    "id": "p091",
+    "category": "c1",
+    "manufacturer": "b0",
+    "averageStarRating": 3.441383992497621,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p092": {
+    "id": "p092",
+    "category": "c2",
+    "manufacturer": "b3",
+    "averageStarRating": 2.9690935237346783,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p093": {
+    "id": "p093",
+    "category": "c3",
+    "manufacturer": "b0",
+    "averageStarRating": 3.105798642334523,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p094": {
+    "id": "p094",
+    "category": "c4",
+    "manufacturer": "b2",
+    "averageStarRating": 4.118295326133586,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p095": {
+    "id": "p095",
+    "category": "c5",
+    "manufacturer": "b0",
+    "averageStarRating": 2.7349816969913228,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p096": {
+    "id": "p096",
+    "category": "c0",
+    "manufacturer": "b0",
+    "averageStarRating": 3.2579953407733635,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p097": {
+    "id": "p097",
+    "category": "c1",
+    "manufacturer": "b3",
+    "averageStarRating": 2.6784499873968803,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p098": {
+    "id": "p098",
+    "category": "c2",
+    "manufacturer": "b3",
+    "averageStarRating": 3.6178614646825915,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p099": {
+    "id": "p099",
+    "category": "c3",
+    "manufacturer": "b2",
+    "averageStarRating": 3.241737626160978,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p100": {
+    "id": "p100",
+    "category": "c4",
+    "manufacturer": "b2",
+    "averageStarRating": 3.5130005868786225,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p101": {
+    "id": "p101",
+    "category": "c5",
+    "manufacturer": "b0",
+    "averageStarRating": 3.26158165000401,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p102": {
+    "id": "p102",
+    "category": "c0",
+    "manufacturer": "b2",
+    "averageStarRating": 1.6593990589294318,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p103": {
+    "id": "p103",
+    "category": "c1",
+    "manufacturer": "b1",
+    "averageStarRating": 3.6214007120405762,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p104": {
+    "id": "p104",
+    "category": "c2",
+    "manufacturer": "b0",
+    "averageStarRating": 3.083262905201636,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p105": {
+    "id": "p105",
+    "category": "c3",
+    "manufacturer": "b1",
+    "averageStarRating": 2.3084497288991814,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p106": {
+    "id": "p106",
+    "category": "c4",
+    "manufacturer": "b2",
+    "averageStarRating": 2.97487351202734,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p107": {
+    "id": "p107",
+    "category": "c5",
+    "manufacturer": "b2",
+    "averageStarRating": 3.6753879622788133,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p108": {
+    "id": "p108",
+    "category": "c0",
+    "manufacturer": "b1",
+    "averageStarRating": 3.599512570117279,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p109": {
+    "id": "p109",
+    "category": "c1",
+    "manufacturer": "b3",
+    "averageStarRating": 3.365911326257651,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p110": {
+    "id": "p110",
+    "category": "c2",
+    "manufacturer": "b3",
+    "averageStarRating": 3.541264336090655,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p111": {
+    "id": "p111",
+    "category": "c3",
+    "manufacturer": "b2",
+    "averageStarRating": 3.4129389368551704,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p112": {
+    "id": "p112",
+    "category": "c4",
+    "manufacturer": "b3",
+    "averageStarRating": 4.04113015890103,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p113": {
+    "id": "p113",
+    "category": "c5",
+    "manufacturer": "b1",
+    "averageStarRating": 3.7102281572603415,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p114": {
+    "id": "p114",
+    "category": "c0",
+    "manufacturer": "b0",
+    "averageStarRating": 2.18649145560173,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p115": {
+    "id": "p115",
+    "category": "c1",
+    "manufacturer": "b2",
+    "averageStarRating": 3.761285590516987,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p116": {
+    "id": "p116",
+    "category": "c2",
+    "manufacturer": "b1",
+    "averageStarRating": 2.194571627188121,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p117": {
+    "id": "p117",
+    "category": "c3",
+    "manufacturer": "b2",
+    "averageStarRating": 2.634884234268491,
+    "ratingsCount": 10,
+    "is_featured": true
+  },
+  "p118": {
+    "id": "p118",
+    "category": "c4",
+    "manufacturer": "b1",
+    "averageStarRating": 2.9833953660808312,
+    "ratingsCount": 10,
+    "is_featured": false
+  },
+  "p119": {
+    "id": "p119",
+    "category": "c5",
+    "manufacturer": "b3",
+    "averageStarRating": 3.668628934639547,
+    "ratingsCount": 10,
+    "is_featured": false
+  }
+}

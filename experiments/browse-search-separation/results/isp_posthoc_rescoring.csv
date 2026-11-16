@@ -1,0 +1,37 @@
+condition,mode,method,ndcg,personas,ci_low,ci_high
+full,all,random,0.350737082624003,40,,
+full,all,browse,0.43076212899788346,40,,
+full,all,mixed_matched,0.5557789602421863,40,,
+full,all,mixed,0.561144421358122,40,,
+full,all,browse - mixed_matched,-0.12501683124430282,40,-0.15939056312429556,-0.08886050734490979
+full,all,browse - mixed,-0.13038229236023868,40,-0.16740372220773223,-0.09232943073906671
+full,browse_exposed,random,0.6759407698314572,40,,
+full,browse_exposed,browse,0.8031451594276661,40,,
+full,browse_exposed,mixed_matched,0.7978171729933939,40,,
+full,browse_exposed,mixed,0.8035341733114084,40,,
+full,browse_exposed,browse - mixed_matched,0.005327986434272128,40,-0.011211438586398923,0.02155019217497281
+full,browse_exposed,browse - mixed,-0.0003890138837423146,40,-0.01629402404999819,0.015545206252920277
+full,within_category,random,0.6759331021926764,40,,
+full,within_category,browse,0.6950142834001276,40,,
+full,within_category,mixed_matched,0.7130155763437671,40,,
+full,within_category,mixed,0.7160004403137451,40,,
+full,within_category,browse - mixed_matched,-0.018001292943639384,40,-0.03185427696351743,-0.004226555026956822
+full,within_category,browse - mixed,-0.020986156913617392,40,-0.03875177619264766,-0.00381604336049201
+sparse_browse,all,random,0.350737082624003,40,,
+sparse_browse,all,browse,0.4868990272621797,40,,
+sparse_browse,all,mixed_matched,0.47967747224852386,40,,
+sparse_browse,all,mixed,0.5339848234571991,40,,
+sparse_browse,all,browse - mixed_matched,0.007221555013655833,40,-0.023198046214004356,0.0374792356976206
+sparse_browse,all,browse - mixed,-0.04708579619501937,40,-0.0885647734676256,-0.005655776676872666
+sparse_browse,browse_exposed,random,0.6759407698314572,40,,
+sparse_browse,browse_exposed,browse,0.7858206792201988,40,,
+sparse_browse,browse_exposed,mixed_matched,0.7584562611092023,40,,
+sparse_browse,browse_exposed,mixed,0.7780189133309848,40,,
+sparse_browse,browse_exposed,browse - mixed_matched,0.027364418110996665,40,0.006047350325164576,0.04788452917116088
+sparse_browse,browse_exposed,browse - mixed,0.007801765889214179,40,-0.018232237862709035,0.032630644637738494
+sparse_browse,within_category,random,0.6759331021926764,40,,
+sparse_browse,within_category,browse,0.6937797983322882,40,,
+sparse_browse,within_category,mixed_matched,0.7104159098482138,40,,
+sparse_browse,within_category,mixed,0.7189696117406911,40,,
+sparse_browse,within_category,browse - mixed_matched,-0.016636111515925624,40,-0.03490805887257375,0.0004385239725799168
+sparse_browse,within_category,browse - mixed,-0.025189813408402907,40,-0.04777506231858416,-0.003138030564148741

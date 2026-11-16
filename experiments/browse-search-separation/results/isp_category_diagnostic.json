@@ -1,0 +1,22 @@
+{
+  "single_category_browse_pages": 1.0,
+  "spearman_grade_vs_browse_ctr": 0.6666666666666669,
+  "spearman_grade_vs_search_ctr": 0.28571428571428575,
+  "coverage": {
+    "browse": {
+      "distinct_items": 185,
+      "distinct_manufacturers": 30,
+      "impressions": 12849,
+      "heldout_candidates_ever_shown": 0.324
+    },
+    "search": {
+      "distinct_items": 474,
+      "distinct_manufacturers": 33,
+      "impressions": 14921,
+      "heldout_candidates_ever_shown": 0.828
+    },
+    "catalog_items": 573,
+    "catalog_manufacturers": 37
+  },
+  "spearman_browse_ctr_vs_search_ctr": 0.30952380952380953
+}

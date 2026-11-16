@@ -1,0 +1,12 @@
+{
+  "synthetic": true,
+  "worlds": 160,
+  "model_fits": 960,
+  "runtime_seconds": 3474.3652637004852,
+  "python": "3.14.7",
+  "numpy": "2.5.3",
+  "scikit_learn": "1.9.1",
+  "design_sha256": "474841ad99bdc3ac1bfc8ee6b68f720408b17e937e4a3fb86606afe296888167",
+  "core_sha256": "d271c6fff2c3e2255378bac9dc45975090fe27edb850c9bc14a29cc0e01c287b",
+  "study_sha256": "2d260d9e387ef309020ebf8251ea0285c03dfcd6b010d7a21bc52d9727d93c56"
+}

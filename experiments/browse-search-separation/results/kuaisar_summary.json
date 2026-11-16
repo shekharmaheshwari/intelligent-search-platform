@@ -1,0 +1,21 @@
+{
+  "browse_train_rows_full": 4637422,
+  "search_train_rows": 2226018,
+  "test_requests": 259963,
+  "test_requests_unseen": 50906,
+  "feature_combinations": 886,
+  "category_ctr_spearman_browse_vs_search": 0.05547652916073968,
+  "categories_compared": 37,
+  "category_ctr_spearman_ci": [
+    -0.06710526315789472,
+    0.13703176861071595
+  ],
+  "runtime_seconds": 869.5459518432617,
+  "python": "3.14.7",
+  "numpy": "2.5.3",
+  "pandas": "3.0.6",
+  "scikit_learn": "1.9.1",
+  "design_sha256": "f8fdfe62f700abbd7e740a37a9a7b5bf5154f4ac67ba51858f52bdc478cd6ae8",
+  "core_sha256": "d271c6fff2c3e2255378bac9dc45975090fe27edb850c9bc14a29cc0e01c287b",
+  "study_sha256": "c8f5bc0093ad40266b47c09f6986729f28c35151134bfe46875c9370ec1baf88"
+}

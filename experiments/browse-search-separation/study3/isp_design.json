@@ -1,0 +1,38 @@
+{
+  "model": "gpt-5.4-mini",
+  "temperature": 0.7,
+  "reasoning_effort": "none",
+  "isp_url": "http://localhost:8001",
+  "index_id": "847bf1f24c72",
+  "search_mode": "hybrid",
+  "personas": 200,
+  "train_fraction": 0.8,
+  "train_sessions": 20,
+  "checkpoints": [
+    5,
+    20
+  ],
+  "search_share": 0.5,
+  "slate_size": 10,
+  "browse_pages": 3,
+  "eval_contexts": 5,
+  "eval_candidates": 20,
+  "persona_seed": 11,
+  "session_seed": 12,
+  "sparse_browse_fraction": 0.1,
+  "matched_seeds": 20,
+  "bootstrap": 5000,
+  "dims": [
+    {
+      "field": "category"
+    },
+    {
+      "field": "manufacturer"
+    },
+    {
+      "field": "price_tier",
+      "derived_from": "price"
+    }
+  ],
+  "concurrency": 8
+}

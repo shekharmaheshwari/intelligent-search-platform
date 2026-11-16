@@ -1,0 +1,94 @@
+{
+  "session_stats_nonempty": {
+    "browse": {
+      "sessions": 1381,
+      "empty_excluded": 257,
+      "clicks_per_session": 1.160028964518465,
+      "zero_click_share": 0.33454018826937004,
+      "impressions_per_session": 9.304127443881246
+    },
+    "search": {
+      "sessions": 1556,
+      "empty_excluded": 6,
+      "clicks_per_session": 1.3091259640102828,
+      "zero_click_share": 0.2609254498714653,
+      "impressions_per_session": 9.589331619537274
+    }
+  },
+  "browse_manufacturers_seen": 30,
+  "catalog_manufacturers": 37,
+  "loss_by_exposure": [
+    {
+      "condition": "full",
+      "subset": "browse_shown",
+      "delta": 0.005333098262293983,
+      "ci": [
+        -0.010451671881929062,
+        0.0217180475280827
+      ],
+      "personas": 40,
+      "groups": 184,
+      "mean_items": 6.554347826086956
+    },
+    {
+      "condition": "full",
+      "subset": "unshown_manufacturer_seen",
+      "delta": -0.11378810794993213,
+      "ci": [
+        -0.1484415587803244,
+        -0.08223604134263485
+      ],
+      "personas": 40,
+      "groups": 171,
+      "mean_items": 11.43859649122807
+    },
+    {
+      "condition": "full",
+      "subset": "unshown_manufacturer_unseen",
+      "delta": 0.0037904916561841947,
+      "ci": [
+        -0.023840174680343815,
+        0.032158641847955124
+      ],
+      "personas": 33,
+      "groups": 72,
+      "mean_items": 3.0555555555555554
+    },
+    {
+      "condition": "sparse_browse",
+      "subset": "browse_shown",
+      "delta": 0.027373981023724892,
+      "ci": [
+        0.005826201559879408,
+        0.049065638719962675
+      ],
+      "personas": 40,
+      "groups": 184,
+      "mean_items": 6.554347826086956
+    },
+    {
+      "condition": "sparse_browse",
+      "subset": "unshown_manufacturer_seen",
+      "delta": -0.031692990389447666,
+      "ci": [
+        -0.06344092250747284,
+        0.0014360154484480557
+      ],
+      "personas": 40,
+      "groups": 171,
+      "mean_items": 11.43859649122807
+    },
+    {
+      "condition": "sparse_browse",
+      "subset": "unshown_manufacturer_unseen",
+      "delta": 0.011543742488027618,
+      "ci": [
+        -0.024437046898232104,
+        0.04035873269194331
+      ],
+      "personas": 33,
+      "groups": 72,
+      "mean_items": 3.0555555555555554
+    }
+  ]
+}

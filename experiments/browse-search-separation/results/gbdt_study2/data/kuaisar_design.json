@@ -1,0 +1,42 @@
+{
+  "dataset": "KuaiSAR (Zenodo 10.5281/zenodo.8181109, KuaiSAR.zip md5 daea8cbf605db6bd5841740f0e4a12d9)",
+  "train_days": [
+    "2023-05-22",
+    "2023-05-28"
+  ],
+  "test_days": [
+    "2023-05-29",
+    "2023-05-31"
+  ],
+  "train_user_fraction": 0.8,
+  "user_split_seed": 7,
+  "dims": [
+    {
+      "field": "category"
+    },
+    {
+      "field": "subcategory"
+    },
+    {
+      "field": "item_type"
+    }
+  ],
+  "conditions": {
+    "full": 1.0,
+    "sparse_browse": 0.1,
+    "sparse_constant_mix": 0.1,
+    "sparse_browse_1pct": 0.01,
+    "sparse_constant_mix_1pct": 0.01
+  },
+  "methods": [
+    "random",
+    "search",
+    "mixed",
+    "mixed_matched",
+    "browse"
+  ],
+  "primary_comparison": "browse minus mixed_matched; unseen users; NDCG on feed requests",
+  "tie_breaks": 5,
+  "bootstrap": 2000,
+  "seed": 2026
+}

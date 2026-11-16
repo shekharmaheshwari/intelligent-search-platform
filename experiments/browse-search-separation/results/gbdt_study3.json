@@ -1,0 +1,202 @@
+[
+  {
+    "learner": "gbdt",
+    "arm": "default",
+    "condition": "full",
+    "delta": -0.02861618797272101,
+    "ci": [
+      -0.05303200032748103,
+      -0.0019022618175637191
+    ]
+  },
+  {
+    "learner": "gbdt",
+    "arm": "default",
+    "condition": "sparse_browse",
+    "delta": 0.07007982406925714,
+    "ci": [
+      0.03871441415483615,
+      0.10047321507277858
+    ]
+  },
+  {
+    "learner": "gbdt",
+    "arm": "shuffledhead",
+    "condition": "full",
+    "delta": -0.016072304732256376,
+    "ci": [
+      -0.036974392660159415,
+      0.0064093702048250096
+    ]
+  },
+  {
+    "learner": "gbdt",
+    "arm": "shuffledhead",
+    "condition": "sparse_browse",
+    "delta": 0.12034304716619233,
+    "ci": [
+      0.08271631083740928,
+      0.15764128715571277
+    ]
+  },
+  {
+    "learner": "gbdt",
+    "arm": "randbrowse",
+    "condition": "full",
+    "delta": 0.03537654707389874,
+    "ci": [
+      0.01375654766943634,
+      0.056684833823695414
+    ]
+  },
+  {
+    "learner": "gbdt",
+    "arm": "randbrowse",
+    "condition": "sparse_browse",
+    "delta": 0.09996638185043982,
+    "ci": [
+      0.06430174417157046,
+      0.13636574801735768
+    ]
+  },
+  {
+    "learner": "gbdt",
+    "arm": "shuffledhead - default",
+    "condition": "full",
+    "delta": 0.01254388324046463,
+    "ci": [
+      -0.009629509235411405,
+      0.03499473923174265
+    ]
+  },
+  {
+    "learner": "gbdt",
+    "arm": "shuffledhead - default",
+    "condition": "sparse_browse",
+    "delta": 0.050263223096935164,
+    "ci": [
+      0.01986425249451115,
+      0.08143015933996338
+    ]
+  },
+  {
+    "learner": "gbdt",
+    "arm": "randbrowse - default",
+    "condition": "full",
+    "delta": 0.06399273504661974,
+    "ci": [
+      0.036644152677700104,
+      0.0913193830169183
+    ]
+  },
+  {
+    "learner": "gbdt",
+    "arm": "randbrowse - default",
+    "condition": "sparse_browse",
+    "delta": 0.029886557781182682,
+    "ci": [
+      -0.003693300914900843,
+      0.06325034211413977
+    ]
+  },
+  {
+    "learner": "count_formula",
+    "arm": "default",
+    "condition": "full",
+    "delta": -0.06630973890147387,
+    "ci": [
+      -0.09100619064447561,
+      -0.042169529634906326
+    ]
+  },
+  {
+    "learner": "count_formula",
+    "arm": "default",
+    "condition": "sparse_browse",
+    "delta": -0.012996891313662376,
+    "ci": [
+      -0.04789129701221526,
+      0.021522085348766155
+    ]
+  },
+  {
+    "learner": "count_formula",
+    "arm": "shuffledhead",
+    "condition": "full",
+    "delta": -0.04880031940055736,
+    "ci": [
+      -0.07450619143643379,
+      -0.02344816464211134
+    ]
+  },
+  {
+    "learner": "count_formula",
+    "arm": "shuffledhead",
+    "condition": "sparse_browse",
+    "delta": -0.008053264600442797,
+    "ci": [
+      -0.04680528530517778,
+      0.0293255911588219
+    ]
+  },
+  {
+    "learner": "count_formula",
+    "arm": "randbrowse",
+    "condition": "full",
+    "delta": -0.003837917451215818,
+    "ci": [
+      -0.031505542180916245,
+      0.02364727939577887
+    ]
+  },
+  {
+    "learner": "count_formula",
+    "arm": "randbrowse",
+    "condition": "sparse_browse",
+    "delta": 0.02770191423600969,
+    "ci": [
+      -0.00642412351147028,
+      0.0659834771012899
+    ]
+  },
+  {
+    "learner": "count_formula",
+    "arm": "shuffledhead - default",
+    "condition": "full",
+    "delta": 0.01750941950091652,
+    "ci": [
+      0.006120137076465176,
+      0.028862164495224128
+    ]
+  },
+  {
+    "learner": "count_formula",
+    "arm": "shuffledhead - default",
+    "condition": "sparse_browse",
+    "delta": 0.004943626713219582,
+    "ci": [
+      -0.008401690061931092,
+      0.018190617503304418
+    ]
+  },
+  {
+    "learner": "count_formula",
+    "arm": "randbrowse - default",
+    "condition": "full",
+    "delta": 0.06247182145025805,
+    "ci": [
+      0.03653246308864191,
+      0.08760859843899538
+    ]
+  },
+  {
+    "learner": "count_formula",
+    "arm": "randbrowse - default",
+    "condition": "sparse_browse",
+    "delta": 0.04069880554967206,
+    "ci": [
+      0.014020138157314444,
+      0.06768372144310975
+    ]
+  }
+]
