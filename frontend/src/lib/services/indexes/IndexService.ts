@@ -4,7 +4,7 @@
 import { indexRepository, type IndexRepository } from '../../repository/IndexRepository';
 import { mapIndexMetaToIndex, mapIndexesToDomain } from './index.mapper';
 import type { Index, IngestStatus, SearchResult } from './index.model';
-import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, MappingConfig, FieldEntry, FieldConfig, DocumentItem, DocumentOrigin, ManualFormField, ManualDocFields } from '../../types';
+import type { IndexMeta, RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, MappingConfig, FieldEntry, FieldConfig, DocumentItem, DocumentOrigin, ManualFormField, ManualDocFields, ImageSearchState, ImageSearchResult } from '../../types';
 
 /**
  * Service for all index-domain operations.
@@ -216,6 +216,26 @@ export class IndexService {
 
   updateField(indexId: string, fieldName: string, patch: Partial<FieldConfig>): Promise<FieldEntry> {
     return this.repo.updateField(indexId, fieldName, patch);
+  }
+
+  /** Image search config, last indexing run and image-field suggestions. */
+  getImageSearch(indexId: string): Promise<ImageSearchState> {
+    return this.repo.getImageSearch(indexId);
+  }
+
+  /** Enable/disable image search; enabling starts image indexing in the background. */
+  saveImageSearch(indexId: string, enabled: boolean, field: string): Promise<ImageSearchState> {
+    return this.repo.saveImageSearch(indexId, enabled, field);
+  }
+
+  /** Re-embed product images in the background (cached images are reused). */
+  reindexImages(indexId: string): Promise<{ state: string }> {
+    return this.repo.reindexImages(indexId);
+  }
+
+  /** Search by image (data URL), text, or both combined into one query. */
+  searchByImage(indexId: string, image: string, q?: string, perPage?: number): Promise<ImageSearchResult> {
+    return this.repo.searchByImage(indexId, image, q, perPage);
   }
 }
 

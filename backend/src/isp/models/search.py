@@ -80,3 +80,24 @@ class DocumentItem(BaseModel):
     url: str = ""
     source_type: str = ""
     indexed_at: int = 0
+
+
+class ImageSearchRequest(BaseModel):
+    """
+    Request body for ``/search/image``: a customer image, optional text, or both.
+
+    With both, image and text are embedded together as one query (e.g. a photo
+    of a shoe plus "in black").
+    """
+    image: str = Field(
+        default="",
+        max_length=7_200_000,   # ≈5 MB of image bytes once base64-decoded
+        description="Base64-encoded image or data URL (JPEG, PNG, WebP, GIF, BMP; ≤5 MB).",
+    )
+    q: str = Field(default="", max_length=200, description="Optional text to combine with the image.")
+    page: int = Field(default=1, ge=1, le=10)
+    per_page: int = Field(default=10, ge=1, le=50)
+    filters: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Same as SearchRequest.filters: field → allowed values.",
+    )

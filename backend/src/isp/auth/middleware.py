@@ -9,6 +9,7 @@ Route protection rules (evaluated in order):
   2. /health, /auth/*, /docs, /openapi.json, /redoc → always open
   3. /v1/catalog/*, /v1/analytics/*, /v1/intent/*, /v1/suggest/* → open (PLP-facing, no auth)
   4. /v1/indexes/{id}/search/public                  → open (external search, no auth)
+     /v1/indexes/{id}/search/image/public            → open (image search; rate limited per IP)
      /v1/indexes/{id}/facets                         → open (PLP-facing facet counts, no auth)
      /v1/indexes/{id}/chat, /search/overview         → open (PLP-facing; overview gated by Settings)
      Future: enforce X-Api-Key here when API key management UI is built.
@@ -40,7 +41,7 @@ _PUBLIC_API_PREFIXES = (
     "/v1/suggest",       # typeahead suggestions
     "/v1/agent",         # agent setup — uses its own Anthropic API key, no JWT needed
 )
-_SEARCH_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/search/public$")
+_SEARCH_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/search(/image)?/public$")
 _FACETS_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/facets$")
 _FIELDS_PUBLIC  = re.compile(r"^/v1/indexes/[^/]+/fields/public$")
 _CHAT_PUBLIC    = re.compile(r"^/v1/indexes/[^/]+/chat$")   # PLP-facing, called by end users

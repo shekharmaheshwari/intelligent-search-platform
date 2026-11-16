@@ -119,6 +119,11 @@ def _row_to_meta(row: dict) -> IndexMeta:
             if isinstance(row.get("superlative_field_map"), str)
             else (row.get("superlative_field_map") or {})
         ),
+        image_search=(
+            json.loads(row["image_search"])
+            if isinstance(row.get("image_search"), str)
+            else (row.get("image_search") or {})
+        ),
     )
 
 
@@ -253,6 +258,26 @@ async def update_index(meta: IndexMeta) -> None:
             meta.external_title_field, meta.external_url_field, meta.embed_model,
             meta.intent_label, meta.slug,
             json.dumps(meta.field_config or []),
+        )
+
+
+async def set_image_search(idx_id: str, cfg: dict) -> None:
+    """Replace the image search config of an index (targeted write; other settings untouched)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET image_search = $1::jsonb WHERE id = $2",
+            json.dumps(cfg), idx_id,
+        )
+
+
+async def merge_image_search(idx_id: str, fields: dict) -> None:
+    """Merge keys into the image search config without a read-modify-write race."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET image_search = COALESCE(image_search, '{}'::jsonb) || $1::jsonb WHERE id = $2",
+            json.dumps(fields), idx_id,
         )
 
 

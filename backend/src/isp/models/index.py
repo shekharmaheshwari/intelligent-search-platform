@@ -227,6 +227,9 @@ class IndexMeta(BaseModel):
     # defaults (see chat/service.py _CHAT_PERSONA_DEFAULTS) — {} behaves identically to
     # today's fixed prompt.
     chat_persona_config: dict = {}
+    # Image search: {"enabled": bool, "field": str, "last_run": {...}}. ``field``
+    # names the doc field holding the product image URL (a string or list of URLs).
+    image_search: dict = {}
     # Cache of resolved superlative-query concepts ("cheapest" -> price concept)
     # to this index's actual field names. Write-through cache — populated lazily
     # the first time a concept is resolved live, not recomputed on every request.

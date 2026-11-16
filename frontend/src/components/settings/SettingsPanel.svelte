@@ -33,6 +33,7 @@
   import { api } from '../../lib/api';
   import type { AppSettings } from '../../lib/types';
   import { modelOption, effectiveDim, dimensionWillChange } from './SettingsPanel.helpers';
+  import ImageEmbedSettings from './ImageEmbedSettings.svelte';
 
   $: settings = $settingsStore.settings;
   $: loading = $settingsStore.loading;
@@ -560,6 +561,8 @@
         </table>
       </div>
     </section>
+
+    <ImageEmbedSettings />
 
     <!-- RexBERT Server Config — always visible so the endpoint can be stored
          independently of the global model (needed for per-index RexBERT overrides). -->

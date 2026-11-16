@@ -13,6 +13,7 @@ dependencies = [
     "uvicorn[standard]>=0.29.0",
     "typesense>=2.1.0",  # synonym_sets API (Typesense server >= 30)
     "voyageai>=0.3.0",
+    "pillow>=10.0.0",    # Image decoding/downsizing for image search (also a voyageai dependency)
     "asyncpg>=0.29.0",
     "httpx>=0.27.0",
     "beautifulsoup4>=4.12.0",

@@ -1,7 +1,7 @@
 // Copyright 2026 Shekhar Maheshwari
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AppSettings } from '../types';
+import type { AppSettings, ImageEmbedSettings } from '../types';
 import { api } from '../api';
 
 /**
@@ -64,6 +64,16 @@ export class SettingsRepository {
     viewedPenaltyEnabled?: boolean;
   }): Promise<AppSettings> {
     return api.updateCustomerContext(flags);
+  }
+
+  /** Active image embedding model and the selectable ones. */
+  getImageEmbedSettings(): Promise<ImageEmbedSettings> {
+    return api.getImageEmbedSettings();
+  }
+
+  /** Select the image embedding model (``""`` = off). */
+  setImageEmbedModel(modelId: string): Promise<ImageEmbedSettings> {
+    return api.setImageEmbedModel(modelId);
   }
 }
 

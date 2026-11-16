@@ -7,6 +7,7 @@
   import { indexService } from '../../lib/services/indexes/IndexService';
   import type { Index, IngestStatus } from '../../lib/services/indexes/index.model';
   import type { EmbedModelOption } from '../../lib/types';
+  import ImageSearchCard from './ImageSearchCard.svelte';
 
   export let indexId: string;
   export let meta: Index;
@@ -227,6 +228,10 @@
       </div>
       {#if versionBoostErr}<p class="err">{versionBoostErr}</p>{/if}
     </div>
+
+    {#if !meta.isExternal}
+      <ImageSearchCard {indexId} />
+    {/if}
   </div>
 
 </div>

@@ -15,8 +15,9 @@ Accepts both hex ids and human-readable slugs via ``_resolve_index`` from the
 indexes router — no URL changes required.
 """
 from __future__ import annotations
-from fastapi import APIRouter, HTTPException
-from isp.models import SearchRequest
+import base64, binascii, re, time
+from fastapi import APIRouter, HTTPException, Request
+from isp.models import SearchRequest, ImageSearchRequest
 from isp.services.domain import index_service
 from isp.services.domain.query_boost import serving as query_boost
 from isp.services.domain.context_service import (
@@ -28,7 +29,7 @@ from isp.services.domain.settings_service import (
     get_cc_affinity_boost_enabled,
     get_cc_viewed_penalty_enabled,
 )
-from isp.services.infra import embedding_service
+from isp.services.infra import embedding_service, image_embedding
 from isp.services.infra import typesense_client as ts
 from isp.routers.indexes import _wrap_external_results, _resolve_index
 
@@ -315,3 +316,146 @@ async def search_public(idx_id: str, req: SearchRequest):
     response is serialised.
     """
     return await _run_search(idx_id, req, exclude_vec=True)
+
+
+# ── Image search ─────────────────────────────────────────────────────────────
+
+# Public image search costs one embedding call per uncached query, so it is
+# rate limited per client IP (fails open if Redis is unavailable).
+_IMAGE_RATE_LIMIT = 30          # requests per minute per IP
+_FIELD_RE = re.compile(r"^[A-Za-z0-9_.]+$")
+
+
+def _decode_image(raw: str) -> bytes | None:
+    """Decode a base64 string or ``data:image/...;base64,`` URL. Empty → None."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("data:"):
+        head, _, raw = raw.partition(",")
+        if ";base64" not in head:
+            raise HTTPException(400, "image must be base64-encoded")
+    try:
+        return base64.b64decode(raw, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(400, "image is not valid base64")
+
+
+def _image_filter(index_id: str, filters: dict[str, list[str]]) -> str | None:
+    """Typesense filter_by from ``field → values``; field names and values are sanitised."""
+    if not filters:
+        return None
+    types = {f["name"]: f["type"] for f in ts.get_all_fields(index_id)}
+    parts = []
+    for field, values in filters.items():
+        values = [str(v) for v in (values or []) if str(v).strip()]
+        if not values or not _FIELD_RE.match(field) or field not in types:
+            continue
+        if types[field].startswith("string"):
+            vals = ",".join("`" + v.replace("`", "") + "`" for v in values)
+        else:
+            nums = [v for v in values if re.fullmatch(r"-?\d+(\.\d+)?|true|false", v)]
+            if not nums:
+                continue
+            vals = ",".join(nums)
+        parts.append(f"{field}:=[{vals}]")
+    return " && ".join(parts) or None
+
+
+async def _rate_limited(request: Request) -> bool:
+    ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "unknown")
+    try:
+        redis = await embedding_service._get_redis()
+        if redis is None:
+            return False
+        key = f"isp:imgsearch:{ip}:{int(time.time() // 60)}"
+        n = await redis.incr(key)
+        if n == 1:
+            await redis.expire(key, 70)
+        return n > _IMAGE_RATE_LIMIT
+    except Exception:
+        return False
+
+
+async def _run_image_search(idx_id: str, req: ImageSearchRequest) -> dict:
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    if meta.is_external or meta.external_collection:
+        raise HTTPException(400, "Image search is not supported for external indexes yet")
+    cfg = meta.image_search or {}
+    if not cfg.get("enabled"):
+        raise HTTPException(400, "Image search is not enabled for this index")
+
+    model = image_embedding.get_image_model()
+    if not model or not image_embedding.model_available(model):
+        raise HTTPException(503, "Image search is not configured")
+    last_run = cfg.get("last_run") or {}
+    if last_run.get("model") and last_run["model"] != model:
+        raise HTTPException(409, "Product images were indexed with a different image model — re-index images")
+
+    image_bytes = _decode_image(req.image)
+    if image_bytes is None and not req.q.strip():
+        raise HTTPException(400, "Provide an image, text, or both")
+    try:
+        vec = await image_embedding.embed_query(image_bytes, req.q, model)
+    except image_embedding.ImageError as exc:
+        raise HTTPException(400, str(exc))
+
+    try:
+        raw = ts.search_by_image_vec(meta.id, vec, req.page, req.per_page,
+                                     filter_by=_image_filter(meta.id, req.filters))
+    except Exception as exc:
+        if "img_vec" in str(exc):
+            raise HTTPException(409, "Product images have not been indexed yet")
+        raise
+    return {
+        "found":    raw.get("found", 0),
+        "page":     req.page,
+        "hits":     raw.get("hits", []),
+        "model":    model,
+    }
+
+
+@router.post("/{idx_id}/search/image", summary="Search an index by image")
+async def search_image(idx_id: str, req: ImageSearchRequest):
+    """
+    Find products that look like the given image. Send a base64 image, optional
+    text, or both (combined into one query). Results are ranked by similarity to
+    the product images; each hit has ``vector_distance`` (0 = identical).
+    """
+    return await _run_image_search(idx_id, req)
+
+
+@router.post("/{idx_id}/search/image/public", summary="Search by image — public",
+             tags=["public"])
+async def search_image_public(idx_id: str, req: ImageSearchRequest, request: Request):
+    """
+    Same as ``/search/image`` for storefronts, without auth. Rate limited per
+    client IP; customer images are embedded and discarded, never stored.
+    """
+    if await _rate_limited(request):
+        raise HTTPException(429, "Too many image searches — try again in a minute")
+    return await _run_image_search(idx_id, req)
+
+
+@router.get("/{idx_id}/search/image/public", summary="Is image search available — public",
+            tags=["public"])
+async def image_search_available(idx_id: str):
+    """
+    Lets a storefront decide whether to show a camera/photo search button for
+    this index: ``enabled`` is true only when image search is on for the index,
+    the global image model is configured, and product images were indexed with it.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    cfg = meta.image_search or {}
+    model = image_embedding.get_image_model()
+    last_run = cfg.get("last_run") or {}
+    enabled = bool(
+        cfg.get("enabled") and not (meta.is_external or meta.external_collection)
+        and model and image_embedding.model_available(model)
+        and last_run.get("state") == "done" and last_run.get("model") == model
+    )
+    return {"enabled": enabled}

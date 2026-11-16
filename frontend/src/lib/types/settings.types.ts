@@ -64,3 +64,20 @@ export interface AppSettings {
   cc_affinity_boost_enabled?: boolean;
   cc_viewed_penalty_enabled?: boolean;
 }
+
+/** A selectable image embedding model (for image search). */
+export interface ImageEmbedModelOption {
+  id:          string;
+  label:       string;
+  description: string;
+  num_dim:     number;
+  provider:    string;
+  /** True when the provider's API key is configured. */
+  configured:  boolean;
+}
+
+/** ``GET /settings/image-embed``: the active image model (``""`` = off) and the options. */
+export interface ImageEmbedSettings {
+  model_id:         string;
+  available_models: ImageEmbedModelOption[];
+}

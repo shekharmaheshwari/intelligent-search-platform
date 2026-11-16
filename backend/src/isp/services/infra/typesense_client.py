@@ -12,9 +12,20 @@ External collections (e.g. ``catalog``) are pre-existing and written to
 via the write-back path during rebuild.
 """
 from __future__ import annotations
+import json
 import typesense
 from isp.config import settings
 from isp.services.domain import search_relevance
+
+# Image search fields, added by ensure_img_vec_field. System fields: never
+# editable in the field editor, never shown in forms or used as facets/boosts.
+#   img_vec — image embedding of the product image
+#   img_ok  — true while img_vec matches the configured image field. Typesense
+#             keeps a vector searchable after it is nulled or the doc is
+#             upserted without it, so image search filters on img_ok:true.
+IMG_VEC_FIELD = "img_vec"
+IMG_OK_FIELD = "img_ok"
+IMAGE_SYSTEM_FIELDS = frozenset({IMG_VEC_FIELD, IMG_OK_FIELD})
 
 # Vector dimension for newly created ISP collections.
 # Updated at runtime by settings_service.set_embed_model() when the operator
@@ -399,6 +410,15 @@ def _drop_field(qb: str, field: str) -> str:
     return ",".join(f for f in qb.split(",") if f != field)
 
 
+def _exclude_params(exclude_vec: bool) -> dict:
+    """
+    ``exclude_fields`` for result payloads. The image vector (``img_vec``) is
+    only used for image-search ranking, so it is never returned; ``vec`` is
+    dropped too when ``exclude_vec`` is set.
+    """
+    return {"exclude_fields": "vec,img_vec" if exclude_vec else "img_vec"}
+
+
 def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
                      exclude_vec: bool = False, post_rrf_hook=None,
                      filter_by: str | None = None,
@@ -421,7 +441,7 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
     """
     name = collection_name(index_id)
     client = get_client()
-    extra: dict = {"exclude_fields": "vec"} if exclude_vec else {}
+    extra: dict = _exclude_params(exclude_vec)
 
     _pin_param: dict = (
         {"pinned_hits": ",".join(f"{d}:{i + 1}" for i, d in enumerate(pinned_hits))}
@@ -518,7 +538,7 @@ def search_with_vec(
     name = collection_name(index_id)
     vec_str = ",".join(str(v) for v in vec)
     client = get_client()
-    extra: dict = {"exclude_fields": "vec"} if exclude_vec else {}
+    extra: dict = _exclude_params(exclude_vec)
     fb: dict = {"filter_by": filter_by} if filter_by else {}
     facet_params: dict = {"facet_by": ",".join(facet_fields), "max_facet_values": 100} if facet_fields else {}
     # Typesense hard cap is 250 per page; 3× over-fetch improves RRF recall
@@ -644,7 +664,7 @@ def get_all_fields(index_id: str) -> list[dict]:
     """Return all fields from the collection schema with their current properties."""
     import logging
     log = logging.getLogger(__name__)
-    _SYSTEM = {"id", "vec", "indexed_at"}
+    _SYSTEM = {"id", "vec", "indexed_at", *IMAGE_SYSTEM_FIELDS}
     name = collection_name(index_id)
     try:
         schema = get_client().collections[name].retrieve()
@@ -929,6 +949,7 @@ def get_boost_rule_fields(index_id: str) -> list[str]:
         "is_featured", "popularity", "version_score", "in_stock", "price",
         "boost_queries_equal", "boost_queries_contains",
         "images", "skus", "color_options", "aliases", "tags",
+        *IMAGE_SYSTEM_FIELDS,
     }
     name = collection_name(index_id)
     try:
@@ -1036,7 +1057,7 @@ def _full_doc_field_params(exclude_vec: bool) -> dict:
     dynamically-indexed field.  Omitting ``include_fields`` returns all fields on
     every version.
     """
-    return {"exclude_fields": "vec"} if exclude_vec else {}
+    return _exclude_params(exclude_vec)
 
 
 def list_documents(index_id: str, page: int, per_page: int,
@@ -1519,3 +1540,89 @@ def delete_suggestion(suggestion_id: str) -> bool:
         return True
     except Exception:
         return False
+
+
+# ── Image search ─────────────────────────────────────────────────────────────
+# Product-image vectors live in ``img_vec``, separate from the text ``vec`` so
+# the image model and dimension can change independently of text search.
+
+
+def ensure_img_vec_field(index_id: str, dim: int) -> None:
+    """
+    Make sure the collection has ``img_vec`` with ``dim`` dimensions and the
+    ``img_ok`` flag. A vector field with a different dimension (image model
+    changed) is dropped and re-added.
+    """
+    col = get_client().collections[collection_name(index_id)]
+    fields = {f["name"]: f for f in col.retrieve().get("fields", [])}
+    current = fields.get(IMG_VEC_FIELD)
+    add: list[dict] = []
+    if not (current and int(current.get("num_dim") or 0) == dim):
+        if current:
+            col.update({"fields": [{"name": IMG_VEC_FIELD, "drop": True}]})
+        add.append({"name": IMG_VEC_FIELD, "type": "float[]", "num_dim": dim, "optional": True})
+    if IMG_OK_FIELD not in fields:
+        add.append({"name": IMG_OK_FIELD, "type": "bool", "optional": True})
+    if add:
+        col.update({"fields": add})
+
+
+def export_documents(index_id: str, include_fields: list[str],
+                     filter_by: str | None = None) -> list[dict]:
+    """Export documents (only ``include_fields``) from an ISP-managed collection."""
+    params: dict = {"include_fields": ",".join(include_fields)}
+    if filter_by:
+        params["filter_by"] = filter_by
+    raw = get_client().collections[collection_name(index_id)].documents.export(params)
+    return [json.loads(line) for line in raw.splitlines() if line.strip()]
+
+
+def update_documents(index_id: str, docs: list[dict]) -> int:
+    """Partially update documents (``action=update``). Returns the number updated."""
+    if not docs:
+        return 0
+    results = get_client().collections[collection_name(index_id)].documents.import_(
+        docs, {"action": "update"},
+    )
+    return sum(1 for r in results if r.get("success"))
+
+
+# Closest products an image search can return (and page through).
+IMAGE_SEARCH_K = 120
+
+
+def search_by_image_vec(index_id: str, vec: list[float], page: int, per_page: int,
+                        filter_by: str | None = None) -> dict:
+    """
+    Nearest-neighbour search on ``img_vec``. Hits carry ``vector_distance``
+    (cosine distance: 0 = identical). Sent through multi_search so the
+    1024-float vector travels in the request body, not the URL.
+
+    Always asks for the ``IMAGE_SEARCH_K`` closest products, so ``found`` is the
+    same on every page and storefront pagination works; pages past it are empty.
+
+    Only docs flagged ``img_ok:true`` are candidates (the filter runs before the
+    nearest-neighbour step, so paging stays correct). Collections indexed before
+    the flag existed have no ``img_ok`` field; they are searched unfiltered until
+    images are re-indexed.
+    """
+    def run(filters: list[str]) -> dict:
+        search: dict = {
+            "collection": collection_name(index_id),
+            "q": "*", "query_by": "title",
+            "vector_query": f"{IMG_VEC_FIELD}:([{','.join(str(v) for v in vec)}], k:{IMAGE_SEARCH_K})",
+            "page": page, "per_page": per_page,
+            "exclude_fields": f"vec,{IMG_VEC_FIELD}",
+        }
+        if filters:
+            search["filter_by"] = " && ".join(filters)
+        resp = get_client().multi_search.perform({"searches": [search]}, {})
+        return (resp.get("results") or [{}])[0]
+
+    user = [f"({filter_by})"] if filter_by else []
+    result = run([f"{IMG_OK_FIELD}:true", *user])
+    if "error" in result and IMG_OK_FIELD in str(result["error"]):
+        result = run(user)                                  # legacy: no img_ok field yet
+    if "error" in result:
+        raise RuntimeError(f"Typesense image search failed: {result['error']}")
+    return result

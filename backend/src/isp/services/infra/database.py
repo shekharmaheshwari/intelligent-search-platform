@@ -251,6 +251,22 @@ async def init_db() -> None:
             ALTER TABLE indexes
             ADD COLUMN IF NOT EXISTS superlative_field_map JSONB DEFAULT '{}';
         """)
+        # Image search: per-index config, plus a cache of product-image vectors keyed
+        # by (model, image URL) so rebuilds only embed new or changed images.
+        await conn.execute("""
+            ALTER TABLE indexes
+            ADD COLUMN IF NOT EXISTS image_search JSONB DEFAULT '{}';
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS image_embeddings (
+                model       VARCHAR(80)  NOT NULL,
+                url_hash    CHAR(64)     NOT NULL,
+                url         TEXT         NOT NULL,
+                vec         REAL[]       NOT NULL,
+                created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                PRIMARY KEY (model, url_hash)
+            );
+        """)
         # Seed intent labels for the four known ISP indexes (idempotent).
         for col_name, label in [
             ("isp_22ffabfef4d1", "device"),

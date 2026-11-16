@@ -1,7 +1,7 @@
 // Copyright 2026 Shekhar Maheshwari
 // SPDX-License-Identifier: Apache-2.0
 
-import type { FieldEntry, FieldConfig, DocumentItem, DocumentOrigin, ManualFormField, ManualDocFields } from '../types';
+import type { FieldEntry, FieldConfig, DocumentItem, DocumentOrigin, ManualFormField, ManualDocFields, ImageSearchState, ImageSearchResult } from '../types';
 import type {
   IndexMeta, IngestStatus, SearchResult,
   RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig,
@@ -206,6 +206,26 @@ export class IndexRepository {
 
   updateField(indexId: string, fieldName: string, patch: Partial<FieldConfig>): Promise<FieldEntry> {
     return api.updateField(indexId, fieldName, patch);
+  }
+
+  /** Image search config and status. */
+  getImageSearch(indexId: string): Promise<ImageSearchState> {
+    return api.getImageSearch(indexId);
+  }
+
+  /** Enable/disable image search for an index. */
+  saveImageSearch(indexId: string, enabled: boolean, field: string): Promise<ImageSearchState> {
+    return api.saveImageSearch(indexId, enabled, field);
+  }
+
+  /** Re-embed product images. */
+  reindexImages(indexId: string): Promise<{ state: string }> {
+    return api.reindexImages(indexId);
+  }
+
+  /** Search by image and/or text. */
+  searchByImage(indexId: string, image: string, q?: string, perPage?: number): Promise<ImageSearchResult> {
+    return api.searchByImage(indexId, image, q, perPage);
   }
 }
 

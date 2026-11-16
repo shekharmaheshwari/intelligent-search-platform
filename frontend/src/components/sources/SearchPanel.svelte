@@ -11,12 +11,20 @@
    * Simpler than the SourceContent search bar — no pagination, just the first page.
    * The optional AI Overview toggle (shown when enabled in Settings → Chat Model)
    * mounts <AIOverview> above the results; search itself never waits on it.
+   *
+   * When image search is on for the index, a photo can be attached (camera
+   * button, paste, or drag-and-drop). It is downsized in the browser and sent
+   * with any typed text, which refines it (e.g. "in black"); results then rank
+   * by similarity to the product images and show a match score.
    */
   import { onMount } from 'svelte';
   import { api } from '../../lib/api';
   import { indexService } from '../../lib/services/indexes/IndexService';
-  import type { DocumentItem } from '../../lib/types';
+  import type { DocumentItem, ImageSearchState } from '../../lib/types';
   import { excerpt } from './SearchPanel.helpers';
+  import {
+    validateImageFile, fileToSearchDataUrl, imageFromTransfer, docImageUrl, matchPercent, apiDetail,
+  } from './imageSearch.helpers';
   import AIOverview from './AIOverview.svelte';
 
   export let indexId: string;
@@ -30,6 +38,16 @@
   let searched = false;
   let errMsg = '';
 
+  // ── Image search ──
+  let imageCfg: ImageSearchState | null = null;
+  let attached: { dataUrl: string; name: string } | null = null;
+  let distances: Record<string, number> = {};
+  let imageResults = false;      // the shown results came from an image search
+  let dragOver = false;
+  let fileInput: HTMLInputElement;
+  $: imageEnabled = !!imageCfg?.enabled && !!imageCfg?.model;
+  $: imageField = imageCfg?.field ?? '';
+
   const OVERVIEW_PREF_KEY = 'isp-search-ai-overview';
   let overviewAvailable = false;   // Settings switch on + chat model configured
   let overviewOn = false;          // this viewer's toggle, remembered locally
@@ -38,6 +56,8 @@
 
   onMount(async () => {
     try { overviewOn = localStorage.getItem(OVERVIEW_PREF_KEY) === '1'; } catch { /* storage blocked */ }
+    // Not available for external indexes or when off — the camera button stays hidden.
+    indexService.getImageSearch(indexId).then(c => (imageCfg = c)).catch(() => (imageCfg = null));
     try {
       const cfg = await api.getChatConfig();
       overviewAvailable = cfg.ai_overview && cfg.llm_response && cfg.provider !== 'none';
@@ -55,21 +75,65 @@
     // Capture the submitted query: the user may keep typing while the search runs,
     // and the overview must describe the query these results are for.
     const submitted = q.trim();
-    if (!submitted) return;
+    const image = attached?.dataUrl ?? '';
+    if (!submitted && !image) return;
     const seq = ++searchSeq;
     loading = true; errMsg = ''; searched = true;
     try {
-      const res = await indexService.search(indexId, submitted, mode);
-      if (seq !== searchSeq) return;   // a newer search started — its results win
-      results = res.hits.map(h => h.document);
-      found = res.found;
-      overviewQuery = submitted;
+      if (image) {
+        const res = await indexService.searchByImage(indexId, image, submitted);
+        if (seq !== searchSeq) return;
+        results = res.hits.map(h => h.document);
+        distances = Object.fromEntries(res.hits.map(h => [String(h.document.id), h.vector_distance]));
+        found = res.found;
+        imageResults = true;
+        overviewQuery = '';           // the overview summarises text queries only
+      } else {
+        const res = await indexService.search(indexId, submitted, mode);
+        if (seq !== searchSeq) return;   // a newer search started — its results win
+        results = res.hits.map(h => h.document);
+        distances = {};
+        found = res.found;
+        imageResults = false;
+        overviewQuery = submitted;
+      }
       overviewIds = results.map(d => String(d.id));
     } catch (e) {
-      if (seq === searchSeq) errMsg = String(e);
+      if (seq === searchSeq) errMsg = apiDetail(e);
     } finally {
       if (seq === searchSeq) loading = false;
     }
+  }
+
+  async function attach(file: File | null) {
+    if (!file) return;
+    const problem = validateImageFile(file);
+    if (problem) { errMsg = problem; return; }
+    try {
+      attached = { dataUrl: await fileToSearchDataUrl(file), name: file.name || 'pasted image' };
+      errMsg = '';
+      search();
+    } catch {
+      errMsg = 'Could not read that image';
+    }
+  }
+
+  function onPaste(e: ClipboardEvent) {
+    if (!imageEnabled) return;
+    const file = imageFromTransfer(e.clipboardData);
+    if (file) { e.preventDefault(); attach(file); }
+  }
+
+  function onDrop(e: DragEvent) {
+    dragOver = false;
+    if (!imageEnabled) return;
+    const file = imageFromTransfer(e.dataTransfer);
+    if (file) { e.preventDefault(); attach(file); }
+  }
+
+  function clearImage() {
+    attached = null;
+    if (fileInput) fileInput.value = '';
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -78,18 +142,53 @@
 </script>
 
 <div class="panel">
-  <div class="search-row">
-    <input
-      bind:value={q}
-      on:keydown={onKeydown}
-      placeholder="Search documents…"
-      class="search-input"
-    />
-    <div class="mode-toggle">
-      {#each modes as m}
-        <button class:sel={mode === m} on:click={() => mode = m}>{m}</button>
-      {/each}
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <div
+    class="search-row"
+    class:drag-over={dragOver}
+    on:dragover={(e) => { if (imageEnabled) { e.preventDefault(); dragOver = true; } }}
+    on:dragleave={() => (dragOver = false)}
+    on:drop={onDrop}
+  >
+    <div class="search-box">
+      {#if attached}
+        <span class="image-chip" title={attached.name}>
+          <img src={attached.dataUrl} alt="Search image" />
+          <button on:click={clearImage} aria-label="Remove image">✕</button>
+        </span>
+      {/if}
+      <input
+        bind:value={q}
+        on:keydown={onKeydown}
+        on:paste={onPaste}
+        placeholder={attached ? 'Optional: refine, e.g. “in black”' : imageEnabled ? 'Search documents, or paste / drop a photo…' : 'Search documents…'}
+        class="search-input"
+      />
+      {#if imageEnabled}
+        <button class="camera" on:click={() => fileInput.click()} title="Search with an image" aria-label="Search with an image">
+          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"
+              d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+            <circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8" />
+          </svg>
+        </button>
+        <input
+          bind:this={fileInput}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif,image/bmp"
+          capture="environment"
+          hidden
+          on:change={(e) => attach(e.currentTarget.files?.[0] ?? null)}
+        />
+      {/if}
     </div>
+    {#if !attached}
+      <div class="mode-toggle">
+        {#each modes as m}
+          <button class:sel={mode === m} on:click={() => mode = m}>{m}</button>
+        {/each}
+      </div>
+    {/if}
     {#if overviewAvailable}
       <button class="ai-toggle" class:sel={overviewOn} on:click={toggleOverview}
         aria-pressed={overviewOn} title="Show an AI summary of the top results">✦ AI Overview</button>
@@ -102,15 +201,25 @@
   {:else if loading}
     <div class="empty">Searching…</div>
   {:else if searched && results.length === 0}
-    <div class="empty">No results for "{q}"</div>
+    <div class="empty">{imageResults ? 'No similar products found' : `No results for "${q}"`}</div>
   {:else if results.length > 0}
-    {#if overviewAvailable && overviewOn}
+    {#if overviewAvailable && overviewOn && overviewQuery}
       <AIOverview {indexId} query={overviewQuery} docIds={overviewIds} />
     {/if}
-    <div class="result-meta">{found.toLocaleString()} results</div>
+    <div class="result-meta">
+      {found.toLocaleString()} results{#if imageResults} · ranked by visual similarity{/if}
+    </div>
     <div class="results">
       {#each results as doc}
-        <div class="result" id="result-{doc.id}">
+        {@const thumb = imageField ? docImageUrl(doc, imageField) : null}
+        <div class="result" class:with-thumb={!!thumb} id="result-{doc.id}">
+          {#if thumb}
+            <img class="thumb" src={thumb} alt="" loading="lazy" referrerpolicy="no-referrer" />
+          {/if}
+          <div class="result-body">
+          {#if imageResults && distances[String(doc.id)] !== undefined}
+            <span class="match">{matchPercent(distances[String(doc.id)])}% match</span>
+          {/if}
           <div class="result-title">
             {#if doc.url}
               <a href={doc.url} target="_blank" rel="noopener">{doc.title || doc.url}</a>
@@ -122,6 +231,7 @@
             <div class="result-url">{doc.url}</div>
           {/if}
           <div class="result-snippet">{excerpt(doc.content)}</div>
+          </div>
         </div>
       {/each}
     </div>
@@ -130,18 +240,44 @@
 
 <style>
   .panel { display: flex; flex-direction: column; gap: 16px; }
-  .search-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .search-input {
+  .search-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-radius: 9px; }
+  .search-row.drag-over { outline: 2px dashed var(--accent); outline-offset: 4px; }
+  .search-box {
     flex: 1;
     min-width: 200px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     background: var(--bg-2);
     border: 1px solid var(--border-2);
     border-radius: 7px;
+    padding: 0 6px 0 0;
+  }
+  .search-box:focus-within { border-color: var(--accent); }
+  .search-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
     padding: 9px 12px;
     color: var(--text);
     font-size: 14px;
   }
-  .search-input:focus { outline: none; border-color: var(--accent); }
+  .search-input:focus { outline: none; }
+  .image-chip {
+    display: inline-flex; align-items: center; gap: 2px; margin-left: 6px;
+    background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 6px; padding: 2px;
+  }
+  .image-chip img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; display: block; }
+  .image-chip button {
+    background: none; border: none; color: var(--text-5); cursor: pointer; font-size: 11px; padding: 2px 4px;
+  }
+  .image-chip button:hover { color: var(--text-2); }
+  .camera {
+    background: none; border: none; color: var(--text-5); cursor: pointer;
+    padding: 6px; border-radius: 5px; display: inline-flex;
+  }
+  .camera:hover { color: var(--accent); background: var(--bg-3); }
   .mode-toggle {
     display: flex;
     border: 1px solid var(--border-2);
@@ -201,4 +337,14 @@
   .result { transition: box-shadow 0.3s; }
   :global(.result.cited) { box-shadow: 0 0 0 2px var(--accent); }
   .result-snippet { font-size: 13px; color: var(--text-4); line-height: 1.5; }
+  .result.with-thumb { display: flex; gap: 14px; align-items: flex-start; }
+  .result-body { min-width: 0; flex: 1; }
+  .thumb {
+    width: 64px; height: 64px; object-fit: cover; border-radius: 6px; flex-shrink: 0;
+    background: var(--bg-2); border: 1px solid var(--border);
+  }
+  .match {
+    float: right; font-size: 11px; font-weight: 600; color: var(--accent);
+    background: var(--accent-dim); border-radius: 10px; padding: 2px 8px; margin-left: 8px;
+  }
 </style>
