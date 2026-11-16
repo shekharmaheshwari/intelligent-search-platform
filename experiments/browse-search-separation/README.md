@@ -1,7 +1,7 @@
 # Browse/search separation: experiment data and code
 
-Experiment archive for the paper *Separating Browse and Search Feedback in AI-Driven Learning-to-Rank: Evidence
-from Real User Logs and LLM Shopper Agents* (S. Maheshwari, 2026). The accepted paper is in
+Experiment archive for the paper *Separating Browse and Search Feedback in AI-Driven Learning-to-Rank Popularity:
+An LLM Agent Approach* (S. Maheshwari, IEEE COMNETSAT 2026). The accepted paper is in
 [`docs/papers/browse-search-separation/`](../../docs/papers/browse-search-separation/).
 
 Study 3 ran on this platform's hybrid search service (Typesense BM25 + Voyage-3 embeddings, weighted RRF).
