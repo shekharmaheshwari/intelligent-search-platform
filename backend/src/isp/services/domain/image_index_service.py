@@ -21,7 +21,7 @@ Run stats are stored in ``image_search.last_run`` for the UI.
 from __future__ import annotations
 import asyncio, json, logging, re, time
 
-from isp.services.domain import index_service
+from isp.services.domain import chunking, index_service
 from isp.services.infra import image_embedding as img
 from isp.services.infra import typesense_client as ts
 
@@ -148,8 +148,10 @@ async def index_images(idx_id: str, doc_ids: list[str] | None = None) -> dict:
             if not doc_ids:
                 return {"state": "skipped", "reason": "no documents"}
             filter_by = "id:[" + ",".join(f"`{d.replace('`', '')}`" for d in doc_ids) + "]"
+        # One image per source document: chunks after the first are skipped.
         docs = await asyncio.to_thread(
-            ts.export_documents, idx_id, ["id", field, "metadata", ts.IMG_OK_FIELD], filter_by,
+            ts.export_documents, idx_id, ["id", field, "metadata", ts.IMG_OK_FIELD],
+            chunking.heads_only(filter_by),
         )
         stats["docs"] = len(docs)
 

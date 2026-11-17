@@ -15,25 +15,53 @@ from isp.services.domain.reasoning_data import read_reasoning_data, reasoning_co
 import asyncio
 import json
 import logging
+from typing import Callable
 
+from isp.config import settings
+from isp.services.domain.query_boost import serving as query_boost
 from isp.services.infra import typesense_client as ts
 from isp.services.infra import embedding_service
 from isp.services.infra.embedding_service import embed_query as _embed_query
-from isp.services.domain import search_relevance
+from isp.services.domain import chunking, index_service, search_relevance
 
 log = logging.getLogger(__name__)
 
 _RRF_N = 15
+# Context size: top records, at most _PER_DOC passages from one source document
+# so a long page (many matching chunks) can't fill the whole context.
+_TOP_N = 5
+_PER_DOC = 2
+
+
+def _top_hits(ranked_docs: list[dict]) -> list[dict]:
+    return [{"document": d} for d in chunking.top_per_parent(ranked_docs, _TOP_N, _PER_DOC)]
+
+
+# Chunked index: each leg returns _RRF_N *documents* with up to _PER_DOC passages
+# each, so one long page can't fill the candidate pool. The vector leg groups its
+# k nearest chunks, so k is widened to still reach _RRF_N documents.
+_GROUPED_K = _RRF_N * 8
+
+
+async def _is_chunked(index_id: str) -> bool:
+    try:
+        meta = await index_service.get_index(index_id)
+    except Exception:
+        log.warning("chat: could not read chunking state for index_id=%s", index_id, exc_info=True)
+        return False
+    return bool(meta and chunking.is_applied(meta.chunking))
 
 
 def _build_search_params(
     query: str, col: str, vec: list[float] | None,
     query_by: str, query_by_weights: str | None,
     facet_query_by: str | None, price_filter: str | None,
+    grouped: bool = False,
 ) -> list[dict]:
+    group = {"group_by": chunking.GROUP_FIELD, "group_limit": _PER_DOC} if grouped else {}
     lex: dict = {
         "collection": col, "q": query, "query_by": query_by,
-        "per_page": str(_RRF_N), "exclude_fields": "vec",
+        "per_page": str(_RRF_N), "exclude_fields": "vec", **group,
     }
     if query_by_weights:
         lex["query_by_weights"] = query_by_weights
@@ -44,7 +72,7 @@ def _build_search_params(
     if facet_query_by:
         struct: dict = {
             "collection": col, "q": query, "query_by": facet_query_by,
-            "num_typos": "0", "per_page": str(_RRF_N), "exclude_fields": "vec",
+            "num_typos": "0", "per_page": str(_RRF_N), "exclude_fields": "vec", **group,
         }
         if price_filter:
             struct["filter_by"] = price_filter
@@ -54,8 +82,8 @@ def _build_search_params(
         vec_str = ",".join(str(v) for v in vec)
         sem: dict = {
             "collection": col, "q": "*", "query_by": "title",
-            "vector_query": f"vec:([{vec_str}], k:{_RRF_N})",
-            "per_page": str(_RRF_N), "exclude_fields": "vec",
+            "vector_query": f"vec:([{vec_str}], k:{_GROUPED_K if grouped else _RRF_N})",
+            "per_page": str(_RRF_N), "exclude_fields": "vec", **group,
         }
         if price_filter:
             sem["filter_by"] = price_filter
@@ -67,6 +95,7 @@ def _build_search_params(
 def _rrf_merge(
     results_list: list[dict], has_struct: bool, has_vec: bool, query: str = "",
     embed_model: str | None = None, boost_rules: list[dict] | None = None,
+    post_merge_hook: Callable[[dict, dict], None] | None = None,
 ) -> list[dict]:
     idx = 0
     lex_hits    = results_list[idx].get("hits", []) if idx < len(results_list) else []
@@ -80,18 +109,22 @@ def _rrf_merge(
     sem_hits    = search_relevance.filter_semantic_hits(sem_hits, embed_model)
 
     if not has_struct and not has_vec:
-        if not boost_rules:
-            return lex_hits[:5]
+        if not boost_rules and post_merge_hook is None:
+            return _top_hits([h["document"] for h in lex_hits])
         # Same operator-defined boost rules the main search endpoint applies
         # (routers/search.py) — chat runs its own separate RRF merge, so
         # nothing shares that call automatically; this is that same
         # ts.apply_boost_rules(scores, all_docs, rules, query) pattern,
         # applied to this branch's lexical-only candidate set.
-        scores = {h["document"]["id"]: 0.0 for h in lex_hits}
+        scores = {h["document"]["id"]: (0.2 / (61 + rank) if post_merge_hook else 0.0)
+                  for rank, h in enumerate(lex_hits)}
         all_docs = {h["document"]["id"]: h["document"] for h in lex_hits}
-        ts.apply_boost_rules(scores, all_docs, boost_rules, query=query)
-        top5 = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)[:5]
-        return [{"document": all_docs[did]} for did in top5]
+        if boost_rules:
+            ts.apply_boost_rules(scores, all_docs, boost_rules, query=query)
+        if post_merge_hook:
+            post_merge_hook(scores, all_docs)
+        ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
+        return _top_hits([all_docs[did] for did in ranked])
 
     K = 60
     lex_map    = {h["document"]["id"]: (r, h["document"]) for r, h in enumerate(lex_hits)}
@@ -136,8 +169,11 @@ def _rrf_merge(
     if boost_rules:
         ts.apply_boost_rules(scores, all_docs, boost_rules, query=query)
 
-    top5 = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)[:5]
-    return [{"document": all_docs[did]} for did in top5]
+    if post_merge_hook:
+        post_merge_hook(scores, all_docs)
+
+    ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
+    return _top_hits([all_docs[did] for did in ranked])
 
 
 def _hit_to_card_and_block(hit: dict, i: int) -> tuple[dict, str]:
@@ -163,7 +199,13 @@ def _hit_to_card_and_block(hit: dict, i: int) -> tuple[dict, str]:
     else:
         image = meta.get("image_url", meta.get("image", meta.get("Image", meta.get("thumbnail", ""))))
 
-    chat_ctx = doc.get("chatContent") or doc.get("content", "")[:300]
+    # In a chunked index a record's content is bounded by the chunk size (a
+    # passage, or a whole short doc) — send it whole; otherwise the curated
+    # chatContent, or the start of the document.
+    if chunking.from_chunked_index(doc):
+        chat_ctx = doc.get("content", "")
+    else:
+        chat_ctx = doc.get("chatContent") or doc.get("content", "")[:300]
     block = f"{i}. {title}\n  {chat_ctx}" if chat_ctx else f"{i}. {title}"
     reasoning = read_reasoning_data(doc.get("reasoningData", meta.get("reasoningData")))
     block += reasoning_context(reasoning)
@@ -173,7 +215,8 @@ def _hit_to_card_and_block(hit: dict, i: int) -> tuple[dict, str]:
     # thinner chat-only card — additive, existing consumers reading only
     # the original fields are unaffected.
     card = {
-        "id": doc.get("id", ""), "title": title, "price": price, "url": url, "image": image,
+        # The source document's id, not a chunk record id.
+        "id": doc.get("parent_id") or doc.get("id", ""), "title": title, "price": price, "url": url, "image": image,
         "bundle_price": doc.get("price"),
         "reasoningData": reasoning,
         "manufacturer": meta.get("manufacturer", ""),
@@ -208,6 +251,7 @@ async def search_context(
 
     searches = _build_search_params(
         query, col, vec, query_by, query_by_weights, facet_query_by, price_filter,
+        grouped=await _is_chunked(index_id),
     )
     log.debug("chat typesense request: collection=%s searches=%s",
               col, json.dumps([{k: v for k, v in s.items() if k != "vector_query"}
@@ -219,8 +263,23 @@ async def search_context(
         "chat typesense response: hit_counts=%s",
         [len(r.get("hits", [])) for r in resp.get("results", [])],
     )
+    post_merge_hook = None
+    if settings.chat_query_boost_enabled:
+        try:
+            async def reuse_vector(_query: str) -> list[float]:
+                return vec or []
+
+            boosts = await query_boost.resolve(
+                index_id, query,
+                embed_model=embedding_service.get_current_model(),
+                embed=reuse_vector if vec else None,
+            )
+            post_merge_hook = query_boost.make_hook(boosts, q=query)
+        except Exception:
+            log.warning("Chat query boost unavailable; retaining baseline retrieval", exc_info=True)
+
     hits = _rrf_merge(
-        resp.get("results", []),
+        [ts.flatten_groups(r) for r in resp.get("results", [])],
         has_struct=facet_query_by is not None,
         has_vec=vec is not None,
         query=query,
@@ -229,13 +288,16 @@ async def search_context(
         # model these vectors (and thus vector_distance) actually came from.
         embed_model=embedding_service.get_current_model(),
         boost_rules=boost_rules,
+        post_merge_hook=post_merge_hook,
     )
 
     cards, parts = [], []
     for i, hit in enumerate(hits, 1):
         card, block = _hit_to_card_and_block(hit, i)
-        cards.append(card)
         parts.append(block)
+        # Two passages of one document → two context blocks, one card.
+        if all(c["id"] != card["id"] for c in cards):
+            cards.append(card)
 
     return cards, "\n\n".join(parts)
 

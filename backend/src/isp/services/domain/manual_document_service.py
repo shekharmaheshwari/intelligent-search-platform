@@ -21,7 +21,8 @@ SOURCE_TYPE = "manual"
 ID_PREFIX = "manual-"
 
 # Keys the client may not set directly — they are derived server-side.
-_RESERVED = {"id", "vec", "indexed_at", "source_type", "metadata", "img_vec", "img_ok"}
+_RESERVED = {"id", "vec", "indexed_at", "source_type", "metadata", "img_vec", "img_ok",
+             "parent_id", "chunk_index", "chunk_count", "chunk_tail"}
 
 
 def is_manual_id(doc_id: str) -> bool:

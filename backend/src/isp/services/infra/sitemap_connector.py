@@ -247,7 +247,22 @@ def _best_description(meta_all: dict[str, str]) -> str:
     return meta_all.get("og:description") or meta_all.get("description") or ""
 
 
-def _extract_content(soup: BeautifulSoup, cfg: SitemapConnectorConfig) -> str:
+_LEGACY_MAX_CHARS = 4000
+# Block-level tags that end a paragraph when page text is kept for chunking.
+_BLOCK_TAGS = ["p", "div", "li", "br", "tr", "pre", "blockquote", "section", "article",
+               "h1", "h2", "h3", "h4", "h5", "h6", "dd", "dt"]
+
+
+def _paragraph_text(el) -> str:
+    """Body text with a blank line between block elements; whitespace collapsed within each."""
+    for tag in el.find_all(_BLOCK_TAGS):
+        tag.append("\n\n")
+    paras = (" ".join(p.split()) for p in el.get_text(separator=" ").split("\n\n"))
+    return "\n\n".join(p for p in paras if p)
+
+
+def _extract_content(soup: BeautifulSoup, cfg: SitemapConnectorConfig,
+                     keep_paragraphs: bool = False) -> str:
     """Return the best available body text from a parsed page."""
     content_el = None
     if cfg.content_selector:
@@ -257,15 +272,23 @@ def _extract_content(soup: BeautifulSoup, cfg: SitemapConnectorConfig) -> str:
             content_el = soup.select_one(sel)
             if content_el:
                 break
-    return content_el.get_text(separator=" ", strip=True) if content_el else ""
+    if not content_el:
+        return ""
+    if keep_paragraphs:
+        return _paragraph_text(content_el)
+    return content_el.get_text(separator=" ", strip=True)
 
 
-def _extract_page(html: str, url: str, cfg: SitemapConnectorConfig) -> dict | None:
+def _extract_page(html: str, url: str, cfg: SitemapConnectorConfig,
+                  max_content_chars: int | None = None) -> dict | None:
     """
     Parse an HTML page into an ISP document dict.
 
     Returns None when no meaningful content could be extracted so the caller
     can silently skip the page.
+
+    ``max_content_chars`` is set for chunked indexes: paragraph breaks are kept
+    (the chunker splits on them) and the body is capped there instead of 4000.
     """
     soup = BeautifulSoup(html, "lxml")
     for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
@@ -275,13 +298,17 @@ def _extract_page(html: str, url: str, cfg: SitemapConnectorConfig) -> dict | No
     title = _best_title(soup, meta_all, url)
     meta_desc = _best_description(meta_all)
 
-    content = _extract_content(soup, cfg)
+    keep_paragraphs = max_content_chars is not None
+    content = _extract_content(soup, cfg, keep_paragraphs)
 
     # Prepend the curated meta description so it anchors the embedding even when
     # the main body is long and the summary text would otherwise be diluted.
-    if meta_desc:
-        content = meta_desc + " " + content
-    content = " ".join(content.split())[:4000]
+    if keep_paragraphs:
+        content = "\n\n".join(p for p in (meta_desc, content) if p)[:max_content_chars]
+    else:
+        if meta_desc:
+            content = meta_desc + " " + content
+        content = " ".join(content.split())[:_LEGACY_MAX_CHARS]
 
     if not content:
         return None
@@ -312,6 +339,7 @@ async def crawl_batches(
     batch_size: int = 500,
     on_progress: Callable[[int, int], None] | None = None,
     ext_records: list[dict] | None = None,
+    max_content_chars: int | None = None,
 ) -> int:
     """
     Crawl a sitemap with parallel workers, handing pages to ``on_batch`` as they arrive.
@@ -329,6 +357,8 @@ async def crawl_batches(
             Passed in by the ingest task so filtering happens before the
             ``max_pages`` cap, making the cap apply to *post-filter* URLs rather
             than pre-filter ones.
+        max_content_chars: Set for chunked indexes — keep paragraph breaks and
+            cap page text here instead of the default 4000 chars.
 
     Returns:
         Number of URLs crawled (pages that returned no content are not passed
@@ -405,7 +435,8 @@ async def crawl_batches(
                     return
                 html = await _fetch_page(client, url, throttle)
                 if html:
-                    doc = await loop.run_in_executor(parse_pool, _extract_page, html, url, cfg)
+                    doc = await loop.run_in_executor(parse_pool, _extract_page, html, url, cfg,
+                                                     max_content_chars)
                     if doc:
                         buffer.append(doc)
                 done += 1

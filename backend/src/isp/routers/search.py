@@ -18,7 +18,7 @@ from __future__ import annotations
 import base64, binascii, re, time
 from fastapi import APIRouter, HTTPException, Request
 from isp.models import SearchRequest, ImageSearchRequest
-from isp.services.domain import index_service
+from isp.services.domain import chunking, index_service
 from isp.services.domain.query_boost import serving as query_boost
 from isp.services.domain.context_service import (
     SearchContext, build_context, context_boost, fetch_preference_vector,
@@ -168,7 +168,8 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
             _raw = ts.search_documents(meta.id, req.q, "lexical", _p, _FILTER_BATCH,
                                        exclude_vec=exclude_vec, filter_by=ts_filter,
                                        query_by=ts_query_by,
-                                       facet_fields=ts_facet_fields if _p == 1 else None)
+                                       facet_fields=ts_facet_fields if _p == 1 else None,
+                                       group_chunks=chunking.is_applied(meta.chunking))
             last_raw = _raw
             page_hits = _raw.get("hits", [])
             if not page_hits:
@@ -241,6 +242,7 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
                 facet_fields=ts_facet_fields or None,
                 embed_model=effective_model,
                 semantic_only=mode == "semantic",
+                group_chunks=chunking.is_applied(meta.chunking),
             )
         else:
             raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
@@ -248,14 +250,16 @@ async def _run_search(idx_id: str, req: SearchRequest, exclude_vec: bool = False
                                       filter_by=ts_filter,
                                       pinned_hits=pinned or None,
                                       query_by=ts_query_by,
-                                      facet_fields=ts_facet_fields or None)
+                                      facet_fields=ts_facet_fields or None,
+                                      group_chunks=chunking.is_applied(meta.chunking))
     else:
         raw = ts.search_documents(meta.id, req.q, "lexical", req.page, req.per_page,
                                   exclude_vec=exclude_vec, post_rrf_hook=ctx_hook,
                                   filter_by=ts_filter,
                                   pinned_hits=pinned or None,
                                   query_by=ts_query_by,
-                                  facet_fields=ts_facet_fields or None)
+                                  facet_fields=ts_facet_fields or None,
+                                  group_chunks=chunking.is_applied(meta.chunking))
 
     return raw
 

@@ -14,7 +14,7 @@ internal search router, then unwraps the results to a simpler flat shape.
 from __future__ import annotations
 import re
 from fastapi import APIRouter, HTTPException, Query
-from isp.services.domain import index_service
+from isp.services.domain import chunking, index_service
 from isp.services.infra import embedding_service
 from isp.services.infra import typesense_client as ts
 from isp.routers.indexes import _wrap_external_results
@@ -131,15 +131,16 @@ async def search_content(
         )
         result = _wrap_external_results(raw, idx)
     else:
+        grouped = chunking.is_applied(idx.chunking)
         if mode in ("hybrid", "semantic"):
             vec = await embedding_service.embed_query(q, model=effective_model)
             if vec:
                 result = ts.search_with_vec(idx.id, q, vec, page, per_page, embed_model=effective_model,
-                                            semantic_only=mode == "semantic")
+                                            semantic_only=mode == "semantic", group_chunks=grouped)
             else:
-                result = ts.search_documents(idx.id, q, "lexical", page, per_page)
+                result = ts.search_documents(idx.id, q, "lexical", page, per_page, group_chunks=grouped)
         else:
-            result = ts.search_documents(idx.id, q, mode, page, per_page)
+            result = ts.search_documents(idx.id, q, mode, page, per_page, group_chunks=grouped)
 
     return {
         "source":   idx.name,

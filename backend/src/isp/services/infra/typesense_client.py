@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import typesense
 from isp.config import settings
-from isp.services.domain import search_relevance
+from isp.services.domain import chunking, search_relevance
 
 # Image search fields, added by ensure_img_vec_field. System fields: never
 # editable in the field editor, never shown in forms or used as facets/boosts.
@@ -107,6 +107,8 @@ def create_collection(index_id: str, vec_dim: int | None = None) -> None:
             {"name": "boost_queries_equal",   "type": "string[]", "optional": True},
             {"name": "boost_queries_contains","type": "string[]", "optional": True},
             {"name": "vec",                   "type": "float[]",  "num_dim": dim, "optional": True},
+            # Chunk fields (parent_id, chunk_index, …) — see services/domain/chunking.py.
+            *chunking.SCHEMA_FIELDS,
             # Wildcard — accepts any extra top-level string field promoted via
             # SitemapConnectorConfig.meta_fields without requiring schema changes.
             {"name": ".*", "type": "auto"},
@@ -137,6 +139,7 @@ def migrate_isp_fields() -> None:
         {"name": "version_score",          "type": "float",    "optional": True},
         {"name": "boost_queries_equal",    "type": "string[]", "optional": True},
         {"name": "boost_queries_contains", "type": "string[]", "optional": True},
+        *chunking.SCHEMA_FIELDS,
     ]
     try:
         client = get_client()
@@ -162,32 +165,48 @@ def migrate_isp_fields() -> None:
                    "may be left un-migrated", exc_info=True)
 
 
-def upsert_documents(index_id: str, docs: list[dict]) -> int:
-    """Upsert documents into an ISP-managed collection. Returns number of successful upserts."""
+def import_documents(index_id: str, docs: list[dict]) -> list[str | None]:
+    """Upsert documents; returns one entry per doc: None on success, else Typesense's error."""
     if not docs:
-        return 0
+        return []
     import logging
     log = logging.getLogger(__name__)
-    name = collection_name(index_id)
-    client = get_client()
-    results = client.collections[name].documents.import_(docs, {"action": "upsert"})
-    ok = 0
+    results = get_client().collections[collection_name(index_id)].documents.import_(
+        docs, {"action": "upsert"},
+    )
+    errors: list[str | None] = []
     for r in results:
         if r.get("success"):
-            ok += 1
+            errors.append(None)
         else:
             log.error("Typesense upsert failure: %s", r)
-    if ok == 0 and results:
+            errors.append(str(r.get("error") or "upsert failed"))
+    errors += ["no response from Typesense"] * (len(docs) - len(errors))
+    if all(errors):
         log.error("All %d upserts failed. First doc sample: %s",
-                  len(results), {k: v for k, v in list(docs[0].items())[:6] if k != "vec"})
-    return ok
+                  len(docs), {k: v for k, v in list(docs[0].items())[:6] if k != "vec"})
+    return errors
+
+
+def upsert_documents(index_id: str, docs: list[dict]) -> int:
+    """Upsert documents into an ISP-managed collection. Returns number of successful upserts."""
+    return sum(1 for e in import_documents(index_id, docs) if e is None)
 
 
 def count_documents(index_id: str) -> int:
-    """Return the document count for an ISP-managed collection (0 on error)."""
+    """Return the number of source documents in an ISP-managed collection (0 on error).
+
+    Chunks of one document count once (``chunking.HEAD_FILTER``); falls back to
+    the raw record count on collections without the chunk fields.
+    """
+    col = get_client().collections[collection_name(index_id)]
     try:
-        col = get_client().collections[collection_name(index_id)].retrieve()
-        return col.get("num_documents", 0)
+        return col.documents.search({"q": "*", "query_by": "title", "per_page": 0,
+                                     "filter_by": chunking.HEAD_FILTER}).get("found", 0)
+    except Exception:
+        pass
+    try:
+        return col.retrieve().get("num_documents", 0)
     except Exception:
         return 0
 
@@ -419,12 +438,32 @@ def _exclude_params(exclude_vec: bool) -> dict:
     return {"exclude_fields": "vec,img_vec" if exclude_vec else "img_vec"}
 
 
+# Grouped vector leg: k nearest chunks to fetch per wanted document (capped).
+_GROUPED_K_FACTOR = 8
+_GROUPED_K_MAX = 2000
+
+
+def _group_params(group_chunks: bool) -> dict:
+    """One hit per source document: group chunk records by ``parent_id``."""
+    return {"group_by": chunking.GROUP_FIELD, "group_limit": 1} if group_chunks else {}
+
+
+def flatten_groups(raw: dict) -> dict:
+    """Turn a grouped response back into the flat ``hits`` shape: each group's
+    hits (``group_limit`` of them, best first), groups in rank order."""
+    if "grouped_hits" not in raw:
+        return raw
+    hits = [h for g in raw["grouped_hits"] for h in g.get("hits", [])]
+    return {**{k: v for k, v in raw.items() if k != "grouped_hits"}, "hits": hits}
+
+
 def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
                      exclude_vec: bool = False, post_rrf_hook=None,
                      filter_by: str | None = None,
                      pinned_hits: list[str] | None = None,
                      query_by: str | None = None,
-                     facet_fields: list[str] | None = None) -> dict:
+                     facet_fields: list[str] | None = None,
+                     group_chunks: bool = False) -> dict:
     """
     Single-pass lexical search on an ISP-managed collection.
 
@@ -438,10 +477,13 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
     retrieval to reorder results by customer affinity — the same hook used by
     ``search_with_vec``.  This enables personalisation on empty-query browse where
     no query vector is available for blending.
+
+    ``group_chunks`` returns one hit per source document (its best chunk) on
+    chunked indexes; ``found`` then counts documents, not chunks.
     """
     name = collection_name(index_id)
     client = get_client()
-    extra: dict = _exclude_params(exclude_vec)
+    extra: dict = {**_exclude_params(exclude_vec), **_group_params(group_chunks)}
 
     _pin_param: dict = (
         {"pinned_hits": ",".join(f"{d}:{i + 1}" for i, d in enumerate(pinned_hits))}
@@ -455,7 +497,7 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
             "vector_query": f"vec:([],  k:{per_page})",
             "page": page, "per_page": per_page, **extra, **fb_params, **_pin_param,
         })
-        return _rerank_flat(raw, q, _is_browse(q), post_rrf_hook, pinned_hits=pinned_hits)
+        return _rerank_flat(flatten_groups(raw), q, _is_browse(q), post_rrf_hook, pinned_hits=pinned_hits)
 
     fb_params: dict = {"filter_by": filter_by} if filter_by else {}
     facet_params: dict = {"facet_by": ",".join(facet_fields), "max_facet_values": 100} if facet_fields else {}
@@ -482,7 +524,7 @@ def search_documents(index_id: str, q: str, mode: str, page: int, per_page: int,
                 qb, weights = _qb_and_weights(_drop_field(params["query_by"], "aliases"))
                 params = {**params, "query_by": qb, "query_by_weights": weights}
             raw = client.collections[name].documents.search({**params, "sort_by": "_text_match:desc"})
-        result = _rerank_flat(raw, q, browse, post_rrf_hook, editorial=editorial, pinned_hits=pinned_hits)
+        result = _rerank_flat(flatten_groups(raw), q, browse, post_rrf_hook, editorial=editorial, pinned_hits=pinned_hits)
         # Promote facet_counts to a normalized dict if Typesense returned them
         if facet_fields and "facet_counts" in result:
             result = {**result, "facet_counts": _parse_facet_counts(result["facet_counts"])}
@@ -516,9 +558,15 @@ def search_with_vec(
     facet_fields: list[str] | None = None,
     embed_model: str | None = None,
     semantic_only: bool = False,
+    group_chunks: bool = False,
 ) -> dict:
     """
     Hybrid search via Typesense multi_search + Reciprocal Rank Fusion.
+
+    ``group_chunks`` (chunked indexes) groups both legs by ``parent_id`` in
+    Typesense, so each leg returns up to ``fetch_n`` distinct documents and RRF
+    fuses per document — one result per document, and a long page can't crowd
+    other documents out of the candidate set.
 
     Fetches ``per_page * 3`` candidates from both lexical and semantic passes,
     then merges with RRF weights (lexical 0.7, semantic 0.3) before slicing the
@@ -545,12 +593,18 @@ def search_with_vec(
     # but must be clamped so we never exceed the limit.
     fetch_n = min(per_page * 3, 250)
     _qb, _qb_weights = _qb_and_weights(query_by or "title,content,aliases")
+    # Grouped: both legs return up to fetch_n distinct documents (best chunk
+    # each). The vector leg groups its k nearest *chunks*, so k is widened to
+    # still yield enough documents when one long page owns many near chunks.
+    grp = _group_params(group_chunks)
+    k = min(fetch_n * _GROUPED_K_FACTOR, _GROUPED_K_MAX) if group_chunks else fetch_n
+    key = chunking.parent_key if group_chunks else (lambda d: d["id"])
 
     vector_search = {
         "collection": name,
         "q": "*", "query_by": "title",
-        "vector_query": f"vec:([{vec_str}], k:{fetch_n})",
-        "per_page": str(fetch_n), **extra, **fb,
+        "vector_query": f"vec:([{vec_str}], k:{k})",
+        "per_page": str(fetch_n), **extra, **fb, **grp,
     }
 
     def _run_multi_search(qb: str, weights: str) -> dict:
@@ -559,21 +613,21 @@ def search_with_vec(
                 "collection": name,
                 "q": q, "query_by": qb,
                 "query_by_weights": weights,
-                "per_page": str(fetch_n), **extra, **fb, **facet_params,
+                "per_page": str(fetch_n), **extra, **fb, **facet_params, **grp,
             },
             vector_search,
         ]}, {})
 
     if semantic_only:
         resp = client.multi_search.perform({"searches": [{**vector_search, **facet_params}]}, {})
-        sem_result = (resp.get("results") or [{}])[0]
+        sem_result = flatten_groups((resp.get("results") or [{}])[0])
         # Same shape as the hybrid path below, with an empty lexical leg; the
         # vector pass carries facet_by here, so it stands in for facet counts.
         results = [{}, sem_result]
         lex_result = {"facet_counts": sem_result.get("facet_counts", [])}
     else:
         resp = _run_multi_search(_qb, _qb_weights)
-        results = resp.get("results", [{}, {}])
+        results = [flatten_groups(r) for r in resp.get("results", [{}, {}])]
         lex_result = results[0]
     # multi_search doesn't raise on a per-sub-search failure — a failed
     # lexical pass just comes back as {"code": ..., "error": ...} with no
@@ -584,7 +638,7 @@ def search_with_vec(
     if "code" in lex_result and "aliases" in str(lex_result.get("error", "")) and "aliases" in _qb.split(","):
         qb, weights = _qb_and_weights(_drop_field(_qb, "aliases"))
         resp = _run_multi_search(qb, weights)
-        results = resp.get("results", [{}, {}])
+        results = [flatten_groups(r) for r in resp.get("results", [{}, {}])]
         lex_result = results[0]
     # Relevance floors — see search_relevance.py. Without these, a query with
     # zero genuine matches (a typo-mashed string, an unrelated product name)
@@ -594,8 +648,10 @@ def search_with_vec(
     # incidental word overlap (e.g. a bare number matching a price).
     raw_lex_hits = search_relevance.filter_lexical_hits(lex_result.get("hits", []), q)
     raw_sem_hits = search_relevance.filter_semantic_hits(results[1].get("hits", []), embed_model)
-    lex_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(raw_lex_hits)}
-    sem_hits = {h["document"]["id"]: (rank, h["document"]) for rank, h in enumerate(raw_sem_hits)}
+    # Keyed by document (parent) when grouped, so a page whose best lexical and
+    # best semantic chunks differ still fuses into one RRF score.
+    lex_hits = {key(h["document"]): (rank, h["document"]) for rank, h in enumerate(raw_lex_hits)}
+    sem_hits = {key(h["document"]): (rank, h["document"]) for rank, h in enumerate(raw_sem_hits)}
     # Carry facet counts from the lexical pass (facet_by was only applied there)
     _facet_counts = _parse_facet_counts(lex_result.get("facet_counts", []))
     K = 60
@@ -664,7 +720,7 @@ def get_all_fields(index_id: str) -> list[dict]:
     """Return all fields from the collection schema with their current properties."""
     import logging
     log = logging.getLogger(__name__)
-    _SYSTEM = {"id", "vec", "indexed_at", *IMAGE_SYSTEM_FIELDS}
+    _SYSTEM = {"id", "vec", "indexed_at", *IMAGE_SYSTEM_FIELDS, *chunking.FIELD_NAMES}
     name = collection_name(index_id)
     try:
         schema = get_client().collections[name].retrieve()
@@ -1065,17 +1121,27 @@ def list_documents(index_id: str, page: int, per_page: int,
     """Paginated document listing for an ISP-managed collection, sorted by most recently indexed.
 
     ``filter_by`` narrows the listing (e.g. ``source_type:=manual`` for manually
-    entered documents only).
+    entered documents only). A chunked document is listed once, by its first
+    chunk (which carries ``chunk_count``).
     """
     params: dict = {
         "q": "*", "query_by": "title",
         "sort_by": "indexed_at:desc",
         "page": page, "per_page": per_page,
+        "filter_by": chunking.heads_only(filter_by),
         **_full_doc_field_params(exclude_vec),
     }
-    if filter_by:
-        params["filter_by"] = filter_by
-    return get_client().collections[collection_name(index_id)].documents.search(params)
+    docs = get_client().collections[collection_name(index_id)].documents
+    try:
+        return docs.search(params)
+    except Exception as e:
+        if "chunk_tail" not in str(e):      # collection predates the chunk fields
+            raise
+        if filter_by:
+            params["filter_by"] = filter_by
+        else:
+            params.pop("filter_by")
+        return docs.search(params)
 
 
 def upsert_document(index_id: str, doc: dict) -> str | None:
@@ -1202,9 +1268,9 @@ def search_external(
             post_rrf_hook(scores, all_docs)
         ranked = sorted(all_docs.keys(), key=lambda d: scores[d], reverse=True)
         start = (page - 1) * per_page
-        page_docs = [all_docs[d] for d in ranked[start:start + per_page]]
-        return {"hits": [{"document": d, "score": scores[d],
-                          "text_match": int(scores[d] * 100_000)} for d in page_docs],
+        page_ids = ranked[start:start + per_page]
+        return {"hits": [{"document": all_docs[did], "score": scores[did],
+                          "text_match": int(scores[did] * 100_000)} for did in page_ids],
                 "found": len(ranked), "page": page}
     return get_client().collections[col].documents.search(params)
 
@@ -1247,6 +1313,19 @@ def retrieve_document(col_name: str, doc_id: str) -> dict | None:
             # from a genuinely missing document.
             log.error("retrieve_document failed: collection=%s doc_id=%s", col_name, doc_id, exc_info=True)
         return None
+
+
+def delete_by_filter(index_id: str, filter_by: str) -> int:
+    """Delete the records of an ISP-managed collection matching ``filter_by``.
+
+    Unlike ``delete_from_collection`` this raises on failure, for callers that
+    must not continue (e.g. remove a source record) while matching chunks stay
+    searchable.
+    """
+    result = get_client().collections[collection_name(index_id)].documents.delete(
+        {"filter_by": filter_by},
+    )
+    return result.get("num_deleted", 0)
 
 
 def delete_from_collection(col_name: str, filter_by: str) -> int:
@@ -1567,10 +1646,10 @@ def ensure_img_vec_field(index_id: str, dim: int) -> None:
         col.update({"fields": add})
 
 
-def export_documents(index_id: str, include_fields: list[str],
+def export_documents(index_id: str, include_fields: list[str] | None,
                      filter_by: str | None = None) -> list[dict]:
-    """Export documents (only ``include_fields``) from an ISP-managed collection."""
-    params: dict = {"include_fields": ",".join(include_fields)}
+    """Export documents (only ``include_fields``; None = every field) from an ISP-managed collection."""
+    params: dict = {"include_fields": ",".join(include_fields)} if include_fields else {}
     if filter_by:
         params["filter_by"] = filter_by
     raw = get_client().collections[collection_name(index_id)].documents.export(params)
