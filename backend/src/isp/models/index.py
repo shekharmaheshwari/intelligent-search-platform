@@ -230,6 +230,10 @@ class IndexMeta(BaseModel):
     # Image search: {"enabled": bool, "field": str, "last_run": {...}}. ``field``
     # names the doc field holding the product image URL (a string or list of URLs).
     image_search: dict = {}
+    # Document chunking (see services/domain/chunking.py, docs/chunkingDesign.md):
+    # ChunkingConfig fields plus ``applied`` — whether the collection was built
+    # with chunk fields. {} = not configured yet; defaults from the source type.
+    chunking: dict = {}
     # Cache of resolved superlative-query concepts ("cheapest" -> price concept)
     # to this index's actual field names. Write-through cache — populated lazily
     # the first time a concept is resolved live, not recomputed on every request.

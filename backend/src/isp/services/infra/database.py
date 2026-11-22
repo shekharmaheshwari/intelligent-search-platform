@@ -258,6 +258,10 @@ async def init_db() -> None:
             ADD COLUMN IF NOT EXISTS image_search JSONB DEFAULT '{}';
         """)
         await conn.execute("""
+            ALTER TABLE indexes
+            ADD COLUMN IF NOT EXISTS chunking JSONB DEFAULT '{}';
+        """)
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS image_embeddings (
                 model       VARCHAR(80)  NOT NULL,
                 url_hash    CHAR(64)     NOT NULL,

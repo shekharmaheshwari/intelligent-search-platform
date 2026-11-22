@@ -23,7 +23,7 @@ from isp.models import (
     RestConnectorConfig, SitemapConnectorConfig, GSheetConnectorConfig, JsonFileConnectorConfig, ConnectorConfig,
     IntentLabelUpdate, MappingConfig,
 )
-from isp.services.domain import index_service, extension_service, suggestion_service
+from isp.services.domain import chunking, index_service, extension_service, suggestion_service
 from isp.services.domain import manual_document_service as manual_docs
 from isp.services.domain import image_index_service
 from isp.services.infra import image_embedding
@@ -532,6 +532,49 @@ async def set_version_boost(idx_id: str, body: VersionBoostUpdate):
     return meta
 
 
+def _chunking_view(meta: IndexMeta) -> dict:
+    """Effective chunking settings: stored values, or the source-type default."""
+    stored = meta.chunking or {}
+    cfg = chunking.load(stored)
+    if "enabled" not in stored:
+        cfg.enabled = chunking.default_enabled(meta.connectors[0].get("type") if meta.connectors else None)
+    applied = chunking.applied_config(stored)
+    return {**cfg.model_dump(),
+            "applied": applied.model_dump() if applied else None,
+            "rebuild_required": chunking.needs_rebuild(stored, cfg)}
+
+
+@router.get("/{idx_id}/chunking", summary="Get document chunking settings")
+async def get_chunking(idx_id: str):
+    """
+    Chunking settings for this index (see docs/chunkingDesign.md).
+
+    ``applied`` is the config the collection was built with (None = not
+    chunked); ingests keep using it until a rebuild. ``rebuild_required`` is
+    true when the saved settings differ from it (on/off or any size).
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    return _chunking_view(meta)
+
+
+@router.put("/{idx_id}/chunking", summary="Update document chunking settings")
+async def update_chunking(idx_id: str, body: chunking.ChunkingConfig):
+    """
+    Save chunking settings. Takes effect on the next rebuild: turning chunking
+    on or off, or changing chunk sizes, re-chunks every document then.
+    """
+    meta = await _resolve_index(idx_id)
+    if not meta:
+        raise HTTPException(404, "Index not found")
+    if meta.is_external or meta.external_collection:
+        raise HTTPException(400, "Chunking is not supported for external indexes")
+    await index_service.merge_chunking(meta.id, body.model_dump())
+    meta.chunking = {**(meta.chunking or {}), **body.model_dump()}
+    return _chunking_view(meta)
+
+
 @router.put("/{idx_id}/intent-label", response_model=IndexMeta, summary="Set intent label")
 async def update_intent_label(idx_id: str, body: IntentLabelUpdate):
     """
@@ -597,7 +640,7 @@ async def update_affinity_dimensions(idx_id: str, body: AffinityDimensionUpdate)
     return {"dimensions": body.dimensions, "viewed_item_policy": policy}
 
 
-_FIELD_SYSTEM = {"id", "vec", "indexed_at", *ts.IMAGE_SYSTEM_FIELDS}
+_FIELD_SYSTEM = {"id", "vec", "indexed_at", *ts.IMAGE_SYSTEM_FIELDS, *chunking.FIELD_NAMES}
 _FIELD_ALWAYS_SEARCHABLE = {"title", "content", "aliases"}
 
 
@@ -628,6 +671,129 @@ async def _embed_in_place(docs: list[dict], model: str) -> None:
         for list_pos, doc_idx in enumerate(embed_idxs):
             if vecs[list_pos]:
                 docs[doc_idx]["vec"] = vecs[list_pos]
+
+
+# ── Chunking (logic in services/domain/chunking.py) ───────────────────────────
+
+async def _chunking_plan(meta: IndexMeta | None, connector_type: str | None, *,
+                         rebuild: bool) -> chunking.ChunkingConfig | None:
+    """
+    Chunking config for this write, or None when it must not chunk.
+
+    Resolves the source-type default the first time. A rebuild (or the first
+    write into an empty index) adopts the wanted config; an append keeps the
+    config the collection was built with (``applied``), so one collection never
+    mixes chunked and unchunked docs or two chunk sizes.
+
+    ``applied`` changes only together with the collection: a rebuild clears it
+    in ``_clear_applied`` right before dropping the old collection (so a rebuild
+    that fails earlier leaves the existing chunks grouped), and
+    ``_mark_chunked`` sets it after a successful write.
+    """
+    if meta is None or meta.external_collection:
+        return None
+    stored = dict(meta.chunking or {})
+    cfg = chunking.load(stored)
+    updates: dict = {}
+    if "enabled" not in stored:
+        cfg.enabled = chunking.default_enabled(connector_type)
+        updates["enabled"] = cfg.enabled
+    if rebuild:
+        plan = cfg if cfg.enabled else None
+    elif not meta.doc_count:           # empty collection: nothing to keep grouped
+        plan = cfg if cfg.enabled else None
+        if stored.get("applied"):
+            updates["applied"] = None
+    else:
+        plan = chunking.applied_config(stored)
+    if updates:
+        await index_service.merge_chunking(meta.id, updates)
+        meta.chunking = {**stored, **updates}
+    return plan
+
+
+async def _clear_applied(idx_id: str, meta: IndexMeta) -> None:
+    """Call right before a rebuild drops the collection: the new one starts unchunked."""
+    if chunking.is_applied(meta.chunking):
+        await index_service.merge_chunking(idx_id, {"applied": None})
+        meta.chunking = {**meta.chunking, "applied": None}
+
+
+async def _mark_chunked(idx_id: str, plan: chunking.ChunkingConfig | None) -> None:
+    """Record the config the collection now holds (search may group)."""
+    if plan:
+        await index_service.merge_chunking(idx_id, {"applied": plan.model_dump()})
+
+
+def _chunk(docs: list[dict], plan: chunking.ChunkingConfig | None) -> list[dict]:
+    return chunking.chunk_documents(docs, plan) if plan else docs
+
+
+def _delete_stale_chunks(idx_id: str, docs: list[dict], parents: set[str]) -> None:
+    """
+    Remove records of ``parents`` left over from their previous chunk layout.
+
+    Only for chunk records: ``chunk_count:!=N`` also matches records *without*
+    the field, so running it for a plain record would delete that record itself.
+    Raises when a delete fails, so callers never report leftovers as cleaned up.
+    """
+    by_count: dict[int, list[str]] = {}
+    for d in docs:
+        key = chunking.parent_key(d)
+        if key in parents and "chunk_count" in d and d.get("chunk_index") == 0:
+            by_count.setdefault(int(d["chunk_count"]), []).append(key)
+    for count, ids in by_count.items():
+        for i in range(0, len(ids), 100):
+            ts.delete_by_filter(idx_id, chunking.stale_filter(ids[i:i + 100], count))
+
+
+def _snapshot_families(idx_id: str, parents: list[str]) -> list[dict]:
+    """Every indexed record (with vectors) of these documents, to restore on failure."""
+    out: list[dict] = []
+    for i in range(0, len(parents), 100):
+        out += ts.export_documents(idx_id, None, chunking.family_filter(parents[i:i + 100]))
+    return out
+
+
+def _restore_families(idx_id: str, parents: set[str], snapshot: list[dict]) -> None:
+    """Put documents back exactly as in ``snapshot``: drop every current record of
+    ``parents`` (including a partial new layout), re-import their old records."""
+    ids = sorted(parents)
+    try:
+        for i in range(0, len(ids), 100):
+            ts.delete_by_filter(idx_id, chunking.family_filter(ids[i:i + 100]))
+    except Exception:
+        log.error("Restore could not remove new records: index_id=%s docs=%s",
+                  idx_id, ids[:10], exc_info=True)
+    errors = ts.import_documents(idx_id, [d for d in snapshot if chunking.parent_key(d) in parents])
+    if any(errors):
+        log.error("Restore could not re-import previous records: index_id=%s errors=%s",
+                  idx_id, [e for e in errors if e][:5])
+
+
+def _upsert(idx_id: str, docs: list[dict], plan: chunking.ChunkingConfig | None, *,
+            replace_chunks: bool = False) -> int:
+    """
+    Upsert docs; returns how many *source documents* were fully written.
+
+    On a chunked index a document is all-or-nothing: if any of its new chunks
+    fails to import, every record of it is reset to its pre-write state — the
+    previous version on an append (``replace_chunks``), nothing on a rebuild —
+    so no mix of old and new chunks survives. Fully written documents then lose
+    the leftovers of their previous layout.
+    """
+    snapshot = _snapshot_families(idx_id, chunking.parent_ids(docs)) if plan and replace_chunks else []
+    errors = ts.import_documents(idx_id, docs)
+    failed = {chunking.parent_key(d) for d, err in zip(docs, errors) if err}
+    if failed:
+        log.error("%d of %d documents failed to index: index_id=%s sample=%s",
+                  len(failed), len(chunking.parent_ids(docs)), idx_id, sorted(failed)[:5])
+        if plan:
+            _restore_families(idx_id, failed, snapshot)
+    written = [p for p in chunking.parent_ids(docs) if p not in failed]
+    if plan and replace_chunks and written:
+        _delete_stale_chunks(idx_id, docs, set(written))
+    return len(written)
 
 
 # Sitemap pages are embedded and upserted in batches of this size while the
@@ -667,22 +833,29 @@ async def _ingest_sitemap_batched(idx_id: str, connector_cfg: dict, cfg: Sitemap
     # Use this index's dedicated model, or fall back to the global active model.
     effective_model = (meta.embed_model if meta else "") or embedding_service.get_current_model()
     static_fields = connector_cfg.get("static_fields", {})
+    plan = await _chunking_plan(meta, "sitemap", rebuild=False)
+    marked = False
 
     async def index_batch(batch: list[dict]) -> None:
+        nonlocal marked
         batch = await apply_extensions(batch, transform_exts)
         # Stamp static_fields after the crawled page data and extensions have been processed.
         if static_fields:
             batch = [{**item, **static_fields} for item in batch if isinstance(item, dict)]
-        batch = _ensure_isp_schema(batch)
+        batch = _chunk(_ensure_isp_schema(batch), plan)
         await _embed_in_place(batch, effective_model)
         # Sync Typesense SDK — off the event loop so crawl workers keep running.
-        s.indexed += await asyncio.to_thread(ts.upsert_documents, idx_id, batch)
+        s.indexed += await asyncio.to_thread(_upsert, idx_id, batch, plan, replace_chunks=True)
+        if not marked:      # chunk records exist now: group them even if a later batch fails
+            await _mark_chunked(idx_id, plan)
+            marked = True
         await index_service.set_status(s)
 
     progress = _crawl_progress(s)
 
     await sitemap_connector.crawl_batches(cfg, index_batch, batch_size=_SITEMAP_BATCH,
-                                          on_progress=progress, ext_records=ext_records)
+                                          on_progress=progress, ext_records=ext_records,
+                                          max_content_chars=plan.max_content_chars if plan else None)
     s.state = "done"
     # Re-read the index: settings saved while the crawl ran (e.g. on the
     # Connector tab) must survive.  The connector config itself was already
@@ -694,7 +867,8 @@ async def _ingest_sitemap_batched(idx_id: str, connector_cfg: dict, cfg: Sitemap
 
 
 async def _rebuild_sitemap_batched(idx_id: str, meta, cfg_dict: dict, cfg: SitemapConnectorConfig,
-                                   ext_records: list[dict], s) -> None:
+                                   ext_records: list[dict], s,
+                                   plan: chunking.ChunkingConfig | None = None) -> None:
     """
     Sitemap rebuild: crawl → extensions → embed → drop+recreate ``isp_{id}`` → upsert,
     one batch at a time.
@@ -710,27 +884,32 @@ async def _rebuild_sitemap_batched(idx_id: str, meta, cfg_dict: dict, cfg: Sitem
     else:
         rebuild_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
     _sf = cfg_dict.get("static_fields", {})
-    recreated = False
+    recreated = marked = False
 
     async def index_batch(batch: list[dict]) -> None:
-        nonlocal recreated
+        nonlocal recreated, marked
         batch = await apply_extensions(batch, ext_records)
         if _sf:
             batch = [{**d, **_sf} for d in batch if isinstance(d, dict)]
-        batch = _ensure_isp_schema(batch)
+        batch = _chunk(_ensure_isp_schema(batch), plan)
         await _embed_in_place(batch, effective_model)
         if not recreated:
+            await _clear_applied(idx_id, meta)
             await asyncio.to_thread(ts.drop_collection, idx_id)
             await asyncio.to_thread(ts.create_collection, idx_id, vec_dim=rebuild_dim)
             recreated = True
         # Sync Typesense SDK — off the event loop so crawl workers keep running.
-        s.indexed += await asyncio.to_thread(ts.upsert_documents, idx_id, batch)
+        s.indexed += await asyncio.to_thread(_upsert, idx_id, batch, plan)
+        if not marked:      # chunk records exist now: group them even if a later batch fails
+            await _mark_chunked(idx_id, plan)
+            marked = True
         await index_service.set_status(s)
 
     progress = _crawl_progress(s)
 
     await sitemap_connector.crawl_batches(cfg, index_batch, batch_size=_SITEMAP_BATCH,
-                                          on_progress=progress, ext_records=ext_records)
+                                          on_progress=progress, ext_records=ext_records,
+                                          max_content_chars=plan.max_content_chars if plan else None)
     if not recreated:
         raise ValueError("0 pages crawled — check the sitemap URL and filters.")
 
@@ -1340,6 +1519,8 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
         meta = await index_service.get_index(idx_id)
         # Use this index's dedicated model, or fall back to the global active model.
         effective_model = (meta.embed_model if meta else "") or embedding_service.get_current_model()
+        plan = await _chunking_plan(meta, ctype, rebuild=False)
+        docs = _chunk(docs, plan)
 
         # Only embed docs that have non-empty text; skip the rest to avoid
         # empty-string rejections from the embedding provider.
@@ -1354,7 +1535,8 @@ async def _run_ingest(idx_id: str, connector_cfg: dict) -> None:
                 if vecs[list_pos]:
                     docs[doc_idx]["vec"] = vecs[list_pos]
 
-        ok = ts.upsert_documents(idx_id, docs)
+        ok = _upsert(idx_id, docs, plan, replace_chunks=True)
+        await _mark_chunked(idx_id, plan)
         s.indexed = ok
         s.state = "done"
 
@@ -1536,6 +1718,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
         ctype = cfg_dict.get("type", "rest")
         cfg_data = {k: v for k, v in cfg_dict.items() if k != "type"}
+        plan = await _chunking_plan(meta, ctype, rebuild=True)   # None for catalog write-back
 
         if meta.external_collection:
             # ── Write-back mode: catalog sources are always REST ──
@@ -1582,7 +1765,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
             # ── ISP-managed sitemap path ──
             sitemap_cfg = SitemapConnectorConfig(**cfg_data)
             ext_records = await extension_service.list_index_extensions(idx_id)
-            await _rebuild_sitemap_batched(idx_id, meta, cfg_dict, sitemap_cfg, ext_records, s)
+            await _rebuild_sitemap_batched(idx_id, meta, cfg_dict, sitemap_cfg, ext_records, s, plan)
 
         elif ctype == "gsheet":
             # ── ISP-managed Google Sheets path ──
@@ -1603,6 +1786,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
+            docs = _chunk(docs, plan)
             raw_texts = [_build_embed_text(d) for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
@@ -1614,6 +1798,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                     if vecs[list_pos]:
                         docs[doc_idx]["vec"] = vecs[list_pos]
 
+            await _clear_applied(idx_id, meta)
             ts.drop_collection(idx_id)
             if effective_model == "custom":
                 cfg_c = await get_custom_config()
@@ -1622,7 +1807,8 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                 rebuild_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
             ts.create_collection(idx_id, vec_dim=rebuild_dim)
 
-            ok = ts.upsert_documents(idx_id, docs)
+            ok = _upsert(idx_id, docs, plan)
+            await _mark_chunked(idx_id, plan)
             s.indexed = ok
             s.state = "done"
 
@@ -1662,6 +1848,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                 raise ValueError("0 documents parsed — check field mapping.")
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
+            docs = _chunk(docs, plan)
             raw_texts = [_build_embed_text(d) for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
@@ -1671,6 +1858,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                     if vecs[list_pos]:
                         docs[doc_idx]["vec"] = vecs[list_pos]
 
+            await _clear_applied(idx_id, meta)
             ts.drop_collection(idx_id)
             if effective_model == "custom":
                 cfg_c = await get_custom_config()
@@ -1679,7 +1867,8 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                 rebuild_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
             ts.create_collection(idx_id, vec_dim=rebuild_dim)
 
-            ok = ts.upsert_documents(idx_id, docs)
+            ok = _upsert(idx_id, docs, plan)
+            await _mark_chunked(idx_id, plan)
             s.indexed = ok
             s.state = "done"
             meta.doc_count = ok
@@ -1722,6 +1911,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
 
             effective_model = meta.embed_model or embedding_service.get_current_model()
 
+            docs = _chunk(docs, plan)
             raw_texts = [_build_embed_text(d) for d in docs]
             embed_idxs = [i for i, t in enumerate(raw_texts) if t]
             if embed_idxs:
@@ -1733,6 +1923,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                     if vecs[list_pos]:
                         docs[doc_idx]["vec"] = vecs[list_pos]
 
+            await _clear_applied(idx_id, meta)
             ts.drop_collection(idx_id)
             if effective_model == "custom":
                 cfg_c = await get_custom_config()
@@ -1741,7 +1932,8 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
                 rebuild_dim = DIM_BY_MODEL.get(effective_model, ts.get_vec_dim())
             ts.create_collection(idx_id, vec_dim=rebuild_dim)
 
-            ok = ts.upsert_documents(idx_id, docs)
+            ok = _upsert(idx_id, docs, plan)
+            await _mark_chunked(idx_id, plan)
             s.indexed = ok
             s.state = "done"
 
@@ -1757,7 +1949,7 @@ async def _run_rebuild(idx_id: str, cfg_dict: dict) -> None:
         # next rebuild.
         if not meta.external_collection:
             try:
-                restored = await _restore_manual_docs(idx_id)
+                restored = await _restore_manual_docs(idx_id, plan)
                 s.indexed += restored
             except Exception:
                 log.error("Restoring manual documents failed after rebuild: index_id=%s",
@@ -1973,14 +2165,19 @@ async def update_document(idx_id: str, doc_id: str, patch: DocPatchRequest):
     if patch.boost_queries_contains is not None:
         update_fields["boost_queries_contains"] = [s for s in patch.boost_queries_contains if s]
 
-    ok = ts.update_document_fields(col, doc_id, update_fields)
+    # A split document's editorial signals live on every chunk, so ranking is
+    # the same whichever chunk matches.
+    parent = chunking.parent_key(doc)
+    ids = ([d["id"] for d in ts.export_documents(meta.id, ["id"], chunking.family_filter([parent]))]
+           if chunking.is_chunk(doc) else [doc_id])
+    ok = all([ts.update_document_fields(col, i, update_fields) for i in ids])
     if not ok:
         raise HTTPException(500, "Typesense update failed")
     # Manual docs are rebuilt from Postgres — keep the stored payload in step so
     # a rebuild does not revert these editorial edits.
-    if manual_docs.is_manual_id(doc_id):
+    if manual_docs.is_manual_id(parent):
         await manual_docs.merge_fields(
-            meta.id, doc_id, patch.model_dump(exclude_none=True),
+            meta.id, parent, patch.model_dump(exclude_none=True),
         )
     return {"ok": True}
 
@@ -1989,7 +2186,7 @@ async def update_document(idx_id: str, doc_id: str, patch: DocPatchRequest):
 
 # Fields the form never shows: derived server-side or internal.
 _MANUAL_HIDDEN_FIELDS = {"id", "vec", "indexed_at", "metadata", "source_type", "version_score",
-                         *ts.IMAGE_SYSTEM_FIELDS}
+                         *ts.IMAGE_SYSTEM_FIELDS, *chunking.FIELD_NAMES}
 _MANUAL_CORE_FIELDS = [
     {"name": "title",   "type": "string", "required": True,  "group": "core"},
     {"name": "content", "type": "string", "required": True,  "group": "core"},
@@ -2016,18 +2213,21 @@ async def _vec_dim_for(model: str) -> int:
     return DIM_BY_MODEL.get(model, ts.get_vec_dim())
 
 
-async def _prepare_manual_docs(meta: IndexMeta, items: list[tuple[str, dict]]) -> list[dict]:
-    """Normalise stored payloads to the ISP schema and embed them."""
+async def _prepare_manual_docs(meta: IndexMeta, items: list[tuple[str, dict]],
+                               plan: chunking.ChunkingConfig | None) -> list[dict]:
+    """Normalise stored payloads to the ISP schema, chunk them like connector
+    docs (``plan`` None = unchunked collection, one plain record each), and embed them."""
     docs = _ensure_isp_schema([manual_docs.to_index_doc(i, p) for i, p in items])
     for d in docs:
         # A form field named "type" would otherwise win over source_type.
         d["source_type"] = manual_docs.SOURCE_TYPE
+    docs = _chunk(docs, plan)
     model = meta.embed_model or embedding_service.get_current_model()
     await _embed_in_place(docs, model)
     return docs
 
 
-async def _restore_manual_docs(idx_id: str) -> int:
+async def _restore_manual_docs(idx_id: str, plan: chunking.ChunkingConfig | None) -> int:
     """Re-index every manual doc of an index from Postgres. Returns the count upserted."""
     items = await manual_docs.list_for_index(idx_id)
     if not items:
@@ -2035,13 +2235,18 @@ async def _restore_manual_docs(idx_id: str) -> int:
     meta = await index_service.get_index(idx_id)
     if not meta:
         return 0
-    docs = await _prepare_manual_docs(meta, items)
-    ok = ts.upsert_documents(idx_id, docs)
+    docs = await _prepare_manual_docs(meta, items, plan)
+    ok = _upsert(idx_id, docs, plan)
     await index_service.set_doc_count(idx_id, ts.count_documents(idx_id))
-    if ok < len(docs):
+    if ok < len(items):
         log.error("Only %d of %d manual documents were re-indexed: index_id=%s",
-                  ok, len(docs), idx_id)
+                  ok, len(items), idx_id)
     return ok
+
+
+def _restore_manual_family(idx_id: str, doc_id: str, previous: list[dict]) -> None:
+    """Undo a manual-doc write: drop every record of ``doc_id``, put back ``previous``."""
+    _restore_families(idx_id, {doc_id}, previous)
 
 
 async def _save_manual_doc(meta: IndexMeta, doc_id: str, body: dict, *, is_update: bool) -> dict:
@@ -2055,41 +2260,46 @@ async def _save_manual_doc(meta: IndexMeta, doc_id: str, body: dict, *, is_updat
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
-    docs = await _prepare_manual_docs(meta, [(doc_id, payload)])
+    # Chunked like connector docs, with the layout the collection already holds.
+    connector_type = meta.connectors[0].get("type") if meta.connectors else None
+    plan = await _chunking_plan(meta, connector_type, rebuild=False)
+    docs = await _prepare_manual_docs(meta, [(doc_id, payload)], plan)
     if not docs:
         raise HTTPException(400, "title and content are required")
-    doc = docs[0]
 
     model = meta.embed_model or embedding_service.get_current_model()
     ts.create_collection(meta.id, vec_dim=await _vec_dim_for(model))   # no-op if it exists
-    # Snapshot the indexed version (with its vector) so a failed update can be undone.
-    previous = ts.retrieve_document(ts.collection_name(meta.id), doc_id) if is_update else None
-    # Typesense first: if it rejects the doc (e.g. wrong type for a field) we
-    # return the reason and store nothing.
-    err = ts.upsert_document(meta.id, doc)
-    if err:
-        raise HTTPException(400, f"Typesense rejected the document: {err}")
+    # Snapshot every indexed record (with vectors) so a failed update can be undone.
+    previous = _snapshot_families(meta.id, [doc_id]) if is_update else []
+    # Typesense first: if it rejects a record (e.g. wrong type for a field) we
+    # undo the partial write, return the reason and store nothing.
+    errors = ts.import_documents(meta.id, docs)
+    if any(errors):
+        _restore_manual_family(meta.id, doc_id, previous)
+        raise HTTPException(400, f"Typesense rejected the document: {next(e for e in errors if e)}")
+    if plan:
+        try:
+            _delete_stale_chunks(meta.id, docs, {doc_id})
+        except Exception:
+            log.error("Stale chunk cleanup failed: index_id=%s doc_id=%s", meta.id, doc_id, exc_info=True)
+            _restore_manual_family(meta.id, doc_id, previous)
+            raise HTTPException(500, "Typesense delete failed")
     try:
         await manual_docs.upsert(meta.id, doc_id, payload)
     except Exception:
-        restore_err = ts.upsert_document(meta.id, previous) if previous else None
-        if previous is None or restore_err:
-            # Nothing to restore (a create, or the old copy was already missing
-            # from Typesense): drop the new copy so Typesense never holds a doc
-            # Postgres doesn't. An update stays recoverable via the next rebuild.
-            if restore_err:
-                log.error("Could not restore manual doc after failed update: index_id=%s "
-                          "doc_id=%s error=%s", meta.id, doc_id, restore_err)
-            ts.delete_document(meta.id, doc_id)
+        # Typesense must never hold a version Postgres doesn't: put the old
+        # records back (an update) or remove the new ones (a create).
+        _restore_manual_family(meta.id, doc_id, previous)
         raise
 
+    await _mark_chunked(meta.id, plan)
     # Only doc_count: ``meta`` was read before embedding, so a full write could
     # revert settings changed meanwhile (connectors, field config…).
     await index_service.set_doc_count(meta.id, ts.count_documents(meta.id))
     # Embed this doc's image so it is image-searchable right away (never raises).
     if (meta.image_search or {}).get("enabled"):
-        await image_index_service.index_images(meta.id, [doc_id])
-    return {k: v for k, v in doc.items() if k != "vec"}
+        await image_index_service.index_images(meta.id, [docs[0]["id"]])
+    return {k: v for k, v in docs[0].items() if k != "vec"}
 
 
 @router.get("/{idx_id}/documents/form-schema", summary="Fields for the manual document form")
@@ -2116,6 +2326,7 @@ async def get_manual_document_form_schema(idx_id: str):
 async def get_manual_document(idx_id: str, doc_id: str):
     """Return the stored form payload of a manual document, for the edit form."""
     meta = await _manual_index_or_404(idx_id)
+    doc_id = chunking.parent_of(doc_id)
     payload = await manual_docs.get(meta.id, doc_id)
     if payload is None:
         raise HTTPException(404, "Manual document not found")
@@ -2138,6 +2349,7 @@ async def create_manual_document(idx_id: str, body: dict):
 async def update_manual_document(idx_id: str, doc_id: str, body: dict):
     """Replace all fields of a manual document and re-embed it."""
     meta = await _manual_index_or_404(idx_id)
+    doc_id = chunking.parent_of(doc_id)
     if not manual_docs.is_manual_id(doc_id) or await manual_docs.get(meta.id, doc_id) is None:
         raise HTTPException(404, "Manual document not found")
     return await _save_manual_doc(meta, doc_id, body, is_update=True)
@@ -2148,9 +2360,16 @@ async def update_manual_document(idx_id: str, doc_id: str, body: dict):
 async def delete_manual_document(idx_id: str, doc_id: str):
     """Delete a manual document. Connector documents cannot be deleted here."""
     meta = await _manual_index_or_404(idx_id)
+    doc_id = chunking.parent_of(doc_id)
     if not manual_docs.is_manual_id(doc_id):
         raise HTTPException(400, "Only manual documents can be deleted")
-    if not ts.delete_document(meta.id, doc_id):
+    # Every record (the doc, or all its chunks) must be gone before the Postgres
+    # source is removed — otherwise orphaned chunks stay searchable.
+    try:
+        ts.delete_by_filter(meta.id, chunking.family_filter([doc_id]))
+    except Exception:
+        log.error("Manual doc delete failed in Typesense: index_id=%s doc_id=%s",
+                  meta.id, doc_id, exc_info=True)
         raise HTTPException(500, "Typesense delete failed")
     if not await manual_docs.delete(meta.id, doc_id):
         raise HTTPException(404, "Manual document not found")

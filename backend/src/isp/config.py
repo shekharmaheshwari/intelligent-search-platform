@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     port: int = 8001
     log_level: str = "INFO"   # DEBUG | INFO | WARNING | ERROR | CRITICAL
     training_scheduler_enabled: bool = True  # run per-index scheduled retrains (query boost) on this instance
+    chat_query_boost_enabled: bool = False  # opt-in learned lift before ordinary chat context selection
 
     # ── Auth (Approach 3 — OAuth2 / OIDC SSO) ─────────────────────────────────
     # All disabled by default; existing behaviour is unchanged when auth_enabled=false.

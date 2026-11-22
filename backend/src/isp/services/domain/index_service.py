@@ -124,6 +124,11 @@ def _row_to_meta(row: dict) -> IndexMeta:
             if isinstance(row.get("image_search"), str)
             else (row.get("image_search") or {})
         ),
+        chunking=(
+            json.loads(row["chunking"])
+            if isinstance(row.get("chunking"), str)
+            else (row.get("chunking") or {})
+        ),
     )
 
 
@@ -277,6 +282,16 @@ async def merge_image_search(idx_id: str, fields: dict) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             "UPDATE indexes SET image_search = COALESCE(image_search, '{}'::jsonb) || $1::jsonb WHERE id = $2",
+            json.dumps(fields), idx_id,
+        )
+
+
+async def merge_chunking(idx_id: str, fields: dict) -> None:
+    """Merge keys into the chunking config (targeted write; other settings untouched)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE indexes SET chunking = COALESCE(chunking, '{}'::jsonb) || $1::jsonb WHERE id = $2",
             json.dumps(fields), idx_id,
         )
 
