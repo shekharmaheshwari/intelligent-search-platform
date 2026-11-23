@@ -1,0 +1,56 @@
+{
+  "question_writer": "claude-sonnet-5-5",
+  "unparsable_questions": 6,
+  "retrieval": {
+    "offer_only / top1": {
+      "offer_correct": 37
+    },
+    "offer_only / select": {
+      "offer_correct": 61
+    },
+    "phone_offer / top1": {
+      "offer_correct": 194
+    },
+    "phone_offer / select": {
+      "offer_correct": 215
+    }
+  },
+  "decisions": {
+    "offer_only / top1 / checker": {
+      "exact": 298,
+      "unsupported": 74
+    },
+    "offer_only / top1 / program": {
+      "exact": 303,
+      "unsupported": 74
+    },
+    "offer_only / select / checker": {
+      "exact": 155,
+      "unsupported": 9
+    },
+    "offer_only / select / program": {
+      "exact": 157,
+      "unsupported": 9
+    },
+    "phone_offer / top1 / checker": {
+      "exact": 420,
+      "unsupported": 59
+    },
+    "phone_offer / top1 / program": {
+      "exact": 426,
+      "unsupported": 65
+    },
+    "phone_offer / select / checker": {
+      "exact": 346,
+      "unsupported": 17
+    },
+    "phone_offer / select / program": {
+      "exact": 346,
+      "unsupported": 21
+    },
+    "phone_offer / select / direct": {
+      "exact": 315,
+      "unsupported": 98
+    }
+  }
+}

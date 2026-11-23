@@ -1,0 +1,206 @@
+{
+  "GPT-4o-mini direct (v1 prompt)": {
+    "exact": [
+      51
+    ],
+    "fields": [
+      464
+    ],
+    "unsupported": [
+      69
+    ],
+    "withheld_wrongly": [
+      11
+    ],
+    "invalid": [
+      0
+    ]
+  },
+  "GPT-5.4-mini direct, low (v2 prompt)": {
+    "exact": [
+      137,
+      135,
+      133
+    ],
+    "fields": [
+      602,
+      599,
+      598
+    ],
+    "unsupported": [
+      38,
+      40,
+      39
+    ],
+    "withheld_wrongly": [
+      0,
+      0,
+      0
+    ],
+    "invalid": [
+      0,
+      0,
+      0
+    ],
+    "consistent_cases": 154
+  },
+  "GPT-5.4-mini code (v2 prompt)": {
+    "exact": [
+      152,
+      160,
+      24
+    ],
+    "fields": [
+      624,
+      640,
+      504
+    ],
+    "unsupported": [
+      16,
+      0,
+      0
+    ],
+    "withheld_wrongly": [
+      0,
+      0,
+      136
+    ],
+    "invalid": [
+      0,
+      0,
+      0
+    ],
+    "consistent_cases": 24
+  },
+  "GPT-5.4-mini direct, low (v3 prompt)": {
+    "exact": [
+      147,
+      145,
+      147
+    ],
+    "fields": [
+      623,
+      620,
+      623
+    ],
+    "unsupported": [
+      16,
+      17,
+      12
+    ],
+    "withheld_wrongly": [
+      1,
+      0,
+      0
+    ],
+    "invalid": [
+      0,
+      0,
+      0
+    ],
+    "consistent_cases": 151
+  },
+  "GPT-5.4-mini direct, medium + 4 examples (v3 prompt)": {
+    "exact": [
+      152
+    ],
+    "fields": [
+      625
+    ],
+    "unsupported": [
+      15
+    ],
+    "withheld_wrongly": [
+      0
+    ],
+    "invalid": [
+      0
+    ]
+  },
+  "GPT-5.4-mini code (v3 prompt)": {
+    "exact": [
+      160,
+      160,
+      160
+    ],
+    "fields": [
+      640,
+      640,
+      640
+    ],
+    "unsupported": [
+      0,
+      0,
+      0
+    ],
+    "withheld_wrongly": [
+      0,
+      0,
+      0
+    ],
+    "invalid": [
+      0,
+      0,
+      0
+    ],
+    "consistent_cases": 160
+  },
+  "Hand-written verifier": {
+    "exact": [
+      160
+    ],
+    "fields": [
+      640
+    ],
+    "unsupported": [
+      0
+    ],
+    "withheld_wrongly": [
+      0
+    ],
+    "invalid": [
+      0
+    ]
+  },
+  "Selected v3 program (pre-registered rule)": {
+    "exact": [
+      160
+    ],
+    "fields": [
+      640
+    ],
+    "unsupported": [
+      0
+    ],
+    "withheld_wrongly": [
+      0
+    ],
+    "invalid": [
+      0
+    ]
+  },
+  "v3_selection": {
+    "selection_rule": "most exact development cases out of 40; ties broken by the lowest seed",
+    "programs": [
+      {
+        "run": 1,
+        "dev_exact": 40,
+        "dev_error": null,
+        "test_error": null
+      },
+      {
+        "run": 2,
+        "dev_exact": 40,
+        "dev_error": null,
+        "test_error": null
+      },
+      {
+        "run": 3,
+        "dev_exact": 40,
+        "dev_error": null,
+        "test_error": null
+      }
+    ],
+    "selected_run": 1
+  }
+}

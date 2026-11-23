@@ -1,0 +1,15 @@
+{
+  "resumed_at": "2026-10-10T18:45:55-0400",
+  "reason": "provider credits exhausted mid-run (HTTP 429 \"no credits remaining\"); runs stopped, credits added, resumed with the same code",
+  "kept": [
+    "questions",
+    "parse",
+    "select",
+    "direct_oracle",
+    "direct_top1"
+  ],
+  "rerun": [
+    "direct_select and all later phases"
+  ],
+  "note": "no results were scored or inspected before resuming; cached complete calls are reused, failed ones re-sent"
+}

@@ -1,0 +1,32 @@
+{
+  "written_before_first_call": "2026-10-10T18:28:28-0400",
+  "model_alias": "gpt-5.4-mini",
+  "cases": 800,
+  "world_sha256": "26f2c39aef244656e608a3497b19f3a272b869a1c7acf7074f2c830eaf5a3837",
+  "phases": [
+    "questions (low effort, seed 1)",
+    "parse (low, seed 1)",
+    "select (low, seed 1)",
+    "direct answers on oracle, top1 and select records (round-2 prompt, low effort, seed 1)"
+  ],
+  "retrieval": {
+    "oracle": "the case's own records",
+    "top1": "first offer_id from Typesense offer search",
+    "select": "model choice among top-5 offer hits, or none"
+  },
+  "decisions": [
+    "hand-written checker",
+    "pre-registered round-2 program v3_code_run1.py",
+    "direct GPT-5.4-mini"
+  ],
+  "metrics": "offer retrieval accuracy (null is correct for missing-offer cases); exact cases vs expected answers; unsupported answers; every combination reported, run once",
+  "sha256": {
+    "question_sys": "d89c0e77b15b2c869c362502f9167990f34b5cfef4ed4f9097c8d14e965eadd8",
+    "parse_sys": "096f9a8031fb5bc112ca055709f3154e5ed904c79822ab8ecb63e0284543f7ad",
+    "select_sys": "bc974d99374834e74161084b885ee9db8f8f770b04b30b9e1450f9285b444e6e",
+    "direct_sys": "f2c36f1abbc65fbe534ee01b4904eeba3d54ca888e51cad4b5825d8947199367",
+    "program": "950a04eb6bb895e3d9644a5d75d16cb8ea3dd7ab0254000b8ef5428ec77da1b1",
+    "pipeline": "83e2c3cd12c5068c5a785ad08071225175ef8efe45132ce98e7e68dc441f0197",
+    "retrieval": "a934bb8869e0902dfb03775f9a2d762cc8f2a065606bf86049e81175dbd45f60"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "written_before_first_call": "2026-10-10T18:52:56-0400",
+  "question_writer": "claude-sonnet-5-5",
+  "instruction_sha256": "d89c0e77b15b2c869c362502f9167990f34b5cfef4ed4f9097c8d14e965eadd8",
+  "pipeline": "unchanged: GPT-5.4-mini parse and offer selection, Typesense search, checker / round-2 program / direct",
+  "queries": [
+    "offer mention only (pre-registered form)",
+    "phone + offer (post hoc form)"
+  ],
+  "script_sha256": "0480070a2c4fbe1be21bba82f611c70fe0148786239ac390e5f311a1ce0d129e"
+}

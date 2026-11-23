@@ -1,0 +1,41 @@
+{
+ "seed": 20261008,
+ "target_cases": 200,
+ "test_cases": 160,
+ "distractor_accounts": 5000,
+ "records": 31460,
+ "records_by_kind": {
+  "billing": 18393,
+  "promotion": 2332,
+  "support": 5135,
+  "catalog_link": 400,
+  "account": 5200
+ },
+ "phones": 76,
+ "plans": 20,
+ "families": [
+  "clean",
+  "conflicting_event",
+  "conflicting_offer",
+  "correct_support",
+  "duplicate_event",
+  "end_boundary",
+  "excluded_segment",
+  "expired",
+  "future_event",
+  "future_offer_version",
+  "late_credit",
+  "misleading_support",
+  "missing_currency",
+  "missing_offer",
+  "not_started",
+  "plan_mismatch",
+  "sku_mismatch",
+  "unknown_activation",
+  "unlisted_line_count",
+  "wrong_currency"
+ ],
+ "expected_answers": "from the unchanged TELCO-ECRA generator; target records identical except added offer_name and neighbouring-month billing",
+ "world_sha256": "bdc73a72f9ee9ee9b29bd72de08e31a2456c3238442126d5f3bda14ca5789195",
+ "catalog": "invented; nothing read from ISP"
+}

@@ -1,0 +1,318 @@
+{
+  "classes": {
+    "gpt": {
+      "identifies": 587,
+      "none_exists": 36,
+      "ambiguous": 177,
+      "misnamed": 0
+    },
+    "claude": {
+      "identifies": 194,
+      "none_exists": 11,
+      "ambiguous": 496,
+      "misnamed": 99
+    }
+  },
+  "runs": [
+    {
+      "questions": "gpt",
+      "retrieval": "offer only, top-1",
+      "decision": "checker",
+      "answerable": {
+        "n": 623,
+        "exact": 520,
+        "unsupported": 43
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 20,
+        "unsupported": 157
+      }
+    },
+    {
+      "questions": "gpt",
+      "retrieval": "offer only, top-1",
+      "decision": "program",
+      "answerable": {
+        "n": 623,
+        "exact": 520,
+        "unsupported": 44
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 19,
+        "unsupported": 158
+      }
+    },
+    {
+      "questions": "gpt",
+      "retrieval": "offer only, top-1",
+      "decision": "direct",
+      "answerable": {
+        "n": 623,
+        "exact": 460,
+        "unsupported": 125
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 7,
+        "unsupported": 176
+      }
+    },
+    {
+      "questions": "gpt",
+      "retrieval": "offer only, model picks",
+      "decision": "checker",
+      "answerable": {
+        "n": 623,
+        "exact": 527,
+        "unsupported": 5
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 42,
+        "unsupported": 135
+      }
+    },
+    {
+      "questions": "gpt",
+      "retrieval": "offer only, model picks",
+      "decision": "program",
+      "answerable": {
+        "n": 623,
+        "exact": 527,
+        "unsupported": 5
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 42,
+        "unsupported": 135
+      }
+    },
+    {
+      "questions": "gpt",
+      "retrieval": "offer only, model picks",
+      "decision": "direct",
+      "answerable": {
+        "n": 623,
+        "exact": 473,
+        "unsupported": 78
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 31,
+        "unsupported": 154
+      }
+    },
+    {
+      "questions": "gpt",
+      "retrieval": "phone + offer, top-1",
+      "decision": "checker",
+      "answerable": {
+        "n": 623,
+        "exact": 566,
+        "unsupported": 36
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 20,
+        "unsupported": 157
+      }
+    },
+    {
+      "questions": "gpt",
+      "retrieval": "phone + offer, top-1",
+      "decision": "program",
+      "answerable": {
+        "n": 623,
+        "exact": 567,
+        "unsupported": 38
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 17,
+        "unsupported": 160
+      }
+    },
+    {
+      "questions": "gpt",
+      "retrieval": "phone + offer, model picks",
+      "decision": "checker",
+      "answerable": {
+        "n": 623,
+        "exact": 593,
+        "unsupported": 3
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 37,
+        "unsupported": 140
+      }
+    },
+    {
+      "questions": "gpt",
+      "retrieval": "phone + offer, model picks",
+      "decision": "program",
+      "answerable": {
+        "n": 623,
+        "exact": 594,
+        "unsupported": 3
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 37,
+        "unsupported": 140
+      }
+    },
+    {
+      "questions": "gpt",
+      "retrieval": "phone + offer, model picks",
+      "decision": "direct",
+      "answerable": {
+        "n": 623,
+        "exact": 531,
+        "unsupported": 89
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 26,
+        "unsupported": 156
+      }
+    },
+    {
+      "questions": "claude",
+      "retrieval": "offer only, top-1",
+      "decision": "checker",
+      "answerable": {
+        "n": 205,
+        "exact": 69,
+        "unsupported": 19
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 64,
+        "unsupported": 531
+      }
+    },
+    {
+      "questions": "claude",
+      "retrieval": "offer only, top-1",
+      "decision": "program",
+      "answerable": {
+        "n": 205,
+        "exact": 71,
+        "unsupported": 19
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 57,
+        "unsupported": 538
+      }
+    },
+    {
+      "questions": "claude",
+      "retrieval": "offer only, model picks",
+      "decision": "checker",
+      "answerable": {
+        "n": 205,
+        "exact": 33,
+        "unsupported": 3
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 517,
+        "unsupported": 78
+      }
+    },
+    {
+      "questions": "claude",
+      "retrieval": "offer only, model picks",
+      "decision": "program",
+      "answerable": {
+        "n": 205,
+        "exact": 33,
+        "unsupported": 3
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 514,
+        "unsupported": 81
+      }
+    },
+    {
+      "questions": "claude",
+      "retrieval": "phone + offer, top-1",
+      "decision": "checker",
+      "answerable": {
+        "n": 205,
+        "exact": 112,
+        "unsupported": 15
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 89,
+        "unsupported": 506
+      }
+    },
+    {
+      "questions": "claude",
+      "retrieval": "phone + offer, top-1",
+      "decision": "program",
+      "answerable": {
+        "n": 205,
+        "exact": 116,
+        "unsupported": 15
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 52,
+        "unsupported": 543
+      }
+    },
+    {
+      "questions": "claude",
+      "retrieval": "phone + offer, model picks",
+      "decision": "checker",
+      "answerable": {
+        "n": 205,
+        "exact": 94,
+        "unsupported": 2
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 303,
+        "unsupported": 292
+      }
+    },
+    {
+      "questions": "claude",
+      "retrieval": "phone + offer, model picks",
+      "decision": "program",
+      "answerable": {
+        "n": 205,
+        "exact": 95,
+        "unsupported": 2
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 279,
+        "unsupported": 316
+      }
+    },
+    {
+      "questions": "claude",
+      "retrieval": "phone + offer, model picks",
+      "decision": "direct",
+      "answerable": {
+        "n": 205,
+        "exact": 84,
+        "unsupported": 27
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 254,
+        "unsupported": 368
+      }
+    }
+  ]
+}

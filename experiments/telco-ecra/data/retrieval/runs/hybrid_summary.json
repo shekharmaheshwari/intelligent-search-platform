@@ -1,0 +1,239 @@
+{
+  "status": "post hoc",
+  "model": "voyage-3",
+  "alpha": 0.3,
+  "runs": [
+    {
+      "messages": "GPT-5.4-mini",
+      "retrieval": "Top-1 hit",
+      "decision": "checker",
+      "n": 800,
+      "right_offer": 648,
+      "exact": 702,
+      "unsupported": 42,
+      "identifiable": {
+        "n": 623,
+        "exact": 567,
+        "unsupported": 36
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 20,
+        "unsupported": 157
+      }
+    },
+    {
+      "messages": "GPT-5.4-mini",
+      "retrieval": "Top-1 hit",
+      "decision": "program",
+      "n": 800,
+      "right_offer": 648,
+      "exact": 705,
+      "unsupported": 44,
+      "identifiable": {
+        "n": 623,
+        "exact": 568,
+        "unsupported": 38
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 17,
+        "unsupported": 160
+      }
+    },
+    {
+      "messages": "GPT-5.4-mini",
+      "retrieval": "Model picks",
+      "decision": "checker",
+      "n": 800,
+      "right_offer": 746,
+      "exact": 758,
+      "unsupported": 4,
+      "identifiable": {
+        "n": 623,
+        "exact": 594,
+        "unsupported": 4
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 35,
+        "unsupported": 142
+      }
+    },
+    {
+      "messages": "GPT-5.4-mini",
+      "retrieval": "Model picks",
+      "decision": "program",
+      "n": 800,
+      "right_offer": 746,
+      "exact": 758,
+      "unsupported": 4,
+      "identifiable": {
+        "n": 623,
+        "exact": 594,
+        "unsupported": 4
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 35,
+        "unsupported": 142
+      }
+    },
+    {
+      "messages": "GPT-5.4-mini",
+      "retrieval": "Ask when tied",
+      "decision": "checker",
+      "n": 800,
+      "right_offer": 691,
+      "asked": 0,
+      "exact": 743,
+      "unsupported": 40,
+      "identifiable": {
+        "n": 623,
+        "exact": 578,
+        "unsupported": 34
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 19,
+        "unsupported": 158
+      }
+    },
+    {
+      "messages": "GPT-5.4-mini",
+      "retrieval": "Ask when tied",
+      "decision": "program",
+      "n": 800,
+      "right_offer": 691,
+      "asked": 0,
+      "exact": 746,
+      "unsupported": 43,
+      "identifiable": {
+        "n": 623,
+        "exact": 579,
+        "unsupported": 37
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 17,
+        "unsupported": 160
+      }
+    },
+    {
+      "messages": "Claude Sonnet 5.5",
+      "retrieval": "Top-1 hit",
+      "decision": "checker",
+      "n": 800,
+      "right_offer": 193,
+      "exact": 422,
+      "unsupported": 61,
+      "identifiable": {
+        "n": 205,
+        "exact": 111,
+        "unsupported": 16
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 80,
+        "unsupported": 515
+      }
+    },
+    {
+      "messages": "Claude Sonnet 5.5",
+      "retrieval": "Top-1 hit",
+      "decision": "program",
+      "n": 800,
+      "right_offer": 193,
+      "exact": 427,
+      "unsupported": 68,
+      "identifiable": {
+        "n": 205,
+        "exact": 115,
+        "unsupported": 16
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 42,
+        "unsupported": 553
+      }
+    },
+    {
+      "messages": "Claude Sonnet 5.5",
+      "retrieval": "Model picks",
+      "decision": "checker",
+      "n": 800,
+      "right_offer": 226,
+      "exact": 356,
+      "unsupported": 21,
+      "identifiable": {
+        "n": 205,
+        "exact": 94,
+        "unsupported": 3
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 276,
+        "unsupported": 319
+      }
+    },
+    {
+      "messages": "Claude Sonnet 5.5",
+      "retrieval": "Model picks",
+      "decision": "program",
+      "n": 800,
+      "right_offer": 226,
+      "exact": 357,
+      "unsupported": 25,
+      "identifiable": {
+        "n": 205,
+        "exact": 95,
+        "unsupported": 3
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 250,
+        "unsupported": 345
+      }
+    },
+    {
+      "messages": "Claude Sonnet 5.5",
+      "retrieval": "Ask when tied",
+      "decision": "checker",
+      "n": 800,
+      "right_offer": 163,
+      "asked": 0,
+      "exact": 403,
+      "unsupported": 63,
+      "identifiable": {
+        "n": 205,
+        "exact": 116,
+        "unsupported": 15
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 76,
+        "unsupported": 519
+      }
+    },
+    {
+      "messages": "Claude Sonnet 5.5",
+      "retrieval": "Ask when tied",
+      "decision": "program",
+      "n": 800,
+      "right_offer": 163,
+      "asked": 0,
+      "exact": 411,
+      "unsupported": 69,
+      "identifiable": {
+        "n": 205,
+        "exact": 120,
+        "unsupported": 16
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 42,
+        "unsupported": 553
+      }
+    }
+  ]
+}

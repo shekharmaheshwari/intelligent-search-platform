@@ -1,0 +1,2202 @@
+[
+  {
+    "case_id": "P-000",
+    "family": "clean",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "138",
+      "support_correct": true,
+      "plan_price": "59"
+    }
+  },
+  {
+    "case_id": "P-001",
+    "family": "clean",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "77",
+      "support_correct": true,
+      "plan_price": "41"
+    }
+  },
+  {
+    "case_id": "P-002",
+    "family": "clean",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "60",
+      "support_correct": true,
+      "plan_price": "107"
+    }
+  },
+  {
+    "case_id": "P-003",
+    "family": "clean",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "79",
+      "support_correct": true,
+      "plan_price": "70"
+    }
+  },
+  {
+    "case_id": "P-004",
+    "family": "clean",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "91",
+      "support_correct": true,
+      "plan_price": "183"
+    }
+  },
+  {
+    "case_id": "P-005",
+    "family": "clean",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "136",
+      "support_correct": true,
+      "plan_price": "70"
+    }
+  },
+  {
+    "case_id": "P-006",
+    "family": "clean",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "140",
+      "support_correct": true,
+      "plan_price": "157"
+    }
+  },
+  {
+    "case_id": "P-007",
+    "family": "clean",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "124",
+      "support_correct": true,
+      "plan_price": "63"
+    }
+  },
+  {
+    "case_id": "P-008",
+    "family": "clean",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "145",
+      "support_correct": true,
+      "plan_price": "61"
+    }
+  },
+  {
+    "case_id": "P-009",
+    "family": "clean",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "130",
+      "support_correct": true,
+      "plan_price": "108"
+    }
+  },
+  {
+    "case_id": "P-010",
+    "family": "sku_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "46",
+      "support_correct": true,
+      "plan_price": "131"
+    }
+  },
+  {
+    "case_id": "P-011",
+    "family": "sku_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "111",
+      "support_correct": true,
+      "plan_price": "81"
+    }
+  },
+  {
+    "case_id": "P-012",
+    "family": "sku_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "116",
+      "support_correct": true,
+      "plan_price": "129"
+    }
+  },
+  {
+    "case_id": "P-013",
+    "family": "sku_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "116",
+      "support_correct": true,
+      "plan_price": "147"
+    }
+  },
+  {
+    "case_id": "P-014",
+    "family": "sku_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "77",
+      "support_correct": true,
+      "plan_price": "73"
+    }
+  },
+  {
+    "case_id": "P-015",
+    "family": "sku_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "150",
+      "support_correct": true,
+      "plan_price": "98"
+    }
+  },
+  {
+    "case_id": "P-016",
+    "family": "sku_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "160",
+      "support_correct": true,
+      "plan_price": "77"
+    }
+  },
+  {
+    "case_id": "P-017",
+    "family": "sku_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "81",
+      "support_correct": true,
+      "plan_price": "62"
+    }
+  },
+  {
+    "case_id": "P-018",
+    "family": "sku_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "48",
+      "support_correct": true,
+      "plan_price": "122"
+    }
+  },
+  {
+    "case_id": "P-019",
+    "family": "sku_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "84",
+      "support_correct": true,
+      "plan_price": "75"
+    }
+  },
+  {
+    "case_id": "P-020",
+    "family": "plan_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "116",
+      "support_correct": true,
+      "plan_price": "149"
+    }
+  },
+  {
+    "case_id": "P-021",
+    "family": "plan_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "146",
+      "support_correct": true,
+      "plan_price": "146"
+    }
+  },
+  {
+    "case_id": "P-022",
+    "family": "plan_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "106",
+      "support_correct": true,
+      "plan_price": "88"
+    }
+  },
+  {
+    "case_id": "P-023",
+    "family": "plan_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "114",
+      "support_correct": true,
+      "plan_price": "42"
+    }
+  },
+  {
+    "case_id": "P-024",
+    "family": "plan_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "117",
+      "support_correct": true,
+      "plan_price": "49"
+    }
+  },
+  {
+    "case_id": "P-025",
+    "family": "plan_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "183",
+      "support_correct": true,
+      "plan_price": "28"
+    }
+  },
+  {
+    "case_id": "P-026",
+    "family": "plan_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "89",
+      "support_correct": true,
+      "plan_price": "41"
+    }
+  },
+  {
+    "case_id": "P-027",
+    "family": "plan_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "37",
+      "support_correct": true,
+      "plan_price": "90"
+    }
+  },
+  {
+    "case_id": "P-028",
+    "family": "plan_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "166",
+      "support_correct": true,
+      "plan_price": "103"
+    }
+  },
+  {
+    "case_id": "P-029",
+    "family": "plan_mismatch",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "125",
+      "support_correct": true,
+      "plan_price": "121"
+    }
+  },
+  {
+    "case_id": "P-030",
+    "family": "excluded_segment",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "83",
+      "support_correct": true,
+      "plan_price": "34"
+    }
+  },
+  {
+    "case_id": "P-031",
+    "family": "excluded_segment",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "64",
+      "support_correct": true,
+      "plan_price": "70"
+    }
+  },
+  {
+    "case_id": "P-032",
+    "family": "excluded_segment",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "144",
+      "support_correct": true,
+      "plan_price": "70"
+    }
+  },
+  {
+    "case_id": "P-033",
+    "family": "excluded_segment",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "74",
+      "support_correct": true,
+      "plan_price": "70"
+    }
+  },
+  {
+    "case_id": "P-034",
+    "family": "excluded_segment",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "133",
+      "support_correct": true,
+      "plan_price": "41"
+    }
+  },
+  {
+    "case_id": "P-035",
+    "family": "excluded_segment",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "155",
+      "support_correct": true,
+      "plan_price": "54"
+    }
+  },
+  {
+    "case_id": "P-036",
+    "family": "excluded_segment",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "110",
+      "support_correct": true,
+      "plan_price": "146"
+    }
+  },
+  {
+    "case_id": "P-037",
+    "family": "excluded_segment",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "110",
+      "support_correct": true,
+      "plan_price": "89"
+    }
+  },
+  {
+    "case_id": "P-038",
+    "family": "excluded_segment",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "155",
+      "support_correct": true,
+      "plan_price": "133"
+    }
+  },
+  {
+    "case_id": "P-039",
+    "family": "excluded_segment",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "100",
+      "support_correct": true,
+      "plan_price": "28"
+    }
+  },
+  {
+    "case_id": "P-040",
+    "family": "expired",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "178",
+      "support_correct": true,
+      "plan_price": "32"
+    }
+  },
+  {
+    "case_id": "P-041",
+    "family": "expired",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "77",
+      "support_correct": true,
+      "plan_price": "43"
+    }
+  },
+  {
+    "case_id": "P-042",
+    "family": "expired",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "93",
+      "support_correct": true,
+      "plan_price": "77"
+    }
+  },
+  {
+    "case_id": "P-043",
+    "family": "expired",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "140",
+      "support_correct": true,
+      "plan_price": "32"
+    }
+  },
+  {
+    "case_id": "P-044",
+    "family": "expired",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "61",
+      "support_correct": true,
+      "plan_price": "41"
+    }
+  },
+  {
+    "case_id": "P-045",
+    "family": "expired",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "78",
+      "support_correct": true,
+      "plan_price": "42"
+    }
+  },
+  {
+    "case_id": "P-046",
+    "family": "expired",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "51",
+      "support_correct": true,
+      "plan_price": "175"
+    }
+  },
+  {
+    "case_id": "P-047",
+    "family": "expired",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "168",
+      "support_correct": true,
+      "plan_price": "32"
+    }
+  },
+  {
+    "case_id": "P-048",
+    "family": "expired",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "73",
+      "support_correct": true,
+      "plan_price": "107"
+    }
+  },
+  {
+    "case_id": "P-049",
+    "family": "expired",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "68",
+      "support_correct": true,
+      "plan_price": "41"
+    }
+  },
+  {
+    "case_id": "P-050",
+    "family": "not_started",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "82",
+      "support_correct": true,
+      "plan_price": "102"
+    }
+  },
+  {
+    "case_id": "P-051",
+    "family": "not_started",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "53",
+      "support_correct": true,
+      "plan_price": "47"
+    }
+  },
+  {
+    "case_id": "P-052",
+    "family": "not_started",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "55",
+      "support_correct": true,
+      "plan_price": "42"
+    }
+  },
+  {
+    "case_id": "P-053",
+    "family": "not_started",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "163",
+      "support_correct": true,
+      "plan_price": "34"
+    }
+  },
+  {
+    "case_id": "P-054",
+    "family": "not_started",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "153",
+      "support_correct": true,
+      "plan_price": "108"
+    }
+  },
+  {
+    "case_id": "P-055",
+    "family": "not_started",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "84",
+      "support_correct": true,
+      "plan_price": "89"
+    }
+  },
+  {
+    "case_id": "P-056",
+    "family": "not_started",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "111",
+      "support_correct": true,
+      "plan_price": "133"
+    }
+  },
+  {
+    "case_id": "P-057",
+    "family": "not_started",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "101",
+      "support_correct": true,
+      "plan_price": "83"
+    }
+  },
+  {
+    "case_id": "P-058",
+    "family": "not_started",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "88",
+      "support_correct": true,
+      "plan_price": "70"
+    }
+  },
+  {
+    "case_id": "P-059",
+    "family": "not_started",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "172",
+      "support_correct": true,
+      "plan_price": "77"
+    }
+  },
+  {
+    "case_id": "P-060",
+    "family": "end_boundary",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "74",
+      "support_correct": true,
+      "plan_price": "34"
+    }
+  },
+  {
+    "case_id": "P-061",
+    "family": "end_boundary",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "75",
+      "support_correct": true,
+      "plan_price": "32"
+    }
+  },
+  {
+    "case_id": "P-062",
+    "family": "end_boundary",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "107",
+      "support_correct": true,
+      "plan_price": "77"
+    }
+  },
+  {
+    "case_id": "P-063",
+    "family": "end_boundary",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "112",
+      "support_correct": true,
+      "plan_price": "122"
+    }
+  },
+  {
+    "case_id": "P-064",
+    "family": "end_boundary",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "149",
+      "support_correct": true,
+      "plan_price": "47"
+    }
+  },
+  {
+    "case_id": "P-065",
+    "family": "end_boundary",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "140",
+      "support_correct": true,
+      "plan_price": "89"
+    }
+  },
+  {
+    "case_id": "P-066",
+    "family": "end_boundary",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "84",
+      "support_correct": true,
+      "plan_price": "106"
+    }
+  },
+  {
+    "case_id": "P-067",
+    "family": "end_boundary",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "166",
+      "support_correct": true,
+      "plan_price": "137"
+    }
+  },
+  {
+    "case_id": "P-068",
+    "family": "end_boundary",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "168",
+      "support_correct": true,
+      "plan_price": "59"
+    }
+  },
+  {
+    "case_id": "P-069",
+    "family": "end_boundary",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": false,
+      "net_billed": "106",
+      "support_correct": true,
+      "plan_price": "135"
+    }
+  },
+  {
+    "case_id": "P-070",
+    "family": "late_credit",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "99",
+      "support_correct": true,
+      "plan_price": "61"
+    }
+  },
+  {
+    "case_id": "P-071",
+    "family": "late_credit",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "172",
+      "support_correct": true,
+      "plan_price": "102"
+    }
+  },
+  {
+    "case_id": "P-072",
+    "family": "late_credit",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "72",
+      "support_correct": true,
+      "plan_price": "111"
+    }
+  },
+  {
+    "case_id": "P-073",
+    "family": "late_credit",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "126",
+      "support_correct": true,
+      "plan_price": "83"
+    }
+  },
+  {
+    "case_id": "P-074",
+    "family": "late_credit",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "133",
+      "support_correct": true,
+      "plan_price": "92"
+    }
+  },
+  {
+    "case_id": "P-075",
+    "family": "late_credit",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "106",
+      "support_correct": true,
+      "plan_price": "47"
+    }
+  },
+  {
+    "case_id": "P-076",
+    "family": "late_credit",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "129",
+      "support_correct": true,
+      "plan_price": "41"
+    }
+  },
+  {
+    "case_id": "P-077",
+    "family": "late_credit",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "98",
+      "support_correct": true,
+      "plan_price": "183"
+    }
+  },
+  {
+    "case_id": "P-078",
+    "family": "late_credit",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "97",
+      "support_correct": true,
+      "plan_price": "77"
+    }
+  },
+  {
+    "case_id": "P-079",
+    "family": "late_credit",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "155",
+      "support_correct": true,
+      "plan_price": "41"
+    }
+  },
+  {
+    "case_id": "P-080",
+    "family": "future_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "184",
+      "support_correct": true,
+      "plan_price": "106"
+    }
+  },
+  {
+    "case_id": "P-081",
+    "family": "future_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "90",
+      "support_correct": true,
+      "plan_price": "49"
+    }
+  },
+  {
+    "case_id": "P-082",
+    "family": "future_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "82",
+      "support_correct": true,
+      "plan_price": "107"
+    }
+  },
+  {
+    "case_id": "P-083",
+    "family": "future_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "136",
+      "support_correct": true,
+      "plan_price": "137"
+    }
+  },
+  {
+    "case_id": "P-084",
+    "family": "future_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "168",
+      "support_correct": true,
+      "plan_price": "76"
+    }
+  },
+  {
+    "case_id": "P-085",
+    "family": "future_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "112",
+      "support_correct": true,
+      "plan_price": "47"
+    }
+  },
+  {
+    "case_id": "P-086",
+    "family": "future_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "107",
+      "support_correct": true,
+      "plan_price": "162"
+    }
+  },
+  {
+    "case_id": "P-087",
+    "family": "future_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "163",
+      "support_correct": true,
+      "plan_price": "123"
+    }
+  },
+  {
+    "case_id": "P-088",
+    "family": "future_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "142",
+      "support_correct": true,
+      "plan_price": "67"
+    }
+  },
+  {
+    "case_id": "P-089",
+    "family": "future_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "138",
+      "support_correct": true,
+      "plan_price": "42"
+    }
+  },
+  {
+    "case_id": "P-090",
+    "family": "wrong_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "136"
+    }
+  },
+  {
+    "case_id": "P-091",
+    "family": "wrong_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "28"
+    }
+  },
+  {
+    "case_id": "P-092",
+    "family": "wrong_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "56"
+    }
+  },
+  {
+    "case_id": "P-093",
+    "family": "wrong_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "28"
+    }
+  },
+  {
+    "case_id": "P-094",
+    "family": "wrong_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "54"
+    }
+  },
+  {
+    "case_id": "P-095",
+    "family": "wrong_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "32"
+    }
+  },
+  {
+    "case_id": "P-096",
+    "family": "wrong_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "98"
+    }
+  },
+  {
+    "case_id": "P-097",
+    "family": "wrong_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "90"
+    }
+  },
+  {
+    "case_id": "P-098",
+    "family": "wrong_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "59"
+    }
+  },
+  {
+    "case_id": "P-099",
+    "family": "wrong_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "131"
+    }
+  },
+  {
+    "case_id": "P-100",
+    "family": "missing_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "63"
+    }
+  },
+  {
+    "case_id": "P-101",
+    "family": "missing_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "41"
+    }
+  },
+  {
+    "case_id": "P-102",
+    "family": "missing_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "89"
+    }
+  },
+  {
+    "case_id": "P-103",
+    "family": "missing_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "147"
+    }
+  },
+  {
+    "case_id": "P-104",
+    "family": "missing_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "47"
+    }
+  },
+  {
+    "case_id": "P-105",
+    "family": "missing_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "147"
+    }
+  },
+  {
+    "case_id": "P-106",
+    "family": "missing_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "32"
+    }
+  },
+  {
+    "case_id": "P-107",
+    "family": "missing_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "83"
+    }
+  },
+  {
+    "case_id": "P-108",
+    "family": "missing_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "28"
+    }
+  },
+  {
+    "case_id": "P-109",
+    "family": "missing_currency",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "47"
+    }
+  },
+  {
+    "case_id": "P-110",
+    "family": "conflicting_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "104",
+      "support_correct": true,
+      "plan_price": "56"
+    }
+  },
+  {
+    "case_id": "P-111",
+    "family": "conflicting_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "144",
+      "support_correct": true,
+      "plan_price": "73"
+    }
+  },
+  {
+    "case_id": "P-112",
+    "family": "conflicting_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "61",
+      "support_correct": true,
+      "plan_price": "107"
+    }
+  },
+  {
+    "case_id": "P-113",
+    "family": "conflicting_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "49",
+      "support_correct": true,
+      "plan_price": "88"
+    }
+  },
+  {
+    "case_id": "P-114",
+    "family": "conflicting_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "111",
+      "support_correct": true,
+      "plan_price": "89"
+    }
+  },
+  {
+    "case_id": "P-115",
+    "family": "conflicting_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "101",
+      "support_correct": true,
+      "plan_price": "59"
+    }
+  },
+  {
+    "case_id": "P-116",
+    "family": "conflicting_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "83",
+      "support_correct": true,
+      "plan_price": "117"
+    }
+  },
+  {
+    "case_id": "P-117",
+    "family": "conflicting_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "157",
+      "support_correct": true,
+      "plan_price": "175"
+    }
+  },
+  {
+    "case_id": "P-118",
+    "family": "conflicting_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "101",
+      "support_correct": true,
+      "plan_price": "116"
+    }
+  },
+  {
+    "case_id": "P-119",
+    "family": "conflicting_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "178",
+      "support_correct": true,
+      "plan_price": "32"
+    }
+  },
+  {
+    "case_id": "P-120",
+    "family": "missing_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "160",
+      "support_correct": true,
+      "plan_price": "70"
+    }
+  },
+  {
+    "case_id": "P-121",
+    "family": "missing_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "61",
+      "support_correct": true,
+      "plan_price": "103"
+    }
+  },
+  {
+    "case_id": "P-122",
+    "family": "missing_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "59",
+      "support_correct": true,
+      "plan_price": "89"
+    }
+  },
+  {
+    "case_id": "P-123",
+    "family": "missing_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "150",
+      "support_correct": true,
+      "plan_price": "56"
+    }
+  },
+  {
+    "case_id": "P-124",
+    "family": "missing_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "71",
+      "support_correct": true,
+      "plan_price": "34"
+    }
+  },
+  {
+    "case_id": "P-125",
+    "family": "missing_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "84",
+      "support_correct": true,
+      "plan_price": "88"
+    }
+  },
+  {
+    "case_id": "P-126",
+    "family": "missing_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "111",
+      "support_correct": true,
+      "plan_price": "76"
+    }
+  },
+  {
+    "case_id": "P-127",
+    "family": "missing_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "60",
+      "support_correct": true,
+      "plan_price": "47"
+    }
+  },
+  {
+    "case_id": "P-128",
+    "family": "missing_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "158",
+      "support_correct": true,
+      "plan_price": "32"
+    }
+  },
+  {
+    "case_id": "P-129",
+    "family": "missing_offer",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "84",
+      "support_correct": true,
+      "plan_price": "133"
+    }
+  },
+  {
+    "case_id": "P-130",
+    "family": "misleading_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "96",
+      "support_correct": false,
+      "plan_price": "47"
+    }
+  },
+  {
+    "case_id": "P-131",
+    "family": "misleading_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "74",
+      "support_correct": false,
+      "plan_price": "34"
+    }
+  },
+  {
+    "case_id": "P-132",
+    "family": "misleading_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "176",
+      "support_correct": false,
+      "plan_price": "61"
+    }
+  },
+  {
+    "case_id": "P-133",
+    "family": "misleading_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "99",
+      "support_correct": false,
+      "plan_price": "41"
+    }
+  },
+  {
+    "case_id": "P-134",
+    "family": "misleading_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "102",
+      "support_correct": false,
+      "plan_price": "103"
+    }
+  },
+  {
+    "case_id": "P-135",
+    "family": "misleading_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "44",
+      "support_correct": false,
+      "plan_price": "83"
+    }
+  },
+  {
+    "case_id": "P-136",
+    "family": "misleading_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "99",
+      "support_correct": false,
+      "plan_price": "75"
+    }
+  },
+  {
+    "case_id": "P-137",
+    "family": "misleading_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "55",
+      "support_correct": false,
+      "plan_price": "73"
+    }
+  },
+  {
+    "case_id": "P-138",
+    "family": "misleading_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "62",
+      "support_correct": false,
+      "plan_price": "73"
+    }
+  },
+  {
+    "case_id": "P-139",
+    "family": "misleading_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "49",
+      "support_correct": false,
+      "plan_price": "105"
+    }
+  },
+  {
+    "case_id": "P-140",
+    "family": "correct_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "157",
+      "support_correct": true,
+      "plan_price": "77"
+    }
+  },
+  {
+    "case_id": "P-141",
+    "family": "correct_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "130",
+      "support_correct": true,
+      "plan_price": "106"
+    }
+  },
+  {
+    "case_id": "P-142",
+    "family": "correct_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "60",
+      "support_correct": true,
+      "plan_price": "131"
+    }
+  },
+  {
+    "case_id": "P-143",
+    "family": "correct_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "151",
+      "support_correct": true,
+      "plan_price": "49"
+    }
+  },
+  {
+    "case_id": "P-144",
+    "family": "correct_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "118",
+      "support_correct": true,
+      "plan_price": "49"
+    }
+  },
+  {
+    "case_id": "P-145",
+    "family": "correct_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "62",
+      "support_correct": true,
+      "plan_price": "117"
+    }
+  },
+  {
+    "case_id": "P-146",
+    "family": "correct_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "72",
+      "support_correct": true,
+      "plan_price": "56"
+    }
+  },
+  {
+    "case_id": "P-147",
+    "family": "correct_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "97",
+      "support_correct": true,
+      "plan_price": "49"
+    }
+  },
+  {
+    "case_id": "P-148",
+    "family": "correct_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "58",
+      "support_correct": true,
+      "plan_price": "32"
+    }
+  },
+  {
+    "case_id": "P-149",
+    "family": "correct_support",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "65",
+      "support_correct": true,
+      "plan_price": "98"
+    }
+  },
+  {
+    "case_id": "P-150",
+    "family": "duplicate_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "155",
+      "support_correct": true,
+      "plan_price": "41"
+    }
+  },
+  {
+    "case_id": "P-151",
+    "family": "duplicate_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "66",
+      "support_correct": true,
+      "plan_price": "90"
+    }
+  },
+  {
+    "case_id": "P-152",
+    "family": "duplicate_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "119",
+      "support_correct": true,
+      "plan_price": "121"
+    }
+  },
+  {
+    "case_id": "P-153",
+    "family": "duplicate_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "67",
+      "support_correct": true,
+      "plan_price": "108"
+    }
+  },
+  {
+    "case_id": "P-154",
+    "family": "duplicate_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "69",
+      "support_correct": true,
+      "plan_price": "59"
+    }
+  },
+  {
+    "case_id": "P-155",
+    "family": "duplicate_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "113",
+      "support_correct": true,
+      "plan_price": "63"
+    }
+  },
+  {
+    "case_id": "P-156",
+    "family": "duplicate_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "125",
+      "support_correct": true,
+      "plan_price": "62"
+    }
+  },
+  {
+    "case_id": "P-157",
+    "family": "duplicate_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "63",
+      "support_correct": true,
+      "plan_price": "77"
+    }
+  },
+  {
+    "case_id": "P-158",
+    "family": "duplicate_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "55",
+      "support_correct": true,
+      "plan_price": "77"
+    }
+  },
+  {
+    "case_id": "P-159",
+    "family": "duplicate_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "148",
+      "support_correct": true,
+      "plan_price": "157"
+    }
+  },
+  {
+    "case_id": "P-160",
+    "family": "conflicting_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "49"
+    }
+  },
+  {
+    "case_id": "P-161",
+    "family": "conflicting_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "77"
+    }
+  },
+  {
+    "case_id": "P-162",
+    "family": "conflicting_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "152"
+    }
+  },
+  {
+    "case_id": "P-163",
+    "family": "conflicting_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "42"
+    }
+  },
+  {
+    "case_id": "P-164",
+    "family": "conflicting_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "62"
+    }
+  },
+  {
+    "case_id": "P-165",
+    "family": "conflicting_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "137"
+    }
+  },
+  {
+    "case_id": "P-166",
+    "family": "conflicting_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "76"
+    }
+  },
+  {
+    "case_id": "P-167",
+    "family": "conflicting_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "76"
+    }
+  },
+  {
+    "case_id": "P-168",
+    "family": "conflicting_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "42"
+    }
+  },
+  {
+    "case_id": "P-169",
+    "family": "conflicting_event",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": null,
+      "support_correct": null,
+      "plan_price": "75"
+    }
+  },
+  {
+    "case_id": "P-170",
+    "family": "unknown_activation",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "57",
+      "support_correct": true,
+      "plan_price": "166"
+    }
+  },
+  {
+    "case_id": "P-171",
+    "family": "unknown_activation",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "173",
+      "support_correct": true,
+      "plan_price": "131"
+    }
+  },
+  {
+    "case_id": "P-172",
+    "family": "unknown_activation",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "58",
+      "support_correct": true,
+      "plan_price": "63"
+    }
+  },
+  {
+    "case_id": "P-173",
+    "family": "unknown_activation",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "65",
+      "support_correct": true,
+      "plan_price": "73"
+    }
+  },
+  {
+    "case_id": "P-174",
+    "family": "unknown_activation",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "100",
+      "support_correct": true,
+      "plan_price": "67"
+    }
+  },
+  {
+    "case_id": "P-175",
+    "family": "unknown_activation",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "140",
+      "support_correct": true,
+      "plan_price": "59"
+    }
+  },
+  {
+    "case_id": "P-176",
+    "family": "unknown_activation",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "162",
+      "support_correct": true,
+      "plan_price": "28"
+    }
+  },
+  {
+    "case_id": "P-177",
+    "family": "unknown_activation",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "93",
+      "support_correct": true,
+      "plan_price": "123"
+    }
+  },
+  {
+    "case_id": "P-178",
+    "family": "unknown_activation",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "159",
+      "support_correct": true,
+      "plan_price": "73"
+    }
+  },
+  {
+    "case_id": "P-179",
+    "family": "unknown_activation",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": null,
+      "net_billed": "172",
+      "support_correct": true,
+      "plan_price": "49"
+    }
+  },
+  {
+    "case_id": "P-180",
+    "family": "unlisted_line_count",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "75",
+      "support_correct": true,
+      "plan_price": null
+    }
+  },
+  {
+    "case_id": "P-181",
+    "family": "unlisted_line_count",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "113",
+      "support_correct": true,
+      "plan_price": null
+    }
+  },
+  {
+    "case_id": "P-182",
+    "family": "unlisted_line_count",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "91",
+      "support_correct": true,
+      "plan_price": null
+    }
+  },
+  {
+    "case_id": "P-183",
+    "family": "unlisted_line_count",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "133",
+      "support_correct": true,
+      "plan_price": null
+    }
+  },
+  {
+    "case_id": "P-184",
+    "family": "unlisted_line_count",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "103",
+      "support_correct": true,
+      "plan_price": null
+    }
+  },
+  {
+    "case_id": "P-185",
+    "family": "unlisted_line_count",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "119",
+      "support_correct": true,
+      "plan_price": null
+    }
+  },
+  {
+    "case_id": "P-186",
+    "family": "unlisted_line_count",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "126",
+      "support_correct": true,
+      "plan_price": null
+    }
+  },
+  {
+    "case_id": "P-187",
+    "family": "unlisted_line_count",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "108",
+      "support_correct": true,
+      "plan_price": null
+    }
+  },
+  {
+    "case_id": "P-188",
+    "family": "unlisted_line_count",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "118",
+      "support_correct": true,
+      "plan_price": null
+    }
+  },
+  {
+    "case_id": "P-189",
+    "family": "unlisted_line_count",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "79",
+      "support_correct": true,
+      "plan_price": null
+    }
+  },
+  {
+    "case_id": "P-190",
+    "family": "future_offer_version",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "49",
+      "support_correct": true,
+      "plan_price": "73"
+    }
+  },
+  {
+    "case_id": "P-191",
+    "family": "future_offer_version",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "80",
+      "support_correct": true,
+      "plan_price": "44"
+    }
+  },
+  {
+    "case_id": "P-192",
+    "family": "future_offer_version",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "143",
+      "support_correct": true,
+      "plan_price": "89"
+    }
+  },
+  {
+    "case_id": "P-193",
+    "family": "future_offer_version",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "75",
+      "support_correct": true,
+      "plan_price": "149"
+    }
+  },
+  {
+    "case_id": "P-194",
+    "family": "future_offer_version",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "53",
+      "support_correct": true,
+      "plan_price": "34"
+    }
+  },
+  {
+    "case_id": "P-195",
+    "family": "future_offer_version",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "189",
+      "support_correct": true,
+      "plan_price": "135"
+    }
+  },
+  {
+    "case_id": "P-196",
+    "family": "future_offer_version",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "60",
+      "support_correct": true,
+      "plan_price": "47"
+    }
+  },
+  {
+    "case_id": "P-197",
+    "family": "future_offer_version",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "88",
+      "support_correct": true,
+      "plan_price": "98"
+    }
+  },
+  {
+    "case_id": "P-198",
+    "family": "future_offer_version",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "119",
+      "support_correct": true,
+      "plan_price": "28"
+    }
+  },
+  {
+    "case_id": "P-199",
+    "family": "future_offer_version",
+    "split": "development",
+    "expected": {
+      "promotion_eligible": true,
+      "net_billed": "168",
+      "support_correct": true,
+      "plan_price": "149"
+    }
+  }
+]

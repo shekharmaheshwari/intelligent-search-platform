@@ -1,0 +1,13 @@
+# Separate Typesense for the TELCO-ECRA retrieval study. Shares nothing with ISP (port 8108, its own data).
+services:
+  telco-ecra-typesense:
+    image: typesense/typesense:0.25.2
+    container_name: telco-ecra-typesense
+    ports:
+      - "${TELCO_TS_PORT:-8109}:8108"
+    environment:
+      TYPESENSE_API_KEY: ${TELCO_TS_API_KEY}
+      TYPESENSE_DATA_DIR: /data
+    volumes:
+      - ./ts-data:/data
+    restart: "no"

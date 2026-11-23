@@ -1,0 +1,78 @@
+{
+  "written_before_first_call": "2026-10-10T18:26:20-0400",
+  "sets": {
+    "practice": {
+      "sha256": "3ae1383b36b7781d0079315f87f1b96df5aec03a4e2508fd894d7d867ee665a0",
+      "seed": 20261011,
+      "cases": 200
+    },
+    "test": {
+      "sha256": "e7e88f7b9a9f26840f80cfb13496a61c27423bff68f0a9dd5fe6cf207653217d",
+      "seed": 20261012,
+      "cases": 800
+    }
+  },
+  "arms": [
+    {
+      "arm": "A1_4o_r1",
+      "run": 1,
+      "effort": null
+    },
+    {
+      "arm": "A2_r1_low",
+      "run": 1,
+      "effort": "low"
+    },
+    {
+      "arm": "A2_r1_low",
+      "run": 2,
+      "effort": "low"
+    },
+    {
+      "arm": "A2_r1_low",
+      "run": 3,
+      "effort": "low"
+    },
+    {
+      "arm": "A4_r2_low",
+      "run": 1,
+      "effort": "low"
+    },
+    {
+      "arm": "A4_r2_low",
+      "run": 2,
+      "effort": "low"
+    },
+    {
+      "arm": "A4_r2_low",
+      "run": 3,
+      "effort": "low"
+    },
+    {
+      "arm": "A5_r2_medium_ex",
+      "run": 1,
+      "effort": "medium"
+    }
+  ],
+  "models": {
+    "A1": "gpt-4o-mini",
+    "others": "gpt-5.4-mini"
+  },
+  "program_selection": "most exact cases on the 200 practice cases; ties to the lowest run",
+  "analysis": "exact cases, unsupported answers (value where cannot-tell expected), wrongly withheld answers, per-answer outcomes (Table I), checker ablation (Table II), all approaches (Table III, Fig. 2); run once, no changes after",
+  "sha256": {
+    "r1_system": "cbcef5162d228441a0d93b39d6a143440288f155a350d91a73e494ba3cca801d",
+    "r2_system": "f2c36f1abbc65fbe534ee01b4904eeba3d54ca888e51cad4b5825d8947199367",
+    "examples": "d014a43488c06575367d287729041b90bb51e63b3eaeceffc59ee4ad001e8a47",
+    "v2_code_run1.py": "090364a34358d6f29763de6a6c49c392446491ce313f2afcf82f9d93177e7e7a",
+    "v2_code_run2.py": "7ab498041f603f331f0044d6e30ea0b6346e5fc0a5a1e8bdb1670b72e2bf8887",
+    "v2_code_run3.py": "720f94c26df35d98a5885a76dcf8dc0ae35d65efc8b065f2befcd09e821fdb0c",
+    "v3_code_run1.py": "950a04eb6bb895e3d9644a5d75d16cb8ea3dd7ab0254000b8ef5428ec77da1b1",
+    "v3_code_run2.py": "074bc946c41534057610bd54eb81b2f113af8e8139a577981f281ece7f9765c7",
+    "v3_code_run3.py": "f4cf2d59c1b4805be64584f46648386a7d8e6b7bdc3f304bdd567f5affb99db4",
+    "run_1000.py": "4f3cdeaf6e168e362dbe7ee8c3f951e3f540474fc251b4aa21cc0d4bfc0f7945",
+    "generate_1000.py": "1ec493cb979089e7f1d9dedcb446b0c77f02a32e88c70c3d71a2388803b62f13",
+    "generate.py": "7664bf983037a4d14136eae96255dc6a5d60db2392c7f2ea8f9f8d81677f5ff6",
+    "verifier.py": "b4004c65b72727a7cb50060e3abb4244ccf717a0a8e0b92c7ed5b7b66457fe22"
+  }
+}

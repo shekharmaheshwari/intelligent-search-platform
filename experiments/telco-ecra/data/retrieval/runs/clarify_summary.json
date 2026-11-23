@@ -1,0 +1,111 @@
+{
+  "status": "post hoc prototype",
+  "runs": [
+    {
+      "questions": "gpt",
+      "decision": "checker",
+      "actions_by_class": {
+        "not identifiable": {
+          "answer": 158,
+          "ask which offer": 18,
+          "no match": 1
+        },
+        "answerable": {
+          "answer": 562,
+          "ask which offer": 57,
+          "no match": 4
+        }
+      },
+      "answerable": {
+        "n": 623,
+        "exact": 574,
+        "unsupported": 11
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 37,
+        "unsupported": 140
+      }
+    },
+    {
+      "questions": "gpt",
+      "decision": "program",
+      "actions_by_class": {
+        "not identifiable": {
+          "answer": 158,
+          "ask which offer": 18,
+          "no match": 1
+        },
+        "answerable": {
+          "answer": 562,
+          "ask which offer": 57,
+          "no match": 4
+        }
+      },
+      "answerable": {
+        "n": 623,
+        "exact": 576,
+        "unsupported": 12
+      },
+      "not identifiable": {
+        "n": 177,
+        "exact": 36,
+        "unsupported": 141
+      }
+    },
+    {
+      "questions": "claude",
+      "decision": "checker",
+      "actions_by_class": {
+        "not identifiable": {
+          "answer": 197,
+          "ask which offer": 355,
+          "no match": 37,
+          "no mention": 6
+        },
+        "answerable": {
+          "ask which offer": 102,
+          "answer": 89,
+          "no match": 14
+        }
+      },
+      "answerable": {
+        "n": 205,
+        "exact": 101,
+        "unsupported": 2
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 423,
+        "unsupported": 172
+      }
+    },
+    {
+      "questions": "claude",
+      "decision": "program",
+      "actions_by_class": {
+        "not identifiable": {
+          "answer": 197,
+          "ask which offer": 355,
+          "no match": 37,
+          "no mention": 6
+        },
+        "answerable": {
+          "ask which offer": 102,
+          "answer": 89,
+          "no match": 14
+        }
+      },
+      "answerable": {
+        "n": 205,
+        "exact": 101,
+        "unsupported": 2
+      },
+      "not identifiable": {
+        "n": 595,
+        "exact": 411,
+        "unsupported": 184
+      }
+    }
+  ]
+}

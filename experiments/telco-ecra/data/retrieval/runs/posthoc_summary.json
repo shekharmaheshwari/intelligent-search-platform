@@ -1,0 +1,76 @@
+{
+  "status": "post hoc",
+  "retrieval": {
+    "top1_fixed": {
+      "offer_correct": 647,
+      "wrong_by_family": {
+        "clean": 6,
+        "sku_mismatch": 7,
+        "plan_mismatch": 11,
+        "excluded_segment": 7,
+        "expired": 6,
+        "not_started": 10,
+        "end_boundary": 3,
+        "late_credit": 9,
+        "future_event": 7,
+        "wrong_currency": 2,
+        "missing_currency": 3,
+        "conflicting_offer": 4,
+        "missing_offer": 40,
+        "misleading_support": 6,
+        "correct_support": 3,
+        "duplicate_event": 4,
+        "conflicting_event": 7,
+        "unknown_activation": 8,
+        "unlisted_line_count": 4,
+        "future_offer_version": 6
+      }
+    },
+    "select_fixed": {
+      "offer_correct": 741,
+      "wrong_by_family": {
+        "clean": 1,
+        "sku_mismatch": 4,
+        "plan_mismatch": 6,
+        "excluded_segment": 4,
+        "expired": 2,
+        "not_started": 5,
+        "end_boundary": 3,
+        "late_credit": 5,
+        "future_event": 5,
+        "wrong_currency": 1,
+        "missing_currency": 2,
+        "conflicting_offer": 3,
+        "missing_offer": 3,
+        "misleading_support": 2,
+        "duplicate_event": 2,
+        "conflicting_event": 3,
+        "unknown_activation": 5,
+        "unlisted_line_count": 2,
+        "future_offer_version": 1
+      }
+    }
+  },
+  "decisions": {
+    "top1_fixed / checker": {
+      "exact": 701,
+      "unsupported": 42
+    },
+    "top1_fixed / program": {
+      "exact": 704,
+      "unsupported": 44
+    },
+    "select_fixed / checker": {
+      "exact": 755,
+      "unsupported": 3
+    },
+    "select_fixed / program": {
+      "exact": 756,
+      "unsupported": 3
+    },
+    "select_fixed / direct": {
+      "exact": 680,
+      "unsupported": 105
+    }
+  }
+}

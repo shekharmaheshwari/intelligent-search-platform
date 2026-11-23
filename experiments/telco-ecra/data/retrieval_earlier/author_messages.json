@@ -1,0 +1,155 @@
+{
+  "description": "Customer messages typed by the author for 30 cases of the earlier 200-case world, written with the case records in view; not independent of the study and not used as labels (paper Table VI).",
+  "messages": [
+    {
+      "label": "R01",
+      "case_id": "syn-058",
+      "message": "Hi, I signed up for the Kestrel Pro Max holiday trade-in deal, but my bill looks like $67 after the discount instead of what was promised. Can you check my plan?"
+    },
+    {
+      "label": "R02",
+      "case_id": "syn-169",
+      "message": "I bought the Nimbus 7 Pro Max with the spring online deal, but I see two different charges on my statement for June. Which one is right?"
+    },
+    {
+      "label": "R03",
+      "case_id": "syn-045",
+      "message": "I upgraded to the Velo 9 Pro Max under the autumn loyalty promo, but I don't think the discount applied properly to my bill."
+    },
+    {
+      "label": "R04",
+      "case_id": "syn-065",
+      "message": "Hello, I signed up for the 4-line unlimited plan with Strata 9 Pro and the upgrade credit, but my bill has a credit dated before my start date."
+    },
+    {
+      "label": "R05",
+      "case_id": "syn-086",
+      "message": "My support chat says my bill is $100, but I had a trade-in credit of $11 that should make it $89. Why did the agent quote 100?"
+    },
+    {
+      "label": "R06",
+      "case_id": "syn-114",
+      "message": "I added 2 lines on the Aurel 7 Pro with the summer promotion, but my account shows two versions of the offer with different eligibility."
+    },
+    {
+      "label": "R07",
+      "case_id": "syn-153",
+      "message": "I ordered the Strata 5 Plus online for the spring credit. Why does my bill list the same $138 charge twice?"
+    },
+    {
+      "label": "R08",
+      "case_id": "syn-023",
+      "message": "I got the Strata 9 Pro on the Connect plan expecting the online loyalty deal, but I was told my plan doesn't qualify."
+    },
+    {
+      "label": "R09",
+      "case_id": "syn-019",
+      "message": "I purchased the Velo X Plus on Premium 2.0 with the loyalty credit, but I haven't received the full promised savings."
+    },
+    {
+      "label": "R10",
+      "case_id": "syn-076",
+      "message": "I got the Velo X Pro last week. An agent said my bill is $175, but shouldn't my $25 credit have posted by now?"
+    },
+    {
+      "label": "R11",
+      "case_id": "syn-083",
+      "message": "I'm on the 3-line Go plan with the Lumen 7 Plus. The rep said my total is $124, but my statement shows a $19 credit was already applied."
+    },
+    {
+      "label": "R12",
+      "case_id": "syn-176",
+      "message": "I purchased the Lumen Air Pro Max with the summer upgrade deal, but I don't see my activation date registered on my profile."
+    },
+    {
+      "label": "R13",
+      "case_id": "syn-039",
+      "message": "I work here and used my employee discount for the Corvo Edge Pro upgrade, but support says employee accounts are excluded from the promo credit."
+    },
+    {
+      "label": "R14",
+      "case_id": "syn-005",
+      "message": "Can you confirm my monthly charge for 3 lines on the Everyday plan with the Aurel 7 Plus trade-in credit? Support quoted $145."
+    },
+    {
+      "label": "R15",
+      "case_id": "syn-199",
+      "message": "I signed up for the Lumen 7 Pro Max upgrade deal online, but I see two different terms posted for this offer in June."
+    },
+    {
+      "label": "R16",
+      "case_id": "syn-079",
+      "message": "The representative told me my bill is $179 for my Nimbus 7, but I was promised a $23 back-to-school credit. Has it gone through?"
+    },
+    {
+      "label": "R17",
+      "case_id": "syn-124",
+      "message": "I switched my 3 lines over with the Aurel X Pro switcher deal, but customer service said they couldn't locate any offer on file for me."
+    },
+    {
+      "label": "R18",
+      "case_id": "syn-098",
+      "message": "Why is there a 13 EUR charge/credit on my bill when my account is in US Dollars? The agent said my bill is $108."
+    },
+    {
+      "label": "R19",
+      "case_id": "syn-093",
+      "message": "I took the Orbis 7 holiday deal for 2 lines, but my billing statement has mixed currencies listed and support quoted $127."
+    },
+    {
+      "label": "R20",
+      "case_id": "syn-147",
+      "message": "I bought the Lumen 7 Plus on Unlimited Plus with the summer upgrade deal. Support told me my total is $96, is that right?"
+    },
+    {
+      "label": "R21",
+      "case_id": "syn-035",
+      "message": "I'm an employee on the Value plan with the Kestrel Edge Pro. The chat agent said my bill is $93, but did my upgrade promo apply?"
+    },
+    {
+      "label": "R22",
+      "case_id": "syn-107",
+      "message": "I looked at my June bill for the Kestrel 7 Pro and the credit amount has no currency attached to it. What is my real balance?"
+    },
+    {
+      "label": "R23",
+      "case_id": "syn-132",
+      "message": "I have 5 lines on Unlimited 2.0 with the Velo 9 Pro Max. The agent quoted $160, but my charges show $130 minus $30 credit. Why the gap?"
+    },
+    {
+      "label": "R24",
+      "case_id": "syn-126",
+      "message": "I bought an Aurel 7 under the spring upgrade promotion, but the system doesn't show any active offer attached to my account."
+    },
+    {
+      "label": "R25",
+      "case_id": "syn-136",
+      "message": "The support agent said my net bill is $196 for my Corvo Edge Plus, but my statement has a $162 charge and a $34 trade-in credit."
+    },
+    {
+      "label": "R26",
+      "case_id": "syn-054",
+      "message": "I got the Aurel X Pro with the winter switcher credit on 4 lines. An agent confirmed my total is $131—can you verify this?"
+    },
+    {
+      "label": "R27",
+      "case_id": "syn-189",
+      "message": "I have 6 lines with the Velo 9 winter loyalty reward, but the plan pricing table only lists rates up to 5 lines. How much is my plan?"
+    },
+    {
+      "label": "R28",
+      "case_id": "syn-172",
+      "message": "I got the Aurel 7 Pro with the holiday deal, but my account activation timestamp is blank. Will this affect my credit?"
+    },
+    {
+      "label": "R29",
+      "case_id": "syn-028",
+      "message": "I activated the Nimbus Edge Plus on the Everyday plan, but I didn't receive the autumn switcher credit."
+    },
+    {
+      "label": "R30",
+      "case_id": "syn-068",
+      "message": "I got the Aurel 7 on the Value plan, but my activation was scheduled for July 1. Does the June credit still apply to me?"
+    }
+  ]
+}

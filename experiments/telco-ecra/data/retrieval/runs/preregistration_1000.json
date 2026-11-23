@@ -1,0 +1,25 @@
+{
+  "written_before_first_call": "2026-10-10T18:28:27-0400",
+  "world_sha256": "26f2c39aef244656e608a3497b19f3a272b869a1c7acf7074f2c830eaf5a3837",
+  "scored_cases": "the 800 test cases",
+  "status": "all arms fixed before this world existed; run once",
+  "program": "v3_code_run1.py",
+  "program_sha256": "950a04eb6bb895e3d9644a5d75d16cb8ea3dd7ab0254000b8ef5428ec77da1b1",
+  "sha256": {
+    "run_pipeline.py": "83e2c3cd12c5068c5a785ad08071225175ef8efe45132ce98e7e68dc441f0197",
+    "posthoc_query.py": "95feba46c837e6b140a1f5c10e241e4c644eacd41004c94f7c33687a27c451c7",
+    "claude_questions.py": "0480070a2c4fbe1be21bba82f611c70fe0148786239ac390e5f311a1ce0d129e",
+    "hybrid_search.py": "bb7afba38d51d8657546836bdc2219516fbb7c3e9a84f04a2d725522987adc3d",
+    "ambiguity.py": "4feda3236e11b4b44e50b9409185ee71f01b538924c7ed660d4dc333b4094de2",
+    "clarify_policy.py": "1a7b5981587363acbb4a51af6f7fa04d32bc6b9895e6bee605a3ae947cd6ab51",
+    "retrieval.py": "a934bb8869e0902dfb03775f9a2d762cc8f2a065606bf86049e81175dbd45f60",
+    "generate_world.py": "698e2fb14ae94dc69435911a5e15e0d319b9191bbf9a1b3007922da03496d39e",
+    "run_retrieval_1000.py": "4af8db918ec3c89dca12038ef44ec4e54366addff43df6b3e466c59268bd684b"
+  },
+  "prompts": {
+    "question": "d89c0e77b15b2c869c362502f9167990f34b5cfef4ed4f9097c8d14e965eadd8",
+    "parse": "096f9a8031fb5bc112ca055709f3154e5ed904c79822ab8ecb63e0284543f7ad",
+    "select": "bc974d99374834e74161084b885ee9db8f8f770b04b30b9e1450f9285b444e6e",
+    "direct": "f2c36f1abbc65fbe534ee01b4904eeba3d54ca888e51cad4b5825d8947199367"
+  }
+}

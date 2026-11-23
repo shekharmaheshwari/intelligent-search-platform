@@ -1,0 +1,758 @@
+{
+ "collections": {
+  "Phones": {
+   "rows": [
+    {
+     "id": "SYN-PHONE-000",
+     "title": "Synthetic Phone 000",
+     "skus": [
+      "605132530608"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-001",
+     "title": "Synthetic Phone 001",
+     "skus": [
+      "732190699551",
+      "877007415367",
+      "205113441265"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-002",
+     "title": "Synthetic Phone 002",
+     "skus": [
+      "784682106409",
+      "884339536502"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-003",
+     "title": "Synthetic Phone 003",
+     "skus": [
+      "158387196016"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-004",
+     "title": "Synthetic Phone 004",
+     "skus": [
+      "893828500404",
+      "361486636625"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-005",
+     "title": "Synthetic Phone 005",
+     "skus": [
+      "747857532560"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-006",
+     "title": "Synthetic Phone 006",
+     "skus": [
+      "117496224782"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-007",
+     "title": "Synthetic Phone 007",
+     "skus": [
+      "891224179341"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-008",
+     "title": "Synthetic Phone 008",
+     "skus": [
+      "730186418551"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-009",
+     "title": "Synthetic Phone 009",
+     "skus": [
+      "713423492281"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-010",
+     "title": "Synthetic Phone 010",
+     "skus": [
+      "758203421202"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-011",
+     "title": "Synthetic Phone 011",
+     "skus": [
+      "319597060128"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-012",
+     "title": "Synthetic Phone 012",
+     "skus": [
+      "638811495833",
+      "270629034512"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-013",
+     "title": "Synthetic Phone 013",
+     "skus": [
+      "250524391955"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-014",
+     "title": "Synthetic Phone 014",
+     "skus": [
+      "845918688479"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-015",
+     "title": "Synthetic Phone 015",
+     "skus": [
+      "298531763836"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-016",
+     "title": "Synthetic Phone 016",
+     "skus": [
+      "918657544862"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-017",
+     "title": "Synthetic Phone 017",
+     "skus": [
+      "535189701868"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-018",
+     "title": "Synthetic Phone 018",
+     "skus": [
+      "930721046744"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-019",
+     "title": "Synthetic Phone 019",
+     "skus": [
+      "472256566778"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-020",
+     "title": "Synthetic Phone 020",
+     "skus": [
+      "889101625610"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-021",
+     "title": "Synthetic Phone 021",
+     "skus": [
+      "982487115908",
+      "752529186782"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-022",
+     "title": "Synthetic Phone 022",
+     "skus": [
+      "622100184901"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-023",
+     "title": "Synthetic Phone 023",
+     "skus": [
+      "574487493397",
+      "537622336413"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-024",
+     "title": "Synthetic Phone 024",
+     "skus": [
+      "970728869566",
+      "109903996692",
+      "262518188623",
+      "562514992943",
+      "361213972947"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-025",
+     "title": "Synthetic Phone 025",
+     "skus": [
+      "761865091393",
+      "927399534990",
+      "804572498837",
+      "593861537505",
+      "615697938338"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-026",
+     "title": "Synthetic Phone 026",
+     "skus": [
+      "701238597739",
+      "256557956022",
+      "684100741214",
+      "568260175301",
+      "945686495833"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-027",
+     "title": "Synthetic Phone 027",
+     "skus": [
+      "129226418367",
+      "563659090350",
+      "508898049809",
+      "357016620763",
+      "868965919277"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-028",
+     "title": "Synthetic Phone 028",
+     "skus": [
+      "628270114287"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-029",
+     "title": "Synthetic Phone 029",
+     "skus": [
+      "181538245903"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-030",
+     "title": "Synthetic Phone 030",
+     "skus": [
+      "895842724281"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-031",
+     "title": "Synthetic Phone 031",
+     "skus": [
+      "336391312236"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-032",
+     "title": "Synthetic Phone 032",
+     "skus": [
+      "268768851705",
+      "900843137764",
+      "981093338751",
+      "497507881436"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-033",
+     "title": "Synthetic Phone 033",
+     "skus": [
+      "977905790512",
+      "928220833439",
+      "197254629629",
+      "695673016218"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-034",
+     "title": "Synthetic Phone 034",
+     "skus": [
+      "699947281033",
+      "850081178021",
+      "881721345191",
+      "745068268686",
+      "605925170446"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-035",
+     "title": "Synthetic Phone 035",
+     "skus": [
+      "176276136459",
+      "909757120948",
+      "532038486519",
+      "232177330096",
+      "593500299872"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-036",
+     "title": "Synthetic Phone 036",
+     "skus": [
+      "804153845835"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-037",
+     "title": "Synthetic Phone 037",
+     "skus": [
+      "459003828992"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-038",
+     "title": "Synthetic Phone 038",
+     "skus": [
+      "852829714096"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-039",
+     "title": "Synthetic Phone 039",
+     "skus": [
+      "729230015529"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-040",
+     "title": "Synthetic Phone 040",
+     "skus": [
+      "608290663308"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-041",
+     "title": "Synthetic Phone 041",
+     "skus": [
+      "522984646767"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-042",
+     "title": "Synthetic Phone 042",
+     "skus": [
+      "150784526599",
+      "807317435817",
+      "994544932048",
+      "339295670869",
+      "344761293176"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-043",
+     "title": "Synthetic Phone 043",
+     "skus": [
+      "415085658812",
+      "403218343401",
+      "829013621144",
+      "385806316788",
+      "287770317591"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-044",
+     "title": "Synthetic Phone 044",
+     "skus": [
+      "957130901226",
+      "495131647151",
+      "725302500294",
+      "941554030824",
+      "803083952043"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-045",
+     "title": "Synthetic Phone 045",
+     "skus": [
+      "315898654611"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-046",
+     "title": "Synthetic Phone 046",
+     "skus": [
+      "751138712760"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-047",
+     "title": "Synthetic Phone 047",
+     "skus": [
+      "328477621616",
+      "966281015296",
+      "233230776159",
+      "192590357173"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-048",
+     "title": "Synthetic Phone 048",
+     "skus": [
+      "408721679385",
+      "527138902905",
+      "698597000168"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-049",
+     "title": "Synthetic Phone 049",
+     "skus": [
+      "286592011435",
+      "487558119395",
+      "754365886608",
+      "253833863758"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-050",
+     "title": "Synthetic Phone 050",
+     "skus": [
+      "455047749090"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-051",
+     "title": "Synthetic Phone 051",
+     "skus": [
+      "552394374690",
+      "983310318397",
+      "748603428099",
+      "467673453328",
+      "905839055491"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-052",
+     "title": "Synthetic Phone 052",
+     "skus": [
+      "186754980544",
+      "677163752820",
+      "848902257346",
+      "555597122206",
+      "971590631415"
+     ]
+    },
+    {
+     "id": "SYN-PHONE-053",
+     "title": "Synthetic Phone 053",
+     "skus": [
+      "708452858657"
+     ]
+    }
+   ]
+  },
+  "Plans": {
+   "rows": [
+    {
+     "id": "SYN-PLAN-00",
+     "title": "Synthetic Plan 00",
+     "eligible_lines": [
+      1,
+      2
+     ],
+     "line_prices": [
+      35,
+      49
+     ]
+    },
+    {
+     "id": "SYN-PLAN-01",
+     "title": "Synthetic Plan 01",
+     "eligible_lines": [
+      1,
+      2
+     ],
+     "line_prices": [
+      81,
+      92
+     ]
+    },
+    {
+     "id": "SYN-PLAN-02",
+     "title": "Synthetic Plan 02",
+     "eligible_lines": [
+      1,
+      2
+     ],
+     "line_prices": [
+      44,
+      61
+     ]
+    },
+    {
+     "id": "SYN-PLAN-03",
+     "title": "Synthetic Plan 03",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+     ],
+     "line_prices": [
+      66,
+      85,
+      99,
+      113,
+      130,
+      145
+     ]
+    },
+    {
+     "id": "SYN-PLAN-04",
+     "title": "Synthetic Plan 04",
+     "eligible_lines": [
+      1,
+      2
+     ],
+     "line_prices": [
+      36,
+      51
+     ]
+    },
+    {
+     "id": "SYN-PLAN-05",
+     "title": "Synthetic Plan 05",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+     ],
+     "line_prices": [
+      51,
+      62,
+      77,
+      96,
+      111,
+      125
+     ]
+    },
+    {
+     "id": "SYN-PLAN-06",
+     "title": "Synthetic Plan 06",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+     ],
+     "line_prices": [
+      47,
+      62,
+      76,
+      92,
+      106,
+      121,
+      139,
+      150
+     ]
+    },
+    {
+     "id": "SYN-PLAN-07",
+     "title": "Synthetic Plan 07",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+     ],
+     "line_prices": [
+      64,
+      80,
+      93,
+      106,
+      123,
+      136,
+      154,
+      168
+     ]
+    },
+    {
+     "id": "SYN-PLAN-08",
+     "title": "Synthetic Plan 08",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+     ],
+     "line_prices": [
+      23,
+      37,
+      55,
+      69,
+      83,
+      101
+     ]
+    },
+    {
+     "id": "SYN-PLAN-09",
+     "title": "Synthetic Plan 09",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+     ],
+     "line_prices": [
+      82,
+      97,
+      111,
+      124,
+      139,
+      154,
+      169,
+      188
+     ]
+    },
+    {
+     "id": "SYN-PLAN-10",
+     "title": "Synthetic Plan 10",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+     ],
+     "line_prices": [
+      68,
+      83,
+      94,
+      109,
+      124,
+      139,
+      157,
+      173
+     ]
+    },
+    {
+     "id": "SYN-PLAN-11",
+     "title": "Synthetic Plan 11",
+     "eligible_lines": [
+      1,
+      2
+     ],
+     "line_prices": [
+      67,
+      84
+     ]
+    },
+    {
+     "id": "SYN-PLAN-12",
+     "title": "Synthetic Plan 12",
+     "eligible_lines": [
+      1,
+      2
+     ],
+     "line_prices": [
+      51,
+      66
+     ]
+    },
+    {
+     "id": "SYN-PLAN-13",
+     "title": "Synthetic Plan 13",
+     "eligible_lines": [
+      1,
+      2
+     ],
+     "line_prices": [
+      70,
+      88
+     ]
+    },
+    {
+     "id": "SYN-PLAN-14",
+     "title": "Synthetic Plan 14",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+     ],
+     "line_prices": [
+      44,
+      58,
+      74,
+      86,
+      104,
+      117,
+      134,
+      150
+     ]
+    },
+    {
+     "id": "SYN-PLAN-15",
+     "title": "Synthetic Plan 15",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+     ],
+     "line_prices": [
+      42,
+      57,
+      71,
+      84,
+      100,
+      114,
+      129,
+      145
+     ]
+    },
+    {
+     "id": "SYN-PLAN-16",
+     "title": "Synthetic Plan 16",
+     "eligible_lines": [
+      4,
+      5,
+      6
+     ],
+     "line_prices": [
+      39,
+      53,
+      66
+     ]
+    }
+   ]
+  }
+ },
+ "snapshot_sha256": "310ca8fc3bd900dbe8f8963a0fe7be7806865f86c6db914ba742f0a1fb9dd683"
+}

@@ -1,0 +1,170 @@
+{
+  "gpt-4o-mini direct (v1)": {
+    "runs": 1,
+    "case_exact": [
+      51
+    ],
+    "field_correct": [
+      464
+    ],
+    "answered": [
+      618
+    ],
+    "unsupported": [
+      69
+    ],
+    "invalid_cases": [
+      0
+    ],
+    "correct_among_answered": [
+      453
+    ],
+    "per_field": [
+      {
+        "promotion_eligible": 90,
+        "net_billed": 123,
+        "support_correct": 109,
+        "plan_price": 142
+      }
+    ]
+  },
+  "verifier": {
+    "runs": 1,
+    "case_exact": [
+      160
+    ],
+    "field_correct": [
+      640
+    ],
+    "answered": [
+      560
+    ],
+    "unsupported": [
+      0
+    ],
+    "invalid_cases": [
+      0
+    ],
+    "correct_among_answered": [
+      560
+    ],
+    "per_field": [
+      {
+        "promotion_eligible": 160,
+        "net_billed": 160,
+        "support_correct": 160,
+        "plan_price": 160
+      }
+    ]
+  },
+  "gpt-5.4-mini direct": {
+    "runs": 3,
+    "case_exact": [
+      137,
+      135,
+      133
+    ],
+    "field_correct": [
+      602,
+      599,
+      598
+    ],
+    "answered": [
+      598,
+      600,
+      599
+    ],
+    "unsupported": [
+      38,
+      40,
+      39
+    ],
+    "invalid_cases": [
+      0,
+      0,
+      0
+    ],
+    "correct_among_answered": [
+      560,
+      559,
+      557
+    ],
+    "per_field": [
+      {
+        "promotion_eligible": 152,
+        "net_billed": 145,
+        "support_correct": 145,
+        "plan_price": 160
+      },
+      {
+        "promotion_eligible": 151,
+        "net_billed": 144,
+        "support_correct": 144,
+        "plan_price": 160
+      },
+      {
+        "promotion_eligible": 148,
+        "net_billed": 145,
+        "support_correct": 145,
+        "plan_price": 160
+      }
+    ],
+    "cases_consistent_across_runs": 154,
+    "cases_exact_in_all_runs": 131
+  },
+  "gpt-5.4-mini code": {
+    "runs": 3,
+    "case_exact": [
+      152,
+      160,
+      24
+    ],
+    "field_correct": [
+      624,
+      640,
+      504
+    ],
+    "answered": [
+      576,
+      560,
+      424
+    ],
+    "unsupported": [
+      16,
+      0,
+      0
+    ],
+    "invalid_cases": [
+      0,
+      0,
+      0
+    ],
+    "correct_among_answered": [
+      560,
+      560,
+      424
+    ],
+    "per_field": [
+      {
+        "promotion_eligible": 160,
+        "net_billed": 152,
+        "support_correct": 152,
+        "plan_price": 160
+      },
+      {
+        "promotion_eligible": 160,
+        "net_billed": 160,
+        "support_correct": 160,
+        "plan_price": 160
+      },
+      {
+        "promotion_eligible": 24,
+        "net_billed": 160,
+        "support_correct": 160,
+        "plan_price": 160
+      }
+    ],
+    "cases_consistent_across_runs": 24,
+    "cases_exact_in_all_runs": 24
+  }
+}

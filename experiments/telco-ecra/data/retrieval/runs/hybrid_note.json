@@ -1,0 +1,13 @@
+{
+  "written_before_first_call": "2026-10-10T19:02:51-0400",
+  "status": "post hoc, added after all keyword-search results were known",
+  "change": "offer search = Typesense hybrid (keyword + voyage-3 embeddings, rank fusion alpha 0.3) instead of keyword only; query = phone mention + offer mention",
+  "ask_when_tied": "phone-filtered hybrid search on the offer mention; ask when the top two fused scores are equal",
+  "new_calls": [
+    "voyage-3 embeddings",
+    "select_hybrid_gpt (160)",
+    "select_hybrid_claude (160)",
+    "select_hybrid_author (30)"
+  ],
+  "script_sha256": "bb7afba38d51d8657546836bdc2219516fbb7c3e9a84f04a2d725522987adc3d"
+}

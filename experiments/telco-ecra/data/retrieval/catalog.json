@@ -1,0 +1,861 @@
+{
+ "collections": {
+  "Phones": {
+   "rows": [
+    {
+     "id": "PH-000",
+     "title": "Aurel Air Plus",
+     "skus": [
+      "488807259048",
+      "266630540880"
+     ]
+    },
+    {
+     "id": "PH-001",
+     "title": "Aurel Air Pro Max",
+     "skus": [
+      "990931330294",
+      "574348626349",
+      "358859095088"
+     ]
+    },
+    {
+     "id": "PH-002",
+     "title": "Aurel Air Pro",
+     "skus": [
+      "875015285088"
+     ]
+    },
+    {
+     "id": "PH-003",
+     "title": "Aurel Air",
+     "skus": [
+      "830037917248",
+      "969744800566"
+     ]
+    },
+    {
+     "id": "PH-004",
+     "title": "Aurel Edge Pro Max",
+     "skus": [
+      "869118696171",
+      "337664793469",
+      "517088262104"
+     ]
+    },
+    {
+     "id": "PH-005",
+     "title": "Aurel Edge Plus",
+     "skus": [
+      "154669889748"
+     ]
+    },
+    {
+     "id": "PH-006",
+     "title": "Aurel Edge Pro",
+     "skus": [
+      "530686197711",
+      "232839399433"
+     ]
+    },
+    {
+     "id": "PH-007",
+     "title": "Aurel Edge",
+     "skus": [
+      "520780806703",
+      "242120031611"
+     ]
+    },
+    {
+     "id": "PH-008",
+     "title": "Aurel 7 Pro",
+     "skus": [
+      "160704537642"
+     ]
+    },
+    {
+     "id": "PH-009",
+     "title": "Aurel 7 Plus",
+     "skus": [
+      "668208990088"
+     ]
+    },
+    {
+     "id": "PH-010",
+     "title": "Kestrel Edge",
+     "skus": [
+      "976593795728",
+      "105835206802",
+      "101127752641"
+     ]
+    },
+    {
+     "id": "PH-011",
+     "title": "Kestrel Edge Plus",
+     "skus": [
+      "734627899010"
+     ]
+    },
+    {
+     "id": "PH-012",
+     "title": "Kestrel Edge Pro",
+     "skus": [
+      "860006609232",
+      "332003005105"
+     ]
+    },
+    {
+     "id": "PH-013",
+     "title": "Kestrel 5 Plus",
+     "skus": [
+      "857271090092",
+      "994327239087",
+      "512281373901"
+     ]
+    },
+    {
+     "id": "PH-014",
+     "title": "Kestrel 5",
+     "skus": [
+      "331930202627",
+      "203716540664"
+     ]
+    },
+    {
+     "id": "PH-015",
+     "title": "Kestrel Air Plus",
+     "skus": [
+      "688376227924",
+      "387184727789"
+     ]
+    },
+    {
+     "id": "PH-016",
+     "title": "Kestrel Air",
+     "skus": [
+      "972523231678",
+      "764790568293",
+      "255556005425"
+     ]
+    },
+    {
+     "id": "PH-017",
+     "title": "Kestrel Air Pro",
+     "skus": [
+      "598312194255"
+     ]
+    },
+    {
+     "id": "PH-018",
+     "title": "Kestrel Air Pro Max",
+     "skus": [
+      "617623124882",
+      "772032585251",
+      "832126932478"
+     ]
+    },
+    {
+     "id": "PH-019",
+     "title": "Orbis Air Pro Max",
+     "skus": [
+      "976501384103",
+      "537166110700"
+     ]
+    },
+    {
+     "id": "PH-020",
+     "title": "Orbis Air Plus",
+     "skus": [
+      "505331274964",
+      "747664004895"
+     ]
+    },
+    {
+     "id": "PH-021",
+     "title": "Orbis Air Pro",
+     "skus": [
+      "568101352682"
+     ]
+    },
+    {
+     "id": "PH-022",
+     "title": "Orbis Air",
+     "skus": [
+      "415652727700",
+      "638980312974"
+     ]
+    },
+    {
+     "id": "PH-023",
+     "title": "Orbis 5 Plus",
+     "skus": [
+      "530979640587",
+      "219618734048"
+     ]
+    },
+    {
+     "id": "PH-024",
+     "title": "Orbis 5 Pro Max",
+     "skus": [
+      "741902172570"
+     ]
+    },
+    {
+     "id": "PH-025",
+     "title": "Orbis 5 Pro",
+     "skus": [
+      "799349533951",
+      "330943390655",
+      "153202634095"
+     ]
+    },
+    {
+     "id": "PH-026",
+     "title": "Orbis X Pro",
+     "skus": [
+      "359796284011",
+      "579944189234"
+     ]
+    },
+    {
+     "id": "PH-027",
+     "title": "Orbis X Plus",
+     "skus": [
+      "465386745340",
+      "231221112194"
+     ]
+    },
+    {
+     "id": "PH-028",
+     "title": "Velo X Plus",
+     "skus": [
+      "434426461563",
+      "343605533538"
+     ]
+    },
+    {
+     "id": "PH-029",
+     "title": "Velo X",
+     "skus": [
+      "591010708696",
+      "881032567620",
+      "422557895345"
+     ]
+    },
+    {
+     "id": "PH-030",
+     "title": "Velo Edge Pro Max",
+     "skus": [
+      "742634914742"
+     ]
+    },
+    {
+     "id": "PH-031",
+     "title": "Velo Edge Plus",
+     "skus": [
+      "508871077806",
+      "676010885249",
+      "974380141528"
+     ]
+    },
+    {
+     "id": "PH-032",
+     "title": "Velo 5",
+     "skus": [
+      "819809766256"
+     ]
+    },
+    {
+     "id": "PH-033",
+     "title": "Velo 5 Pro",
+     "skus": [
+      "206664546036",
+      "481002044972",
+      "720694551004"
+     ]
+    },
+    {
+     "id": "PH-034",
+     "title": "Velo 5 Pro Max",
+     "skus": [
+      "273181334438",
+      "553680169639"
+     ]
+    },
+    {
+     "id": "PH-035",
+     "title": "Velo 5 Plus",
+     "skus": [
+      "786405019336"
+     ]
+    },
+    {
+     "id": "PH-036",
+     "title": "Lumen 9 Pro Max",
+     "skus": [
+      "210470239018",
+      "428260616978",
+      "916253464574"
+     ]
+    },
+    {
+     "id": "PH-037",
+     "title": "Lumen 9 Plus",
+     "skus": [
+      "931797866477"
+     ]
+    },
+    {
+     "id": "PH-038",
+     "title": "Lumen 5 Pro Max",
+     "skus": [
+      "991268356247"
+     ]
+    },
+    {
+     "id": "PH-039",
+     "title": "Lumen 5",
+     "skus": [
+      "799036121446",
+      "300472395857"
+     ]
+    },
+    {
+     "id": "PH-040",
+     "title": "Lumen Edge Pro Max",
+     "skus": [
+      "590702177345",
+      "436011659545",
+      "400198869822"
+     ]
+    },
+    {
+     "id": "PH-041",
+     "title": "Lumen Edge",
+     "skus": [
+      "349845925601"
+     ]
+    },
+    {
+     "id": "PH-042",
+     "title": "Nimbus Edge Plus",
+     "skus": [
+      "483736205974",
+      "623650550097",
+      "646884604313"
+     ]
+    },
+    {
+     "id": "PH-043",
+     "title": "Nimbus Edge Pro",
+     "skus": [
+      "158732654899"
+     ]
+    },
+    {
+     "id": "PH-044",
+     "title": "Nimbus 5",
+     "skus": [
+      "463864149441"
+     ]
+    },
+    {
+     "id": "PH-045",
+     "title": "Nimbus 5 Pro",
+     "skus": [
+      "823001942891",
+      "558183229075",
+      "683165265782"
+     ]
+    },
+    {
+     "id": "PH-046",
+     "title": "Nimbus 5 Pro Max",
+     "skus": [
+      "288902170513"
+     ]
+    },
+    {
+     "id": "PH-047",
+     "title": "Nimbus Air",
+     "skus": [
+      "601065598348",
+      "419742940406"
+     ]
+    },
+    {
+     "id": "PH-048",
+     "title": "Nimbus Air Pro Max",
+     "skus": [
+      "672298133829"
+     ]
+    },
+    {
+     "id": "PH-049",
+     "title": "Strata 9 Pro Max",
+     "skus": [
+      "301351464029",
+      "998137782885",
+      "364310569439"
+     ]
+    },
+    {
+     "id": "PH-050",
+     "title": "Strata 9",
+     "skus": [
+      "294028206006"
+     ]
+    },
+    {
+     "id": "PH-051",
+     "title": "Strata 7 Pro Max",
+     "skus": [
+      "305042801738",
+      "919231865256"
+     ]
+    },
+    {
+     "id": "PH-052",
+     "title": "Strata 7",
+     "skus": [
+      "984352215044",
+      "643661937481"
+     ]
+    },
+    {
+     "id": "PH-053",
+     "title": "Strata 7 Pro",
+     "skus": [
+      "168520199169"
+     ]
+    },
+    {
+     "id": "PH-054",
+     "title": "Strata Edge Pro",
+     "skus": [
+      "723505580854",
+      "604614491378"
+     ]
+    },
+    {
+     "id": "PH-055",
+     "title": "Strata Edge Plus",
+     "skus": [
+      "791634465563",
+      "393378356317"
+     ]
+    },
+    {
+     "id": "PH-056",
+     "title": "Strata Edge Pro Max",
+     "skus": [
+      "154777462384",
+      "775962812782",
+      "465265302191"
+     ]
+    },
+    {
+     "id": "PH-057",
+     "title": "Strata Edge",
+     "skus": [
+      "212901037231",
+      "641195390352"
+     ]
+    },
+    {
+     "id": "PH-058",
+     "title": "Corvo 7",
+     "skus": [
+      "548376390847",
+      "244126076272",
+      "874409590595"
+     ]
+    },
+    {
+     "id": "PH-059",
+     "title": "Corvo 7 Pro",
+     "skus": [
+      "598839159849"
+     ]
+    },
+    {
+     "id": "PH-060",
+     "title": "Corvo 9",
+     "skus": [
+      "941404403150"
+     ]
+    },
+    {
+     "id": "PH-061",
+     "title": "Corvo 9 Pro",
+     "skus": [
+      "419684083065",
+      "174635168739"
+     ]
+    },
+    {
+     "id": "PH-062",
+     "title": "Corvo Edge Pro Max",
+     "skus": [
+      "505908463186",
+      "594293728783"
+     ]
+    },
+    {
+     "id": "PH-063",
+     "title": "Corvo Edge Pro",
+     "skus": [
+      "224878931996",
+      "473452364877"
+     ]
+    }
+   ]
+  },
+  "Plans": {
+   "rows": [
+    {
+     "id": "PL-00",
+     "title": "Essential (1-4 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "line_prices": [
+      77,
+      105,
+      126,
+      150
+     ]
+    },
+    {
+     "id": "PL-01",
+     "title": "Essential 2.0 (1-4 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "line_prices": [
+      74,
+      97,
+      126,
+      149
+     ]
+    },
+    {
+     "id": "PL-02",
+     "title": "Everyday (3-8 lines)",
+     "eligible_lines": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+     ],
+     "line_prices": [
+      65,
+      94,
+      119,
+      142,
+      167,
+      190
+     ]
+    },
+    {
+     "id": "PL-03",
+     "title": "Everyday 2.0 (1-5 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "line_prices": [
+      44,
+      71,
+      94,
+      118,
+      146
+     ]
+    },
+    {
+     "id": "PL-04",
+     "title": "Unlimited (2-5 lines)",
+     "eligible_lines": [
+      2,
+      3,
+      4,
+      5
+     ],
+     "line_prices": [
+      52,
+      81,
+      102,
+      129
+     ]
+    },
+    {
+     "id": "PL-05",
+     "title": "Unlimited 2.0 (1-6 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+     ],
+     "line_prices": [
+      79,
+      105,
+      134,
+      157,
+      183,
+      208
+     ]
+    },
+    {
+     "id": "PL-06",
+     "title": "Unlimited Plus (1-4 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "line_prices": [
+      87,
+      113,
+      136,
+      165
+     ]
+    },
+    {
+     "id": "PL-07",
+     "title": "Unlimited Plus 2.0 (2-4 lines)",
+     "eligible_lines": [
+      2,
+      3,
+      4
+     ],
+     "line_prices": [
+      84,
+      108,
+      133
+     ]
+    },
+    {
+     "id": "PL-08",
+     "title": "Family Share (2-4 lines)",
+     "eligible_lines": [
+      2,
+      3,
+      4
+     ],
+     "line_prices": [
+      28,
+      58,
+      79
+     ]
+    },
+    {
+     "id": "PL-09",
+     "title": "Family Share 2.0 (3-5 lines)",
+     "eligible_lines": [
+      3,
+      4,
+      5
+     ],
+     "line_prices": [
+      61,
+      86,
+      109
+     ]
+    },
+    {
+     "id": "PL-10",
+     "title": "Value (1-3 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3
+     ],
+     "line_prices": [
+      86,
+      108,
+      138
+     ]
+    },
+    {
+     "id": "PL-11",
+     "title": "Value 2.0 (1-6 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+     ],
+     "line_prices": [
+      28,
+      53,
+      80,
+      104,
+      129,
+      156
+     ]
+    },
+    {
+     "id": "PL-12",
+     "title": "Premium (2-7 lines)",
+     "eligible_lines": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ],
+     "line_prices": [
+      63,
+      83,
+      112,
+      137,
+      163,
+      187
+     ]
+    },
+    {
+     "id": "PL-13",
+     "title": "Premium 2.0 (1-6 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+     ],
+     "line_prices": [
+      87,
+      115,
+      137,
+      161,
+      188,
+      213
+     ]
+    },
+    {
+     "id": "PL-14",
+     "title": "Starter (1-4 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "line_prices": [
+      85,
+      108,
+      132,
+      159
+     ]
+    },
+    {
+     "id": "PL-15",
+     "title": "Starter 2.0 (3-6 lines)",
+     "eligible_lines": [
+      3,
+      4,
+      5,
+      6
+     ],
+     "line_prices": [
+      52,
+      78,
+      101,
+      126
+     ]
+    },
+    {
+     "id": "PL-16",
+     "title": "Connect (1-5 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5
+     ],
+     "line_prices": [
+      39,
+      64,
+      89,
+      117,
+      139
+     ]
+    },
+    {
+     "id": "PL-17",
+     "title": "Connect 2.0 (1-6 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+     ],
+     "line_prices": [
+      42,
+      68,
+      92,
+      115,
+      140,
+      167
+     ]
+    },
+    {
+     "id": "PL-18",
+     "title": "Go (2-7 lines)",
+     "eligible_lines": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ],
+     "line_prices": [
+      53,
+      79,
+      107,
+      127,
+      154,
+      178
+     ]
+    },
+    {
+     "id": "PL-19",
+     "title": "Go 2.0 (1-3 lines)",
+     "eligible_lines": [
+      1,
+      2,
+      3
+     ],
+     "line_prices": [
+      79,
+      104,
+      130
+     ]
+    }
+   ]
+  }
+ }
+}

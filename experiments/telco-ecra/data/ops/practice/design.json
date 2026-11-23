@@ -1,0 +1,43 @@
+{
+  "benchmark_sha256": "54d5165ae47b6937f7b3ddf6caa43ec17931731098e30a5765ba418a5222fd82",
+  "source_snapshot_sha256": "e6c0f2814a8f935c17be806551e0f053f59bf692b293e68b021bf49c6f23aa6b",
+  "customers": 200,
+  "cases": 200,
+  "development_cases": 200,
+  "test_cases": 0,
+  "families": [
+    "clean",
+    "sku_mismatch",
+    "plan_mismatch",
+    "excluded_segment",
+    "expired",
+    "not_started",
+    "end_boundary",
+    "late_credit",
+    "future_event",
+    "wrong_currency",
+    "missing_currency",
+    "conflicting_offer",
+    "missing_offer",
+    "misleading_support",
+    "correct_support",
+    "duplicate_event",
+    "conflicting_event",
+    "unknown_activation",
+    "unlisted_line_count",
+    "future_offer_version"
+  ],
+  "synthetic_operational_records": true,
+  "real_customer_records": 0,
+  "oracle": "assigned by scenario construction; no independent human annotation",
+  "split": "practice set, its own seed",
+  "real_catalog": "none: synthetic catalogue stand-in",
+  "primary_metric": "four-field exact cases",
+  "secondary_metrics": [
+    "promotion_eligible",
+    "net_billed",
+    "support_correct",
+    "plan_price"
+  ],
+  "collections_prefix": null
+}

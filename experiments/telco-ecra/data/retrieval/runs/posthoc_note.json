@@ -1,0 +1,10 @@
+{
+  "written_before_first_call": "2026-10-10T18:48:56-0400",
+  "status": "post hoc, added after seeing the pre-registered results",
+  "change": "offer search query = phone mention + offer mention",
+  "new_calls": [
+    "select_fixed (160)",
+    "direct_select_fixed (160)"
+  ],
+  "script_sha256": "95feba46c837e6b140a1f5c10e241e4c644eacd41004c94f7c33687a27c451c7"
+}

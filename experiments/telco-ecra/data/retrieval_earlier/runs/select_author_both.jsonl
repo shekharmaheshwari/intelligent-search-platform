@@ -1,0 +1,30 @@
+{"case_id": "syn-005", "text": "{\"offer_id\": null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.1954779624938965, "usage": {"in": 258, "out": 95, "reasoning": 77}, "attempts": 1}
+{"case_id": "syn-019", "text": "{\"offer_id\": null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.1839780807495117, "usage": {"in": 237, "out": 111, "reasoning": 93}, "attempts": 1}
+{"case_id": "syn-023", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.313406229019165, "usage": {"in": 152, "out": 84, "reasoning": 66}, "attempts": 1}
+{"case_id": "syn-028", "text": "{\"offer_id\":\"OFFER-28\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.0190401077270508, "usage": {"in": 172, "out": 52, "reasoning": 31}, "attempts": 2}
+{"case_id": "syn-035", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.7307991981506348, "usage": {"in": 257, "out": 47, "reasoning": 29}, "attempts": 1}
+{"case_id": "syn-039", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.6605582237243652, "usage": {"in": 236, "out": 51, "reasoning": 33}, "attempts": 1}
+{"case_id": "syn-045", "text": "{\"offer_id\": null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.0261919498443604, "usage": {"in": 183, "out": 99, "reasoning": 81}, "attempts": 1}
+{"case_id": "syn-054", "text": "{\"offer_id\": null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.2376189231872559, "usage": {"in": 240, "out": 134, "reasoning": 116}, "attempts": 1}
+{"case_id": "syn-058", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.7438790798187256, "usage": {"in": 126, "out": 62, "reasoning": 44}, "attempts": 1}
+{"case_id": "syn-065", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.4264001846313477, "usage": {"in": 252, "out": 174, "reasoning": 156}, "attempts": 1}
+{"case_id": "syn-068", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.3838238716125488, "usage": {"in": 250, "out": 158, "reasoning": 140}, "attempts": 1}
+{"case_id": "syn-076", "text": "{\"offer_id\": null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.219007968902588, "usage": {"in": 151, "out": 119, "reasoning": 101}, "attempts": 1}
+{"case_id": "syn-079", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.956165075302124, "usage": {"in": 243, "out": 270, "reasoning": 252}, "attempts": 1}
+{"case_id": "syn-083", "text": "{\"offer_id\": null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.7662310600280762, "usage": {"in": 252, "out": 58, "reasoning": 40}, "attempts": 1}
+{"case_id": "syn-086", "text": "{\"offer_id\": null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.8603670597076416, "usage": {"in": 254, "out": 70, "reasoning": 52}, "attempts": 1}
+{"case_id": "syn-093", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.7812159061431885, "usage": {"in": 148, "out": 65, "reasoning": 47}, "attempts": 1}
+{"case_id": "syn-098", "text": "{\"offer_id\":null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.6803152561187744, "usage": {"in": 89, "out": 34, "reasoning": 16}, "attempts": 1}
+{"case_id": "syn-107", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.8402037620544434, "usage": {"in": 245, "out": 57, "reasoning": 39}, "attempts": 1}
+{"case_id": "syn-114", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 2.0039329528808594, "usage": {"in": 238, "out": 225, "reasoning": 207}, "attempts": 1}
+{"case_id": "syn-124", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.8377609252929688, "usage": {"in": 124, "out": 80, "reasoning": 62}, "attempts": 1}
+{"case_id": "syn-126", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.9486770629882812, "usage": {"in": 180, "out": 78, "reasoning": 60}, "attempts": 1}
+{"case_id": "syn-132", "text": "{\"offer_id\": null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.7640249729156494, "usage": {"in": 258, "out": 44, "reasoning": 26}, "attempts": 1}
+{"case_id": "syn-136", "text": "{\"offer_id\": null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.072591781616211, "usage": {"in": 242, "out": 119, "reasoning": 101}, "attempts": 1}
+{"case_id": "syn-147", "text": "{\"offer_id\":\"OFFER-147\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.0742809772491455, "usage": {"in": 240, "out": 119, "reasoning": 98}, "attempts": 1}
+{"case_id": "syn-153", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 2.219519853591919, "usage": {"in": 247, "out": 262, "reasoning": 244}, "attempts": 1}
+{"case_id": "syn-169", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.3424201011657715, "usage": {"in": 124, "out": 150, "reasoning": 132}, "attempts": 1}
+{"case_id": "syn-172", "text": "{\"offer_id\": null}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.9523048400878906, "usage": {"in": 239, "out": 86, "reasoning": 68}, "attempts": 1}
+{"case_id": "syn-176", "text": "{\"offer_id\":\"OFFER-176\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.6316859722137451, "usage": {"in": 228, "out": 58, "reasoning": 37}, "attempts": 1}
+{"case_id": "syn-189", "text": "{\"offer_id\":\"OFFER-189\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 0.9590959548950195, "usage": {"in": 119, "out": 89, "reasoning": 68}, "attempts": 1}
+{"case_id": "syn-199", "text": "{\"offer_id\":\"null\"}", "model": "gpt-5.4-mini-2026-03-17", "seconds": 1.251824140548706, "usage": {"in": 131, "out": 113, "reasoning": 95}, "attempts": 1}

@@ -1,0 +1,96 @@
+{
+  "retrieval": {
+    "top1": {
+      "offer_correct": 618,
+      "wrong_by_family": {
+        "clean": 7,
+        "sku_mismatch": 3,
+        "plan_mismatch": 10,
+        "excluded_segment": 10,
+        "expired": 5,
+        "not_started": 11,
+        "end_boundary": 11,
+        "late_credit": 5,
+        "future_event": 11,
+        "wrong_currency": 7,
+        "missing_currency": 5,
+        "conflicting_offer": 11,
+        "missing_offer": 40,
+        "misleading_support": 6,
+        "correct_support": 7,
+        "duplicate_event": 7,
+        "conflicting_event": 6,
+        "unknown_activation": 8,
+        "unlisted_line_count": 6,
+        "future_offer_version": 6
+      }
+    },
+    "select": {
+      "offer_correct": 664,
+      "wrong_by_family": {
+        "clean": 5,
+        "sku_mismatch": 2,
+        "plan_mismatch": 8,
+        "excluded_segment": 9,
+        "expired": 4,
+        "not_started": 11,
+        "end_boundary": 11,
+        "late_credit": 5,
+        "future_event": 10,
+        "wrong_currency": 7,
+        "missing_currency": 5,
+        "conflicting_offer": 11,
+        "missing_offer": 3,
+        "misleading_support": 6,
+        "correct_support": 7,
+        "duplicate_event": 8,
+        "conflicting_event": 6,
+        "unknown_activation": 7,
+        "unlisted_line_count": 6,
+        "future_offer_version": 5
+      }
+    }
+  },
+  "decisions": {
+    "oracle / checker": {
+      "exact": 800,
+      "unsupported": 0
+    },
+    "oracle / program": {
+      "exact": 800,
+      "unsupported": 0
+    },
+    "oracle / direct": {
+      "exact": 716,
+      "unsupported": 117
+    },
+    "top1 / checker": {
+      "exact": 676,
+      "unsupported": 49
+    },
+    "top1 / program": {
+      "exact": 677,
+      "unsupported": 50
+    },
+    "top1 / direct": {
+      "exact": 600,
+      "unsupported": 149
+    },
+    "select / checker": {
+      "exact": 683,
+      "unsupported": 5
+    },
+    "select / program": {
+      "exact": 683,
+      "unsupported": 5
+    },
+    "select / direct": {
+      "exact": 612,
+      "unsupported": 97
+    }
+  },
+  "tokens": {
+    "in": 4855535,
+    "out": 770812
+  }
+}

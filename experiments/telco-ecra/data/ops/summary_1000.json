@@ -1,0 +1,651 @@
+{
+  "n_test": 800,
+  "n_practice": 200,
+  "arms": {
+    "A1_4o_r1": [
+      {
+        "exact": 208,
+        "unsupported": 349,
+        "withheld_wrongly": 67,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 497,
+            "wrong_value": 154,
+            "unsupported": 98,
+            "withheld_wrongly": 51
+          },
+          "net_billed": {
+            "correct": 602,
+            "wrong_value": 78,
+            "unsupported": 120,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 462,
+            "wrong_value": 203,
+            "unsupported": 120,
+            "withheld_wrongly": 15
+          },
+          "plan_price": {
+            "correct": 716,
+            "wrong_value": 72,
+            "unsupported": 11,
+            "withheld_wrongly": 1
+          }
+        }
+      }
+    ],
+    "A2_r1_low": [
+      {
+        "exact": 668,
+        "unsupported": 200,
+        "withheld_wrongly": 2,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 750,
+            "wrong_value": 6,
+            "unsupported": 44,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 720,
+            "wrong_value": 2,
+            "unsupported": 78,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 720,
+            "wrong_value": 2,
+            "unsupported": 78,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 798,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 2
+          }
+        }
+      },
+      {
+        "exact": 675,
+        "unsupported": 200,
+        "withheld_wrongly": 1,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 755,
+            "wrong_value": 3,
+            "unsupported": 42,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 721,
+            "wrong_value": 0,
+            "unsupported": 79,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 721,
+            "wrong_value": 0,
+            "unsupported": 79,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 799,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 1
+          }
+        }
+      },
+      {
+        "exact": 676,
+        "unsupported": 198,
+        "withheld_wrongly": 0,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 755,
+            "wrong_value": 3,
+            "unsupported": 42,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 721,
+            "wrong_value": 1,
+            "unsupported": 78,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 721,
+            "wrong_value": 1,
+            "unsupported": 78,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      }
+    ],
+    "A4_r2_low": [
+      {
+        "exact": 723,
+        "unsupported": 100,
+        "withheld_wrongly": 2,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 756,
+            "wrong_value": 4,
+            "unsupported": 40,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 768,
+            "wrong_value": 2,
+            "unsupported": 30,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 768,
+            "wrong_value": 2,
+            "unsupported": 30,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 798,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 2
+          }
+        }
+      },
+      {
+        "exact": 720,
+        "unsupported": 96,
+        "withheld_wrongly": 3,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 755,
+            "wrong_value": 5,
+            "unsupported": 40,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 768,
+            "wrong_value": 4,
+            "unsupported": 28,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 768,
+            "wrong_value": 4,
+            "unsupported": 28,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 797,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 3
+          }
+        }
+      },
+      {
+        "exact": 723,
+        "unsupported": 96,
+        "withheld_wrongly": 1,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 756,
+            "wrong_value": 4,
+            "unsupported": 40,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 768,
+            "wrong_value": 4,
+            "unsupported": 28,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 768,
+            "wrong_value": 4,
+            "unsupported": 28,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 799,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 1
+          }
+        }
+      }
+    ],
+    "A5_r2_medium_ex": [
+      {
+        "exact": 765,
+        "unsupported": 52,
+        "withheld_wrongly": 1,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 787,
+            "wrong_value": 3,
+            "unsupported": 10,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 779,
+            "wrong_value": 0,
+            "unsupported": 21,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 779,
+            "wrong_value": 0,
+            "unsupported": 21,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 799,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 1
+          }
+        }
+      }
+    ],
+    "programs_R1": [
+      {
+        "run": 1,
+        "practice_exact": 190,
+        "practice_error": null,
+        "test_error": null,
+        "exact": 760,
+        "unsupported": 80,
+        "withheld_wrongly": 0,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 760,
+            "wrong_value": 0,
+            "unsupported": 40,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 760,
+            "wrong_value": 0,
+            "unsupported": 40,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      },
+      {
+        "run": 2,
+        "practice_exact": 200,
+        "practice_error": null,
+        "test_error": null,
+        "exact": 800,
+        "unsupported": 0,
+        "withheld_wrongly": 0,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      },
+      {
+        "run": 3,
+        "practice_exact": 30,
+        "practice_error": null,
+        "test_error": null,
+        "exact": 120,
+        "unsupported": 0,
+        "withheld_wrongly": 680,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 120,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 680
+          },
+          "net_billed": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      }
+    ],
+    "programs_R2": [
+      {
+        "run": 1,
+        "practice_exact": 200,
+        "practice_error": null,
+        "test_error": null,
+        "exact": 800,
+        "unsupported": 0,
+        "withheld_wrongly": 0,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      },
+      {
+        "run": 2,
+        "practice_exact": 200,
+        "practice_error": null,
+        "test_error": null,
+        "exact": 800,
+        "unsupported": 0,
+        "withheld_wrongly": 0,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      },
+      {
+        "run": 3,
+        "practice_exact": 200,
+        "practice_error": null,
+        "test_error": null,
+        "exact": 800,
+        "unsupported": 0,
+        "withheld_wrongly": 0,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      }
+    ],
+    "checker_full": [
+      {
+        "exact": 800,
+        "unsupported": 0,
+        "withheld_wrongly": 0,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      }
+    ],
+    "checker_no_temporal": [
+      {
+        "exact": 560,
+        "unsupported": 0,
+        "withheld_wrongly": 0,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 640,
+            "wrong_value": 160,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 720,
+            "wrong_value": 80,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 720,
+            "wrong_value": 80,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      }
+    ],
+    "checker_no_identity": [
+      {
+        "exact": 720,
+        "unsupported": 0,
+        "withheld_wrongly": 0,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 720,
+            "wrong_value": 80,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      }
+    ],
+    "checker_no_currency": [
+      {
+        "exact": 720,
+        "unsupported": 160,
+        "withheld_wrongly": 0,
+        "invalid": 0,
+        "per_answer": {
+          "promotion_eligible": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          },
+          "net_billed": {
+            "correct": 720,
+            "wrong_value": 0,
+            "unsupported": 80,
+            "withheld_wrongly": 0
+          },
+          "support_correct": {
+            "correct": 720,
+            "wrong_value": 0,
+            "unsupported": 80,
+            "withheld_wrongly": 0
+          },
+          "plan_price": {
+            "correct": 800,
+            "wrong_value": 0,
+            "unsupported": 0,
+            "withheld_wrongly": 0
+          }
+        }
+      }
+    ]
+  },
+  "selected_R1": 2,
+  "selected_R2": 1,
+  "checker_practice_exact": 200,
+  "tokens": {
+    "A1_4o_r1": {
+      "in": 1229329,
+      "out": 28746,
+      "calls": 800
+    },
+    "A5_r2_medium_ex": {
+      "in": 5143518,
+      "out": 283483,
+      "calls": 800
+    },
+    "A4_r2_low": {
+      "in": 3807354,
+      "out": 520704,
+      "calls": 2400
+    },
+    "A2_r1_low": {
+      "in": 3687354,
+      "out": 481045,
+      "calls": 2400
+    }
+  }
+}

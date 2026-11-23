@@ -1,0 +1,199 @@
+{
+  "label": "Customer queries written by the author (30 cases; written with the case records in view)",
+  "cases": 30,
+  "classes": {
+    "identifies": 4,
+    "none_exists": 2,
+    "ambiguous": 3,
+    "misnamed": 21
+  },
+  "runs": [
+    {
+      "retrieval": "offer only, top-1",
+      "decision": "checker",
+      "right_offer": 4,
+      "exact": 15,
+      "unsupported": 3,
+      "identifiable": {
+        "n": 6,
+        "exact": 4,
+        "unsupported": 2
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 5,
+        "unsupported": 19
+      }
+    },
+    {
+      "retrieval": "offer only, top-1",
+      "decision": "program",
+      "right_offer": 4,
+      "exact": 15,
+      "unsupported": 3,
+      "identifiable": {
+        "n": 6,
+        "exact": 4,
+        "unsupported": 2
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 4,
+        "unsupported": 20
+      }
+    },
+    {
+      "retrieval": "offer only, model picks",
+      "decision": "checker",
+      "right_offer": 2,
+      "exact": 6,
+      "unsupported": 0,
+      "identifiable": {
+        "n": 6,
+        "exact": 3,
+        "unsupported": 0
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 23,
+        "unsupported": 1
+      }
+    },
+    {
+      "retrieval": "offer only, model picks",
+      "decision": "program",
+      "right_offer": 2,
+      "exact": 6,
+      "unsupported": 0,
+      "identifiable": {
+        "n": 6,
+        "exact": 3,
+        "unsupported": 0
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 23,
+        "unsupported": 1
+      }
+    },
+    {
+      "retrieval": "phone + offer, top-1",
+      "decision": "checker",
+      "right_offer": 7,
+      "exact": 17,
+      "unsupported": 3,
+      "identifiable": {
+        "n": 6,
+        "exact": 4,
+        "unsupported": 2
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 5,
+        "unsupported": 19
+      }
+    },
+    {
+      "retrieval": "phone + offer, top-1",
+      "decision": "program",
+      "right_offer": 7,
+      "exact": 18,
+      "unsupported": 3,
+      "identifiable": {
+        "n": 6,
+        "exact": 4,
+        "unsupported": 2
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 2,
+        "unsupported": 22
+      }
+    },
+    {
+      "retrieval": "phone + offer, model picks",
+      "decision": "checker",
+      "right_offer": 6,
+      "exact": 8,
+      "unsupported": 0,
+      "identifiable": {
+        "n": 6,
+        "exact": 5,
+        "unsupported": 0
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 23,
+        "unsupported": 1
+      }
+    },
+    {
+      "retrieval": "phone + offer, model picks",
+      "decision": "program",
+      "right_offer": 6,
+      "exact": 8,
+      "unsupported": 0,
+      "identifiable": {
+        "n": 6,
+        "exact": 5,
+        "unsupported": 0
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 23,
+        "unsupported": 1
+      }
+    },
+    {
+      "retrieval": "phone + offer, model picks",
+      "decision": "direct",
+      "right_offer": 6,
+      "exact": 7,
+      "unsupported": 3,
+      "identifiable": {
+        "n": 6,
+        "exact": 4,
+        "unsupported": 1
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 22,
+        "unsupported": 3
+      }
+    },
+    {
+      "retrieval": "ask when tied",
+      "decision": "checker",
+      "right_offer": 6,
+      "exact": 8,
+      "unsupported": 0,
+      "identifiable": {
+        "n": 6,
+        "exact": 5,
+        "unsupported": 0
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 22,
+        "unsupported": 2
+      }
+    },
+    {
+      "retrieval": "ask when tied",
+      "decision": "program",
+      "right_offer": 6,
+      "exact": 8,
+      "unsupported": 0,
+      "identifiable": {
+        "n": 6,
+        "exact": 5,
+        "unsupported": 0
+      },
+      "not identifiable": {
+        "n": 24,
+        "exact": 22,
+        "unsupported": 2
+      }
+    }
+  ]
+}
