@@ -1,4 +1,4 @@
-# TELCO-ECRA: Evidence-Consistent Reasoning Across Device SKUs, Billing Events, Promotions, and Customer-Support Responses
+# TELCO-ECRA: Reducing LLM Hallucinations in Telecom Support with Rule-Derived Programs
 
 Shekhar Maheshwari, 2026. Accepted for publication at IEEE ICCA 2026.
 
@@ -31,7 +31,7 @@ keyword and hybrid (keyword + embedding) search.
 ```bibtex
 @inproceedings{maheshwari2026telcoecra,
   author    = {Shekhar Maheshwari},
-  title     = {{TELCO-ECRA}: Evidence-Consistent Reasoning Across Device {SKUs}, Billing Events, Promotions, and Customer-Support Responses},
+  title     = {{TELCO-ECRA}: Reducing {LLM} Hallucinations in Telecom Support with Rule-Derived Programs},
   booktitle = {Proc. IEEE ICCA},
   year      = {2026}
 }

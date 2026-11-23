@@ -1,7 +1,7 @@
 # TELCO-ECRA: experiment data and code
 
-Experiment archive for the paper *TELCO-ECRA: Evidence-Consistent Reasoning Across Device SKUs, Billing Events,
-Promotions, and Customer-Support Responses* (S. Maheshwari, IEEE ICCA 2026). Paper details are in
+Experiment archive for the paper *TELCO-ECRA: Reducing LLM Hallucinations in Telecom Support with Rule-Derived
+Programs* (S. Maheshwari, IEEE ICCA 2026). Paper details are in
 [`docs/papers/telco-ecra/`](../../docs/papers/telco-ecra/).
 
 Every case, account, phone, plan and offer in this archive is synthetic. The 1,000-case benchmark and both retrieval
